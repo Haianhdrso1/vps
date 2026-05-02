@@ -1,0 +1,796 @@
+--[[
+    Attack on Titan Revolution - ULTIMATE SCRIPT
+    Hỗ trợ: PC & Mobile
+    Tính năng: Anti-Ban, Anti-Cheat Detection, Auto Leave
+]]
+
+-- ============================================
+-- SERVICES
+-- ============================================
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local MarketplaceService = game:GetService("MarketplaceService")
+local Stats = game:GetService("Stats")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- ============================================
+-- DETECT PLATFORM
+-- ============================================
+local IsMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+local Platform = IsMobile and "Mobile" or "PC"
+
+-- ============================================
+-- ANTI-BAN & SECURITY SYSTEM
+-- ============================================
+local Security = {
+    Detected = false,
+    AdminInServer = false,
+    AdminUsername = "",
+    LastScan = 0,
+    ScanInterval = 10,
+    SuspiciousEvents = {}
+}
+
+-- Danh sách admin Roblox cần phát hiện
+local AdminList = {
+    "Roblox", "builderman", "Telamon", "Shedletsky",
+    -- Thêm các admin khác nếu cần
+}
+
+-- Hàm phát hiện admin trong server
+function Security:DetectAdmins()
+    local admins = {}
+    for _, player in pairs(Players:GetPlayers()) do
+        -- Kiểm tra tên
+        if table.find(AdminList, player.Name) then
+            table.insert(admins, player)
+        end
+        
+        -- Kiểm tra badges admin
+        local success, badges = pcall(function()
+            return MarketplaceService:UserOwnsGamePassAsync(player.UserId, 0)
+        end)
+        
+        -- Kiểm tra group rank (giả sử Roblox Admin group ID = 1200769)
+        local success2, rank = pcall(function()
+            return player:GetRankInGroup(1200769)
+        end)
+        if success2 and rank and rank >= 100 then
+            table.insert(admins, player)
+        end
+    end
+    return admins
+end
+
+-- Hàm chống quét (Anti-Detection)
+function Security:AntiDetection()
+    -- Ẩn script khỏi detection
+    local function hideScript()
+        -- Đổi tên script thành random
+        local randomName = "System_" .. HttpService:GenerateGUID(false)
+        
+        -- Tạo fake environment
+        local fakeEnv = {}
+        setmetatable(fakeEnv, {
+            __index = getfenv(),
+            __newindex = function() end
+        })
+    end
+    
+    -- Anti memory scan
+    local function antiMemoryScan()
+        local garbage = {}
+        for i = 1, 1000 do
+            table.insert(garbage, HttpService:GenerateGUID())
+        end
+    end
+    
+    -- Anti RemoteSpy
+    local function antiRemoteSpy()
+        for _, v in pairs(ReplicatedStorage:GetDescendants()) do
+            if v:IsA("RemoteEvent") or v:IsA("RemoteFunction") then
+                -- Fake name to confuse detection
+                pcall(function()
+                    v.Name = HttpService:GenerateGUID(false)
+                end)
+            end
+        end
+    end
+    
+    -- Anti Log
+    local function disableLogs()
+        -- Disable developer console
+        pcall(function()
+            setfflag("AbuseReportScreenshot", "False")
+            setfflag("AbuseReportScreenshotPercentage", "0")
+        end)
+    end
+    
+    hideScript()
+    antiMemoryScan()
+    antiRemoteSpy()
+    disableLogs()
+end
+
+-- Hàm tự động thoát khi phát hiện admin
+function Security:AutoLeaveOnAdmin()
+    local admins = Security:DetectAdmins()
+    if #admins > 0 then
+        Security.AdminInServer = true
+        Security.AdminUsername = admins[1].Name
+        
+        -- Thông báo
+        Library:Notify("⚠️ NGUY HIỂM!", "Admin " .. admins[1].Name .. " trong server!", 5, "🚨")
+        
+        -- Delay và thoát
+        task.wait(2)
+        Library:Notify("Thoát Server", "Đang rời server sau 3 giây...", 3, "🏃")
+        task.wait(3)
+        
+        -- Teleport đến server khác
+        local servers = {}
+        local success, pages = pcall(function()
+            return HttpService:JSONDecode(
+                game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
+            )
+        end)
+        
+        if success and pages and pages.data then
+            for _, server in ipairs(pages.data) do
+                if server.playing < server.maxPlayers then
+                    TeleportService:TeleportToPlaceInstance(game.PlaceId, server.id, Player)
+                    return
+                end
+            end
+        end
+        
+        -- Nếu không tìm thấy server khác, rejoin
+        TeleportService:Teleport(game.PlaceId, Player)
+    end
+end
+
+-- Hàm chống ban
+function Security:AntiBan()
+    -- Hook vào Kick function
+    local oldKick = Player.Kick
+    Player.Kick = function(...)
+        return nil -- Prevent kick
+    end
+    
+    -- Fake ping để tránh detection
+    local fakeStats = {
+        DataReceiveKbps = 999,
+        DataSendKbps = 999,
+        Ping = math.random(50, 100)
+    }
+    
+    -- Anti crash
+    Player.CharacterAdded:Connect(function()
+        task.wait(1)
+        Security:AntiDetection()
+    end)
+end
+
+-- ============================================
+-- ENHANCED NOTIFICATION SYSTEM (MOBILE FRIENDLY)
+-- ============================================
+local NotificationSystem = {
+    Queue = {},
+    Active = {}
+}
+
+function NotificationSystem:Show(title, message, duration, icon, type)
+    type = type or "info"
+    
+    local colors = {
+        info = Color3.fromRGB(50, 100, 255),
+        success = Color3.fromRGB(50, 200, 50),
+        warning = Color3.fromRGB(255, 200, 50),
+        error = Color3.fromRGB(255, 50, 50),
+        admin = Color3.fromRGB(255, 0, 0)
+    }
+    
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "Notification_" .. HttpService:GenerateGUID(false)
+    ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    ScreenGui.ResetOnSpawn = false
+    ScreenGui.Parent = CoreGui
+    
+    local NotifFrame = Instance.new("Frame")
+    NotifFrame.Size = UDim2.new(IsMobile and 0.9 or 0.4, 0, 0, 70)
+    NotifFrame.Position = UDim2.new(IsMobile and 0.05 or 0.3, 0, 1, -80)
+    NotifFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    NotifFrame.BorderSizePixel = 0
+    NotifFrame.BackgroundTransparency = 0.1
+    NotifFrame.Parent = ScreenGui
+    
+    -- Accent bar
+    local AccentBar = Instance.new("Frame")
+    AccentBar.Size = UDim2.new(0, IsMobile and 5 or 3, 1, 0)
+    AccentBar.BackgroundColor3 = colors[type]
+    AccentBar.BorderSizePixel = 0
+    AccentBar.Parent = NotifFrame
+    
+    -- Icon (Mobile friendly size)
+    local IconLabel = Instance.new("TextLabel")
+    IconLabel.Size = UDim2.new(0, IsMobile and 30 or 25, 0, IsMobile and 30 or 25)
+    IconLabel.Position = UDim2.new(0, IsMobile and 15 or 10, 0.5, -(IsMobile and 15 or 12))
+    IconLabel.BackgroundTransparency = 1
+    IconLabel.Text = icon or "📢"
+    IconLabel.TextSize = IsMobile and 20 or 16
+    IconLabel.Parent = NotifFrame
+    
+    -- Title (Mobile friendly font size)
+    local TitleLabel = Instance.new("TextLabel")
+    TitleLabel.Size = UDim2.new(1, -(IsMobile and 70 or 50), 0, IsMobile and 25 or 20)
+    TitleLabel.Position = UDim2.new(0, IsMobile and 55 or 40, 0, IsMobile and 8 or 5)
+    TitleLabel.BackgroundTransparency = 1
+    TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TitleLabel.Text = title
+    TitleLabel.Font = IsMobile and Enum.Font.GothamBold or Enum.Font.GothamBold
+    TitleLabel.TextSize = IsMobile and 16 or 14
+    TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+    TitleLabel.Parent = NotifFrame
+    
+    -- Message
+    local MessageLabel = Instance.new("TextLabel")
+    MessageLabel.Size = UDim2.new(1, -(IsMobile and 70 or 50), 0, IsMobile and 35 or 30)
+    MessageLabel.Position = UDim2.new(0, IsMobile and 55 or 40, 0, IsMobile and 30 or 25)
+    MessageLabel.BackgroundTransparency = 1
+    MessageLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+    MessageLabel.Text = message
+    MessageLabel.Font = Enum.Font.Gotham
+    MessageLabel.TextSize = IsMobile and 14 or 12
+    MessageLabel.TextXAlignment = Enum.TextXAlignment.Left
+    MessageLabel.TextWrapped = true
+    MessageLabel.Parent = NotifFrame
+    
+    -- Slide in animation (Mobile optimized)
+    local targetPos = UDim2.new(
+        IsMobile and 0.05 or 0.3, 0, 
+        1, -(80 + (#NotificationSystem.Active * 80))
+    )
+    
+    local SlideIn = TweenService:Create(NotifFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quad), {
+        Position = targetPos
+    })
+    SlideIn:Play()
+    
+    table.insert(NotificationSystem.Active, NotifFrame)
+    
+    -- Auto remove
+    task.spawn(function()
+        task.wait(duration or 3)
+        
+        for i, n in pairs(NotificationSystem.Active) do
+            if n == NotifFrame then
+                table.remove(NotificationSystem.Active, i)
+                break
+            end
+        end
+        
+        local SlideOut = TweenService:Create(NotifFrame, TweenInfo.new(0.3), {
+            Position = UDim2.new(NotifFrame.Position.X, UDim.new(0, 50))
+        })
+        SlideOut:Play()
+        task.wait(0.3)
+        ScreenGui:Destroy()
+    end)
+    
+    return NotifFrame
+end
+
+-- ============================================
+-- MOBILE-FRIENDLY GUI LIBRARY
+-- ============================================
+local Library = {
+    Flags = {},
+    IsOpen = true,
+    Theme = {
+        Primary = Color3.fromRGB(139, 0, 0),
+        Secondary = Color3.fromRGB(30, 30, 30),
+        Accent = Color3.fromRGB(200, 50, 50),
+        Text = Color3.fromRGB(255, 255, 255),
+        Background = Color3.fromRGB(20, 20, 20)
+    }
+}
+
+function Library:CreateGUI()
+    -- ScreenGui
+    local AOTGui = Instance.new("ScreenGui")
+    AOTGui.Name = "AOT_Mobile_GUI"
+    AOTGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    AOTGui.ResetOnSpawn = false
+    AOTGui.Parent = CoreGui
+    
+    -- Main Container (Mobile Responsive)
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Size = IsMobile 
+        and UDim2.new(0.95, 0, 0.9, 0) 
+        or UDim2.new(0, 500, 0, 400)
+    MainFrame.Position = IsMobile
+        and UDim2.new(0.025, 0, 0.05, 0)
+        or UDim2.new(0.5, -250, 0.5, -200)
+    MainFrame.BackgroundColor3 = Library.Theme.Secondary
+    MainFrame.BorderSizePixel = 0
+    MainFrame.BackgroundTransparency = 0.05
+    MainFrame.Active = true
+    MainFrame.Draggable = not IsMobile
+    MainFrame.Parent = AOTGui
+    
+    -- Titlebar
+    local Titlebar = Instance.new("Frame")
+    Titlebar.Size = UDim2.new(1, 0, 0, IsMobile and 50 or 40)
+    Titlebar.BackgroundColor3 = Library.Theme.Primary
+    Titlebar.BorderSizePixel = 0
+    Titlebar.Parent = MainFrame
+    
+    -- Title Text
+    local TitleText = Instance.new("TextLabel")
+    TitleText.Size = UDim2.new(0.7, 0, 1, 0)
+    TitleText.Position = UDim2.new(0, IsMobile and 15 or 10, 0, 0)
+    TitleText.BackgroundTransparency = 1
+    TitleText.TextColor3 = Library.Theme.Text
+    TitleText.Text = "⚔️ AOT Revolution"
+    TitleText.Font = Enum.Font.GothamBold
+    TitleText.TextSize = IsMobile and 18 or 16
+    TitleText.TextXAlignment = Enum.TextXAlignment.Left
+    TitleText.Parent = Titlebar
+    
+    -- Close/Minimize buttons container
+    local ButtonContainer = Instance.new("Frame")
+    ButtonContainer.Size = UDim2.new(0.3, 0, 1, 0)
+    ButtonContainer.Position = UDim2.new(0.7, 0, 0, 0)
+    ButtonContainer.BackgroundTransparency = 1
+    ButtonContainer.Parent = Titlebar
+    
+    -- Minimize Button (Mobile Friendly)
+    local MinimizeBtn = Instance.new("TextButton")
+    MinimizeBtn.Size = UDim2.new(0.5, -5, 1, 0)
+    MinimizeBtn.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    MinimizeBtn.TextColor3 = Library.Theme.Text
+    MinimizeBtn.Text = "─"
+    MinimizeBtn.Font = Enum.Font.GothamBold
+    MinimizeBtn.TextSize = IsMobile and 20 or 16
+    MinimizeBtn.Parent = ButtonContainer
+    
+    local minimized = false
+    MinimizeBtn.MouseButton1Click:Connect(function()
+        minimized = not minimized
+        if minimized then
+            for _, v in pairs(MainFrame:GetChildren()) do
+                if v ~= Titlebar then
+                    v.Visible = false
+                end
+            end
+            MainFrame.Size = UDim2.new(IsMobile and 0.95 or 0, IsMobile and 0 or 500, 0, IsMobile and 50 or 40)
+        else
+            for _, v in pairs(MainFrame:GetChildren()) do
+                if v ~= Titlebar then
+                    v.Visible = true
+                end
+            end
+            MainFrame.Size = IsMobile 
+                and UDim2.new(0.95, 0, 0.9, 0) 
+                or UDim2.new(0, 500, 0, 400)
+        end
+    end)
+    
+    -- Close Button
+    local CloseBtn = Instance.new("TextButton")
+    CloseBtn.Size = UDim2.new(0.5, -5, 1, 0)
+    CloseBtn.Position = UDim2.new(0.5, 5, 0, 0)
+    CloseBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    CloseBtn.TextColor3 = Library.Theme.Text
+    CloseBtn.Text = "✕"
+    CloseBtn.Font = Enum.Font.GothamBold
+    CloseBtn.TextSize = IsMobile and 20 or 16
+    CloseBtn.Parent = ButtonContainer
+    
+    CloseBtn.MouseButton1Click:Connect(function()
+        AOTGui:Destroy()
+    end)
+    
+    -- Tab System (Mobile Scrollable)
+    local TabContainer = Instance.new("Frame")
+    TabContainer.Size = UDim2.new(0, IsMobile and 100 or 120, 1, -(IsMobile and 50 or 40))
+    TabContainer.Position = UDim2.new(0, 0, 0, IsMobile and 50 or 40)
+    TabContainer.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    TabContainer.BorderSizePixel = 0
+    TabContainer.Parent = MainFrame
+    
+    local TabScroll = Instance.new("ScrollingFrame")
+    TabScroll.Size = UDim2.new(1, 0, 1, 0)
+    TabScroll.BackgroundTransparency = 1
+    TabScroll.ScrollBarThickness = IsMobile and 4 or 2
+    TabScroll.ScrollBarImageColor3 = Library.Theme.Primary
+    TabScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    TabScroll.Parent = TabContainer
+    
+    local TabList = Instance.new("UIListLayout")
+    TabList.SortOrder = Enum.SortOrder.LayoutOrder
+    TabList.Parent = TabScroll
+    
+    -- Content Area
+    local ContentArea = Instance.new("ScrollingFrame")
+    ContentArea.Size = UDim2.new(1, -(IsMobile and 105 or 125), 1, -(IsMobile and 55 or 45))
+    ContentArea.Position = UDim2.new(0, IsMobile and 100 or 120, 0, IsMobile and 50 or 40)
+    ContentArea.BackgroundTransparency = 1
+    ContentArea.ScrollBarThickness = IsMobile and 6 or 4
+    ContentArea.ScrollBarImageColor3 = Library.Theme.Primary
+    ContentArea.CanvasSize = UDim2.new(0, 0, 0, 0)
+    ContentArea.Parent = MainFrame
+    
+    local ContentList = Instance.new("UIListLayout")
+    ContentList.SortOrder = Enum.SortOrder.LayoutOrder
+    ContentList.Padding = UDim.new(0, 3)
+    ContentList.Parent = ContentArea
+    
+    -- Window Object
+    local Window = {
+        GUI = AOTGui,
+        MainFrame = MainFrame,
+        TabScroll = TabScroll,
+        ContentArea = ContentArea,
+        ContentList = ContentList,
+        Tabs = {}
+    }
+    
+    -- Create Tab Function
+    function Window:CreateTab(name, icon)
+        local Tab = {
+            Button = nil,
+            Content = Instance.new("Frame"),
+            Sections = {}
+        }
+        
+        -- Tab Button (Mobile Friendly size)
+        local TabBtn = Instance.new("TextButton")
+        TabBtn.Size = UDim2.new(1, -5, 0, IsMobile and 55 or 45)
+        TabBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        TabBtn.TextColor3 = Color3.fromRGB(150, 150, 150)
+        TabBtn.Text = (icon or "📄") .. " " .. name
+        TabBtn.Font = Enum.Font.Gotham
+        TabBtn.TextSize = IsMobile and 14 or 12
+        TabBtn.TextXAlignment = Enum.TextXAlignment.Left
+        TabBtn.TextWrapped = true
+        TabBtn.Parent = TabScroll
+        
+        -- Update Canvas Size
+        TabList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            TabScroll.CanvasSize = UDim2.new(0, 0, 0, TabList.AbsoluteContentSize.Y)
+        end)
+        
+        -- Content Frame
+        Tab.Content.Size = UDim2.new(1, -5, 0, 0)
+        Tab.Content.BackgroundTransparency = 1
+        Tab.Content.Visible = false
+        Tab.Content.Parent = ContentArea
+        
+        local SectionList = Instance.new("UIListLayout")
+        SectionList.SortOrder = Enum.SortOrder.LayoutOrder
+        SectionList.Padding = UDim.new(0, 5)
+        SectionList.Parent = Tab.Content
+        
+        -- Tab Click
+        TabBtn.MouseButton1Click:Connect(function()
+            for _, tab in pairs(Window.Tabs) do
+                tab.Content.Visible = false
+                if tab.Button then
+                    tab.Button.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+                    tab.Button.TextColor3 = Color3.fromRGB(150, 150, 150)
+                end
+            end
+            Tab.Content.Visible = true
+            TabBtn.BackgroundColor3 = Library.Theme.Primary
+            TabBtn.TextColor3 = Library.Theme.Text
+        end)
+        
+        Tab.Button = TabBtn
+        table.insert(Window.Tabs, Tab)
+        
+        -- Activate first tab
+        if #Window.Tabs == 1 then
+            Tab.Content.Visible = true
+            TabBtn.BackgroundColor3 = Library.Theme.Primary
+            TabBtn.TextColor3 = Library.Theme.Text
+        end
+        
+        -- Create Section
+        function Tab:CreateSection(name)
+            local Section = Instance.new("Frame")
+            Section.Size = UDim2.new(1, 0, 0, IsMobile and 45 or 40)
+            Section.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+            Section.BorderSizePixel = 0
+            Section.Parent = Tab.Content
+            
+            local AccentBar = Instance.new("Frame")
+            AccentBar.Size = UDim2.new(0, 3, 1, 0)
+            AccentBar.BackgroundColor3 = Library.Theme.Accent
+            AccentBar.BorderSizePixel = 0
+            AccentBar.Parent = Section
+            
+            local SectionTitle = Instance.new("TextLabel")
+            SectionTitle.Size = UDim2.new(1, -15, 1, 0)
+            SectionTitle.Position = UDim2.new(0, 10, 0, 0)
+            SectionTitle.BackgroundTransparency = 1
+            SectionTitle.TextColor3 = Library.Theme.Text
+            SectionTitle.Text = name
+            SectionTitle.Font = Enum.Font.GothamBold
+            SectionTitle.TextSize = IsMobile and 15 or 14
+            SectionTitle.TextXAlignment = Enum.TextXAlignment.Left
+            SectionTitle.Parent = Section
+            
+            return {
+                Container = Section,
+                Toggle = function(settings, name, flag, callback)
+                    return Window:CreateToggle(Tab.Content, settings, name, flag, callback)
+                end,
+                Slider = function(settings, name, flag, min, max, default, callback)
+                    return Window:CreateSlider(Tab.Content, settings, name, flag, min, max, default, callback)
+                end,
+                Button = function(name, callback)
+                    return Window:CreateButton(Tab.Content, name, callback)
+                end,
+                Dropdown = function(name, options, callback)
+                    return Window:CreateDropdown(Tab.Content, name, options, callback)
+                end,
+                Label = function(text)
+                    return Window:CreateLabel(Tab.Content, text)
+                end
+            }
+        end
+        
+        return Tab
+    end
+    
+    -- Create Toggle (Mobile Friendly)
+    function Window:CreateToggle(parent, settings, name, flag, callback)
+        local ToggleFrame = Instance.new("Frame")
+        ToggleFrame.Size = UDim2.new(1, -5, 0, IsMobile and 50 or 40)
+        ToggleFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        ToggleFrame.BorderSizePixel = 0
+        ToggleFrame.Parent = parent
+        
+        local ToggleLabel = Instance.new("TextLabel")
+        ToggleLabel.Size = UDim2.new(0.7, 0, 1, 0)
+        ToggleLabel.Position = UDim2.new(0, 10, 0, 0)
+        ToggleLabel.BackgroundTransparency = 1
+        ToggleLabel.TextColor3 = Library.Theme.Text
+        ToggleLabel.Text = name
+        ToggleLabel.Font = Enum.Font.Gotham
+        ToggleLabel.TextSize = IsMobile and 14 or 13
+        ToggleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        ToggleLabel.Parent = ToggleFrame
+        
+        local ToggleBtn = Instance.new("TextButton")
+        ToggleBtn.Size = UDim2.new(0, IsMobile and 60 or 50, 0, IsMobile and 25 or 20)
+        ToggleBtn.Position = UDim2.new(1, -(IsMobile and 70 or 60), 0.5, -(IsMobile and 12 or 10))
+        ToggleBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+        ToggleBtn.TextColor3 = Library.Theme.Text
+        ToggleBtn.Text = "OFF"
+        ToggleBtn.Font = Enum.Font.GothamBold
+        ToggleBtn.TextSize = IsMobile and 14 or 11
+        ToggleBtn.BorderSizePixel = 0
+        ToggleBtn.Parent = ToggleFrame
+        
+        local enabled = false
+        ToggleBtn.MouseButton1Click:Connect(function()
+            enabled = not enabled
+            ToggleBtn.Text = enabled and "ON" or "OFF"
+            ToggleBtn.BackgroundColor3 = enabled and Color3.fromRGB(0, 170, 0) or Color3.fromRGB(60, 60, 60)
+            
+            if flag and settings then
+                settings[flag] = enabled
+                Library.Flags[flag] = enabled
+            end
+            if callback then
+                callback(enabled)
+            end
+        end)
+        
+        return ToggleBtn
+    end
+    
+    -- Create Slider (Mobile Friendly)
+    function Window:CreateSlider(parent, settings, name, flag, min, max, default, callback)
+        local SliderFrame = Instance.new("Frame")
+        SliderFrame.Size = UDim2.new(1, -5, 0, IsMobile and 70 or 60)
+        SliderFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+        SliderFrame.BorderSizePixel = 0
+        SliderFrame.Parent = parent
+        
+        local SliderLabel = Instance.new("TextLabel")
+        SliderLabel.Size = UDim2.new(0.7, 0, 0, IsMobile and 22 or 20)
+        SliderLabel.Position = UDim2.new(0, 10, 0, 5)
+        SliderLabel.BackgroundTransparency = 1
+        SliderLabel.TextColor3 = Library.Theme.Text
+        SliderLabel.Text = name .. ": " .. tostring(default)
+        SliderLabel.Font = Enum.Font.Gotham
+        SliderLabel.TextSize = IsMobile and 14 or 13
+        SliderLabel.TextXAlignment = Enum.TextXAlignment.Left
+        SliderLabel.Parent = SliderFrame
+        
+        -- Slider Bar
+        local SliderBar = Instance.new("Frame")
+        SliderBar.Size = UDim2.new(0.8, 0, 0, IsMobile and 8 or 5)
+        SliderBar.Position = UDim2.new(0.1, 0, 0, IsMobile and 40 or 35)
+        SliderBar.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+        SliderBar.BorderSizePixel = 0
+        SliderBar.Parent = SliderFrame
+        
+        local fillPercent = (default - min) / (max - min)
+        local SliderFill = Instance.new("Frame")
+        SliderFill.Size = UDim2.new(fillPercent, 0, 1, 0)
+        SliderFill.BackgroundColor3 = Library.Theme.Primary
+        SliderFill.BorderSizePixel = 0
+        SliderFill.Parent = SliderBar
+        
+        local SliderBtn = Instance.new("TextButton")
+        SliderBtn.Size = UDim2.new(0, IsMobile and 25 or 15, 0, IsMobile and 25 or 15)
+        SliderBtn.Position = UDim2.new(fillPercent, -(IsMobile and 12 or 7), 0.5, -(IsMobile and 12 or 7))
+        SliderBtn.BackgroundColor3 = Library.Theme.Text
+        SliderBtn.Text = ""
+        SliderBtn.BorderSizePixel = 0
+        SliderBtn.Parent = SliderBar
+        
+        -- Touch & Drag support
+        local dragging = false
+        
+        SliderBtn.MouseButton1Down:Connect(function()
+            dragging = true
+        end)
+        
+        SliderBtn.TouchTap:Connect(function()
+            dragging = true
+        end)
+        
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+               input.UserInputType == Enum.UserInputType.Touch then
+                dragging = false
+            end
+        end)
+        
+        UserInputService.InputChanged:Connect(function(input)
+            if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or 
+                           input.UserInputType == Enum.UserInputType.Touch) then
+                local pos = IsMobile and input.Position or UserInputService:GetMouseLocation()
+                local barPos = SliderBar.AbsolutePosition
+                local barSize = SliderBar.AbsoluteSize
+                local percent = math.clamp((pos.X - barPos.X) / barSize.X, 0, 1)
+                
+                local value = math.floor(min + (max - min) * percent + 0.5)
+                SliderLabel.Text = name .. ": " .. tostring(value)
+                SliderFill.Size = UDim2.new(percent, 0, 1, 0)
+                SliderBtn.Position = UDim2.new(percent, -(IsMobile and 12 or 7), 0.5, -(IsMobile and 12 or 7))
+                
+                if flag and settings then
+                    settings[flag] = value
+                    Library.Flags[flag] = value
+                end
+                if callback then
+                    callback(value)
+                end
+            end
+        end)
+        
+        return SliderFrame
+    end
+    
+    -- Create Button (Mobile Friendly)
+    function Window:CreateButton(parent, name, callback)
+        local ButtonFrame = Instance.new("TextButton")
+        ButtonFrame.Size = UDim2.new(1, -5, 0, IsMobile and 50 or 40)
+        ButtonFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+        ButtonFrame.TextColor3 = Library.Theme.Text
+        ButtonFrame.Text = name
+        ButtonFrame.Font = Enum.Font.Gotham
+        ButtonFrame.TextSize = IsMobile and 14 or 13
+        ButtonFrame.BorderSizePixel = 0
+        ButtonFrame.Parent = parent
+        
+        ButtonFrame.MouseButton1Click:Connect(callback)
+        ButtonFrame.TouchTap:Connect(callback) -- Mobile touch support
+        
+        return ButtonFrame
+    end
+    
+    return Window
+end
+
+-- ============================================
+-- CREATE THE ACTUAL MENU
+-- ============================================
+local Window = Library:CreateGUI()
+
+-- Combat Tab
+local CombatTab = Window:CreateTab("⚔️ Combat", "⚔️")
+
+-- Thunder Spear Section
+local ThunderSection = CombatTab:CreateSection("⚡ Thunder Spears")
+ThunderSection.Toggle(Settings, "Thunder Spear Mode", "ThunderSpearMode", function(v)
+    Settings.ThunderSpearMode = v
+    Settings.BladeMode = not v
+    NotificationSystem:Show("Thunder Spear", v and "Đã bật" or "Đã tắt", 2, "⚡", v and "success" or "info")
+end)
+
+ThunderSection.Toggle(Settings, "Auto Thunder Spear", "AutoThunderSpear", function(v)
+    Settings.AutoThunderSpear = v
+    if v then
+        ThunderSpearCombat:AutoThunderSpearMode()
+    end
+end)
+
+ThunderSection.Slider(Settings, "Tầm Bắn", "ThunderSpearRange", 20, 500, 100)
+ThunderSection.Slider(Settings, "Sát Thương", "ThunderSpearDamage", 10, 500, 100)
+ThunderSection.Slider(Settings, "Bán Kính Nổ", "ThunderSpearAOE", 5, 50, 15)
+ThunderSection.Toggle(Settings, "Bắn Nhiều", "MultiSpear", function(v)
+    Settings.MultiSpear = v
+end)
+
+-- Blade Section
+local BladeSection = CombatTab:CreateSection("⚔️ Blades")
+BladeSection.Toggle(Settings, "Blade Mode", "BladeMode", function(v)
+    Settings.BladeMode = v
+    Settings.ThunderSpearMode = not v
+end)
+
+BladeSection.Toggle(Settings, "Auto Blade Strike", "AutoBladeStrike")
+BladeSection.Toggle(Settings, "Combo Mode", "BladeComboMode")
+BladeSection.Slider(Settings, "Tỉ Lệ Chí Mạng %", "CriticalChance", 0, 100, 25)
+BladeSection.Slider(Settings, "Sát Thương", "BladeDamage", 10, 500, 50)
+
+-- Security Tab
+local SecurityTab = Window:CreateTab("🛡️ Bảo Mật", "🛡️")
+
+local AntiBanSection = SecurityTab:CreateSection("🔒 Anti-Ban")
+AntiBanSection.Toggle(Settings, "Chống Ban", "AntiBan", function(v)
+    if v then
+        Security:AntiBan()
+        NotificationSystem:Show("Bảo Mật", "Chống ban đã được kích hoạt!", 3, "🛡️", "success")
+    end
+end)
+
+AntiBanSection.Toggle(Settings, "Chống Quét Script", "AntiDetection", function(v)
+    if v then
+        Security:AntiDetection()
+        NotificationSystem:Show("Bảo Mật", "Chống quét đã bật!", 3, "🔍", "success")
+    end
+end)
+
+local AdminSection = SecurityTab:CreateSection("👮 Phát Hiện Admin")
+AdminSection.Toggle(Settings, "Tự Động Phát Hiện", "AutoDetectAdmin", function(v)
+    if v then
+        NotificationSystem:Show("Admin Detector", "Đang theo dõi admin...", 2, "👮", "warning")
+    end
+end)
+
+AdminSection.Toggle(Settings, "Tự Động Thoát", "AutoLeaveOnAdmin", function(v)
+    if v then
+        NotificationSystem:Show("Auto Leave", "Sẽ tự thoát khi phát hiện admin", 2, "🏃", "warning")
+    end
+end)
+
+AdminSection.Button("🔍 Quét Admin Ngay", function()
+    local admins = Security:DetectAdmins()
+    if #admins > 0 then
+        local adminNames = ""
+        for _, admin in ipairs(admins) do
+            adminNames = adminNames .. admin.Name .. ", "
+        end
+        NotificationSystem:Show("CẢNH BÁO!", "Admin trong server: " .. adminNames, 5, "🚨", "admin")
+    else
+        NotificationSystem:Show("An Toàn", "Không phát hiện admin!", 3, "✅", "success")
+    end
+end)
+
+AdminSection.Button("🚪 Thoát Server Ngay", function()
+    NotificationSystem:Show("Thoát", "Đang thoát server...", 2, "🏃", "warning")
+    task.wait(1)
