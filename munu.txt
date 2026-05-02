@@ -1,0 +1,276 @@
+-- ╔══════════════════════════════════════════════════╗
+-- ║   AoT Revolution — All-in-One Script  v3.0      ║
+-- ║   Hỗ trợ: Synapse X, KRNL, Fluxus, Delta,       ║
+-- ║           Arceus X, Hydrogen, JJSploit           ║
+-- ╚══════════════════════════════════════════════════╝
+
+-- ══════════════════════════════════════════
+   §1  SERVICES & LOCALS
+══════════════════════════════════════════
+local Players    = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UIS        = game:GetService("UserInputService")
+local lp         = Players.LocalPlayer
+local char       = lp.Character or lp.CharacterAdded:Wait()
+local hrp        = char:WaitForChild("HumanoidRootPart")
+local hum        = char:WaitForChild("Humanoid")
+
+-- ══════════════════════════════════════════
+   §2  SHARED STATE
+══════════════════════════════════════════
+local S = {
+  -- anti-detect
+  SafeMode    = false,
+  ActionDelay = 0.15,
+  -- farm
+  AutoFarm    = false,
+  FarmRadius  = 150,
+  -- esp
+  TitanESP    = false,
+  PlayerESP   = false,
+  -- speed / fly
+  FlyOn       = false,
+  FlySpeed    = 80,
+  -- quest
+  AutoQuest   = false,
+  AutoStory   = false,
+}
+
+-- ══════════════════════════════════════════
+   §3  ANTI-DETECT CORE
+══════════════════════════════════════════
+
+-- 3a. Random wait với jitter
+local function RandWait(base, jitter)
+  task.wait(base + math.random() * (jitter or 0.1))
+end
+
+-- 3b. Rate limiter (action/giây)
+local _lastAct = 0
+local function CanAct()
+  local now = tick()
+  local gap = S.ActionDelay + (math.random()-0.5)*0.08
+  if now - _lastAct >= gap then
+    _lastAct = now; return true
+  end
+  return false
+end
+
+-- 3c. Teleport an toàn (jitter vị trí)
+local function SafeTP(cf)
+  if S.SafeMode then return end
+  hrp.CFrame = cf * CFrame.new(
+    (math.random()-0.5)*1.5, 0,
+    (math.random()-0.5)*1.5)
+end
+
+-- 3d. Phát hiện admin/moderator
+local ADMIN_KW = {"mod","admin","staff","roblox","moderator"}
+RunService.Heartbeat:Connect(function()
+  local found = false
+  for _, p in pairs(Players:GetPlayers()) do
+    if p ~= lp then
+      local n = p.Name:lower()
+      for _, k in pairs(ADMIN_KW) do
+        if n:find(k) then found=true break end
+      end
+    end
+  end
+  if found ~= S.SafeMode then
+    S.SafeMode = found
+    warn(found
+      and "[AoT] ⚠ Admin gần — tạm dừng script"
+      or  "[AoT] ✅ Admin đã đi — tiếp tục")
+  end
+end)
+
+-- 3e. Anti-AFK (giả lập phím ~mỗi 1 phút)
+task.spawn(function()
+  while true do
+    task.wait(math.random(55, 80))
+    pcall(function()
+      local VIM = game:GetService("VirtualInputManager")
+      VIM:SendKeyEvent(true,  Enum.KeyCode.W, false, game)
+      task.wait(math.random()*0.3)
+      VIM:SendKeyEvent(false, Enum.KeyCode.W, false, game)
+    end)
+  end
+end)
+
+-- ══════════════════════════════════════════
+   §4  GUI — OrionLib
+══════════════════════════════════════════
+local Orion = loadstring(game:HttpGet(
+  "https://raw.githubusercontent.com/shlexware/Orion/main/source"
+))()
+
+local Win = Orion:MakeWindow({
+  Name         = "⚔  AoT Revolution Pro",
+  HidePremium  = false,
+  SaveConfig   = true,
+  ConfigFolder = "AoTPro",
+  IntroText    = "AoT Revolution Script",
+})
+
+-- ══════════════════════════════════════════
+   §5  TAB: AUTO FARM
+══════════════════════════════════════════
+local T1 = Win:MakeTab({Name="⚔ Auto Farm"})
+
+T1:AddToggle({Name="Auto Farm Titans", Default=false,
+  Callback=function(v) S.AutoFarm=v end})
+
+T1:AddSlider({Name="Farm Radius", Min=50, Max=500, Default=150,
+  Callback=function(v) S.FarmRadius=v end})
+
+T1:AddSlider({Name="Delay action (ms)", Min=50, Max=500, Default=150,
+  Callback=function(v) S.ActionDelay=v/1000 end})
+
+T1:AddButton({Name="Kill All Titans Nearby", Callback=function()
+  if S.SafeMode then
+    warn("[AoT] ⚠ Đợi admin đi đã!"); return
+  end
+  for _,m in pairs(workspace:GetDescendants()) do
+    local h=m:FindFirstChildOfClass("Humanoid")
+    if h then h.Health=0; RandWait(0.03,0.04) end
+  end
+end})
+
+RunService.Heartbeat:Connect(function()
+  if not S.AutoFarm or S.SafeMode or not CanAct() then return end
+  for _,o in pairs(workspace:GetDescendants()) do
+    if o:IsA("Model") and o:FindFirstChildOfClass("Humanoid") then
+      local r=o:FindFirstChild("HumanoidRootPart")
+      if r and (hrp.Position-r.Position).Magnitude<=S.FarmRadius then
+        SafeTP(r.CFrame*CFrame.new(0,0,-3))
+        pcall(function()
+          game.ReplicatedStorage.RemoteEvent:FireServer("Attack",o)
+        end)
+      end
+    end
+  end
+end)
+
+-- ══════════════════════════════════════════
+   §6  TAB: ESP
+══════════════════════════════════════════
+local T2     = Win:MakeTab({Name="👁 ESP"})
+local espMap = {}
+
+local function newBox()
+  local b=Drawing.new("Square")
+  b.Color=Color3.fromRGB(255,80,20)
+  b.Thickness=1.5;b.Filled=false
+  local l=Drawing.new("Text")
+  l.Size=13;l.Color=Color3.fromRGB(255,210,30)
+  l.Outline=true;l.Center=true
+  return {b=b,l=l}
+end
+
+T2:AddToggle({Name="Titan ESP (Box + Dist)", Default=false,
+  Callback=function(v) S.TitanESP=v end})
+T2:AddToggle({Name="Player ESP", Default=false,
+  Callback=function(v) S.PlayerESP=v end})
+
+RunService.RenderStepped:Connect(function()
+  for _,o in pairs(workspace:GetDescendants()) do
+    if o:IsA("Model") and o:FindFirstChild("HumanoidRootPart") then
+      local isPlayer = Players:GetPlayerFromCharacter(o) ~= nil
+      local show = (isPlayer and S.PlayerESP) or
+                   (not isPlayer and S.TitanESP)
+      if not espMap[o] then espMap[o]=newBox() end
+      local e=espMap[o]
+      local r=o:FindFirstChild("HumanoidRootPart")
+      local p,vis=workspace.CurrentCamera
+        :WorldToViewportPoint(r.Position)
+      local sc=2000/p.Z
+      e.b.Color = isPlayer
+        and Color3.fromRGB(30,180,255)
+        or  Color3.fromRGB(255,80,20)
+      e.b.Size    =Vector2.new(sc,sc*1.8)
+      e.b.Position=Vector2.new(p.X-sc/2,p.Y-sc)
+      e.b.Visible =show and vis
+      e.l.Text    =o.Name.." ["..math.floor(p.Z).."m]"
+      e.l.Position=Vector2.new(p.X,p.Y-sc-14)
+      e.l.Visible =show and vis
+    end
+  end
+end)
+
+-- ══════════════════════════════════════════
+   §7  TAB: SPEED / FLY
+══════════════════════════════════════════
+local T3  = Win:MakeTab({Name="💨 Speed/Fly"})
+local flyParts = {}
+
+T3:AddSlider({Name="WalkSpeed",Min=16,Max=500,Default=16,
+  Callback=function(v) hum.WalkSpeed=v end})
+T3:AddSlider({Name="JumpPower",Min=50,Max=500,Default=50,
+  Callback=function(v) hum.JumpPower=v end})
+T3:AddSlider({Name="Fly Speed",Min=10,Max=300,Default=80,
+  Callback=function(v) S.FlySpeed=v end})
+
+T3:AddToggle({Name="Fly  [W/S = tiến/lùi | Space/Ctrl = lên/xuống]",
+  Default=false, Callback=function(v)
+    S.FlyOn=v
+    if v then
+      local bg=Instance.new("BodyGyro",hrp)
+      local bv=Instance.new("BodyVelocity",hrp)
+      bg.MaxTorque=Vector3.new(9e9,9e9,9e9)
+      bv.MaxForce =Vector3.new(9e9,9e9,9e9)
+      flyParts={bg,bv}
+      task.spawn(function()
+        while S.FlyOn do
+          local cf=workspace.CurrentCamera.CFrame
+          local d=Vector3.zero
+          if UIS:IsKeyDown(Enum.KeyCode.W) then d+=cf.LookVector end
+          if UIS:IsKeyDown(Enum.KeyCode.S) then d-=cf.LookVector end
+          if UIS:IsKeyDown(Enum.KeyCode.Space) then
+            d+=Vector3.new(0,1,0) end
+          if UIS:IsKeyDown(Enum.KeyCode.LeftControl) then
+            d+=Vector3.new(0,-1,0) end
+          bv.Velocity=d*S.FlySpeed; bg.CFrame=cf
+          task.wait()
+        end
+        for _,x in pairs(flyParts) do x:Destroy() end
+      end)
+    end
+  end})
+
+-- ══════════════════════════════════════════
+   §8  TAB: AUTO QUEST
+══════════════════════════════════════════
+local T4 = Win:MakeTab({Name="📜 Auto Quest"})
+
+T4:AddToggle({Name="Auto Accept Quest", Default=false,
+  Callback=function(v) S.AutoQuest=v end})
+T4:AddToggle({Name="Auto Story Mode", Default=false,
+  Callback=function(v) S.AutoStory=v end})
+
+task.spawn(function()
+  while true do
+    RandWait(0.8, 0.4)
+    if (S.AutoQuest or S.AutoStory) and not S.SafeMode then
+      for _,o in pairs(workspace:GetDescendants()) do
+        local n=o.Name:lower()
+        if n:find("quest") or n:find("npc") then
+          local r=o:FindFirstChild("HumanoidRootPart")
+          if r then
+            SafeTP(r.CFrame*CFrame.new(0,0,-4))
+            RandWait(0.25, 0.15)
+            pcall(function()
+              game.ReplicatedStorage.QuestRemote
+                :FireServer("AcceptQuest")
+            end)
+          end
+        end
+      end
+    end
+  end
+end)
+
+-- ══════════════════════════════════════════
+   §9  INIT
+══════════════════════════════════════════
+Orion:Init()
+print("[AoT Pro] ✅ Script loaded! Nhấn RightShift để toggle menu.")
