@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Video Translator - Tự động Dịch & Lồng tiếng Video</title>
+    <meta name="description" content="Công cụ dịch thuật video tự động bằng AI. Hỗ trợ tạo phụ đề SRT, lồng tiếng nhiều ngôn ngữ với giọng đọc AI tự nhiên.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="glass-bg"></div>
+    <div class="glow-orb glow-1"></div>
+    <div class="glow-orb glow-2"></div>
+
+    <div class="app-container">
+        <header class="app-header">
+            <div class="logo">
+                <i class="fa-solid fa-wand-magic-sparkles magic-icon"></i>
+                <h1>AI Video <span>Translator</span></h1>
+            </div>
+            <p class="subtitle">Dịch thuật, tạo phụ đề SRT và lồng tiếng video tự động bằng công nghệ AI tiên tiến</p>
+        </header>
+
+        <main class="app-workspace">
+            <!-- Left Panel -->
+            <section class="panel control-panel">
+                <div class="panel-header">
+                    <h2><i class="fa-solid fa-sliders"></i> Cấu hình & Xu xử lý</h2>
+                </div>
+
+                <div class="upload-container" id="drop-zone">
+                    <input type="file" id="video-input" accept="video/*" hidden>
+                    <div class="upload-box-content">
+                        <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                        <p class="upload-title">Kéo thả file video vào đây</p>
+                        <p class="upload-subtitle">hoặc nhấn để duyệt file (MP4, MKV, AVI, MOV)</p>
+                    </div>
+                </div>
+
+                <div class="video-info-card hidden" id="video-info">
+                    <div class="info-row">
+                        <span class="info-label">File:</span>
+                        <span class="info-value text-truncate" id="info-name">-</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Độ dài:</span>
+                        <span class="info-value" id="info-duration">0s</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Dung lượng:</span>
+                        <span class="info-value" id="info-size">0 MB</span>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <h3><i class="fa-solid fa-brain"></i> Cấu hình AI Nhận dạng</h3>
+                    <div class="form-group">
+                        <label for="ai-method">Phương thức nhận dạng:</label>
+                        <select id="ai-method">
+                            <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
+                            <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+                            <option value="gemini-2.0-flash" selected>Gemini 2.0 Flash (Khuyên dùng)</option>
+                            <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                            <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                            <option value="deepseek">DeepSeek V3 API</option>
+                            <option value="claude">Claude 3.5 Sonnet</option>
+                            <option value="openrouter">OpenRouter Gateway</option>
+                            <option value="groq">Groq Whisper (Siêu tốc)</option>
+                            <option value="openai">OpenAI Whisper API</option>
+                            <option value="local">Local Whisper (Chạy Offline)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="api-key-group">
+                        <label for="api-key">API Key:</label>
+                        <div class="input-with-icon">
+                            <input type="password" id="api-key" placeholder="Nhập API Key của bạn...">
+                            <button type="button" id="toggle-api-key" class="icon-btn"><i class="fa-solid fa-eye"></i></button>
+                        </div>
+                        <span class="help-text" id="api-help">Nhận API Key miễn phí từ Google AI Studio</span>
+                    </div>
+
+                    <div class="form-group hidden" id="openrouter-model-group">
+                        <label for="openrouter-model">Model OpenRouter:</label>
+                        <input type="text" id="openrouter-model" value="google/gemini-2.0-flash-001" placeholder="Nhập tên model...">
+                        <span class="help-text">Ví dụ: google/gemini-2.0-flash-001 hoặc deepseek/deepseek-chat</span>
+                    </div>
+
+                    <div class="form-group hidden" id="whisper-model-group">
+                        <label for="whisper-model">Mô hình Whisper Local:</label>
+                        <select id="whisper-model">
+                            <option value="tiny">Tiny (~75MB)</option>
+                            <option value="base">Base (~140MB)</option>
+                            <option value="small">Small (~460MB)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-checkbox">
+                        <input type="checkbox" id="save-api-key" checked>
+                        <label for="save-api-key">Ghi nhớ API Key</label>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group half">
+                            <label for="target-lang">Dịch sang ngôn ngữ:</label>
+                            <select id="target-lang">
+                                <option value="vi" selected>Tiếng Việt 🇻🇳</option>
+                                <option value="en">Tiếng Anh 🇬🇧</option>
+                                <option value="zh">Tiếng Trung 🇨🇳</option>
+                                <option value="ja">Tiếng Nhật 🇯🇵</option>
+                                <option value="ko">Tiếng Hàn 🇰🇷</option>
+                                <option value="th">Tiếng Thái 🇹🇭</option>
+                                <option value="id">Tiếng Indonesia 🇮🇩</option>
+                                <option value="fr">Tiếng Pháp 🇫🇷</option>
+                                <option value="de">Tiếng Đức 🇩🇪</option>
+                                <option value="es">Tiếng Tây Ban Nha 🇪🇸</option>
+                                <option value="pt">Tiếng Bồ Đào Nha 🇵🇹</option>
+                                <option value="ru">Tiếng Nga 🇷🇺</option>
+                                <option value="hi">Tiếng Hindi 🇮🇳</option>
+                            </select>
+                        </div>
+                        <div class="form-group half">
+                            <label for="voice-select">Giọng đọc AI (TTS):</label>
+                            <select id="voice-select"></select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-group">
+                    <h3><i class="fa-solid fa-scissors"></i> Cắt Video & Tốc độ</h3>
+                    <div class="form-checkbox">
+                        <input type="checkbox" id="translate-full-video" checked>
+                        <label for="translate-full-video">Dịch toàn bộ video (Tự nhận diện)</label>
+                    </div>
+                    <div class="form-row hidden" id="time-range-group">
+                        <div class="form-group half">
+                            <label for="start-time">Bắt đầu (giây):</label>
+                            <input type="number" id="start-time" value="0" min="0" step="0.5">
+                        </div>
+                        <div class="form-group half">
+                            <label for="end-time">Kết thúc (giây):</label>
+                            <input type="number" id="end-time" placeholder="Hết video" min="0" step="0.5">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="label-row">
+                            <label for="tts-speed">Tốc độ giọng đọc AI:</label>
+                            <span id="tts-speed-val">0%</span>
+                        </div>
+                        <input type="range" id="tts-speed" min="-30" max="50" value="0" step="5" class="slider">
+                        <span class="help-text">Chỉnh tốc độ nói nhanh (+) hoặc chậm (-) của giọng đọc dịch</span>
+                    </div>
+
+                    <div class="form-group">
+                        <div class="label-row">
+                            <label for="bg-volume">Âm lượng video gốc:</label>
+                            <span id="bg-volume-val">10%</span>
+                        </div>
+                        <input type="range" id="bg-volume" min="0" max="100" value="10" class="slider">
+                        <span class="help-text">Giữ nhỏ âm thanh gốc làm nền (Hiệu ứng Ducking)</span>
+                    </div>
+                </div>
+
+                <div class="action-buttons">
+                    <button id="btn-transcribe" class="btn primary-btn" disabled>
+                        <i class="fa-solid fa-file-audio"></i> Nhận dạng & Dịch Phụ đề
+                    </button>
+                    <button id="btn-generate" class="btn success-btn" disabled>
+                        <i class="fa-solid fa-video"></i> Lồng tiếng & Xuất Video
+                    </button>
+                </div>
+            </section>
+
+            <!-- Right Panel -->
+            <section class="panel workspace-panel">
+                <div class="video-section">
+                    <div class="video-wrapper">
+                        <video id="main-video" controls>
+                            <source src="" id="video-source">
+                        </video>
+                        <div class="subtitle-overlay hidden" id="sub-overlay"></div>
+                    </div>
+                    <div class="video-actions hidden" id="download-actions">
+                        <a id="btn-download-video" class="btn download-btn" download>
+                            <i class="fa-solid fa-download"></i> Tải Video Lồng Tiếng (.mp4)
+                        </a>
+                        <a id="btn-download-srt" class="btn download-btn secondary" download>
+                            <i class="fa-solid fa-file-lines"></i> Tải Phụ Đề Gốc (.srt)
+                        </a>
+                    </div>
+                </div>
+
+                <div class="srt-editor-panel">
+                    <div class="panel-subheader">
+                        <h3><i class="fa-solid fa-closed-captioning"></i> Biên tập phụ đề dịch (SRT)</h3>
+                        <div class="editor-actions">
+                            <button id="btn-add-subtitle" class="icon-btn" title="Thêm câu phụ đề"><i class="fa-solid fa-plus"></i></button>
+                            <button id="btn-import-srt" class="icon-btn" title="Nhập file SRT có sẵn"><i class="fa-solid fa-file-import"></i></button>
+                            <button id="btn-export-srt" class="icon-btn" title="Tải xuống phụ đề đã chỉnh sửa"><i class="fa-solid fa-file-export"></i></button>
+                            <input type="file" id="srt-file-input" accept=".srt" hidden>
+                        </div>
+                    </div>
+                    <div class="srt-list-container" id="srt-list">
+                        <div class="empty-srt-message">
+                            <i class="fa-solid fa-language empty-icon"></i>
+                            <p>Phụ đề sẽ hiển thị ở đây sau khi nhận dạng.</p>
+                            <p class="empty-tip">Bạn có thể sửa đổi nội dung và thời gian trước khi lồng tiếng.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="app-footer">
+            <p>AI Video Translator v1.2.0 • Được phát triển để nâng cấp trải nghiệm biên dịch video tự động chuyên nghiệp</p>
+        </footer>
+    </div>
+
+    <!-- Progress Modal -->
+    <div class="modal hidden" id="progress-modal">
+        <div class="modal-content glass-card">
+            <div class="spinner-container">
+                <div class="spinner"></div>
+                <div class="spinner-core">AI</div>
+            </div>
+            <h3 id="modal-title">Đang xử lý...</h3>
+            <p id="modal-message">Đang thiết lập tiến trình...</p>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="modal-progress-bar"></div>
+            </div>
+            <div class="progress-percent" id="modal-progress-percent">0%</div>
+            <button id="btn-cancel-job" class="btn error-btn modal-cancel-btn">Hủy tác vụ</button>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toast-container"></div>
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
