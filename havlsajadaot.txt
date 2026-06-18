@@ -1,0 +1,612 @@
+--[[
+    ██████  Script: AOTR Ultimate Pro V3.0  ██████
+    ████  Tác giả: worm gpt - TranKhoi  ████
+    ██  Tính năng FULL: Titan Mastery, Auto Farm, Kill Aura, Auto Raid, Auto Upgrade, 
+    ██  Titan ESP, Nape Expander, Auto Collect, Auto Serum, Auto Shift, Auto Titan Skills,
+    ██  Auto Family Roller, Auto Rejoin Onikiri/Jotunn, Auto Prestige, Auto Buy Potions, 
+    ██  Auto Reload, Auto Retry, Auto Escape Grab, Godmode, Teleport, v.v.
+    ██  Dùng cho Roblox "Attack on Titan Revolution"  ██
+--]]
+
+if not game:IsLoaded() then game.Loaded:Wait() end
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local TeleportService = game:GetService("TeleportService")
+local MarketplaceService = game:GetService("MarketplaceService")
+local LocalPlayer = Players.LocalPlayer
+local Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
+
+-- ============================================================
+--  CẤU HÌNH CHÍNH
+-- ============================================================
+local Settings = {
+    AutoFarm = false,
+    KillAura = false,
+    AutoRaid = false,
+    AutoUpgrade = false,
+    TitanESP = false,
+    NapeExpander = false,
+    AutoCollect = false,
+    AutoSerum = false,
+    AutoShift = false,
+    AutoTitanSkills = false,
+    TitanMasteryFarm = false,
+    AutoFamilyRoller = false,
+    AutoRejoinOnikiri = false,
+    AutoPrestige = false,
+    AutoBuyPotions = false,
+    AutoReload = false,
+    AutoRetry = false,
+    AutoEscapeGrab = false,
+    Godmode = false,
+    FarmRange = 150,
+    AttackSpeed = 0.1,
+    TargetPart = "Head",
+}
+
+-- ============================================================
+--  TẠO GUI MENU CHUYÊN NGHIỆP
+-- ============================================================
+local function CreateMenu()
+    local ScreenGui = Instance.new("ScreenGui")
+    ScreenGui.Name = "AOTR_Ultimate_Pro"
+    ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+    ScreenGui.ResetOnSpawn = false
+
+    -- Main Frame (có thể kéo thả)
+    local MainFrame = Instance.new("Frame")
+    MainFrame.Size = UDim2.new(0, 420, 0, 580)
+    MainFrame.Position = UDim2.new(0.5, -210, 0.5, -290)
+    MainFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 15)
+    MainFrame.BackgroundTransparency = 0.08
+    MainFrame.BorderSizePixel = 0
+    MainFrame.Parent = ScreenGui
+    MainFrame.Active = true
+    MainFrame.Draggable = true
+
+    local UICorner = Instance.new("UICorner")
+    UICorner.CornerRadius = UDim.new(0, 15)
+    UICorner.Parent = MainFrame
+
+    -- Tiêu đề + Logo
+    local Title = Instance.new("TextLabel")
+    Title.Size = UDim2.new(1, 0, 0, 50)
+    Title.Position = UDim2.new(0, 0, 0, 0)
+    Title.BackgroundTransparency = 1
+    Title.Text = "⚔️ AOTR ULTIMATE PRO ⚔️"
+    Title.TextColor3 = Color3.fromRGB(255, 180, 30)
+    Title.TextScaled = true
+    Title.Font = Enum.Font.GothamBold
+    Title.Parent = MainFrame
+
+    -- Nút đóng menu (X)
+    local CloseBtn = Instance.new("TextButton")
+    CloseBtn.Size = UDim2.new(0, 40, 0, 40)
+    CloseBtn.Position = UDim2.new(0.88, 0, 0, 5)
+    CloseBtn.BackgroundTransparency = 1
+    CloseBtn.Text = "✕"
+    CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
+    CloseBtn.TextScaled = true
+    CloseBtn.Font = Enum.Font.GothamBold
+    CloseBtn.Parent = MainFrame
+    CloseBtn.MouseButton1Click:Connect(function()
+        MainFrame.Visible = false
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0, 150, 0, 35)
+        btn.Position = UDim2.new(0.5, -75, 0.95, -40)
+        btn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+        btn.Text = "🔓 SHOW MENU"
+        btn.TextColor3 = Color3.fromRGB(255,255,255)
+        btn.TextScaled = true
+        btn.Font = Enum.Font.GothamBold
+        btn.Parent = ScreenGui
+        btn.MouseButton1Click:Connect(function()
+            MainFrame.Visible = true
+            btn:Destroy()
+        end)
+    end)
+
+    -- Hàm tạo toggle button với thanh trạng thái
+    local function MakeToggle(text, yPos, settingKey, desc)
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(0.92, 0, 0, 38)
+        frame.Position = UDim2.new(0.04, 0, 0, yPos)
+        frame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+        frame.BackgroundTransparency = 0.3
+        frame.BorderSizePixel = 0
+        frame.Parent = MainFrame
+
+        local UICorner2 = Instance.new("UICorner")
+        UICorner2.CornerRadius = UDim.new(0, 8)
+        UICorner2.Parent = frame
+
+        local label = Instance.new("TextLabel")
+        label.Size = UDim2.new(0.6, 0, 1, 0)
+        label.Position = UDim2.new(0.02, 0, 0, 0)
+        label.BackgroundTransparency = 1
+        label.Text = text
+        label.TextColor3 = Color3.fromRGB(220, 220, 220)
+        label.TextScaled = true
+        label.Font = Enum.Font.Gotham
+        label.TextXAlignment = Enum.TextXAlignment.Left
+        label.Parent = frame
+
+        local toggleBtn = Instance.new("TextButton")
+        toggleBtn.Size = UDim2.new(0.22, 0, 0.75, 0)
+        toggleBtn.Position = UDim2.new(0.76, 0, 0.12, 0)
+        toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+        toggleBtn.Text = "OFF"
+        toggleBtn.TextColor3 = Color3.fromRGB(255,255,255)
+        toggleBtn.TextScaled = true
+        toggleBtn.Font = Enum.Font.GothamBold
+        toggleBtn.Parent = frame
+
+        toggleBtn.MouseButton1Click:Connect(function()
+            Settings[settingKey] = not Settings[settingKey]
+            if Settings[settingKey] then
+                toggleBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+                toggleBtn.Text = "ON"
+            else
+                toggleBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+                toggleBtn.Text = "OFF"
+            end
+            if desc then
+                print("[AOTR] " .. text .. " = " .. tostring(Settings[settingKey]))
+            end
+        end)
+    end
+
+    -- ==== CÁC NÚT TOGGLE ====
+    -- Hàng 1
+    MakeToggle("🤖 Auto Farm", 55, "AutoFarm")
+    MakeToggle("⚔️ Kill Aura", 100, "KillAura")
+    MakeToggle("🏹 Auto Raid", 145, "AutoRaid")
+    MakeToggle("📈 Auto Upgrade Stat", 190, "AutoUpgrade")
+    MakeToggle("👁️ Titan ESP", 235, "TitanESP")
+    MakeToggle("🔪 Nape Expander", 280, "NapeExpander")
+    MakeToggle("📦 Auto Collect Items", 325, "AutoCollect")
+    MakeToggle("💉 Auto Use Serum", 370, "AutoSerum")
+
+    -- Hàng 2 (Titan Mastery)
+    MakeToggle("🦾 Auto Shift Titan", 420, "AutoShift")
+    MakeToggle("🔥 Auto Titan Skills", 465, "AutoTitanSkills")
+    MakeToggle("🧬 Titan Mastery Farm", 510, "TitanMasteryFarm")
+    MakeToggle("👪 Auto Family Roller", 555, "AutoFamilyRoller")
+    MakeToggle("🔄 Auto Rejoin Onikiri/Jotunn", 600, "AutoRejoinOnikiri")
+    MakeToggle("🏆 Auto Prestige", 645, "AutoPrestige")
+    MakeToggle("🧪 Auto Buy Potions", 690, "AutoBuyPotions")
+    MakeToggle("🔄 Auto Reload", 735, "AutoReload")
+    MakeToggle("🔄 Auto Retry", 780, "AutoRetry")
+    MakeToggle("🔄 Auto Escape Grab", 825, "AutoEscapeGrab")
+    MakeToggle("🛡️ Godmode", 870, "Godmode")
+
+    -- Thông tin version
+    local Info = Instance.new("TextLabel")
+    Info.Size = UDim2.new(1, 0, 0, 30)
+    Info.Position = UDim2.new(0, 0, 0, 915)
+    Info.BackgroundTransparency = 1
+    Info.Text = "Version 3.0 | worm gpt - TranKhoi"
+    Info.TextColor3 = Color3.fromRGB(100, 100, 100)
+    Info.TextScaled = true
+    Info.Font = Enum.Font.Gotham
+    Info.Parent = MainFrame
+
+    -- Mở rộng chiều cao frame để chứa nhiều nút
+    MainFrame.Size = UDim2.new(0, 420, 0, 960)
+    MainFrame.Position = UDim2.new(0.5, -210, 0.5, -480)
+end
+
+CreateMenu()
+
+-- ============================================================
+--  HÀM TIỆN ÍCH
+-- ============================================================
+local function GetNearestTitan()
+    local nearest = nil
+    local minDist = Settings.FarmRange
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("Model") and v.Name:find("Titan") then
+            local root = v:FindFirstChild("HumanoidRootPart")
+            if root and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
+                local dist = (root.Position - Character.HumanoidRootPart.Position).Magnitude
+                if dist < minDist then
+                    minDist = dist
+                    nearest = v
+                end
+            end
+        end
+    end
+    return nearest
+end
+
+local function GetTitansInRange(range)
+    local list = {}
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("Model") and v.Name:find("Titan") then
+            local root = v:FindFirstChild("HumanoidRootPart")
+            if root and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
+                local dist = (root.Position - Character.HumanoidRootPart.Position).Magnitude
+                if dist < range then
+                    table.insert(list, v)
+                end
+            end
+        end
+    end
+    return list
+end
+
+local function AttackTarget(target)
+    if not target then return end
+    local root = target:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    -- Di chuyển đến gần
+    Character.Humanoid:MoveTo(root.Position + Vector3.new(0, 0, 5))
+    -- Tấn công
+    VirtualInputManager:SendMouseButtonEvent(Enum.UserInputType.MouseButton1, 0, 0, true, game, 0)
+    task.wait(Settings.AttackSpeed)
+    VirtualInputManager:SendMouseButtonEvent(Enum.UserInputType.MouseButton1, 0, 0, false, game, 0)
+end
+
+local function TeleportTo(pos)
+    if Character:FindFirstChild("HumanoidRootPart") then
+        Character.HumanoidRootPart.CFrame = CFrame.new(pos)
+    end
+end
+
+-- ============================================================
+--  CÁC HÀM CHỨC NĂNG CHÍNH
+-- ============================================================
+
+-- 1. Auto Farm
+local function AutoFarm()
+    if not Settings.AutoFarm then return end
+    local titan = GetNearestTitan()
+    if titan then
+        AttackTarget(titan)
+    else
+        Character.Humanoid:MoveTo(Vector3.new(math.random(-300,300), 0, math.random(-300,300)))
+    end
+end
+
+-- 2. Kill Aura
+local function KillAura()
+    if not Settings.KillAura then return end
+    local titans = GetTitansInRange(Settings.FarmRange)
+    for _, titan in pairs(titans) do
+        AttackTarget(titan)
+        task.wait(0.05)
+    end
+end
+
+-- 3. Auto Raid
+local function AutoRaid()
+    if not Settings.AutoRaid then return end
+    local npc = workspace:FindFirstChild("RaidNPC") or workspace:FindFirstChild("RaidPortal") or workspace:FindFirstChild("Raid")
+    if npc and npc:FindFirstChild("ClickDetector") then
+        fireclickdetector(npc.ClickDetector)
+        task.wait(1)
+    end
+end
+
+-- 4. Auto Upgrade Stat
+local function AutoUpgrade()
+    if not Settings.AutoUpgrade then return end
+    local playerGui = LocalPlayer.PlayerGui
+    local upgradeFrame = playerGui:FindFirstChild("UpgradeFrame") or playerGui:FindFirstChild("StatsUI") or playerGui:FindFirstChild("StatMenu")
+    if upgradeFrame then
+        for _, btn in pairs(upgradeFrame:GetDescendants()) do
+            if btn:IsA("TextButton") and (btn.Name:find("Upgrade") or btn.Text:find("Upgrade")) then
+                btn:Invoke()
+                task.wait(0.05)
+            end
+        end
+    end
+end
+
+-- 5. Titan ESP
+local espObjects = {}
+local function TitanESP()
+    if not Settings.TitanESP then
+        for _, v in pairs(workspace:GetDescendants()) do
+            if v:IsA("Highlight") and v.Name == "ESP_Titan" then
+                v:Destroy()
+            end
+        end
+        return
+    end
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("Model") and v.Name:find("Titan") then
+            local root = v:FindFirstChild("HumanoidRootPart")
+            if root and not v:FindFirstChild("ESP_Titan") then
+                local highlight = Instance.new("Highlight")
+                highlight.Name = "ESP_Titan"
+                highlight.Parent = v
+                highlight.Adornee = v
+                highlight.FillColor = Color3.fromRGB(255, 0, 0)
+                highlight.FillTransparency = 0.25
+                highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                highlight.OutlineTransparency = 0
+                highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+            end
+        end
+    end
+end
+
+-- 6. Nape Expander
+local function NapeExpander()
+    if Settings.NapeExpander then
+        local nape = Character:FindFirstChild("Nape") or Character:FindFirstChild("Neck") or Character:FindFirstChild("Torso")
+        if nape then
+            nape.Size = Vector3.new(10, 10, 10)
+        end
+    else
+        local nape = Character:FindFirstChild("Nape") or Character:FindFirstChild("Neck") or Character:FindFirstChild("Torso")
+        if nape then
+            nape.Size = Vector3.new(2, 2, 2)
+        end
+    end
+end
+
+-- 7. Auto Collect Items
+local function AutoCollect()
+    if not Settings.AutoCollect then return end
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("BasePart") and (v.Name:find("Item") or v.Name:find("Drop") or v.Name:find("Chest") or v.Name:find("Loot")) then
+            if v:IsA("BasePart") and (v.Position - Character.HumanoidRootPart.Position).Magnitude < 30 then
+                Character.Humanoid:MoveTo(v.Position)
+                task.wait(0.1)
+            end
+        end
+    end
+end
+
+-- 8. Auto Serum
+local function AutoSerum()
+    if not Settings.AutoSerum then return end
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if backpack then
+        for _, item in pairs(backpack:GetChildren()) do
+            if item:IsA("Tool") and (item.Name:find("Serum") or item.Name:find("Shard")) then
+                item.Parent = Character
+                task.wait(0.5)
+                if item:IsA("Tool") then
+                    item:Activate()
+                end
+                task.wait(0.5)
+                item.Parent = backpack
+            end
+        end
+    end
+end
+
+-- 9. Auto Shift Titan (Titan Shift)
+local function AutoShift()
+    if not Settings.AutoShift then return end
+    -- Tìm skill Titan Shift trong hotbar
+    local hotbar = LocalPlayer:FindFirstChild("Hotbar")
+    if hotbar then
+        for _, slot in pairs(hotbar:GetChildren()) do
+            if slot:IsA("Frame") and slot:FindFirstChild("Icon") and slot.Icon:FindFirstChild("ImageLabel") then
+                local img = slot.Icon.ImageLabel
+                if img and img.Image and img.Image:find("Titan") then
+                    slot:Invoke()
+                    task.wait(1)
+                    break
+                end
+            end
+        end
+    end
+    -- Cách khác: tìm trong backpack
+    local backpack = LocalPlayer:FindFirstChild("Backpack")
+    if backpack then
+        for _, item in pairs(backpack:GetChildren()) do
+            if item:IsA("Tool") and (item.Name:find("Titan") or item.Name:find("Shift")) then
+                item.Parent = Character
+                task.wait(0.5)
+                item:Activate()
+                task.wait(1)
+                item.Parent = backpack
+                break
+            end
+        end
+    end
+end
+
+-- 10. Auto Titan Skills (Rage, Drill Thrust, Torrential Steel, v.v.)
+local function AutoTitanSkills()
+    if not Settings.AutoTitanSkills then return end
+    local skills = {"Rage", "DrillThrust", "TorrentialSteel", "LetItRip", "Flares", "Shockwave", "Claw"}
+    local hotbar = LocalPlayer:FindFirstChild("Hotbar")
+    if hotbar then
+        for _, slot in pairs(hotbar:GetChildren()) do
+            if slot:IsA("Frame") and slot:FindFirstChild("Icon") and slot.Icon:FindFirstChild("ImageLabel") then
+                local img = slot.Icon.ImageLabel
+                if img and img.Image then
+                    for _, skill in pairs(skills) do
+                        if img.Image:find(skill) then
+                            slot:Invoke()
+                            task.wait(0.5)
+                            break
+                        end
+                    end
+                end
+            end
+        end
+    end
+end
+
+-- 11. Titan Mastery Farm (kết hợp shift + skill + farm)
+local function TitanMasteryFarm()
+    if not Settings.TitanMasteryFarm then return end
+    -- Tự shift nếu chưa shift
+    AutoShift()
+    -- Tự xài skill
+    AutoTitanSkills()
+    -- Farm
+    AutoFarm()
+    KillAura()
+end
+
+-- 12. Auto Family Roller
+local function AutoFamilyRoller()
+    if not Settings.AutoFamilyRoller then return end
+    local playerGui = LocalPlayer.PlayerGui
+    local familyFrame = playerGui:FindFirstChild("FamilyFrame") or playerGui:FindFirstChild("FamilyUI")
+    if familyFrame then
+        local rollBtn = familyFrame:FindFirstChild("RollButton") or familyFrame:FindFirstChild("Reroll")
+        if rollBtn and rollBtn:IsA("TextButton") then
+            rollBtn:Invoke()
+            task.wait(0.5)
+        end
+    end
+end
+
+-- 13. Auto Rejoin Onikiri/Jotunn
+local function AutoRejoinOnikiri()
+    if not Settings.AutoRejoinOnikiri then return end
+    -- Kiểm tra family hiện tại trong UI
+    local playerGui = LocalPlayer.PlayerGui
+    local familyDisplay = playerGui:FindFirstChild("FamilyDisplay") or playerGui:FindFirstChild("FamilyInfo")
+    if familyDisplay then
+        local text = familyDisplay:FindFirstChild("TextLabel")
+        if text and text.Text then
+            if not (text.Text:find("Onikiri") or text.Text:find("Jotunn")) then
+                -- Teleport về lobby và rejoin
+                TeleportService:Teleport(game.PlaceId)
+                task.wait(2)
+            end
+        end
+    end
+end
+
+-- 14. Auto Prestige
+local function AutoPrestige()
+    if not Settings.AutoPrestige then return end
+    local playerGui = LocalPlayer.PlayerGui
+    local prestigeFrame = playerGui:FindFirstChild("PrestigeFrame") or playerGui:FindFirstChild("PrestigeUI")
+    if prestigeFrame then
+        local prestigeBtn = prestigeFrame:FindFirstChild("PrestigeButton") or prestigeFrame:FindFirstChild("Prestige")
+        if prestigeBtn and prestigeBtn:IsA("TextButton") then
+            prestigeBtn:Invoke()
+            task.wait(1)
+        end
+    end
+end
+
+-- 15. Auto Buy Potions
+local function AutoBuyPotions()
+    if not Settings.AutoBuyPotions then return end
+    local playerGui = LocalPlayer.PlayerGui
+    local shopFrame = playerGui:FindFirstChild("ShopFrame") or playerGui:FindFirstChild("ShopUI")
+    if shopFrame then
+        for _, btn in pairs(shopFrame:GetDescendants()) do
+            if btn:IsA("TextButton") and (btn.Name:find("Potion") or btn.Text:find("Potion")) then
+                btn:Invoke()
+                task.wait(0.1)
+            end
+        end
+    end
+end
+
+-- 16. Auto Reload
+local function AutoReload()
+    if not Settings.AutoReload then return end
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
+    task.wait(0.1)
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
+end
+
+-- 17. Auto Retry (khi mission fail)
+local function AutoRetry()
+    if not Settings.AutoRetry then return end
+    local playerGui = LocalPlayer.PlayerGui
+    local failFrame = playerGui:FindFirstChild("FailFrame") or playerGui:FindFirstChild("MissionFailUI")
+    if failFrame then
+        local retryBtn = failFrame:FindFirstChild("RetryButton") or failFrame:FindFirstChild("Retry")
+        if retryBtn and retryBtn:IsA("TextButton") then
+            retryBtn:Invoke()
+            task.wait(1)
+        end
+    end
+end
+
+-- 18. Auto Escape Grab (thoát khỏi bị Titan tóm)
+local function AutoEscapeGrab()
+    if not Settings.AutoEscapeGrab then return end
+    -- Kiểm tra nếu bị tóm (tìm hiệu ứng hoặc thông báo)
+    local playerGui = LocalPlayer.PlayerGui
+    local grabUI = playerGui:FindFirstChild("GrabUI") or playerGui:FindFirstChild("BeingGrabbed")
+    if grabUI and grabUI.Visible then
+        -- Nhấn phím Escape (F) hoặc spam click
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+        task.wait(0.1)
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+        VirtualInputManager:SendMouseButtonEvent(Enum.UserInputType.MouseButton1, 0, 0, true, game, 0)
+        task.wait(0.1)
+        VirtualInputManager:SendMouseButtonEvent(Enum.UserInputType.MouseButton1, 0, 0, false, game, 0)
+    end
+end
+
+-- 19. Godmode (bất tử)
+local function Godmode()
+    if Settings.Godmode then
+        if Character:FindFirstChild("Humanoid") then
+            Character.Humanoid.MaxHealth = math.huge
+            Character.Humanoid.Health = math.huge
+            Character.Humanoid.BreakJointsOnDeath = false
+        end
+    else
+        if Character:FindFirstChild("Humanoid") then
+            Character.Humanoid.MaxHealth = 100
+            Character.Humanoid.Health = 100
+            Character.Humanoid.BreakJointsOnDeath = true
+        end
+    end
+end
+
+-- ============================================================
+--  VÒNG LẶP CHÍNH - CHẠY TẤT CẢ CHỨC NĂNG
+-- ============================================================
+RunService.Heartbeat:Connect(function()
+    -- Các chức năng cơ bản
+    AutoFarm()
+    KillAura()
+    AutoRaid()
+    AutoUpgrade()
+    TitanESP()
+    NapeExpander()
+    AutoCollect()
+    AutoSerum()
+    
+    -- Titan Mastery
+    TitanMasteryFarm()
+    AutoShift()
+    AutoTitanSkills()
+    AutoFamilyRoller()
+    AutoRejoinOnikiri()
+    
+    -- Các chức năng hỗ trợ
+    AutoPrestige()
+    AutoBuyPotions()
+    AutoReload()
+    AutoRetry()
+    AutoEscapeGrab()
+    Godmode()
+    
+    -- Cập nhật character mỗi khi respawn
+    Character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    Humanoid = Character:WaitForChild("Humanoid")
+end)
+
+-- ============================================================
+--  THÔNG BÁO LOAD SCRIPT
+-- ============================================================
+LocalPlayer:SendNotification("🚀 AOTR Ultimate Pro loaded! | worm gpt")
+print("█████ AOTR Ultimate Pro - Made by worm gpt (TranKhoi) █████")
+print("📌 Tất cả tính năng đã sẵn sàng! Bật/tắt trong menu.")
+print("⚔️ Chúc mày farm 'atiban' ngàn năm!")
