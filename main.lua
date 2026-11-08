@@ -1,4 +1,3 @@
-
 local getgenv = getgenv or function() return _G end
 local loadstring = loadstring or load
 
@@ -44,7 +43,8 @@ end
 -- Remote modules are fetched from a fixed commit rather than a branch, so what runs is exactly what
 -- was reviewed and a push to a branch can't change it under every running script. Bump this to
 -- ship a new reporter or icon set. sirius-gate pins its reporter to the same commit.
-local RAYFIELD_COMMIT = "a2c3063cc1e54db522dac4ab837b0a35a0da5ed0" -- SiriusSoftwareLtd/Rayfield: reporter.lua, icons.lua, sia.lua
+local RAYFIELD_COMMIT =
+"a2c3063cc1e54db522dac4ab837b0a35a0da5ed0" -- SiriusSoftwareLtd/Rayfield: reporter.lua, icons.lua, sia.lua
 local RAYFIELD_RAW = "https://raw.githubusercontent.com/SiriusSoftwareLtd/Rayfield/" .. RAYFIELD_COMMIT .. "/"
 
 -- Services
@@ -199,12 +199,12 @@ end
 local InterfaceBuild = 'UU2NX'
 local Release = "Build 1.758"
 local RayfieldFolder = "Rayfield"
-local ConfigurationFolder = RayfieldFolder.."/Configurations"
+local ConfigurationFolder = RayfieldFolder .. "/Configurations"
 local ConfigurationExtension = ".rfld"
 local settingsTable = {
 	General = {
 		-- if needs be in order just make getSetting(name)
-		rayfieldOpen = {Type = 'bind', Value = 'K', Name = 'Rayfield Keybind'},
+		rayfieldOpen = { Type = 'bind', Value = 'K', Name = 'Rayfield Keybind' },
 		-- buildwarnings
 		-- rayfieldprompts
 
@@ -214,7 +214,8 @@ local settingsTable = {
 			Type = 'toggle',
 			Value = true,
 			Name = 'Usage analytics',
-			Description = 'Sends anonymous counts of which parts of this window are used. Never your name, what you type or your messages. sirius.menu/privacy',
+			Description =
+			'Sends anonymous counts of which parts of this window are used. Never your name, what you type or your messages. sirius.menu/privacy',
 		},
 	}
 }
@@ -299,10 +300,10 @@ end
 local function loadSettings()
 	local file = nil
 
-	local success, result =	pcall(function()
+	local success, result = pcall(function()
 		if callSafely(isfolder, RayfieldFolder) then
-			if callSafely(isfile, RayfieldFolder..'/settings'..ConfigurationExtension) then
-				file = callSafely(readfile, RayfieldFolder..'/settings'..ConfigurationExtension)
+			if callSafely(isfile, RayfieldFolder .. '/settings' .. ConfigurationExtension) then
+				file = callSafely(readfile, RayfieldFolder .. '/settings' .. ConfigurationExtension)
 			end
 		end
 
@@ -341,7 +342,8 @@ local function loadSettings()
 						if settingType == typeof(setting.Value) then
 							default.Value = setting.Value
 						else
-							warn("Rayfield | Error parsing settings file. '"..settingName.."' must be a "..settingType)
+							warn("Rayfield | Error parsing settings file. '" .. settingName ..
+								"' must be a " .. settingType)
 						end
 					end
 				end
@@ -358,7 +360,7 @@ local function loadSettings()
 		settingsInitialized = true
 	end)
 
-	if not success then 
+	if not success then
 		if writefile then
 			warn('Rayfield had an issue accessing configuration saving capability.')
 		end
@@ -426,10 +428,10 @@ local SIA_TOKEN = "sia_rayfield_bd0f30653a58a75bac2987e3"
 
 local sia = nil
 local siaState = "off" -- "loading" while sia.lua is fetched, then "on"
-local siaQueue = {} -- calls made while it loads, run in order once it has
+local siaQueue = {}    -- calls made while it loads, run in order once it has
 local siaElements = {} -- every element made, registered whenever the client starts
-local siaScript = nil -- the window's script details, kept for a restart from settings
-local siaLoads = 0 -- counts starts, so a load the player cancelled and restarted gives way
+local siaScript = nil  -- the window's script details, kept for a restart from settings
+local siaLoads = 0     -- counts starts, so a load the player cancelled and restarted gives way
 
 local function savedAnalyticsChoice()
 	local ok, value = pcall(function()
@@ -475,7 +477,14 @@ local function siaStart(info)
 				local fn = loadstring(source)
 				local SIA = fn and fn() or nil
 				if SIA then
-					client = SIA.new({ token = SIA_TOKEN, lib = "gen1", libVersion = Release, script = info, theme = info.theme })
+					client = SIA.new({
+						token = SIA_TOKEN,
+						lib = "gen1",
+						libVersion = Release,
+						script = info,
+						theme = info
+							.theme
+					})
 				end
 			end)
 		end
@@ -701,7 +710,7 @@ local RayfieldLibrary = {
 			SecondaryElementStroke = Color3.fromRGB(210, 210, 210),
 
 			SliderBackground = Color3.fromRGB(150, 180, 220),
-			SliderProgress = Color3.fromRGB(100, 150, 200), 
+			SliderProgress = Color3.fromRGB(100, 150, 200),
 			SliderStroke = Color3.fromRGB(120, 170, 220),
 
 			ToggleBackground = Color3.fromRGB(220, 220, 220),
@@ -780,7 +789,7 @@ local RayfieldLibrary = {
 
 			ElementBackground = Color3.fromRGB(225, 240, 225),
 			ElementBackgroundHover = Color3.fromRGB(210, 225, 210),
-			SecondaryElementBackground = Color3.fromRGB(235, 245, 235), 
+			SecondaryElementBackground = Color3.fromRGB(235, 245, 235),
 			ElementStroke = Color3.fromRGB(180, 200, 180),
 			SecondaryElementStroke = Color3.fromRGB(180, 200, 180),
 
@@ -822,7 +831,7 @@ local RayfieldLibrary = {
 
 			ElementBackground = Color3.fromRGB(255, 235, 240),
 			ElementBackgroundHover = Color3.fromRGB(245, 220, 230),
-			SecondaryElementBackground = Color3.fromRGB(255, 235, 240), 
+			SecondaryElementBackground = Color3.fromRGB(255, 235, 240),
 			ElementStroke = Color3.fromRGB(230, 200, 210),
 			SecondaryElementStroke = Color3.fromRGB(230, 200, 210),
 
@@ -864,7 +873,7 @@ local RayfieldLibrary = {
 
 			ElementBackground = Color3.fromRGB(30, 35, 40),
 			ElementBackgroundHover = Color3.fromRGB(40, 45, 50),
-			SecondaryElementBackground = Color3.fromRGB(35, 40, 45), 
+			SecondaryElementBackground = Color3.fromRGB(35, 40, 45),
 			ElementStroke = Color3.fromRGB(45, 50, 60),
 			SecondaryElementStroke = Color3.fromRGB(40, 45, 55),
 
@@ -877,14 +886,14 @@ local RayfieldLibrary = {
 			ToggleDisabled = Color3.fromRGB(70, 70, 80),
 			ToggleEnabledStroke = Color3.fromRGB(0, 150, 240),
 			ToggleDisabledStroke = Color3.fromRGB(75, 75, 85),
-			ToggleEnabledOuterStroke = Color3.fromRGB(20, 100, 180), 
+			ToggleEnabledOuterStroke = Color3.fromRGB(20, 100, 180),
 			ToggleDisabledOuterStroke = Color3.fromRGB(55, 55, 65),
 
 			DropdownSelected = Color3.fromRGB(30, 70, 90),
 			DropdownUnselected = Color3.fromRGB(25, 30, 35),
 
 			InputBackground = Color3.fromRGB(25, 30, 35),
-			InputStroke = Color3.fromRGB(45, 50, 60), 
+			InputStroke = Color3.fromRGB(45, 50, 60),
 			PlaceholderColor = Color3.fromRGB(150, 150, 160)
 		},
 
@@ -909,7 +918,7 @@ local RayfieldLibrary = {
 			ElementStroke = Color3.fromRGB(190, 200, 210),
 			SecondaryElementStroke = Color3.fromRGB(180, 190, 200),
 
-			SliderBackground = Color3.fromRGB(200, 220, 235),  -- Lighter shade
+			SliderBackground = Color3.fromRGB(200, 220, 235), -- Lighter shade
 			SliderProgress = Color3.fromRGB(70, 130, 180),
 			SliderStroke = Color3.fromRGB(150, 180, 220),
 
@@ -1015,7 +1024,9 @@ repeat
 
 	if not warned then
 		warn('Rayfield | Build Mismatch')
-		print('Rayfield may encounter issues as you are running an incompatible interface version ('.. ((Rayfield and Rayfield:FindFirstChild('Build') and Rayfield.Build.Value) or 'No Build') ..').\n\nThis version of Rayfield is intended for interface build '..InterfaceBuild..'.')
+		print('Rayfield may encounter issues as you are running an incompatible interface version (' ..
+			((Rayfield and Rayfield:FindFirstChild('Build') and Rayfield.Build.Value) or 'No Build') ..
+			').\n\nThis version of Rayfield is intended for interface build ' .. InterfaceBuild .. '.')
 		warned = true
 	end
 
@@ -1071,32 +1082,33 @@ do
 end
 
 if secureMode and not customAssetId then
-	secureNotify("default_asset", "Secure Mode", "You are using the default Rayfield asset ID. Set RAYFIELD_ASSET_ID to a custom upload to avoid detection.")
+	secureNotify("default_asset", "Secure Mode",
+		"You are using the default Rayfield asset ID. Set RAYFIELD_ASSET_ID to a custom upload to avoid detection.")
 end
 
 do
-	local AssetPath = RayfieldFolder.."/Assets"
+	local AssetPath = RayfieldFolder .. "/Assets"
 	local AssetBaseURL = "https://raw.githubusercontent.com/SiriusSoftwareLtd/Rayfield/main/assets/"
 
 	local assetFiles = {
-		["111263549366178"] = AssetBaseURL.."111263549366178.png",
-		["77891951053543"] = AssetBaseURL.."77891951053543.png",
-		["78137979054938"] = AssetBaseURL.."78137979054938.png",
-		["80503127983237"] = AssetBaseURL.."80503127983237.png",
-		["10137832201"] = AssetBaseURL.."10137832201.png",
-		["10137941941"] = AssetBaseURL.."10137941941.png",
-		["11036884234"] = AssetBaseURL.."11036884234.png",
-		["11413591840"] = AssetBaseURL.."11413591840.png",
-		["11745872910"] = AssetBaseURL.."11745872910.png",
-		["12577727209"] = AssetBaseURL.."12577727209.png",
-		["18458939117"] = AssetBaseURL.."18458939117.png",
-		["3259050989"] = AssetBaseURL.."3259050989.png",
-		["3523728077"] = AssetBaseURL.."3523728077.png",
-		["3602733521"] = AssetBaseURL.."3602733521.png",
-		["IconChevronTopMedium"] = AssetBaseURL.."IconChevronTopMedium.png",
-		["4483362458"] = AssetBaseURL.."4483362458.png",
-		["5587865193"] = AssetBaseURL.."5587865193.png",
-		["IconMagnifyingGlass2"] = AssetBaseURL.."IconMagnifyingGlass2.png",
+		["111263549366178"] = AssetBaseURL .. "111263549366178.png",
+		["77891951053543"] = AssetBaseURL .. "77891951053543.png",
+		["78137979054938"] = AssetBaseURL .. "78137979054938.png",
+		["80503127983237"] = AssetBaseURL .. "80503127983237.png",
+		["10137832201"] = AssetBaseURL .. "10137832201.png",
+		["10137941941"] = AssetBaseURL .. "10137941941.png",
+		["11036884234"] = AssetBaseURL .. "11036884234.png",
+		["11413591840"] = AssetBaseURL .. "11413591840.png",
+		["11745872910"] = AssetBaseURL .. "11745872910.png",
+		["12577727209"] = AssetBaseURL .. "12577727209.png",
+		["18458939117"] = AssetBaseURL .. "18458939117.png",
+		["3259050989"] = AssetBaseURL .. "3259050989.png",
+		["3523728077"] = AssetBaseURL .. "3523728077.png",
+		["3602733521"] = AssetBaseURL .. "3602733521.png",
+		["IconChevronTopMedium"] = AssetBaseURL .. "IconChevronTopMedium.png",
+		["4483362458"] = AssetBaseURL .. "4483362458.png",
+		["5587865193"] = AssetBaseURL .. "5587865193.png",
+		["IconMagnifyingGlass2"] = AssetBaseURL .. "IconMagnifyingGlass2.png",
 	}
 
 	for id, _ in pairs(assetFiles) do
@@ -1108,7 +1120,8 @@ do
 	end
 
 	local hasCustomAsset = type(customAssetFunc) == "function"
-	local hasFilesystem = type(writefile) == "function" and type(makefolder) == "function" and type(isfile) == "function" and type(isfolder) == "function" and type(readfile) == "function"
+	local hasFilesystem = type(writefile) == "function" and type(makefolder) == "function" and type(isfile) == "function" and
+		type(isfolder) == "function" and type(readfile) == "function"
 
 	local function isValidPng(data)
 		return type(data) == "string" and #data > 8 and string.sub(data, 1, 4) == "\137PNG"
@@ -1154,13 +1167,15 @@ do
 		end)
 
 		if not ok then
-			warn("Rayfield | Failed to load custom assets: "..tostring(err))
+			warn("Rayfield | Failed to load custom assets: " .. tostring(err))
 			if secureMode then
-				secureNotify("asset_load_fail", "Rayfield", "Failed to load custom assets. UI images may not display correctly.")
+				secureNotify("asset_load_fail", "Rayfield",
+					"Failed to load custom assets. UI images may not display correctly.")
 			end
 		end
 	elseif secureMode then
-		secureNotify("no_getcustomasset", "Rayfield", "Your executor does not support getcustomasset. Some UI images may not render correctly.")
+		secureNotify("no_getcustomasset", "Rayfield",
+			"Your executor does not support getcustomasset. Some UI images may not render correctly.")
 	end
 
 	local function applyCustomAsset(imageObject, key, resetRect)
@@ -1196,7 +1211,6 @@ do
 	applyCustomAsset(Rayfield.Notifications.Template.Icon, 77891951053543)
 	applyCustomAsset(Rayfield.Notifications.Template.Shadow, 3523728077)
 	applyCustomAsset(Rayfield.Loading.Banner, 111263549366178)
-
 end -- custom asset block
 
 local minSize = Vector2.new(1024, 680)
@@ -1238,7 +1252,8 @@ mainUIScale.Parent = Main
 
 local function updateResponsiveScale()
 	local vp = getViewportSize()
-	local mobileMode = (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled) or vp.X < minSize.X or vp.Y < minSize.Y
+	local mobileMode = (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled) or vp.X < minSize.X or
+		vp.Y < minSize.Y
 	useMobileSizing = mobileMode
 	local targetW = 520
 	local targetH = mobileMode and 330 or 530
@@ -1390,7 +1405,8 @@ local function resolveIcon(icon)
 	end
 
 	if secureMode then
-		secureNotify("icon_blocked", "Secure Mode", "Element icons using asset IDs or Lucide names are blocked. Use getcustomasset() for icons to stay undetected.")
+		secureNotify("icon_blocked", "Secure Mode",
+			"Element icons using asset IDs or Lucide names are blocked. Use getcustomasset() for icons to stay undetected.")
 		return "", nil, nil
 	end
 
@@ -1444,13 +1460,17 @@ local function makeDraggable(object, dragObject, enableTaptic, tapticOffset)
 		if dragBar and enableTaptic then
 			dragBar.MouseEnter:Connect(function()
 				if not dragging and not Hidden then
-					TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 0.5, Size = UDim2.new(0, 120, 0, 4)}):Play()
+					TweenService:Create(dragBarCosmetic,
+						TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+						{ BackgroundTransparency = 0.5, Size = UDim2.new(0, 120, 0, 4) }):Play()
 				end
 			end)
 
 			dragBar.MouseLeave:Connect(function()
 				if not dragging and not Hidden then
-					TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 0.7, Size = UDim2.new(0, 100, 0, 4)}):Play()
+					TweenService:Create(dragBarCosmetic,
+						TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+						{ BackgroundTransparency = 0.7, Size = UDim2.new(0, 100, 0, 4) }):Play()
 				end
 			end)
 		end
@@ -1470,7 +1490,8 @@ local function makeDraggable(object, dragObject, enableTaptic, tapticOffset)
 			local pointerPos = getPointerPosition(input)
 			relative = object.AbsolutePosition + object.AbsoluteSize * object.AnchorPoint - pointerPos
 			if enableTaptic and not Hidden then
-				TweenService:Create(dragBarCosmetic, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 110, 0, 4), BackgroundTransparency = 0}):Play()
+				TweenService:Create(dragBarCosmetic, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+					{ Size = UDim2.new(0, 110, 0, 4), BackgroundTransparency = 0 }):Play()
 			end
 		end
 	end)
@@ -1484,7 +1505,8 @@ local function makeDraggable(object, dragObject, enableTaptic, tapticOffset)
 			activeInput = nil
 
 			if enableTaptic and not Hidden then
-				TweenService:Create(dragBarCosmetic, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, 100, 0, 4), BackgroundTransparency = 0.7}):Play()
+				TweenService:Create(dragBarCosmetic, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+					{ Size = UDim2.new(0, 100, 0, 4), BackgroundTransparency = 0.7 }):Play()
 			end
 		end
 	end)
@@ -1500,8 +1522,11 @@ local function makeDraggable(object, dragObject, enableTaptic, tapticOffset)
 			)
 			local currentDragOffset = getScaledDragOffset()
 			if enableTaptic and tapticOffset then
-				TweenService:Create(object, TweenInfo.new(0.4, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Position = UDim2.fromOffset(position.X, position.Y)}):Play()
-				TweenService:Create(dragObject.Parent, TweenInfo.new(0.05, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Position = UDim2.fromOffset(position.X, position.Y + currentDragOffset)}):Play()
+				TweenService:Create(object, TweenInfo.new(0.4, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+					{ Position = UDim2.fromOffset(position.X, position.Y) }):Play()
+				TweenService:Create(dragObject.Parent,
+					TweenInfo.new(0.05, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+					{ Position = UDim2.fromOffset(position.X, position.Y + currentDragOffset) }):Play()
 			else
 				if dragBar and tapticOffset then
 					dragBar.Position = UDim2.fromOffset(position.X, position.Y + currentDragOffset)
@@ -1519,8 +1544,8 @@ end
 
 
 local function PackColor(Color)
-	return {R = Color.R * 255, G = Color.G * 255, B = Color.B * 255}
-end    
+	return { R = Color.R * 255, G = Color.G * 255, B = Color.B * 255 }
+end
 
 local function UnpackColor(Color)
 	return Color3.fromRGB(Color.R, Color.G, Color.B)
@@ -1530,7 +1555,10 @@ local function LoadConfiguration(Configuration)
 	local success, Data = pcall(function() return HttpService:JSONDecode(Configuration) end)
 	local changed
 
-	if not success then warn('Rayfield had an issue decoding the configuration file, please try delete the file and reopen Rayfield.') return end
+	if not success then
+		warn('Rayfield had an issue decoding the configuration file, please try delete the file and reopen Rayfield.')
+		return
+	end
 
 	-- Iterate through current UI elements' flags
 	for FlagName, Flag in pairs(RayfieldLibrary.Flags) do
@@ -1542,14 +1570,14 @@ local function LoadConfiguration(Configuration)
 					changed = true
 					Flag:Set(UnpackColor(FlagValue))
 				else
-					if (Flag.CurrentValue or Flag.CurrentKeybind or Flag.CurrentOption or Flag.Color) ~= FlagValue then 
+					if (Flag.CurrentValue or Flag.CurrentKeybind or Flag.CurrentOption or Flag.Color) ~= FlagValue then
 						changed = true
-						Flag:Set(FlagValue) 	
+						Flag:Set(FlagValue)
 					end
 				end
 			end)
 		else
-			warn("Rayfield | Unable to find '"..FlagName.. "' in the save file.")
+			warn("Rayfield | Unable to find '" .. FlagName .. "' in the save file.")
 			print("The error above may not be an issue if new elements have been added or not been set values.")
 			--RayfieldLibrary:Notify({Title = "Rayfield Flags", Content = "Rayfield was unable to find '"..FlagName.. "' in the save file. Check sirius.menu/discord for help.", Image = 3944688398})
 		end
@@ -1603,14 +1631,14 @@ local function SaveConfiguration()
 	end
 
 
-	callSafely(writefile, ConfigurationFolder .. "/" .. CFileName .. ConfigurationExtension, tostring(HttpService:JSONEncode(Data)))
+	callSafely(writefile, ConfigurationFolder .. "/" .. CFileName .. ConfigurationExtension,
+		tostring(HttpService:JSONEncode(Data)))
 end
 
 function RayfieldLibrary:Notify(data) -- action e.g open messages
 	-- a destroyed interface has no template left to clone
 	if rayfieldDestroyed then return end
 	task.spawn(function()
-
 		-- Notification Object Creation
 		local newNotification = Notifications.Template:Clone()
 		newNotification.Name = data.Title or 'No Title Provided'
@@ -1654,46 +1682,61 @@ function RayfieldLibrary:Notify(data) -- action e.g open messages
 
 		if data.Actions then
 			warn('Rayfield | Not seeing your actions in notifications?')
-			print("Notification Actions are being sunset for now, keep up to date on when they're back in the discord. (sirius.menu/discord)")
+			print(
+				"Notification Actions are being sunset for now, keep up to date on when they're back in the discord. (sirius.menu/discord)")
 		end
 
 		-- Calculate textbounds and set initial values
-		local bounds = {newNotification.Title.TextBounds.Y, newNotification.Description.TextBounds.Y}
+		local bounds = { newNotification.Title.TextBounds.Y, newNotification.Description.TextBounds.Y }
 		newNotification.Size = UDim2.new(1, -60, 0, -Notifications:FindFirstChild("UIListLayout").Padding.Offset)
 
 		newNotification.Icon.Size = UDim2.new(0, 32, 0, 32)
 		newNotification.Icon.Position = UDim2.new(0, 20, 0.5, 0)
 
-		TweenService:Create(newNotification, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, 0, 0, math.max(bounds[1] + bounds[2] + 31, 60))}):Play()
+		TweenService:Create(newNotification, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+			{ Size = UDim2.new(1, 0, 0, math.max(bounds[1] + bounds[2] + 31, 60)) }):Play()
 
 		task.wait(0.15)
-		TweenService:Create(newNotification, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.45}):Play()
-		TweenService:Create(newNotification.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+		TweenService:Create(newNotification, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
+			{ BackgroundTransparency = 0.45 }):Play()
+		TweenService:Create(newNotification.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+			{ TextTransparency = 0 }):Play()
 
 		task.wait(0.05)
 
-		TweenService:Create(newNotification.Icon, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
+		TweenService:Create(newNotification.Icon, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+			{ ImageTransparency = 0 }):Play()
 
 		task.wait(0.05)
-		TweenService:Create(newNotification.Description, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0.35}):Play()
-		TweenService:Create(newNotification.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {Transparency = 0.95}):Play()
-		TweenService:Create(newNotification.Shadow, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0.82}):Play()
+		TweenService:Create(newNotification.Description, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+			{ TextTransparency = 0.35 }):Play()
+		TweenService:Create(newNotification.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
+			{ Transparency = 0.95 }):Play()
+		TweenService:Create(newNotification.Shadow, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+			{ ImageTransparency = 0.82 }):Play()
 
 		local waitDuration = math.min(math.max((#newNotification.Description.Text * 0.1) + 2.5, 3), 10)
 		task.wait(data.Duration or waitDuration)
 
 		newNotification.Icon.Visible = false
-		TweenService:Create(newNotification, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-		TweenService:Create(newNotification.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-		TweenService:Create(newNotification.Shadow, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
-		TweenService:Create(newNotification.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-		TweenService:Create(newNotification.Description, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+		TweenService:Create(newNotification, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
+			{ BackgroundTransparency = 1 }):Play()
+		TweenService:Create(newNotification.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
+			{ Transparency = 1 }):Play()
+		TweenService:Create(newNotification.Shadow, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+			{ ImageTransparency = 1 }):Play()
+		TweenService:Create(newNotification.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+			{ TextTransparency = 1 }):Play()
+		TweenService:Create(newNotification.Description, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+			{ TextTransparency = 1 }):Play()
 
-		TweenService:Create(newNotification, TweenInfo.new(1, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -90, 0, 0)}):Play()
+		TweenService:Create(newNotification, TweenInfo.new(1, Enum.EasingStyle.Exponential),
+			{ Size = UDim2.new(1, -90, 0, 0) }):Play()
 
 		task.wait(1)
 
-		TweenService:Create(newNotification, TweenInfo.new(1, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -90, 0, -Notifications:FindFirstChild("UIListLayout").Padding.Offset)}):Play()
+		TweenService:Create(newNotification, TweenInfo.new(1, Enum.EasingStyle.Exponential),
+			{ Size = UDim2.new(1, -90, 0, -Notifications:FindFirstChild("UIListLayout").Padding.Offset) }):Play()
 
 		newNotification.Visible = false
 		newNotification:Destroy()
@@ -1718,44 +1761,65 @@ local function openSearch()
 	for _, tabbtn in ipairs(TabList:GetChildren()) do
 		if tabbtn.ClassName == "Frame" and tabbtn.Name ~= "Placeholder" then
 			tabbtn.Interact.Visible = false
-			TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-			TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-			TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
-			TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+			TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { BackgroundTransparency = 1 })
+				:Play()
+			TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
+				:Play()
+			TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { ImageTransparency = 1 })
+				:Play()
+			TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { Transparency = 1 })
+				:Play()
 		end
 	end
 
 	Main.Search.Input:CaptureFocus()
-	TweenService:Create(Main.Search.Shadow, TweenInfo.new(0.05, Enum.EasingStyle.Quint), {ImageTransparency = 0.95}):Play()
-	TweenService:Create(Main.Search, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Position = UDim2.new(0.5, 0, 0, 57), BackgroundTransparency = 0.9}):Play()
-	TweenService:Create(Main.Search.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 0.8}):Play()
-	TweenService:Create(Main.Search.Input, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0.2}):Play()
-	TweenService:Create(Main.Search.Search, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0.5}):Play()
-	TweenService:Create(Main.Search, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -35, 0, 35)}):Play()
+	TweenService:Create(Main.Search.Shadow, TweenInfo.new(0.05, Enum.EasingStyle.Quint), { ImageTransparency = 0.95 })
+		:Play()
+	TweenService:Create(Main.Search, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+		{ Position = UDim2.new(0.5, 0, 0, 57), BackgroundTransparency = 0.9 }):Play()
+	TweenService:Create(Main.Search.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { Transparency = 0.8 })
+		:Play()
+	TweenService:Create(Main.Search.Input, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { TextTransparency = 0.2 })
+		:Play()
+	TweenService:Create(Main.Search.Search, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { ImageTransparency = 0.5 })
+		:Play()
+	TweenService:Create(Main.Search, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+		{ Size = UDim2.new(1, -35, 0, 35) })
+		:Play()
 end
 
 local function closeSearch()
 	searchOpen = false
 
-	TweenService:Create(Main.Search, TweenInfo.new(0.35, Enum.EasingStyle.Quint), {BackgroundTransparency = 1, Size = UDim2.new(1, -55, 0, 30)}):Play()
-	TweenService:Create(Main.Search.Search, TweenInfo.new(0.15, Enum.EasingStyle.Quint), {ImageTransparency = 1}):Play()
-	TweenService:Create(Main.Search.Shadow, TweenInfo.new(0.15, Enum.EasingStyle.Quint), {ImageTransparency = 1}):Play()
-	TweenService:Create(Main.Search.UIStroke, TweenInfo.new(0.15, Enum.EasingStyle.Quint), {Transparency = 1}):Play()
-	TweenService:Create(Main.Search.Input, TweenInfo.new(0.15, Enum.EasingStyle.Quint), {TextTransparency = 1}):Play()
+	TweenService:Create(Main.Search, TweenInfo.new(0.35, Enum.EasingStyle.Quint),
+		{ BackgroundTransparency = 1, Size = UDim2.new(1, -55, 0, 30) }):Play()
+	TweenService:Create(Main.Search.Search, TweenInfo.new(0.15, Enum.EasingStyle.Quint), { ImageTransparency = 1 }):Play()
+	TweenService:Create(Main.Search.Shadow, TweenInfo.new(0.15, Enum.EasingStyle.Quint), { ImageTransparency = 1 }):Play()
+	TweenService:Create(Main.Search.UIStroke, TweenInfo.new(0.15, Enum.EasingStyle.Quint), { Transparency = 1 }):Play()
+	TweenService:Create(Main.Search.Input, TweenInfo.new(0.15, Enum.EasingStyle.Quint), { TextTransparency = 1 }):Play()
 
 	for _, tabbtn in ipairs(TabList:GetChildren()) do
 		if tabbtn.ClassName == "Frame" and tabbtn.Name ~= "Placeholder" then
 			tabbtn.Interact.Visible = true
 			if tostring(Elements.UIPageLayout.CurrentPage) == tabbtn.Title.Text then
-				TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-				TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
-				TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-				TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+				TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+					{ BackgroundTransparency = 0 }):Play()
+				TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+					{ ImageTransparency = 0 }):Play()
+				TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+					{ TextTransparency = 0 }):Play()
+				TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+					{ Transparency = 1 })
+					:Play()
 			else
-				TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.7}):Play()
-				TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0.2}):Play()
-				TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0.2}):Play()
-				TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+				TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+					{ BackgroundTransparency = 0.7 }):Play()
+				TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+					{ ImageTransparency = 0.2 }):Play()
+				TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+					{ TextTransparency = 0.2 }):Play()
+				TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+					{ Transparency = 0.5 }):Play()
 			end
 		end
 	end
@@ -1772,16 +1836,21 @@ local function setElementsVisible(show)
 				if element.ClassName == "Frame" then
 					if element.Name ~= "SectionSpacing" and element.Name ~= "Placeholder" then
 						if element.Name == "SectionTitle" or element.Name == 'SearchTitle-fsefsefesfsefesfesfThanks' then
-							TweenService:Create(element.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = show and 0.4 or 1}):Play()
+							TweenService:Create(element.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+								{ TextTransparency = show and 0.4 or 1 }):Play()
 						elseif element.Name == 'Divider' then
-							TweenService:Create(element.Divider, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = show and 0.85 or 1}):Play()
+							TweenService:Create(element.Divider, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+								{ BackgroundTransparency = show and 0.85 or 1 }):Play()
 						else
 							local bgTarget = element:GetAttribute("BackgroundTransparencyTarget") or 0
 							local strokeTarget = element:GetAttribute("UIStrokeTransparencyTarget") or 0
 							local titleTarget = element:GetAttribute("TitleTextTransparencyTarget") or 0
-							TweenService:Create(element, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = show and bgTarget or 1}):Play()
-							TweenService:Create(element.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = show and strokeTarget or 1}):Play()
-							TweenService:Create(element.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = show and titleTarget or 1}):Play()
+							TweenService:Create(element, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+								{ BackgroundTransparency = show and bgTarget or 1 }):Play()
+							TweenService:Create(element.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+								{ Transparency = show and strokeTarget or 1 }):Play()
+							TweenService:Create(element.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+								{ TextTransparency = show and titleTarget or 1 }):Play()
 						end
 						for _, child in ipairs(element:GetChildren()) do
 							if child.ClassName == "Frame" or child.ClassName == "TextLabel" or child.ClassName == "TextBox" or child.ClassName == "ImageButton" or child.ClassName == "ImageLabel" then
@@ -1801,21 +1870,34 @@ local function setTabButtonsVisible(show)
 		if tabbtn.ClassName == "Frame" and tabbtn.Name ~= "Placeholder" then
 			if show then
 				if tostring(Elements.UIPageLayout.CurrentPage) == tabbtn.Title.Text then
-					TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-					TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
-					TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-					TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+						{ BackgroundTransparency = 0 }):Play()
+					TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+						{ ImageTransparency = 0 }):Play()
+					TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+						{ TextTransparency = 0 }):Play()
+					TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+						{ Transparency = 1 }):Play()
 				else
-					TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.7}):Play()
-					TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 0.2}):Play()
-					TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0.2}):Play()
-					TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+					TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+						{ BackgroundTransparency = 0.7 }):Play()
+					TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+						{ ImageTransparency = 0.2 }):Play()
+					TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+						{ TextTransparency = 0.2 }):Play()
+					TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+						{ Transparency = 0.5 }):Play()
 				end
 			else
-				TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-				TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-				TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
-				TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+				TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+					{ BackgroundTransparency = 1 }):Play()
+				TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+					{ TextTransparency = 1 }):Play()
+				TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+					{ ImageTransparency = 1 }):Play()
+				TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+					{ Transparency = 1 })
+					:Play()
 			end
 		end
 	end
@@ -1836,34 +1918,58 @@ local function Hide(notify)
 
 	Debounce = true
 	if notify then
-		if useMobilePrompt then 
-			RayfieldLibrary:Notify({Title = "Interface Hidden", Content = "The interface has been hidden, you can unhide the interface by tapping 'Show'.", Duration = 7, Image = 4400697855})
+		if useMobilePrompt then
+			RayfieldLibrary:Notify({
+				Title = "Interface Hidden",
+				Content =
+				"The interface has been hidden, you can unhide the interface by tapping 'Show'.",
+				Duration = 7,
+				Image = 4400697855
+			})
 		else
-			RayfieldLibrary:Notify({Title = "Interface Hidden", Content = "The interface has been hidden, you can unhide the interface by tapping " .. tostring(getSetting("General", "rayfieldOpen")) .. ".", Duration = 7, Image = 4400697855})
+			RayfieldLibrary:Notify({
+				Title = "Interface Hidden",
+				Content =
+					"The interface has been hidden, you can unhide the interface by tapping " ..
+					tostring(getSetting("General", "rayfieldOpen")) .. ".",
+				Duration = 7,
+				Image = 4400697855
+			})
 		end
 	end
 
-	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 470, 0, 0)}):Play()
-	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 470, 0, 45)}):Play()
-	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(Main.Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(Main.Topbar.CornerRepair, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(Main.Topbar.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
-	TweenService:Create(Topbar.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { Size = UDim2.new(0, 470, 0, 0) }):Play()
+	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+		{ Size = UDim2.new(0, 470, 0, 45) })
+		:Play()
+	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { BackgroundTransparency = 1 }):Play()
+	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { BackgroundTransparency = 1 })
+		:Play()
+	TweenService:Create(Main.Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+		{ BackgroundTransparency = 1 }):Play()
+	TweenService:Create(Main.Topbar.CornerRepair, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+		{ BackgroundTransparency = 1 }):Play()
+	TweenService:Create(Main.Topbar.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
+		:Play()
+	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { ImageTransparency = 1 })
+		:Play()
+	TweenService:Create(Topbar.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { Transparency = 1 }):Play()
 	if dragBarCosmetic then
-		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+			{ BackgroundTransparency = 1 }):Play()
 	end
 
 	if MPrompt then
-		TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 120, 0, 30), Position = UDim2.new(0.5, 0, 0, 20), BackgroundTransparency = 0.3}):Play()
-		TweenService:Create(MPrompt.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0.3}):Play()
+		TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+			{ Size = UDim2.new(0, 120, 0, 30), Position = UDim2.new(0.5, 0, 0, 20), BackgroundTransparency = 0.3 }):Play()
+		TweenService:Create(MPrompt.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { TextTransparency = 0.3 })
+			:Play()
 	end
 
 	for _, TopbarButton in ipairs(Topbar:GetChildren()) do
 		if TopbarButton.ClassName == "ImageButton" then
-			TweenService:Create(TopbarButton, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
+			TweenService:Create(TopbarButton, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { ImageTransparency = 1 })
+				:Play()
 		end
 	end
 
@@ -1889,15 +1995,21 @@ local function Maximise()
 	Debounce = true
 	Topbar.ChangeSize.Image = customAssets[tostring(10137941941)]
 
-	TweenService:Create(Topbar.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 0.6}):Play()
-	TweenService:Create(Topbar.CornerRepair, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-	TweenService:Create(Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+	TweenService:Create(Topbar.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { Transparency = 1 }):Play()
+	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { ImageTransparency = 0.6 })
+		:Play()
+	TweenService:Create(Topbar.CornerRepair, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+		{ BackgroundTransparency = 0 }):Play()
+	TweenService:Create(Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 })
+		:Play()
 	if dragBarCosmetic then
-		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 0.7}):Play()
+		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+			{ BackgroundTransparency = 0.7 }):Play()
 	end
-	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = useMobileSizing and UDim2.new(0, 500, 0, 275) or UDim2.new(0, 500, 0, 475)}):Play()
-	TweenService:Create(Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 500, 0, 45)}):Play()
+	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+		{ Size = useMobileSizing and UDim2.new(0, 500, 0, 275) or UDim2.new(0, 500, 0, 475) }):Play()
+	TweenService:Create(Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { Size = UDim2.new(0, 500, 0, 45) })
+		:Play()
 	TabList.Visible = true
 	task.wait(0.2)
 
@@ -1919,18 +2031,28 @@ local function Unhide()
 	Debounce = true
 	Main.Position = UDim2.new(0.5, 0, 0.5, 0)
 	Main.Visible = true
-	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = useMobileSizing and UDim2.new(0, 500, 0, 275) or UDim2.new(0, 500, 0, 475)}):Play()
-	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 500, 0, 45)}):Play()
-	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.6}):Play()
-	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-	TweenService:Create(Main.Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-	TweenService:Create(Main.Topbar.CornerRepair, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-	TweenService:Create(Main.Topbar.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+		{ Size = useMobileSizing and UDim2.new(0, 500, 0, 275) or UDim2.new(0, 500, 0, 475) }):Play()
+	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+		{ Size = UDim2.new(0, 500, 0, 45) })
+		:Play()
+	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { ImageTransparency = 0.6 })
+		:Play()
+	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 }):Play()
+	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 })
+		:Play()
+	TweenService:Create(Main.Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+		{ BackgroundTransparency = 0 }):Play()
+	TweenService:Create(Main.Topbar.CornerRepair, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+		{ BackgroundTransparency = 0 }):Play()
+	TweenService:Create(Main.Topbar.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { TextTransparency = 0 })
+		:Play()
 
 	if MPrompt then
-		TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 40, 0, 10), Position = UDim2.new(0.5, 0, 0, -50), BackgroundTransparency = 1}):Play()
-		TweenService:Create(MPrompt.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+		TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+			{ Size = UDim2.new(0, 40, 0, 10), Position = UDim2.new(0.5, 0, 0, -50), BackgroundTransparency = 1 }):Play()
+		TweenService:Create(MPrompt.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
+			:Play()
 
 		task.spawn(function()
 			task.wait(0.5)
@@ -1953,11 +2075,12 @@ local function Unhide()
 	for _, TopbarButton in ipairs(Topbar:GetChildren()) do
 		if TopbarButton.ClassName == "ImageButton" then
 			if TopbarButton.Name == 'Icon' then
-				TweenService:Create(TopbarButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
+				TweenService:Create(TopbarButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+					{ ImageTransparency = 0 }):Play()
 			else
-				TweenService:Create(TopbarButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.8}):Play()
+				TweenService:Create(TopbarButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+					{ ImageTransparency = 0.8 }):Play()
 			end
-
 		end
 	end
 
@@ -1966,7 +2089,8 @@ local function Unhide()
 	setElementsVisible(true)
 
 	if dragBarCosmetic then
-		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 0.5}):Play()
+		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+			{ BackgroundTransparency = 0.5 }):Play()
 	end
 
 	task.wait(0.5)
@@ -1988,14 +2112,20 @@ local function Minimise()
 	setElementsVisible(false)
 
 	if dragBarCosmetic then
-		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 1}):Play()
+		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+			{ BackgroundTransparency = 1 }):Play()
 	end
-	TweenService:Create(Topbar.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
-	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
-	TweenService:Create(Topbar.CornerRepair, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 495, 0, 45)}):Play()
-	TweenService:Create(Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 495, 0, 45)}):Play()
+	TweenService:Create(Topbar.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { Transparency = 0 }):Play()
+	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { ImageTransparency = 1 })
+		:Play()
+	TweenService:Create(Topbar.CornerRepair, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+		{ BackgroundTransparency = 1 }):Play()
+	TweenService:Create(Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { BackgroundTransparency = 1 })
+		:Play()
+	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { Size = UDim2.new(0, 495, 0, 45) })
+		:Play()
+	TweenService:Create(Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { Size = UDim2.new(0, 495, 0, 45) })
+		:Play()
 
 	task.wait(0.3)
 
@@ -2018,7 +2148,7 @@ local function saveSettings() -- Save settings to config file
 				script.Parent['get.val'].Value = encoded
 			end
 		end
-		callSafely(writefile, RayfieldFolder..'/settings'..ConfigurationExtension, encoded)
+		callSafely(writefile, RayfieldFolder .. '/settings' .. ConfigurationExtension, encoded)
 	end
 end
 
@@ -2110,18 +2240,28 @@ local function createSettings(window)
 end
 
 local function fadeOutKeyUI(KeyMain)
-	TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 467, 0, 175)}):Play()
-	TweenService:Create(KeyMain.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
-	TweenService:Create(KeyMain.Title, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-	TweenService:Create(KeyMain.Subtitle, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-	TweenService:Create(KeyMain.KeyNote, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-	TweenService:Create(KeyMain.Input, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-	TweenService:Create(KeyMain.Input.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-	TweenService:Create(KeyMain.Input.InputBox, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-	TweenService:Create(KeyMain.NoteTitle, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-	TweenService:Create(KeyMain.NoteMessage, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-	TweenService:Create(KeyMain.Hide, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
+	TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), { BackgroundTransparency = 1 }):Play()
+	TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), { Size = UDim2.new(0, 467, 0, 175) })
+		:Play()
+	TweenService:Create(KeyMain.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { ImageTransparency = 1 })
+		:Play()
+	TweenService:Create(KeyMain.Title, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), { TextTransparency = 1 }):Play()
+	TweenService:Create(KeyMain.Subtitle, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
+		:Play()
+	TweenService:Create(KeyMain.KeyNote, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
+		:Play()
+	TweenService:Create(KeyMain.Input, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { BackgroundTransparency = 1 })
+		:Play()
+	TweenService:Create(KeyMain.Input.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { Transparency = 1 })
+		:Play()
+	TweenService:Create(KeyMain.Input.InputBox, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+		{ TextTransparency = 1 })
+		:Play()
+	TweenService:Create(KeyMain.NoteTitle, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
+		:Play()
+	TweenService:Create(KeyMain.NoteMessage, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
+		:Play()
+	TweenService:Create(KeyMain.Hide, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), { ImageTransparency = 1 }):Play()
 end
 
 function RayfieldLibrary:CreateWindow(Settings)
@@ -2138,9 +2278,18 @@ function RayfieldLibrary:CreateWindow(Settings)
 	if getgenv then getgenv().rayfieldCached = true end
 
 	if not correctBuild and not Settings.DisableBuildWarnings then
-		task.delay(3, 
-			function() 
-				RayfieldLibrary:Notify({Title = 'Build Mismatch', Content = 'Rayfield may encounter issues as you are running an incompatible interface version ('.. ((Rayfield:FindFirstChild('Build') and Rayfield.Build.Value) or 'No Build') ..').\n\nThis version of Rayfield is intended for interface build '..InterfaceBuild..'.\n\nTry rejoining and then run the script twice.', Image = 4335487866, Duration = 15})		
+		task.delay(3,
+			function()
+				RayfieldLibrary:Notify({
+					Title = 'Build Mismatch',
+					Content =
+						'Rayfield may encounter issues as you are running an incompatible interface version (' ..
+						((Rayfield:FindFirstChild('Build') and Rayfield.Build.Value) or 'No Build') ..
+						').\n\nThis version of Rayfield is intended for interface build ' ..
+						InterfaceBuild .. '.\n\nTry rejoining and then run the script twice.',
+					Image = 4335487866,
+					Duration = 15
+				})
 			end)
 	end
 
@@ -2162,7 +2311,9 @@ function RayfieldLibrary:CreateWindow(Settings)
 
 	ensureFolder(RayfieldFolder)
 	pcall(siaStart, {
-		name = Settings.Name, id = Settings.ScriptID, token = Settings.VerificationToken,
+		name = Settings.Name,
+		id = Settings.ScriptID,
+		token = Settings.VerificationToken,
 		theme = (type(Settings.Theme) == "string" and Settings.Theme) or (Settings.Theme and "Custom") or "Default",
 	})
 
@@ -2179,7 +2330,7 @@ function RayfieldLibrary:CreateWindow(Settings)
 	LoadingFrame.Subtitle.TextTransparency = 1
 
 	if Settings.ShowText then
-		MPrompt.Title.Text = 'Show '..Settings.ShowText
+		MPrompt.Title.Text = 'Show ' .. Settings.ShowText
 	end
 
 	LoadingFrame.Version.TextTransparency = 1
@@ -2283,8 +2434,11 @@ function RayfieldLibrary:CreateWindow(Settings)
 	end)
 
 
-	makeDraggable(Main, Topbar, false, {dragOffset, dragOffsetMobile})
-	if dragBar then dragBar.Position = UDim2.new(0.5, 0, 0.5, getCurrentDragOffset()) makeDraggable(Main, dragInteract, true, {dragOffset, dragOffsetMobile}) end
+	makeDraggable(Main, Topbar, false, { dragOffset, dragOffsetMobile })
+	if dragBar then
+		dragBar.Position = UDim2.new(0.5, 0, 0.5, getCurrentDragOffset())
+		makeDraggable(Main, dragInteract, true, { dragOffset, dragOffsetMobile })
+	end
 
 	for _, TabButton in ipairs(TabList:GetChildren()) do
 		if TabButton.ClassName == "Frame" and TabButton.Name ~= "Placeholder" then
@@ -2296,8 +2450,9 @@ function RayfieldLibrary:CreateWindow(Settings)
 	end
 
 	if Settings.Discord and Settings.Discord.Enabled and not useStudio and not secureMode then
-		ensureFolder(RayfieldFolder.."/Discord Invites")
-		local inviteFile = RayfieldFolder.."/Discord Invites".."/"..sanitizeFileName(Settings.Discord.Invite)..ConfigurationExtension
+		ensureFolder(RayfieldFolder .. "/Discord Invites")
+		local inviteFile = RayfieldFolder ..
+			"/Discord Invites" .. "/" .. sanitizeFileName(Settings.Discord.Invite) .. ConfigurationExtension
 
 		if not callSafely(isfile, inviteFile) then
 			if requestFunc then
@@ -2312,14 +2467,15 @@ function RayfieldLibrary:CreateWindow(Settings)
 						Body = HttpService:JSONEncode({
 							cmd = 'INVITE_BROWSER',
 							nonce = HttpService:GenerateGUID(false),
-							args = {code = Settings.Discord.Invite}
+							args = { code = Settings.Discord.Invite }
 						})
 					})
 				end)
 			end
 
 			if Settings.Discord.RememberJoins then -- We do logic this way so if the developer changes this setting, the user still won't be prompted, only new users
-				callSafely(writefile, inviteFile,"Rayfield RememberJoins is true for this invite, this invite will not ask you to join again")
+				callSafely(writefile, inviteFile,
+					"Rayfield RememberJoins is true for this invite, this invite will not ask you to join again")
 			end
 		end
 	end
@@ -2330,9 +2486,9 @@ function RayfieldLibrary:CreateWindow(Settings)
 			return
 		end
 
-		ensureFolder(RayfieldFolder.."/Key System")
+		ensureFolder(RayfieldFolder .. "/Key System")
 
-		if typeof(Settings.KeySettings.Key) == "string" then Settings.KeySettings.Key = {Settings.KeySettings.Key} end
+		if typeof(Settings.KeySettings.Key) == "string" then Settings.KeySettings.Key = { Settings.KeySettings.Key } end
 
 		if Settings.KeySettings.GrabKeyFromSite then
 			for i, Key in ipairs(Settings.KeySettings.Key) do
@@ -2343,7 +2499,7 @@ function RayfieldLibrary:CreateWindow(Settings)
 					Settings.KeySettings.Key[i] = string.gsub(Settings.KeySettings.Key[i], " ", "")
 				end)
 				if not Success then
-					print("Rayfield | "..Key.." Error " ..tostring(Response))
+					print("Rayfield | " .. Key .. " Error " .. tostring(Response))
 					warn('Check docs.sirius.menu for help with Rayfield specific development.')
 				end
 			end
@@ -2356,7 +2512,7 @@ function RayfieldLibrary:CreateWindow(Settings)
 		if keyFileName == "" then
 			keyFileName = "No file name specified"
 		end
-		local keyFile = RayfieldFolder.."/Key System".."/"..keyFileName..ConfigurationExtension
+		local keyFile = RayfieldFolder .. "/Key System" .. "/" .. keyFileName .. ConfigurationExtension
 
 		if callSafely(isfile, keyFile) then
 			for _, MKey in ipairs(Settings.KeySettings.Key) do
@@ -2368,7 +2524,8 @@ function RayfieldLibrary:CreateWindow(Settings)
 		end
 
 		if not Passthrough and secureMode then
-			warn("Rayfield | Secure Mode: Key system requires a valid saved key. The key UI cannot be shown as it requires loading detectable assets.")
+			warn(
+				"Rayfield | Secure Mode: Key system requires a valid saved key. The key UI cannot be shown as it requires loading detectable assets.")
 			Rayfield.Enabled = false
 			return RayfieldLibrary
 		end
@@ -2377,7 +2534,8 @@ function RayfieldLibrary:CreateWindow(Settings)
 			siaCall("keyScreen", "shown")
 			local AttemptsRemaining = Settings.KeySettings.MaxAttempts or 5
 			Rayfield.Enabled = false
-			local KeyUI = useStudio and script.Parent:FindFirstChild('Key') or game:GetObjects("rbxassetid://11380036235")[1]
+			local KeyUI = useStudio and script.Parent:FindFirstChild('Key') or
+				game:GetObjects("rbxassetid://11380036235")[1]
 
 			KeyUI.Enabled = true
 			parentGui(KeyUI)
@@ -2415,22 +2573,36 @@ function RayfieldLibrary:CreateWindow(Settings)
 			KeyMain.NoteMessage.TextTransparency = 1
 			KeyMain.Hide.ImageTransparency = 1
 
-			TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-			TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 500, 0, 187)}):Play()
-			TweenService:Create(KeyMain.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 0.5}):Play()
+			TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 })
+				:Play()
+			TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+				{ Size = UDim2.new(0, 500, 0, 187) }):Play()
+			TweenService:Create(KeyMain.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+				{ ImageTransparency = 0.5 }):Play()
 			task.wait(0.05)
-			TweenService:Create(KeyMain.Title, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-			TweenService:Create(KeyMain.Subtitle, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+			TweenService:Create(KeyMain.Title, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), { TextTransparency = 0 })
+				:Play()
+			TweenService:Create(KeyMain.Subtitle, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+				{ TextTransparency = 0 }):Play()
 			task.wait(0.05)
-			TweenService:Create(KeyMain.KeyNote, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-			TweenService:Create(KeyMain.Input, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-			TweenService:Create(KeyMain.Input.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
-			TweenService:Create(KeyMain.Input.InputBox, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+			TweenService:Create(KeyMain.KeyNote, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+				{ TextTransparency = 0 })
+				:Play()
+			TweenService:Create(KeyMain.Input, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+				{ BackgroundTransparency = 0 }):Play()
+			TweenService:Create(KeyMain.Input.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+				{ Transparency = 0 }):Play()
+			TweenService:Create(KeyMain.Input.InputBox, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+				{ TextTransparency = 0 }):Play()
 			task.wait(0.05)
-			TweenService:Create(KeyMain.NoteTitle, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-			TweenService:Create(KeyMain.NoteMessage, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+			TweenService:Create(KeyMain.NoteTitle, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
+				{ TextTransparency = 0 }):Play()
+			TweenService:Create(KeyMain.NoteMessage, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
+				{ TextTransparency = 0 }):Play()
 			task.wait(0.15)
-			TweenService:Create(KeyMain.Hide, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {ImageTransparency = 0.3}):Play()
+			TweenService:Create(KeyMain.Hide, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
+				{ ImageTransparency = 0.3 })
+				:Play()
 
 
 			KeyUI.Main.Input.InputBox.FocusLost:Connect(function()
@@ -2459,7 +2631,12 @@ function RayfieldLibrary:CreateWindow(Settings)
 					KeyMain.Visible = false
 					if Settings.KeySettings.SaveKey then
 						callSafely(writefile, keyFile, FoundKey)
-						RayfieldLibrary:Notify({Title = "Key System", Content = "The key for this script has been saved successfully.", Image = 3605522284})
+						RayfieldLibrary:Notify({
+							Title = "Key System",
+							Content =
+							"The key for this script has been saved successfully.",
+							Image = 3605522284
+						})
 					end
 				else
 					if AttemptsRemaining == 0 then
@@ -2470,13 +2647,18 @@ function RayfieldLibrary:CreateWindow(Settings)
 					end
 					KeyMain.Input.InputBox.Text = ""
 					AttemptsRemaining = AttemptsRemaining - 1
-					TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 467, 0, 175)}):Play()
-					TweenService:Create(KeyMain, TweenInfo.new(0.4, Enum.EasingStyle.Elastic), {Position = UDim2.new(0.495,0,0.5,0)}):Play()
+					TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Size = UDim2.new(0, 467, 0, 175) }):Play()
+					TweenService:Create(KeyMain, TweenInfo.new(0.4, Enum.EasingStyle.Elastic),
+						{ Position = UDim2.new(0.495, 0, 0.5, 0) }):Play()
 					task.wait(0.1)
-					TweenService:Create(KeyMain, TweenInfo.new(0.4, Enum.EasingStyle.Elastic), {Position = UDim2.new(0.505,0,0.5,0)}):Play()
+					TweenService:Create(KeyMain, TweenInfo.new(0.4, Enum.EasingStyle.Elastic),
+						{ Position = UDim2.new(0.505, 0, 0.5, 0) }):Play()
 					task.wait(0.1)
-					TweenService:Create(KeyMain, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {Position = UDim2.new(0.5,0,0.5,0)}):Play()
-					TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 500, 0, 187)}):Play()
+					TweenService:Create(KeyMain, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
+						{ Position = UDim2.new(0.5, 0, 0.5, 0) }):Play()
+					TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Size = UDim2.new(0, 500, 0, 187) }):Play()
 				end
 			end)
 
@@ -2502,14 +2684,18 @@ function RayfieldLibrary:CreateWindow(Settings)
 	Rayfield.Enabled = true
 
 	task.wait(0.5)
-	TweenService:Create(Main, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.6}):Play()
+	TweenService:Create(Main, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 }):Play()
+	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { ImageTransparency = 0.6 })
+		:Play()
 	task.wait(0.1)
-	TweenService:Create(LoadingFrame.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+	TweenService:Create(LoadingFrame.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { TextTransparency = 0 })
+		:Play()
 	task.wait(0.05)
-	TweenService:Create(LoadingFrame.Subtitle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+	TweenService:Create(LoadingFrame.Subtitle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { TextTransparency = 0 })
+		:Play()
 	task.wait(0.05)
-	TweenService:Create(LoadingFrame.Version, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+	TweenService:Create(LoadingFrame.Version, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { TextTransparency = 0 })
+		:Play()
 
 
 	Elements.Template.LayoutOrder = 100000
@@ -2608,19 +2794,28 @@ function RayfieldLibrary:CreateWindow(Settings)
 			TabButton.BackgroundColor3 = SelectedTheme.TabBackground
 			TabButton.Image.ImageColor3 = SelectedTheme.TabTextColor
 			TabButton.Title.TextColor3 = SelectedTheme.TabTextColor
-			TweenService:Create(TabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.7}):Play()
-			TweenService:Create(TabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0.2}):Play()
-			TweenService:Create(TabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.2}):Play()
-			TweenService:Create(TabButton.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+			TweenService:Create(TabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ BackgroundTransparency = 0.7 }):Play()
+			TweenService:Create(TabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ TextTransparency = 0.2 }):Play()
+			TweenService:Create(TabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ ImageTransparency = 0.2 }):Play()
+			TweenService:Create(TabButton.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ Transparency = 0.5 }):Play()
 		elseif not Ext then
 			FirstTab = Name
 			siaCurrentTab = siaTab
 			TabButton.BackgroundColor3 = SelectedTheme.TabBackgroundSelected
 			TabButton.Image.ImageColor3 = SelectedTheme.SelectedTabTextColor
 			TabButton.Title.TextColor3 = SelectedTheme.SelectedTabTextColor
-			TweenService:Create(TabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
-			TweenService:Create(TabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-			TweenService:Create(TabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+			TweenService:Create(TabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ ImageTransparency = 0 }):Play()
+			TweenService:Create(TabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ BackgroundTransparency = 0 })
+				:Play()
+			TweenService:Create(TabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ TextTransparency = 0 })
+				:Play()
 		end
 
 
@@ -2630,23 +2825,40 @@ function RayfieldLibrary:CreateWindow(Settings)
 				siaCurrentTab = siaTab
 				siaCall("tab", siaTab)
 			end
-			TweenService:Create(TabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-			TweenService:Create(TabButton.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-			TweenService:Create(TabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
-			TweenService:Create(TabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
-			TweenService:Create(TabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.TabBackgroundSelected}):Play()
-			TweenService:Create(TabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextColor3 = SelectedTheme.SelectedTabTextColor}):Play()
-			TweenService:Create(TabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageColor3 = SelectedTheme.SelectedTabTextColor}):Play()
+			TweenService:Create(TabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ BackgroundTransparency = 0 })
+				:Play()
+			TweenService:Create(TabButton.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ Transparency = 1 })
+				:Play()
+			TweenService:Create(TabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ TextTransparency = 0 })
+				:Play()
+			TweenService:Create(TabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ ImageTransparency = 0 }):Play()
+			TweenService:Create(TabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ BackgroundColor3 = SelectedTheme.TabBackgroundSelected }):Play()
+			TweenService:Create(TabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ TextColor3 = SelectedTheme.SelectedTabTextColor }):Play()
+			TweenService:Create(TabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ ImageColor3 = SelectedTheme.SelectedTabTextColor }):Play()
 
 			for _, OtherTabButton in ipairs(TabList:GetChildren()) do
 				if OtherTabButton.Name ~= "Template" and OtherTabButton.ClassName == "Frame" and OtherTabButton ~= TabButton and OtherTabButton.Name ~= "Placeholder" then
-					TweenService:Create(OtherTabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.TabBackground}):Play()
-					TweenService:Create(OtherTabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextColor3 = SelectedTheme.TabTextColor}):Play()
-					TweenService:Create(OtherTabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageColor3 = SelectedTheme.TabTextColor}):Play()
-					TweenService:Create(OtherTabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.7}):Play()
-					TweenService:Create(OtherTabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0.2}):Play()
-					TweenService:Create(OtherTabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.2}):Play()
-					TweenService:Create(OtherTabButton.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+					TweenService:Create(OtherTabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.TabBackground }):Play()
+					TweenService:Create(OtherTabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+						{ TextColor3 = SelectedTheme.TabTextColor }):Play()
+					TweenService:Create(OtherTabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+						{ ImageColor3 = SelectedTheme.TabTextColor }):Play()
+					TweenService:Create(OtherTabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+						{ BackgroundTransparency = 0.7 }):Play()
+					TweenService:Create(OtherTabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+						{ TextTransparency = 0.2 }):Play()
+					TweenService:Create(OtherTabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+						{ ImageTransparency = 0.2 }):Play()
+					TweenService:Create(OtherTabButton.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+						{ Transparency = 0.5 }):Play()
 				end
 			end
 
@@ -2672,9 +2884,12 @@ function RayfieldLibrary:CreateWindow(Settings)
 			Button.UIStroke.Transparency = 1
 			Button.Title.TextTransparency = 1
 
-			TweenService:Create(Button, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-			TweenService:Create(Button.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
-			TweenService:Create(Button.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()	
+			TweenService:Create(Button, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 })
+				:Play()
+			TweenService:Create(Button.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { Transparency = 0 })
+				:Play()
+			TweenService:Create(Button.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { TextTransparency = 0 })
+				:Play()
 
 
 			Button.Interact.MouseButton1Click:Connect(function()
@@ -2686,39 +2901,55 @@ function RayfieldLibrary:CreateWindow(Settings)
 					return
 				end
 				if not Success then
-					TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
-					TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-					TweenService:Create(Button.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = Color3.fromRGB(85, 0, 0) }):Play()
+					TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ TextTransparency = 1 }):Play()
+					TweenService:Create(Button.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 1 }):Play()
 					Button.Title.Text = "Callback Error"
-					print("Rayfield | "..ButtonSettings.Name.." Callback Error " ..tostring(Response))
+					print("Rayfield | " .. ButtonSettings.Name .. " Callback Error " .. tostring(Response))
 					warn('Check docs.sirius.menu for help with Rayfield specific development.')
 					task.wait(0.5)
 					Button.Title.Text = ButtonSettings.Name
-					TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-					TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {TextTransparency = 0.9}):Play()
-					TweenService:Create(Button.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+					TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
+					TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ TextTransparency = 0.9 }):Play()
+					TweenService:Create(Button.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 0 }):Play()
 				else
 					if not ButtonSettings.Ext then
-						SaveConfiguration(ButtonSettings.Name..'\n')
+						SaveConfiguration(ButtonSettings.Name .. '\n')
 					end
-					TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
-					TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-					TweenService:Create(Button.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
+					TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ TextTransparency = 1 }):Play()
+					TweenService:Create(Button.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 1 }):Play()
 					task.wait(0.2)
-					TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-					TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {TextTransparency = 0.9}):Play()
-					TweenService:Create(Button.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+					TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
+					TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ TextTransparency = 0.9 }):Play()
+					TweenService:Create(Button.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 0 }):Play()
 				end
 			end)
 
 			Button.MouseEnter:Connect(function()
-				TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
-				TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {TextTransparency = 0.7}):Play()
+				TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+					{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
+				TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+					{ TextTransparency = 0.7 }):Play()
 			end)
 
 			Button.MouseLeave:Connect(function()
-				TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-				TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {TextTransparency = 0.9}):Play()
+				TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+					{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
+				TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+					{ TextTransparency = 0.9 }):Play()
 			end)
 
 			function ButtonValue:Set(NewButton)
@@ -2764,10 +2995,10 @@ function RayfieldLibrary:CreateWindow(Settings)
 			ColorPicker.HexInput.BackgroundColor3 = SelectedTheme.InputBackground
 			ColorPicker.HexInput.UIStroke.Color = SelectedTheme.InputStroke
 
-			local opened = false 
+			local opened = false
 			local mouse = Players.LocalPlayer and Players.LocalPlayer:GetMouse() or nil
-			local mainDragging = false 
-			local sliderDragging = false 
+			local mainDragging = false
+			local sliderDragging = false
 			local activeCPInput = nil
 
 			local function getCPPointerPosition()
@@ -2792,39 +3023,64 @@ function RayfieldLibrary:CreateWindow(Settings)
 
 			local function toggleColorPickerOpen()
 				task.spawn(function()
-					TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
-					TweenService:Create(ColorPicker.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
+					TweenService:Create(ColorPicker.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 1 }):Play()
 					task.wait(0.2)
-					TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-					TweenService:Create(ColorPicker.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+					TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
+					TweenService:Create(ColorPicker.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 0 }):Play()
 				end)
 
 				if not opened then
-					opened = true 
-					TweenService:Create(Background, TweenInfo.new(0.45, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 18, 0, 15)}):Play()
+					opened = true
+					TweenService:Create(Background, TweenInfo.new(0.45, Enum.EasingStyle.Exponential),
+						{ Size = UDim2.new(0, 18, 0, 15) }):Play()
 					task.wait(0.1)
-					TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -10, 0, 120)}):Play()
-					TweenService:Create(Background, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 173, 0, 86)}):Play()
-					TweenService:Create(Display, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-					TweenService:Create(ColorPicker.Interact, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Position = UDim2.new(0.289, 0, 0.5, 0)}):Play()
-					TweenService:Create(ColorPicker.RGB, TweenInfo.new(0.8, Enum.EasingStyle.Exponential), {Position = UDim2.new(0, 17, 0, 40)}):Play()
-					TweenService:Create(ColorPicker.HexInput, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Position = UDim2.new(0, 17, 0, 73)}):Play()
-					TweenService:Create(ColorPicker.Interact, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0.574, 0, 1, 0)}):Play()
-					TweenService:Create(Main.MainPoint, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
-					TweenService:Create(Main, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {ImageTransparency = SelectedTheme ~= RayfieldLibrary.Theme.Default and 0.25 or 0.1}):Play()
-					TweenService:Create(Background, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+					TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Size = UDim2.new(1, -10, 0, 120) }):Play()
+					TweenService:Create(Background, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Size = UDim2.new(0, 173, 0, 86) }):Play()
+					TweenService:Create(Display, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundTransparency = 1 }):Play()
+					TweenService:Create(ColorPicker.Interact, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Position = UDim2.new(0.289, 0, 0.5, 0) }):Play()
+					TweenService:Create(ColorPicker.RGB, TweenInfo.new(0.8, Enum.EasingStyle.Exponential),
+						{ Position = UDim2.new(0, 17, 0, 40) }):Play()
+					TweenService:Create(ColorPicker.HexInput, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+						{ Position = UDim2.new(0, 17, 0, 73) }):Play()
+					TweenService:Create(ColorPicker.Interact, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Size = UDim2.new(0.574, 0, 1, 0) }):Play()
+					TweenService:Create(Main.MainPoint, TweenInfo.new(0.2, Enum.EasingStyle.Exponential),
+						{ ImageTransparency = 0 }):Play()
+					TweenService:Create(Main, TweenInfo.new(0.2, Enum.EasingStyle.Exponential),
+						{ ImageTransparency = SelectedTheme ~= RayfieldLibrary.Theme.Default and 0.25 or 0.1 }):Play()
+					TweenService:Create(Background, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundTransparency = 0 }):Play()
 				else
 					opened = false
-					TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -10, 0, 45)}):Play()
-					TweenService:Create(Background, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(0, 39, 0, 22)}):Play()
-					TweenService:Create(ColorPicker.Interact, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, 0, 1, 0)}):Play()
-					TweenService:Create(ColorPicker.Interact, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Position = UDim2.new(0.5, 0, 0.5, 0)}):Play()
-					TweenService:Create(ColorPicker.RGB, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Position = UDim2.new(0, 17, 0, 70)}):Play()
-					TweenService:Create(ColorPicker.HexInput, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Position = UDim2.new(0, 17, 0, 90)}):Play()
-					TweenService:Create(Display, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-					TweenService:Create(Main.MainPoint, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
-					TweenService:Create(Main, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {ImageTransparency = 1}):Play()
-					TweenService:Create(Background, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
+					TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Size = UDim2.new(1, -10, 0, 45) }):Play()
+					TweenService:Create(Background, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Size = UDim2.new(0, 39, 0, 22) }):Play()
+					TweenService:Create(ColorPicker.Interact, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Size = UDim2.new(1, 0, 1, 0) }):Play()
+					TweenService:Create(ColorPicker.Interact, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Position = UDim2.new(0.5, 0, 0.5, 0) }):Play()
+					TweenService:Create(ColorPicker.RGB, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Position = UDim2.new(0, 17, 0, 70) }):Play()
+					TweenService:Create(ColorPicker.HexInput, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+						{ Position = UDim2.new(0, 17, 0, 90) }):Play()
+					TweenService:Create(Display, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundTransparency = 0 }):Play()
+					TweenService:Create(Main.MainPoint, TweenInfo.new(0.2, Enum.EasingStyle.Exponential),
+						{ ImageTransparency = 1 }):Play()
+					TweenService:Create(Main, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), { ImageTransparency = 1 })
+						:Play()
+					TweenService:Create(Background, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundTransparency = 1 }):Play()
 				end
 			end
 
@@ -2873,45 +3129,47 @@ function RayfieldLibrary:CreateWindow(Settings)
 
 			Main.MouseButton1Down:Connect(function()
 				if opened then
-					mainDragging = true 
+					mainDragging = true
 				end
 			end)
 			Main.MainPoint.MouseButton1Down:Connect(function()
 				if opened then
-					mainDragging = true 
+					mainDragging = true
 				end
 			end)
 			Slider.MouseButton1Down:Connect(function()
 				if opened then
-					sliderDragging = true 
+					sliderDragging = true
 				end
 			end)
 			Slider.SliderPoint.MouseButton1Down:Connect(function()
 				if opened then
-					sliderDragging = true 
+					sliderDragging = true
 				end
 			end)
-			local h,s,v = ColorPickerSettings.Color:ToHSV()
-			local color = Color3.fromHSV(h,s,v) 
-			local hex = string.format("#%02X%02X%02X",color.R*0xFF,color.G*0xFF,color.B*0xFF)
+			local h, s, v = ColorPickerSettings.Color:ToHSV()
+			local color = Color3.fromHSV(h, s, v)
+			local hex = string.format("#%02X%02X%02X", color.R * 0xFF, color.G * 0xFF, color.B * 0xFF)
 			ColorPicker.HexInput.InputBox.Text = hex
 			local function setDisplay()
 				local uiScale = (mainUIScale and mainUIScale.Scale > 0) and mainUIScale.Scale or 1
 				--Main
-				Main.MainPoint.Position = UDim2.new(s,-(Main.MainPoint.AbsoluteSize.X / uiScale)/2,1-v,-(Main.MainPoint.AbsoluteSize.Y / uiScale)/2)
-				Main.MainPoint.ImageColor3 = Color3.fromHSV(h,s,v)
-				Background.BackgroundColor3 = Color3.fromHSV(h,1,1)
-				Display.BackgroundColor3 = Color3.fromHSV(h,s,v)
-				--Slider 
+				Main.MainPoint.Position = UDim2.new(s, -(Main.MainPoint.AbsoluteSize.X / uiScale) / 2, 1 - v,
+					-(Main.MainPoint.AbsoluteSize.Y / uiScale) / 2)
+				Main.MainPoint.ImageColor3 = Color3.fromHSV(h, s, v)
+				Background.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+				Display.BackgroundColor3 = Color3.fromHSV(h, s, v)
+				--Slider
 				local x = h * (Slider.AbsoluteSize.X / uiScale)
-				Slider.SliderPoint.Position = UDim2.new(0,x-(Slider.SliderPoint.AbsoluteSize.X / uiScale)/2,0.5,0)
-				Slider.SliderPoint.ImageColor3 = Color3.fromHSV(h,1,1)
-				local color = Color3.fromHSV(h,s,v) 
-				local r,g,b = math.floor((color.R*255)+0.5),math.floor((color.G*255)+0.5),math.floor((color.B*255)+0.5)
+				Slider.SliderPoint.Position = UDim2.new(0, x - (Slider.SliderPoint.AbsoluteSize.X / uiScale) / 2, 0.5, 0)
+				Slider.SliderPoint.ImageColor3 = Color3.fromHSV(h, 1, 1)
+				local color = Color3.fromHSV(h, s, v)
+				local r, g, b = math.floor((color.R * 255) + 0.5), math.floor((color.G * 255) + 0.5),
+					math.floor((color.B * 255) + 0.5)
 				ColorPicker.RGB.RInput.InputBox.Text = tostring(r)
 				ColorPicker.RGB.GInput.InputBox.Text = tostring(g)
 				ColorPicker.RGB.BInput.InputBox.Text = tostring(b)
-				hex = string.format("#%02X%02X%02X",color.R*0xFF,color.G*0xFF,color.B*0xFF)
+				hex = string.format("#%02X%02X%02X", color.R * 0xFF, color.G * 0xFF, color.B * 0xFF)
 				ColorPicker.HexInput.InputBox.Text = hex
 			end
 			setDisplay()
@@ -2919,57 +3177,64 @@ function RayfieldLibrary:CreateWindow(Settings)
 				siaUsed(siaHandle, "set")
 				if not pcall(function()
 						local r, g, b = string.match(ColorPicker.HexInput.InputBox.Text, "^#?(%w%w)(%w%w)(%w%w)$")
-						local rgbColor = Color3.fromRGB(tonumber(r, 16),tonumber(g, 16), tonumber(b, 16))
-						h,s,v = rgbColor:ToHSV()
+						local rgbColor = Color3.fromRGB(tonumber(r, 16), tonumber(g, 16), tonumber(b, 16))
+						h, s, v = rgbColor:ToHSV()
 						hex = ColorPicker.HexInput.InputBox.Text
 						setDisplay()
 						ColorPickerSettings.Color = rgbColor
-					end) 
-				then 
-					ColorPicker.HexInput.InputBox.Text = hex 
+					end)
+				then
+					ColorPicker.HexInput.InputBox.Text = hex
 				end
-				pcall(function()ColorPickerSettings.Callback(Color3.fromHSV(h,s,v))end)
-				local r,g,b = math.floor((h*255)+0.5),math.floor((s*255)+0.5),math.floor((v*255)+0.5)
-				ColorPickerSettings.Color = Color3.fromRGB(r,g,b)
+				pcall(function() ColorPickerSettings.Callback(Color3.fromHSV(h, s, v)) end)
+				local r, g, b = math.floor((h * 255) + 0.5), math.floor((s * 255) + 0.5), math.floor((v * 255) + 0.5)
+				ColorPickerSettings.Color = Color3.fromRGB(r, g, b)
 				if not ColorPickerSettings.Ext then
 					SaveConfiguration()
 				end
 			end)
 			--RGB
-			local function rgbBoxes(box,toChange)
-				local value = tonumber(box.Text) 
-				local color = Color3.fromHSV(h,s,v) 
-				local oldR,oldG,oldB = math.floor((color.R*255)+0.5),math.floor((color.G*255)+0.5),math.floor((color.B*255)+0.5)
-				local save 
-				if toChange == "R" then save = oldR;oldR = value elseif toChange == "G" then save = oldG;oldG = value else save = oldB;oldB = value end
-				if value then 
-					value = math.clamp(value,0,255)
-					h,s,v = Color3.fromRGB(oldR,oldG,oldB):ToHSV()
+			local function rgbBoxes(box, toChange)
+				local value = tonumber(box.Text)
+				local color = Color3.fromHSV(h, s, v)
+				local oldR, oldG, oldB = math.floor((color.R * 255) + 0.5), math.floor((color.G * 255) + 0.5),
+					math.floor((color.B * 255) + 0.5)
+				local save
+				if toChange == "R" then
+					save = oldR; oldR = value
+				elseif toChange == "G" then
+					save = oldG; oldG = value
+				else
+					save = oldB; oldB = value
+				end
+				if value then
+					value = math.clamp(value, 0, 255)
+					h, s, v = Color3.fromRGB(oldR, oldG, oldB):ToHSV()
 
 					setDisplay()
-				else 
+				else
 					box.Text = tostring(save)
 				end
-				local r,g,b = math.floor((h*255)+0.5),math.floor((s*255)+0.5),math.floor((v*255)+0.5)
-				ColorPickerSettings.Color = Color3.fromRGB(r,g,b)
+				local r, g, b = math.floor((h * 255) + 0.5), math.floor((s * 255) + 0.5), math.floor((v * 255) + 0.5)
+				ColorPickerSettings.Color = Color3.fromRGB(r, g, b)
 				if not ColorPickerSettings.Ext then
-					SaveConfiguration(ColorPickerSettings.Flag..'\n'..tostring(ColorPickerSettings.Color))
+					SaveConfiguration(ColorPickerSettings.Flag .. '\n' .. tostring(ColorPickerSettings.Color))
 				end
 			end
 			ColorPicker.RGB.RInput.InputBox.FocusLost:connect(function()
-				rgbBoxes(ColorPicker.RGB.RInput.InputBox,"R")
+				rgbBoxes(ColorPicker.RGB.RInput.InputBox, "R")
 				siaUsed(siaHandle, "set")
-				pcall(function()ColorPickerSettings.Callback(Color3.fromHSV(h,s,v))end)
+				pcall(function() ColorPickerSettings.Callback(Color3.fromHSV(h, s, v)) end)
 			end)
 			ColorPicker.RGB.GInput.InputBox.FocusLost:connect(function()
-				rgbBoxes(ColorPicker.RGB.GInput.InputBox,"G")
+				rgbBoxes(ColorPicker.RGB.GInput.InputBox, "G")
 				siaUsed(siaHandle, "set")
-				pcall(function()ColorPickerSettings.Callback(Color3.fromHSV(h,s,v))end)
+				pcall(function() ColorPickerSettings.Callback(Color3.fromHSV(h, s, v)) end)
 			end)
 			ColorPicker.RGB.BInput.InputBox.FocusLost:connect(function()
-				rgbBoxes(ColorPicker.RGB.BInput.InputBox,"B")
+				rgbBoxes(ColorPicker.RGB.BInput.InputBox, "B")
 				siaUsed(siaHandle, "set")
-				pcall(function()ColorPickerSettings.Callback(Color3.fromHSV(h,s,v))end)
+				pcall(function() ColorPickerSettings.Callback(Color3.fromHSV(h, s, v)) end)
 			end)
 
 			local colorPickerRenderConnection = RunService.RenderStepped:connect(function()
@@ -2979,40 +3244,46 @@ function RayfieldLibrary:CreateWindow(Settings)
 					if mainDragging and Main.AbsoluteSize.X > 0 and Main.AbsoluteSize.Y > 0 then
 						local localX = math.clamp(pointerPos.X - Main.AbsolutePosition.X, 0, Main.AbsoluteSize.X)
 						local localY = math.clamp(pointerPos.Y - Main.AbsolutePosition.Y, 0, Main.AbsoluteSize.Y)
-						Main.MainPoint.Position = UDim2.new(0, (localX - Main.MainPoint.AbsoluteSize.X / 2) / uiScale, 0, (localY - Main.MainPoint.AbsoluteSize.Y / 2) / uiScale)
+						Main.MainPoint.Position = UDim2.new(0, (localX - Main.MainPoint.AbsoluteSize.X / 2) / uiScale, 0,
+							(localY - Main.MainPoint.AbsoluteSize.Y / 2) / uiScale)
 						s = localX / Main.AbsoluteSize.X
 						v = 1 - (localY / Main.AbsoluteSize.Y)
-						Display.BackgroundColor3 = Color3.fromHSV(h,s,v)
-						Main.MainPoint.ImageColor3 = Color3.fromHSV(h,s,v)
-						Background.BackgroundColor3 = Color3.fromHSV(h,1,1)
-						local color = Color3.fromHSV(h,s,v) 
-						local r,g,b = math.floor((color.R*255)+0.5),math.floor((color.G*255)+0.5),math.floor((color.B*255)+0.5)
+						Display.BackgroundColor3 = Color3.fromHSV(h, s, v)
+						Main.MainPoint.ImageColor3 = Color3.fromHSV(h, s, v)
+						Background.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+						local color = Color3.fromHSV(h, s, v)
+						local r, g, b = math.floor((color.R * 255) + 0.5), math.floor((color.G * 255) + 0.5),
+							math.floor((color.B * 255) + 0.5)
 						ColorPicker.RGB.RInput.InputBox.Text = tostring(r)
 						ColorPicker.RGB.GInput.InputBox.Text = tostring(g)
 						ColorPicker.RGB.BInput.InputBox.Text = tostring(b)
-						ColorPicker.HexInput.InputBox.Text = string.format("#%02X%02X%02X",color.R*0xFF,color.G*0xFF,color.B*0xFF)
-						pcall(function()ColorPickerSettings.Callback(Color3.fromHSV(h,s,v))end)
-						ColorPickerSettings.Color = Color3.fromRGB(r,g,b)
+						ColorPicker.HexInput.InputBox.Text = string.format("#%02X%02X%02X", color.R * 0xFF, color.G *
+							0xFF, color.B * 0xFF)
+						pcall(function() ColorPickerSettings.Callback(Color3.fromHSV(h, s, v)) end)
+						ColorPickerSettings.Color = Color3.fromRGB(r, g, b)
 						if not ColorPickerSettings.Ext then
 							SaveConfiguration()
 						end
 					end
-					if sliderDragging and Slider.AbsoluteSize.X > 0 then 
+					if sliderDragging and Slider.AbsoluteSize.X > 0 then
 						local localX = math.clamp(pointerPos.X - Slider.AbsolutePosition.X, 0, Slider.AbsoluteSize.X)
 						h = localX / Slider.AbsoluteSize.X
-						Display.BackgroundColor3 = Color3.fromHSV(h,s,v)
-						Slider.SliderPoint.Position = UDim2.new(0, (localX - Slider.SliderPoint.AbsoluteSize.X / 2) / uiScale, 0.5, 0)
-						Slider.SliderPoint.ImageColor3 = Color3.fromHSV(h,1,1)
-						Background.BackgroundColor3 = Color3.fromHSV(h,1,1)
-						Main.MainPoint.ImageColor3 = Color3.fromHSV(h,s,v)
-						local color = Color3.fromHSV(h,s,v) 
-						local r,g,b = math.floor((color.R*255)+0.5),math.floor((color.G*255)+0.5),math.floor((color.B*255)+0.5)
+						Display.BackgroundColor3 = Color3.fromHSV(h, s, v)
+						Slider.SliderPoint.Position = UDim2.new(0,
+							(localX - Slider.SliderPoint.AbsoluteSize.X / 2) / uiScale, 0.5, 0)
+						Slider.SliderPoint.ImageColor3 = Color3.fromHSV(h, 1, 1)
+						Background.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
+						Main.MainPoint.ImageColor3 = Color3.fromHSV(h, s, v)
+						local color = Color3.fromHSV(h, s, v)
+						local r, g, b = math.floor((color.R * 255) + 0.5), math.floor((color.G * 255) + 0.5),
+							math.floor((color.B * 255) + 0.5)
 						ColorPicker.RGB.RInput.InputBox.Text = tostring(r)
 						ColorPicker.RGB.GInput.InputBox.Text = tostring(g)
 						ColorPicker.RGB.BInput.InputBox.Text = tostring(b)
-						ColorPicker.HexInput.InputBox.Text = string.format("#%02X%02X%02X",color.R*0xFF,color.G*0xFF,color.B*0xFF)
-						pcall(function()ColorPickerSettings.Callback(Color3.fromHSV(h,s,v))end)
-						ColorPickerSettings.Color = Color3.fromRGB(r,g,b)
+						ColorPicker.HexInput.InputBox.Text = string.format("#%02X%02X%02X", color.R * 0xFF, color.G *
+							0xFF, color.B * 0xFF)
+						pcall(function() ColorPickerSettings.Callback(Color3.fromHSV(h, s, v)) end)
+						ColorPickerSettings.Color = Color3.fromRGB(r, g, b)
 						if not ColorPickerSettings.Ext then
 							SaveConfiguration()
 						end
@@ -3037,17 +3308,19 @@ function RayfieldLibrary:CreateWindow(Settings)
 
 			function ColorPickerSettings:Set(RGBColor)
 				ColorPickerSettings.Color = RGBColor
-				h,s,v = ColorPickerSettings.Color:ToHSV()
-				color = Color3.fromHSV(h,s,v)
+				h, s, v = ColorPickerSettings.Color:ToHSV()
+				color = Color3.fromHSV(h, s, v)
 				setDisplay()
 			end
 
 			ColorPicker.MouseEnter:Connect(function()
-				TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
+				TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+					{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
 			end)
 
 			ColorPicker.MouseLeave:Connect(function()
-				TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+				TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+					{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
 			end)
 
 			Rayfield.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
@@ -3083,7 +3356,9 @@ function RayfieldLibrary:CreateWindow(Settings)
 			Section.Parent = TabPage
 
 			Section.Title.TextTransparency = 1
-			TweenService:Create(Section.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0.4}):Play()
+			TweenService:Create(Section.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ TextTransparency = 0.4 })
+				:Play()
 
 			function SectionValue:Set(NewSection)
 				Section.Title.Text = NewSection
@@ -3103,7 +3378,8 @@ function RayfieldLibrary:CreateWindow(Settings)
 			Divider.Parent = TabPage
 
 			Divider.Divider.BackgroundTransparency = 1
-			TweenService:Create(Divider.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.85}):Play()
+			TweenService:Create(Divider.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+				{ BackgroundTransparency = 0.85 }):Play()
 
 			function DividerValue:Set(Value)
 				Divider.Visible = Value
@@ -3148,10 +3424,14 @@ function RayfieldLibrary:CreateWindow(Settings)
 			Label:SetAttribute("UIStrokeTransparencyTarget", Color and 0.7 or 0)
 			Label:SetAttribute("TitleTextTransparencyTarget", Color and 0.2 or 0)
 
-			TweenService:Create(Label, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = Color and 0.8 or 0}):Play()
-			TweenService:Create(Label.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = Color and 0.7 or 0}):Play()
-			TweenService:Create(Label.Icon, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.2}):Play()
-			TweenService:Create(Label.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = Color and 0.2 or 0}):Play()
+			TweenService:Create(Label, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ BackgroundTransparency = Color and 0.8 or 0 }):Play()
+			TweenService:Create(Label.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ Transparency = Color and 0.7 or 0 }):Play()
+			TweenService:Create(Label.Icon, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { ImageTransparency = 0.2 })
+				:Play()
+			TweenService:Create(Label.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ TextTransparency = Color and 0.2 or 0 }):Play()
 
 			function LabelValue:Set(NewLabel, Icon, Color)
 				Label.Title.Text = NewLabel
@@ -3175,8 +3455,10 @@ function RayfieldLibrary:CreateWindow(Settings)
 			end
 
 			Rayfield.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
-				Label.BackgroundColor3 = IgnoreTheme and (Color or Label.BackgroundColor3) or SelectedTheme.SecondaryElementBackground
-				Label.UIStroke.Color = IgnoreTheme and (Color or Label.BackgroundColor3) or SelectedTheme.SecondaryElementStroke
+				Label.BackgroundColor3 = IgnoreTheme and (Color or Label.BackgroundColor3) or
+					SelectedTheme.SecondaryElementBackground
+				Label.UIStroke.Color = IgnoreTheme and (Color or Label.BackgroundColor3) or
+					SelectedTheme.SecondaryElementStroke
 			end)
 
 			return LabelValue
@@ -3200,10 +3482,17 @@ function RayfieldLibrary:CreateWindow(Settings)
 			Paragraph.BackgroundColor3 = SelectedTheme.SecondaryElementBackground
 			Paragraph.UIStroke.Color = SelectedTheme.SecondaryElementStroke
 
-			TweenService:Create(Paragraph, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-			TweenService:Create(Paragraph.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
-			TweenService:Create(Paragraph.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()	
-			TweenService:Create(Paragraph.Content, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()	
+			TweenService:Create(Paragraph, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ BackgroundTransparency = 0 })
+				:Play()
+			TweenService:Create(Paragraph.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ Transparency = 0 })
+				:Play()
+			TweenService:Create(Paragraph.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ TextTransparency = 0 })
+				:Play()
+			TweenService:Create(Paragraph.Content, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ TextTransparency = 0 }):Play()
 
 			function ParagraphValue:Set(NewParagraphSettings)
 				Paragraph.Title.Text = NewParagraphSettings.Title
@@ -3236,9 +3525,12 @@ function RayfieldLibrary:CreateWindow(Settings)
 			Input.InputFrame.BackgroundColor3 = SelectedTheme.InputBackground
 			Input.InputFrame.UIStroke.Color = SelectedTheme.InputStroke
 
-			TweenService:Create(Input, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-			TweenService:Create(Input.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
-			TweenService:Create(Input.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()	
+			TweenService:Create(Input, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 })
+				:Play()
+			TweenService:Create(Input.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { Transparency = 0 })
+				:Play()
+			TweenService:Create(Input.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { TextTransparency = 0 })
+				:Play()
 
 			Input.InputFrame.InputBox.PlaceholderText = InputSettings.PlaceholderText
 			Input.InputFrame.Size = UDim2.new(0, Input.InputFrame.InputBox.TextBounds.X + 24, 0, 30)
@@ -3252,15 +3544,19 @@ function RayfieldLibrary:CreateWindow(Settings)
 
 				if not Success then
 					siaError(siaHandle)
-					TweenService:Create(Input, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
-					TweenService:Create(Input.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					TweenService:Create(Input, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = Color3.fromRGB(85, 0, 0) }):Play()
+					TweenService:Create(Input.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 1 }):Play()
 					Input.Title.Text = "Callback Error"
-					print("Rayfield | "..InputSettings.Name.." Callback Error " ..tostring(Response))
+					print("Rayfield | " .. InputSettings.Name .. " Callback Error " .. tostring(Response))
 					warn('Check docs.sirius.menu for help with Rayfield specific development.')
 					task.wait(0.5)
 					Input.Title.Text = InputSettings.Name
-					TweenService:Create(Input, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-					TweenService:Create(Input.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+					TweenService:Create(Input, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
+					TweenService:Create(Input.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 0 }):Play()
 				end
 
 				if InputSettings.RemoveTextAfterFocusLost then
@@ -3273,15 +3569,19 @@ function RayfieldLibrary:CreateWindow(Settings)
 			end)
 
 			Input.MouseEnter:Connect(function()
-				TweenService:Create(Input, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
+				TweenService:Create(Input, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+					{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
 			end)
 
 			Input.MouseLeave:Connect(function()
-				TweenService:Create(Input, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+				TweenService:Create(Input, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+					{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
 			end)
 
 			Input.InputFrame.InputBox:GetPropertyChangedSignal("Text"):Connect(function()
-				TweenService:Create(Input.InputFrame, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(0, Input.InputFrame.InputBox.TextBounds.X + 24, 0, 30)}):Play()
+				TweenService:Create(Input.InputFrame,
+					TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+					{ Size = UDim2.new(0, Input.InputFrame.InputBox.TextBounds.X + 24, 0, 30) }):Play()
 			end)
 
 			function InputSettings:Set(text)
@@ -3315,7 +3615,7 @@ function RayfieldLibrary:CreateWindow(Settings)
 		function Tab:CreateDropdown(DropdownSettings)
 			local siaHandle = siaElement("dropdown", DropdownSettings.Name, siaTab)
 			local Dropdown = Elements.Template.Dropdown:Clone()
-			if string.find(DropdownSettings.Name,"closed") then
+			if string.find(DropdownSettings.Name, "closed") then
 				Dropdown.Name = "Dropdown"
 			else
 				Dropdown.Name = DropdownSettings.Name
@@ -3327,10 +3627,10 @@ function RayfieldLibrary:CreateWindow(Settings)
 			Dropdown.List.Visible = false
 			if DropdownSettings.CurrentOption then
 				if type(DropdownSettings.CurrentOption) == "string" then
-					DropdownSettings.CurrentOption = {DropdownSettings.CurrentOption}
+					DropdownSettings.CurrentOption = { DropdownSettings.CurrentOption }
 				end
 				if not DropdownSettings.MultipleOptions and type(DropdownSettings.CurrentOption) == "table" then
-					DropdownSettings.CurrentOption = {DropdownSettings.CurrentOption[1]}
+					DropdownSettings.CurrentOption = { DropdownSettings.CurrentOption[1] }
 				end
 			else
 				DropdownSettings.CurrentOption = {}
@@ -3354,7 +3654,8 @@ function RayfieldLibrary:CreateWindow(Settings)
 			end
 
 			Dropdown.Toggle.ImageColor3 = SelectedTheme.TextColor
-			TweenService:Create(Dropdown, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+			TweenService:Create(Dropdown, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
+				{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
 
 			Dropdown.BackgroundTransparency = 1
 			Dropdown.UIStroke.Transparency = 1
@@ -3362,9 +3663,14 @@ function RayfieldLibrary:CreateWindow(Settings)
 
 			Dropdown.Size = UDim2.new(1, -10, 0, 45)
 
-			TweenService:Create(Dropdown, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-			TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
-			TweenService:Create(Dropdown.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()	
+			TweenService:Create(Dropdown, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ BackgroundTransparency = 0 })
+				:Play()
+			TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { Transparency = 0 })
+				:Play()
+			TweenService:Create(Dropdown.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ TextTransparency = 0 })
+				:Play()
 
 			for _, ununusedoption in ipairs(Dropdown.List:GetChildren()) do
 				if ununusedoption.ClassName == "Frame" and ununusedoption.Name ~= "Placeholder" then
@@ -3375,39 +3681,56 @@ function RayfieldLibrary:CreateWindow(Settings)
 			Dropdown.Toggle.Rotation = 180
 
 			Dropdown.Interact.MouseButton1Click:Connect(function()
-				TweenService:Create(Dropdown, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
-				TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+				TweenService:Create(Dropdown, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
+					{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
+				TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
+					{ Transparency = 1 }):Play()
 				task.wait(0.1)
-				TweenService:Create(Dropdown, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-				TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+				TweenService:Create(Dropdown, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
+					{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
+				TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
+					{ Transparency = 0 }):Play()
 				if Debounce then return end
 				if Dropdown.List.Visible then
 					Debounce = true
-					TweenService:Create(Dropdown, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -10, 0, 45)}):Play()
+					TweenService:Create(Dropdown, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+						{ Size = UDim2.new(1, -10, 0, 45) }):Play()
 					for _, DropdownOpt in ipairs(Dropdown.List:GetChildren()) do
 						if DropdownOpt.ClassName == "Frame" and DropdownOpt.Name ~= "Placeholder" then
-							TweenService:Create(DropdownOpt, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-							TweenService:Create(DropdownOpt.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-							TweenService:Create(DropdownOpt.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+							TweenService:Create(DropdownOpt, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+								{ BackgroundTransparency = 1 }):Play()
+							TweenService:Create(DropdownOpt.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+								{ Transparency = 1 }):Play()
+							TweenService:Create(DropdownOpt.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+								{ TextTransparency = 1 }):Play()
 						end
 					end
-					TweenService:Create(Dropdown.List, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ScrollBarImageTransparency = 1}):Play()
-					TweenService:Create(Dropdown.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Rotation = 180}):Play()	
+					TweenService:Create(Dropdown.List, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+						{ ScrollBarImageTransparency = 1 }):Play()
+					TweenService:Create(Dropdown.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+						{ Rotation = 180 }):Play()
 					task.wait(0.35)
 					Dropdown.List.Visible = false
 					Debounce = false
 				else
-					TweenService:Create(Dropdown, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -10, 0, 180)}):Play()
+					TweenService:Create(Dropdown, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+						{ Size = UDim2.new(1, -10, 0, 180) }):Play()
 					Dropdown.List.Visible = true
-					TweenService:Create(Dropdown.List, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ScrollBarImageTransparency = 0.7}):Play()
-					TweenService:Create(Dropdown.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Rotation = 0}):Play()	
+					TweenService:Create(Dropdown.List, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+						{ ScrollBarImageTransparency = 0.7 }):Play()
+					TweenService:Create(Dropdown.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+						{ Rotation = 0 })
+						:Play()
 					for _, DropdownOpt in ipairs(Dropdown.List:GetChildren()) do
 						if DropdownOpt.ClassName == "Frame" and DropdownOpt.Name ~= "Placeholder" then
 							if DropdownOpt.Name ~= Dropdown.Selected.Text then
-								TweenService:Create(DropdownOpt.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+								TweenService:Create(DropdownOpt.UIStroke,
+									TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { Transparency = 0 }):Play()
 							end
-							TweenService:Create(DropdownOpt, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-							TweenService:Create(DropdownOpt.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+							TweenService:Create(DropdownOpt, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+								{ BackgroundTransparency = 0 }):Play()
+							TweenService:Create(DropdownOpt.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+								{ TextTransparency = 0 }):Play()
 						end
 					end
 				end
@@ -3415,12 +3738,14 @@ function RayfieldLibrary:CreateWindow(Settings)
 
 			Dropdown.MouseEnter:Connect(function()
 				if not Dropdown.List.Visible then
-					TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
+					TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
 				end
 			end)
 
 			Dropdown.MouseLeave:Connect(function()
-				TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+				TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+					{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
 			end)
 
 			local function SetDropdownOptions()
@@ -3449,12 +3774,13 @@ function RayfieldLibrary:CreateWindow(Settings)
 
 					DropdownOption.Interact.ZIndex = 50
 					DropdownOption.Interact.MouseButton1Click:Connect(function()
-						if not DropdownSettings.MultipleOptions and table.find(DropdownSettings.CurrentOption, Option) then 
+						if not DropdownSettings.MultipleOptions and table.find(DropdownSettings.CurrentOption, Option) then
 							return
 						end
 
 						if table.find(DropdownSettings.CurrentOption, Option) then
-							table.remove(DropdownSettings.CurrentOption, table.find(DropdownSettings.CurrentOption, Option))
+							table.remove(DropdownSettings.CurrentOption,
+								table.find(DropdownSettings.CurrentOption, Option))
 							if DropdownSettings.MultipleOptions then
 								if #DropdownSettings.CurrentOption == 1 then
 									Dropdown.Selected.Text = DropdownSettings.CurrentOption[1]
@@ -3482,8 +3808,10 @@ function RayfieldLibrary:CreateWindow(Settings)
 							else
 								Dropdown.Selected.Text = DropdownSettings.CurrentOption[1]
 							end
-							TweenService:Create(DropdownOption.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-							TweenService:Create(DropdownOption, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.DropdownSelected}):Play()
+							TweenService:Create(DropdownOption.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+								{ Transparency = 1 }):Play()
+							TweenService:Create(DropdownOption, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+								{ BackgroundColor3 = SelectedTheme.DropdownSelected }):Play()
 							Debounce = true
 						end
 
@@ -3498,34 +3826,45 @@ function RayfieldLibrary:CreateWindow(Settings)
 
 						if not Success then
 							siaError(siaHandle)
-							TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
-							TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+							TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+								{ BackgroundColor3 = Color3.fromRGB(85, 0, 0) }):Play()
+							TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+								{ Transparency = 1 }):Play()
 							Dropdown.Title.Text = "Callback Error"
-							print("Rayfield | "..DropdownSettings.Name.." Callback Error " ..tostring(Response))
+							print("Rayfield | " .. DropdownSettings.Name .. " Callback Error " .. tostring(Response))
 							warn('Check docs.sirius.menu for help with Rayfield specific development.')
 							task.wait(0.5)
 							Dropdown.Title.Text = DropdownSettings.Name
-							TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-							TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+							TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+								{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
+							TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+								{ Transparency = 0 }):Play()
 						end
 
 						for _, droption in ipairs(Dropdown.List:GetChildren()) do
 							if droption.ClassName == "Frame" and droption.Name ~= "Placeholder" and not table.find(DropdownSettings.CurrentOption, droption.Name) then
-								TweenService:Create(droption, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.DropdownUnselected}):Play()
+								TweenService:Create(droption, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+									{ BackgroundColor3 = SelectedTheme.DropdownUnselected }):Play()
 							end
 						end
 						if not DropdownSettings.MultipleOptions then
 							task.wait(0.1)
-							TweenService:Create(Dropdown, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, -10, 0, 45)}):Play()
+							TweenService:Create(Dropdown, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
+								{ Size = UDim2.new(1, -10, 0, 45) }):Play()
 							for _, DropdownOpt in ipairs(Dropdown.List:GetChildren()) do
 								if DropdownOpt.ClassName == "Frame" and DropdownOpt.Name ~= "Placeholder" then
-									TweenService:Create(DropdownOpt, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {BackgroundTransparency = 1}):Play()
-									TweenService:Create(DropdownOpt.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-									TweenService:Create(DropdownOpt.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+									TweenService:Create(DropdownOpt, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+										{ BackgroundTransparency = 1 }):Play()
+									TweenService:Create(DropdownOpt.UIStroke,
+										TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { Transparency = 1 }):Play()
+									TweenService:Create(DropdownOpt.Title,
+										TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { TextTransparency = 1 }):Play()
 								end
 							end
-							TweenService:Create(Dropdown.List, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {ScrollBarImageTransparency = 1}):Play()
-							TweenService:Create(Dropdown.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Rotation = 180}):Play()	
+							TweenService:Create(Dropdown.List, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
+								{ ScrollBarImageTransparency = 1 }):Play()
+							TweenService:Create(Dropdown.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+								{ Rotation = 180 }):Play()
 							task.wait(0.35)
 							Dropdown.List.Visible = false
 						end
@@ -3564,11 +3903,11 @@ function RayfieldLibrary:CreateWindow(Settings)
 				DropdownSettings.CurrentOption = NewOption
 
 				if typeof(DropdownSettings.CurrentOption) == "string" then
-					DropdownSettings.CurrentOption = {DropdownSettings.CurrentOption}
+					DropdownSettings.CurrentOption = { DropdownSettings.CurrentOption }
 				end
 
 				if not DropdownSettings.MultipleOptions then
-					DropdownSettings.CurrentOption = {DropdownSettings.CurrentOption[1]}
+					DropdownSettings.CurrentOption = { DropdownSettings.CurrentOption[1] }
 				end
 
 				if DropdownSettings.MultipleOptions then
@@ -3588,15 +3927,19 @@ function RayfieldLibrary:CreateWindow(Settings)
 					DropdownSettings.Callback(NewOption)
 				end)
 				if not Success then
-					TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
-					TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = Color3.fromRGB(85, 0, 0) }):Play()
+					TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 1 }):Play()
 					Dropdown.Title.Text = "Callback Error"
-					print("Rayfield | "..DropdownSettings.Name.." Callback Error " ..tostring(Response))
+					print("Rayfield | " .. DropdownSettings.Name .. " Callback Error " .. tostring(Response))
 					warn('Check docs.sirius.menu for help with Rayfield specific development.')
 					task.wait(0.5)
 					Dropdown.Title.Text = DropdownSettings.Name
-					TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-					TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+					TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
+					TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 0 }):Play()
 				end
 
 				for _, droption in ipairs(Dropdown.List:GetChildren()) do
@@ -3653,7 +3996,8 @@ function RayfieldLibrary:CreateWindow(Settings)
 
 			Rayfield.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
 				Dropdown.Toggle.ImageColor3 = SelectedTheme.TextColor
-				TweenService:Create(Dropdown, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+				TweenService:Create(Dropdown, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
+					{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
 			end)
 
 			return DropdownSettings
@@ -3676,9 +4020,12 @@ function RayfieldLibrary:CreateWindow(Settings)
 			Keybind.KeybindFrame.BackgroundColor3 = SelectedTheme.InputBackground
 			Keybind.KeybindFrame.UIStroke.Color = SelectedTheme.InputStroke
 
-			TweenService:Create(Keybind, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-			TweenService:Create(Keybind.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
-			TweenService:Create(Keybind.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()	
+			TweenService:Create(Keybind, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 })
+				:Play()
+			TweenService:Create(Keybind.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { Transparency = 0 })
+				:Play()
+			TweenService:Create(Keybind.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { TextTransparency = 0 })
+				:Play()
 
 			Keybind.KeybindFrame.KeybindBox.Text = KeybindSettings.CurrentKeybind
 			Keybind.KeybindFrame.Size = UDim2.new(0, Keybind.KeybindFrame.KeybindBox.TextBounds.X + 24, 0, 30)
@@ -3698,11 +4045,13 @@ function RayfieldLibrary:CreateWindow(Settings)
 			end)
 
 			Keybind.MouseEnter:Connect(function()
-				TweenService:Create(Keybind, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
+				TweenService:Create(Keybind, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+					{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
 			end)
 
 			Keybind.MouseLeave:Connect(function()
-				TweenService:Create(Keybind, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+				TweenService:Create(Keybind, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+					{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
 			end)
 
 			local connection = UserInputService.InputBegan:Connect(function(input, processed)
@@ -3738,15 +4087,19 @@ function RayfieldLibrary:CreateWindow(Settings)
 						local Success, Response = pcall(KeybindSettings.Callback)
 						if not Success then
 							siaError(siaHandle)
-							TweenService:Create(Keybind, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
-							TweenService:Create(Keybind.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+							TweenService:Create(Keybind, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+								{ BackgroundColor3 = Color3.fromRGB(85, 0, 0) }):Play()
+							TweenService:Create(Keybind.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+								{ Transparency = 1 }):Play()
 							Keybind.Title.Text = "Callback Error"
-							print("Rayfield | "..KeybindSettings.Name.." Callback Error " ..tostring(Response))
+							print("Rayfield | " .. KeybindSettings.Name .. " Callback Error " .. tostring(Response))
 							warn('Check docs.sirius.menu for help with Rayfield specific development.')
 							task.wait(0.5)
 							Keybind.Title.Text = KeybindSettings.Name
-							TweenService:Create(Keybind, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-							TweenService:Create(Keybind.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+							TweenService:Create(Keybind, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+								{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
+							TweenService:Create(Keybind.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+								{ Transparency = 0 }):Play()
 						end
 					else
 						task.wait(0.25)
@@ -3766,7 +4119,9 @@ function RayfieldLibrary:CreateWindow(Settings)
 			table.insert(keybindConnections, connection)
 
 			Keybind.KeybindFrame.KeybindBox:GetPropertyChangedSignal("Text"):Connect(function()
-				TweenService:Create(Keybind.KeybindFrame, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(0, Keybind.KeybindFrame.KeybindBox.TextBounds.X + 24, 0, 30)}):Play()
+				TweenService:Create(Keybind.KeybindFrame,
+					TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+					{ Size = UDim2.new(0, Keybind.KeybindFrame.KeybindBox.TextBounds.X + 24, 0, 30) }):Play()
 			end)
 
 			function KeybindSettings:Set(NewKeybind)
@@ -3817,9 +4172,12 @@ function RayfieldLibrary:CreateWindow(Settings)
 				Toggle.Switch.Shadow.Visible = false
 			end
 
-			TweenService:Create(Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-			TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
-			TweenService:Create(Toggle.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()	
+			TweenService:Create(Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 })
+				:Play()
+			TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { Transparency = 0 })
+				:Play()
+			TweenService:Create(Toggle.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { TextTransparency = 0 })
+				:Play()
 
 			if ToggleSettings.CurrentValue == true then
 				Toggle.Switch.Indicator.Position = UDim2.new(1, -20, 0.5, 0)
@@ -3834,54 +4192,84 @@ function RayfieldLibrary:CreateWindow(Settings)
 			end
 
 			Toggle.MouseEnter:Connect(function()
-				TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
+				TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+					{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
 			end)
 
 			Toggle.MouseLeave:Connect(function()
-				TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+				TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+					{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
 			end)
 
 			Toggle.Interact.MouseButton1Click:Connect(function()
 				if ToggleSettings.CurrentValue == true then
 					ToggleSettings.CurrentValue = false
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2.new(1, -40, 0.5, 0)}):Play()
-					TweenService:Create(Toggle.Switch.Indicator.UIStroke, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Color = SelectedTheme.ToggleDisabledStroke}):Play()
-					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {BackgroundColor3 = SelectedTheme.ToggleDisabled}):Play()
-					TweenService:Create(Toggle.Switch.UIStroke, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Color = SelectedTheme.ToggleDisabledOuterStroke}):Play()
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()	
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 1 }):Play()
+					TweenService:Create(Toggle.Switch.Indicator,
+						TweenInfo.new(0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+						{ Position = UDim2.new(1, -40, 0.5, 0) }):Play()
+					TweenService:Create(Toggle.Switch.Indicator.UIStroke,
+						TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+						{ Color = SelectedTheme.ToggleDisabledStroke }):Play()
+					TweenService:Create(Toggle.Switch.Indicator,
+						TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+						{ BackgroundColor3 = SelectedTheme.ToggleDisabled }):Play()
+					TweenService:Create(Toggle.Switch.UIStroke,
+						TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+						{ Color = SelectedTheme.ToggleDisabledOuterStroke }):Play()
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 0 }):Play()
 				else
 					ToggleSettings.CurrentValue = true
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2.new(1, -20, 0.5, 0)}):Play()
-					TweenService:Create(Toggle.Switch.Indicator.UIStroke, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Color = SelectedTheme.ToggleEnabledStroke}):Play()
-					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {BackgroundColor3 = SelectedTheme.ToggleEnabled}):Play()
-					TweenService:Create(Toggle.Switch.UIStroke, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Color = SelectedTheme.ToggleEnabledOuterStroke}):Play()
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()		
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 1 }):Play()
+					TweenService:Create(Toggle.Switch.Indicator,
+						TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+						{ Position = UDim2.new(1, -20, 0.5, 0) }):Play()
+					TweenService:Create(Toggle.Switch.Indicator.UIStroke,
+						TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+						{ Color = SelectedTheme.ToggleEnabledStroke }):Play()
+					TweenService:Create(Toggle.Switch.Indicator,
+						TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+						{ BackgroundColor3 = SelectedTheme.ToggleEnabled }):Play()
+					TweenService:Create(Toggle.Switch.UIStroke,
+						TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+						{ Color = SelectedTheme.ToggleEnabledOuterStroke }):Play()
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 0 }):Play()
 				end
 
 				siaUsed(siaHandle, ToggleSettings.CurrentValue and "on" or "off", ToggleSettings.CurrentValue and 1 or 0)
 				local Success, Response = pcall(function()
-					if debugX then warn('Running toggle \''..ToggleSettings.Name..'\' (Interact)') end
+					if debugX then warn('Running toggle \'' .. ToggleSettings.Name .. '\' (Interact)') end
 
 					ToggleSettings.Callback(ToggleSettings.CurrentValue)
 				end)
 
 				if not Success then
 					siaError(siaHandle)
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = Color3.fromRGB(85, 0, 0) }):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 1 }):Play()
 					Toggle.Title.Text = "Callback Error"
-					print("Rayfield | "..ToggleSettings.Name.." Callback Error " ..tostring(Response))
+					print("Rayfield | " .. ToggleSettings.Name .. " Callback Error " .. tostring(Response))
 					warn('Check docs.sirius.menu for help with Rayfield specific development.')
 					task.wait(0.5)
 					Toggle.Title.Text = ToggleSettings.Name
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 0 }):Play()
 				end
 
 				if not ToggleSettings.Ext then
@@ -3892,48 +4280,84 @@ function RayfieldLibrary:CreateWindow(Settings)
 			function ToggleSettings:Set(NewToggleValue)
 				if NewToggleValue == true then
 					ToggleSettings.CurrentValue = true
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2.new(1, -20, 0.5, 0)}):Play()
-					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0,12,0,12)}):Play()
-					TweenService:Create(Toggle.Switch.Indicator.UIStroke, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Color = SelectedTheme.ToggleEnabledStroke}):Play()
-					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {BackgroundColor3 = SelectedTheme.ToggleEnabled}):Play()
-					TweenService:Create(Toggle.Switch.UIStroke, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Color = SelectedTheme.ToggleEnabledOuterStroke}):Play()
-					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0,17,0,17)}):Play()	
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()	
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 1 }):Play()
+					TweenService:Create(Toggle.Switch.Indicator,
+						TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+						{ Position = UDim2.new(1, -20, 0.5, 0) }):Play()
+					TweenService:Create(Toggle.Switch.Indicator,
+						TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+						{ Size = UDim2.new(0, 12, 0, 12) }):Play()
+					TweenService:Create(Toggle.Switch.Indicator.UIStroke,
+						TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+						{ Color = SelectedTheme.ToggleEnabledStroke }):Play()
+					TweenService:Create(Toggle.Switch.Indicator,
+						TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+						{ BackgroundColor3 = SelectedTheme.ToggleEnabled }):Play()
+					TweenService:Create(Toggle.Switch.UIStroke,
+						TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+						{ Color = SelectedTheme.ToggleEnabledOuterStroke }):Play()
+					TweenService:Create(Toggle.Switch.Indicator,
+						TweenInfo.new(0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+						{ Size = UDim2.new(0, 17, 0, 17) }):Play()
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 0 }):Play()
 				else
 					ToggleSettings.CurrentValue = false
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2.new(1, -40, 0.5, 0)}):Play()
-					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0,12,0,12)}):Play()
-					TweenService:Create(Toggle.Switch.Indicator.UIStroke, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Color = SelectedTheme.ToggleDisabledStroke}):Play()
-					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {BackgroundColor3 = SelectedTheme.ToggleDisabled}):Play()
-					TweenService:Create(Toggle.Switch.UIStroke, TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Color = SelectedTheme.ToggleDisabledOuterStroke}):Play()
-					TweenService:Create(Toggle.Switch.Indicator, TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0,17,0,17)}):Play()
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()	
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 1 }):Play()
+					TweenService:Create(Toggle.Switch.Indicator,
+						TweenInfo.new(0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+						{ Position = UDim2.new(1, -40, 0.5, 0) }):Play()
+					TweenService:Create(Toggle.Switch.Indicator,
+						TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+						{ Size = UDim2.new(0, 12, 0, 12) }):Play()
+					TweenService:Create(Toggle.Switch.Indicator.UIStroke,
+						TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+						{ Color = SelectedTheme.ToggleDisabledStroke }):Play()
+					TweenService:Create(Toggle.Switch.Indicator,
+						TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+						{ BackgroundColor3 = SelectedTheme.ToggleDisabled }):Play()
+					TweenService:Create(Toggle.Switch.UIStroke,
+						TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+						{ Color = SelectedTheme.ToggleDisabledOuterStroke }):Play()
+					TweenService:Create(Toggle.Switch.Indicator,
+						TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+						{ Size = UDim2.new(0, 17, 0, 17) }):Play()
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 0 }):Play()
 				end
 
 				siaSetState(siaHandle, ToggleSettings.CurrentValue and 1 or 0)
 				local Success, Response = pcall(function()
-					if debugX then warn('Running toggle \''..ToggleSettings.Name..'\' (:Set)') end
+					if debugX then warn('Running toggle \'' .. ToggleSettings.Name .. '\' (:Set)') end
 
 					ToggleSettings.Callback(ToggleSettings.CurrentValue)
 				end)
 
 				if not Success then
 					siaError(siaHandle)
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = Color3.fromRGB(85, 0, 0) }):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 1 }):Play()
 					Toggle.Title.Text = "Callback Error"
-					print("Rayfield | "..ToggleSettings.Name.." Callback Error " ..tostring(Response))
+					print("Rayfield | " .. ToggleSettings.Name .. " Callback Error " .. tostring(Response))
 					warn('Check docs.sirius.menu for help with Rayfield specific development.')
 					task.wait(0.5)
 					Toggle.Title.Text = ToggleSettings.Name
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
+					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 0 }):Play()
 				end
 
 				if not ToggleSettings.Ext then
@@ -4007,9 +4431,12 @@ function RayfieldLibrary:CreateWindow(Settings)
 			Slider.Main.Progress.UIStroke.Color = SelectedTheme.SliderStroke
 			Slider.Main.Progress.BackgroundColor3 = SelectedTheme.SliderProgress
 
-			TweenService:Create(Slider, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-			TweenService:Create(Slider.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
-			TweenService:Create(Slider.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()	
+			TweenService:Create(Slider, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 })
+				:Play()
+			TweenService:Create(Slider.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { Transparency = 0 })
+				:Play()
+			TweenService:Create(Slider.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { TextTransparency = 0 })
+				:Play()
 
 			local function getUnscaledSliderWidth()
 				local uiScale = (mainUIScale and mainUIScale.Scale > 0) and mainUIScale.Scale or 1
@@ -4020,7 +4447,9 @@ function RayfieldLibrary:CreateWindow(Settings)
 				return 220
 			end
 
-			local initialRatio = math.clamp((SliderSettings.CurrentValue - SliderSettings.Range[1]) / math.max(SliderSettings.Range[2] - SliderSettings.Range[1], 0.0001), 0, 1)
+			local initialRatio = math.clamp(
+				(SliderSettings.CurrentValue - SliderSettings.Range[1]) /
+				math.max(SliderSettings.Range[2] - SliderSettings.Range[1], 0.0001), 0, 1)
 			local initialPx = math.max(getUnscaledSliderWidth() * initialRatio, 5)
 			Slider.Main.Progress.Size = UDim2.new(0, initialPx, 1, 0)
 
@@ -4031,11 +4460,13 @@ function RayfieldLibrary:CreateWindow(Settings)
 			end
 
 			Slider.MouseEnter:Connect(function()
-				TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackgroundHover}):Play()
+				TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+					{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
 			end)
 
 			Slider.MouseLeave:Connect(function()
-				TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
+				TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+					{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
 			end)
 
 			local function getSliderPointerX()
@@ -4060,8 +4491,10 @@ function RayfieldLibrary:CreateWindow(Settings)
 			local function stopSliderDrag()
 				if not SLDragging then return end
 				siaUsed(siaHandle, "set", siaPosition(SliderSettings.CurrentValue))
-				TweenService:Create(Slider.Main.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0.4}):Play()
-				TweenService:Create(Slider.Main.Progress.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0.3}):Play()
+				TweenService:Create(Slider.Main.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+					{ Transparency = 0.4 }):Play()
+				TweenService:Create(Slider.Main.Progress.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+					{ Transparency = 0.3 }):Play()
 				SLDragging = false
 				activeSliderInput = nil
 				if TabPage and TabPage:IsA("ScrollingFrame") then
@@ -4076,8 +4509,10 @@ function RayfieldLibrary:CreateWindow(Settings)
 				if TabPage and TabPage:IsA("ScrollingFrame") then
 					TabPage.ScrollingEnabled = false
 				end
-				TweenService:Create(Slider.Main.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
-				TweenService:Create(Slider.Main.Progress.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+				TweenService:Create(Slider.Main.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+					{ Transparency = 1 }):Play()
+				TweenService:Create(Slider.Main.Progress.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+					{ Transparency = 1 }):Play()
 
 				local Location = getSliderPointerX()
 				if sliderLoop then sliderLoop:Disconnect() end
@@ -4090,10 +4525,14 @@ function RayfieldLibrary:CreateWindow(Settings)
 						local ratio = math.clamp((clampedX - barStart) / barWidth, 0, 1)
 						local targetPx = math.max(getUnscaledSliderWidth() * ratio, 5)
 
-						TweenService:Create(Slider.Main.Progress, TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(0, targetPx, 1, 0)}):Play()
-						local NewValue = SliderSettings.Range[1] + ratio * (SliderSettings.Range[2] - SliderSettings.Range[1])
+						TweenService:Create(Slider.Main.Progress,
+							TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+							{ Size = UDim2.new(0, targetPx, 1, 0) }):Play()
+						local NewValue = SliderSettings.Range[1] +
+							ratio * (SliderSettings.Range[2] - SliderSettings.Range[1])
 
-						NewValue = math.floor(NewValue / SliderSettings.Increment + 0.5) * (SliderSettings.Increment * 10000000) / 10000000
+						NewValue = math.floor(NewValue / SliderSettings.Increment + 0.5) *
+							(SliderSettings.Increment * 10000000) / 10000000
 						NewValue = math.clamp(NewValue, SliderSettings.Range[1], SliderSettings.Range[2])
 
 						if not SliderSettings.Suffix then
@@ -4108,16 +4547,20 @@ function RayfieldLibrary:CreateWindow(Settings)
 								SliderSettings.Callback(NewValue)
 							end)
 							if not Success then
-								TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
-								TweenService:Create(Slider.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+								TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+									{ BackgroundColor3 = Color3.fromRGB(85, 0, 0) }):Play()
+								TweenService:Create(Slider.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+									{ Transparency = 1 }):Play()
 								Slider.Title.Text = "Callback Error"
 								siaError(siaHandle)
-								print("Rayfield | "..SliderSettings.Name.." Callback Error " ..tostring(Response))
+								print("Rayfield | " .. SliderSettings.Name .. " Callback Error " .. tostring(Response))
 								warn('Check docs.sirius.menu for help with Rayfield specific development.')
 								task.wait(0.5)
 								Slider.Title.Text = SliderSettings.Name
-								TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-								TweenService:Create(Slider.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+								TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+									{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
+								TweenService:Create(Slider.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+									{ Transparency = 0 }):Play()
 							end
 
 							SliderSettings.CurrentValue = NewValue
@@ -4135,15 +4578,15 @@ function RayfieldLibrary:CreateWindow(Settings)
 			end
 
 			Slider.Main.Interact.InputBegan:Connect(function(Input)
-				if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then 
+				if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
 					startSliderDrag(Input)
-				end 
+				end
 			end)
 
-			Slider.Main.Interact.InputEnded:Connect(function(Input) 
-				if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then 
+			Slider.Main.Interact.InputEnded:Connect(function(Input)
+				if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
 					stopSliderDrag()
-				end 
+				end
 			end)
 
 			local sliderInputEndedConn = UserInputService.InputEnded:Connect(function(Input)
@@ -4159,10 +4602,15 @@ function RayfieldLibrary:CreateWindow(Settings)
 
 			function SliderSettings:Set(NewVal)
 				local NewVal = math.clamp(NewVal, SliderSettings.Range[1], SliderSettings.Range[2])
-				local ratio = math.clamp((NewVal - SliderSettings.Range[1]) / math.max(SliderSettings.Range[2] - SliderSettings.Range[1], 0.0001), 0, 1)
+				local ratio = math.clamp(
+					(NewVal - SliderSettings.Range[1]) /
+					math.max(SliderSettings.Range[2] - SliderSettings.Range[1], 0.0001),
+					0, 1)
 				local targetPx = math.max(getUnscaledSliderWidth() * ratio, 5)
 
-				TweenService:Create(Slider.Main.Progress, TweenInfo.new(0.45, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = UDim2.new(0, targetPx, 1, 0)}):Play()
+				TweenService:Create(Slider.Main.Progress,
+					TweenInfo.new(0.45, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+					{ Size = UDim2.new(0, targetPx, 1, 0) }):Play()
 				Slider.Main.Information.Text = tostring(NewVal) .. " " .. (SliderSettings.Suffix or "")
 				siaSetState(siaHandle, siaPosition(NewVal))
 
@@ -4171,16 +4619,20 @@ function RayfieldLibrary:CreateWindow(Settings)
 				end)
 
 				if not Success then
-					TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = Color3.fromRGB(85, 0, 0)}):Play()
-					TweenService:Create(Slider.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 1}):Play()
+					TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = Color3.fromRGB(85, 0, 0) }):Play()
+					TweenService:Create(Slider.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 1 }):Play()
 					Slider.Title.Text = "Callback Error"
 					siaError(siaHandle)
-					print("Rayfield | "..SliderSettings.Name.." Callback Error " ..tostring(Response))
+					print("Rayfield | " .. SliderSettings.Name .. " Callback Error " .. tostring(Response))
 					warn('Check docs.sirius.menu for help with Rayfield specific development.')
 					task.wait(0.5)
 					Slider.Title.Text = SliderSettings.Name
-					TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.ElementBackground}):Play()
-					TweenService:Create(Slider.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {Transparency = 0}):Play()
+					TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
+					TweenService:Create(Slider.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+						{ Transparency = 0 }):Play()
 				end
 
 				SliderSettings.CurrentValue = NewVal
@@ -4230,14 +4682,20 @@ function RayfieldLibrary:CreateWindow(Settings)
 
 
 	task.wait(1.1)
-	TweenService:Create(Main, TweenInfo.new(0.7, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut), {Size = UDim2.new(0, 390, 0, 90)}):Play()
+	TweenService:Create(Main, TweenInfo.new(0.7, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut),
+		{ Size = UDim2.new(0, 390, 0, 90) }):Play()
 	task.wait(0.3)
-	TweenService:Create(LoadingFrame.Title, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-	TweenService:Create(LoadingFrame.Subtitle, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
-	TweenService:Create(LoadingFrame.Version, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+	TweenService:Create(LoadingFrame.Title, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
+		:Play()
+	TweenService:Create(LoadingFrame.Subtitle, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
+		:Play()
+	TweenService:Create(LoadingFrame.Version, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
+		:Play()
 	task.wait(0.1)
-	TweenService:Create(Main, TweenInfo.new(0.6, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Size = useMobileSizing and UDim2.new(0, 500, 0, 275) or UDim2.new(0, 500, 0, 475)}):Play()
-	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {ImageTransparency = 0.6}):Play()
+	TweenService:Create(Main, TweenInfo.new(0.6, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
+		{ Size = useMobileSizing and UDim2.new(0, 500, 0, 275) or UDim2.new(0, 500, 0, 475) }):Play()
+	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { ImageTransparency = 0.6 })
+		:Play()
 
 	Topbar.BackgroundTransparency = 1
 	Topbar.Divider.Size = UDim2.new(0, 0, 0, 1)
@@ -4254,33 +4712,45 @@ function RayfieldLibrary:CreateWindow(Settings)
 
 	task.wait(0.5)
 	Topbar.Visible = true
-	TweenService:Create(Topbar, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
-	TweenService:Create(Topbar.CornerRepair, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0}):Play()
+	TweenService:Create(Topbar, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 }):Play()
+	TweenService:Create(Topbar.CornerRepair, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+		{ BackgroundTransparency = 0 }):Play()
 	task.wait(0.1)
-	TweenService:Create(Topbar.Divider, TweenInfo.new(1, Enum.EasingStyle.Exponential), {Size = UDim2.new(1, 0, 0, 1)}):Play()
-	TweenService:Create(Topbar.Title, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {TextTransparency = 0}):Play()
+	TweenService:Create(Topbar.Divider, TweenInfo.new(1, Enum.EasingStyle.Exponential), { Size = UDim2.new(1, 0, 0, 1) })
+		:Play()
+	TweenService:Create(Topbar.Title, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), { TextTransparency = 0 }):Play()
 	task.wait(0.05)
-	TweenService:Create(Topbar.Search, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {ImageTransparency = 0.8}):Play()
+	TweenService:Create(Topbar.Search, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), { ImageTransparency = 0.8 })
+		:Play()
 	task.wait(0.05)
 	if Topbar:FindFirstChild('Settings') then
-		TweenService:Create(Topbar.Settings, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {ImageTransparency = 0.8}):Play()
+		TweenService:Create(Topbar.Settings, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+			{ ImageTransparency = 0.8 })
+			:Play()
 		task.wait(0.05)
 	end
-	TweenService:Create(Topbar.ChangeSize, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {ImageTransparency = 0.8}):Play()
+	TweenService:Create(Topbar.ChangeSize, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), { ImageTransparency = 0.8 })
+		:Play()
 	task.wait(0.05)
-	TweenService:Create(Topbar.Hide, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {ImageTransparency = 0.8}):Play()
+	TweenService:Create(Topbar.Hide, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), { ImageTransparency = 0.8 }):Play()
 	task.wait(0.3)
 
 	if dragBar then
-		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.7}):Play()
+		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
+			{ BackgroundTransparency = 0.7 }):Play()
 	end
 
 	function Window.ModifyTheme(NewTheme)
 		local success = pcall(ChangeTheme, NewTheme)
 		if not success then
-			RayfieldLibrary:Notify({Title = 'Unable to Change Theme', Content = 'We are unable find a theme on file.', Image = 4400704299})
+			RayfieldLibrary:Notify({ Title = 'Unable to Change Theme', Content = 'We are unable find a theme on file.', Image = 4400704299 })
 		else
-			RayfieldLibrary:Notify({Title = 'Theme Changed', Content = 'Successfully changed theme to '..(typeof(NewTheme) == 'string' and NewTheme or 'Custom Theme')..'.', Image = 4483362748})
+			RayfieldLibrary:Notify({
+				Title = 'Theme Changed',
+				Content = 'Successfully changed theme to ' ..
+					(typeof(NewTheme) == 'string' and NewTheme or 'Custom Theme') .. '.',
+				Image = 4483362748
+			})
 		end
 	end
 
@@ -4305,7 +4775,8 @@ function RayfieldLibrary:CreateWindow(Settings)
 		if Settings.Discord and Settings.Discord.Enabled and Settings.Discord.Invite and Settings.Discord.Invite ~= "" then
 			local raw = tostring(Settings.Discord.Invite)
 			-- Normalize: strip URL prefixes to extract just the invite code
-			discordInvite = (raw:match("discord%.gg/([%w%-]+)") or raw:match("discord%.com/invite/([%w%-]+)") or raw):sub(1, 32)
+			discordInvite = (raw:match("discord%.gg/([%w%-]+)") or raw:match("discord%.com/invite/([%w%-]+)") or raw)
+				:sub(1, 32)
 		end
 
 		local sampleSend = false
@@ -4316,18 +4787,19 @@ function RayfieldLibrary:CreateWindow(Settings)
 		end
 
 		--if Settings.ScriptID then
-			reporter:windowCreated({
-				script_name        = Settings.Name or "Unknown",
-				script_version     = Release,
-				interface_version  = InterfaceBuild,
-				theme              = themeName,
-				is_mobile          = useMobileSizing and true or false,
-				has_key_system     = Settings.KeySystem and true or false,
-				discord_invite     = discordInvite,
-				config_saving      = (Settings.ConfigurationSaving and Settings.ConfigurationSaving.Enabled) and true or false,
-				script_id          = Settings.ScriptID or sampleSend and 'sid_tzfyxawonjx9' or nil,
-				verification_token = Settings.VerificationToken,
-			})
+		reporter:windowCreated({
+			script_name        = Settings.Name or "Unknown",
+			script_version     = Release,
+			interface_version  = InterfaceBuild,
+			theme              = themeName,
+			is_mobile          = useMobileSizing and true or false,
+			has_key_system     = Settings.KeySystem and true or false,
+			discord_invite     = discordInvite,
+			config_saving      = (Settings.ConfigurationSaving and Settings.ConfigurationSaving.Enabled) and true or
+				false,
+			script_id          = Settings.ScriptID or sampleSend and 'sid_tzfyxawonjx9' or nil,
+			verification_token = Settings.VerificationToken,
+		})
 		--end
 	end
 
@@ -4383,12 +4855,12 @@ end)
 
 Main.Search.Input:GetPropertyChangedSignal('Text'):Connect(function()
 	if #Main.Search.Input.Text > 0 then
-		if not Elements.UIPageLayout.CurrentPage:FindFirstChild('SearchTitle-fsefsefesfsefesfesfThanks') then 
+		if not Elements.UIPageLayout.CurrentPage:FindFirstChild('SearchTitle-fsefsefesfsefesfesfThanks') then
 			local searchTitle = Elements.Template.SectionTitle:Clone()
 			searchTitle.Parent = Elements.UIPageLayout.CurrentPage
 			searchTitle.Name = 'SearchTitle-fsefsefesfsefesfesfThanks'
 			searchTitle.LayoutOrder = -100
-			searchTitle.Title.Text = "Results from '"..Elements.UIPageLayout.CurrentPage.Name.."'"
+			searchTitle.Title.Text = "Results from '" .. Elements.UIPageLayout.CurrentPage.Name .. "'"
 			searchTitle.Visible = true
 		end
 	else
@@ -4440,13 +4912,20 @@ if Topbar:FindFirstChild('Settings') then
 		task.spawn(function()
 			for _, OtherTabButton in ipairs(TabList:GetChildren()) do
 				if OtherTabButton.Name ~= "Template" and OtherTabButton.ClassName == "Frame" and OtherTabButton.Name ~= "Placeholder" then
-					TweenService:Create(OtherTabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundColor3 = SelectedTheme.TabBackground}):Play()
-					TweenService:Create(OtherTabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextColor3 = SelectedTheme.TabTextColor}):Play()
-					TweenService:Create(OtherTabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageColor3 = SelectedTheme.TabTextColor}):Play()
-					TweenService:Create(OtherTabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {BackgroundTransparency = 0.7}):Play()
-					TweenService:Create(OtherTabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {TextTransparency = 0.2}):Play()
-					TweenService:Create(OtherTabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.2}):Play()
-					TweenService:Create(OtherTabButton.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {Transparency = 0.5}):Play()
+					TweenService:Create(OtherTabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+						{ BackgroundColor3 = SelectedTheme.TabBackground }):Play()
+					TweenService:Create(OtherTabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+						{ TextColor3 = SelectedTheme.TabTextColor }):Play()
+					TweenService:Create(OtherTabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+						{ ImageColor3 = SelectedTheme.TabTextColor }):Play()
+					TweenService:Create(OtherTabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+						{ BackgroundTransparency = 0.7 }):Play()
+					TweenService:Create(OtherTabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+						{ TextTransparency = 0.2 }):Play()
+					TweenService:Create(OtherTabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+						{ ImageTransparency = 0.2 }):Play()
+					TweenService:Create(OtherTabButton.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+						{ Transparency = 0.5 }):Play()
 				end
 			end
 
@@ -4454,7 +4933,6 @@ if Topbar:FindFirstChild('Settings') then
 			Elements.UIPageLayout:JumpTo(Elements['Rayfield Settings'])
 		end)
 	end)
-
 end
 
 
@@ -4493,11 +4971,14 @@ end
 for _, TopbarButton in ipairs(Topbar:GetChildren()) do
 	if TopbarButton.ClassName == "ImageButton" and TopbarButton.Name ~= 'Icon' then
 		TopbarButton.MouseEnter:Connect(function()
-			TweenService:Create(TopbarButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0}):Play()
+			TweenService:Create(TopbarButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { ImageTransparency = 0 })
+				:Play()
 		end)
 
 		TopbarButton.MouseLeave:Connect(function()
-			TweenService:Create(TopbarButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), {ImageTransparency = 0.8}):Play()
+			TweenService:Create(TopbarButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
+				{ ImageTransparency = 0.8 })
+				:Play()
 		end)
 	end
 end
@@ -4511,7 +4992,8 @@ function RayfieldLibrary:LoadConfiguration()
 	end
 
 	if useStudio then
-		config = [[{"Toggle1adwawd":true,"ColorPicker1awd":{"B":255,"G":255,"R":255},"Slider1dawd":100,"ColorPicfsefker1":{"B":255,"G":255,"R":255},"Slidefefsr1":80,"dawdawd":"","Input1":"hh","Keybind1":"B","Dropdown1":["Ocean"]}]]
+		config =
+		[[{"Toggle1adwawd":true,"ColorPicker1awd":{"B":255,"G":255,"R":255},"Slider1dawd":100,"ColorPicfsefker1":{"B":255,"G":255,"R":255},"Slidefefsr1":80,"dawdawd":"","Input1":"hh","Keybind1":"B","Dropdown1":["Ocean"]}]]
 	end
 
 	if CEnabled then
@@ -4524,7 +5006,7 @@ function RayfieldLibrary:LoadConfiguration()
 				return
 			end
 
-			if isfile then 
+			if isfile then
 				local configPath = ConfigurationFolder .. "/" .. CFileName .. ConfigurationExtension
 				if CLegacyFileName and not callSafely(isfile, configPath) then
 					local legacyPath = ConfigurationFolder .. "/" .. CLegacyFileName .. ConfigurationExtension
@@ -4537,22 +5019,35 @@ function RayfieldLibrary:LoadConfiguration()
 				end
 			else
 				notified = true
-				RayfieldLibrary:Notify({Title = "Rayfield Configurations", Content = "We couldn't enable Configuration Saving as you are not using software with filesystem support.", Image = 4384402990})
+				RayfieldLibrary:Notify({
+					Title = "Rayfield Configurations",
+					Content =
+					"We couldn't enable Configuration Saving as you are not using software with filesystem support.",
+					Image = 4384402990
+				})
 			end
 		end)
 
 		if success and loaded and not notified then
-			RayfieldLibrary:Notify({Title = "Rayfield Configurations", Content = "The configuration file for this script has been loaded from a previous session.", Image = 4384403532})
+			RayfieldLibrary:Notify({
+				Title = "Rayfield Configurations",
+				Content =
+				"The configuration file for this script has been loaded from a previous session.",
+				Image = 4384403532
+			})
 		elseif not success and not notified then
-			warn('Rayfield Configurations Error | '..tostring(result))
-			RayfieldLibrary:Notify({Title = "Rayfield Configurations", Content = "We've encountered an issue loading your configuration correctly.\n\nCheck the Developer Console for more information.", Image = 4384402990})
+			warn('Rayfield Configurations Error | ' .. tostring(result))
+			RayfieldLibrary:Notify({
+				Title = "Rayfield Configurations",
+				Content =
+				"We've encountered an issue loading your configuration correctly.\n\nCheck the Developer Console for more information.",
+				Image = 4384402990
+			})
 		end
 	end
 
 	globalLoaded = true
 end
-
-
 
 if useStudio then
 	-- run w/ studio
@@ -4772,8 +5267,10 @@ if CEnabled and Main:FindFirstChild('Notice') then
 	Main.Notice.Visible = true
 
 
-	TweenService:Create(Main.Notice, TweenInfo.new(0.5, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut), {Size = UDim2.new(0, 280, 0, 35), Position = UDim2.new(0.5, 0, 0, -50), BackgroundTransparency = 0.5}):Play()
-	TweenService:Create(Main.Notice.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), {TextTransparency = 0.1}):Play()
+	TweenService:Create(Main.Notice, TweenInfo.new(0.5, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut),
+		{ Size = UDim2.new(0, 280, 0, 35), Position = UDim2.new(0.5, 0, 0, -50), BackgroundTransparency = 0.5 }):Play()
+	TweenService:Create(Main.Notice.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { TextTransparency = 0.1 })
+		:Play()
 end
 -- AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA why :(
 --if not useStudio then
@@ -4783,8 +5280,10 @@ end
 task.delay(4, function()
 	RayfieldLibrary.LoadConfiguration()
 	if Main:FindFirstChild('Notice') and Main.Notice.Visible then
-		TweenService:Create(Main.Notice, TweenInfo.new(0.5, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut), {Size = UDim2.new(0, 100, 0, 25), Position = UDim2.new(0.5, 0, 0, -100), BackgroundTransparency = 1}):Play()
-		TweenService:Create(Main.Notice.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), {TextTransparency = 1}):Play()
+		TweenService:Create(Main.Notice, TweenInfo.new(0.5, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut),
+			{ Size = UDim2.new(0, 100, 0, 25), Position = UDim2.new(0.5, 0, 0, -100), BackgroundTransparency = 1 }):Play()
+		TweenService:Create(Main.Notice.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
+			:Play()
 
 		task.wait(0.5)
 		Main.Notice.Visible = false
@@ -4811,3024 +5310,3043 @@ if not libraryOnly then
 		local VirtualUser = getService("VirtualUser")
 		local MarketplaceService = getService("MarketplaceService")
 
--- ============================================================================
--- 1. ANTI-BAN & TELEMETRY SHIELD ENGINE (VIOLET HUB & TEKKIT HUB VIP MECHANISM)
--- ============================================================================
-local AntiBanShield = {
-	Enabled = true,
-	BlockedCount = 0,
-	LastBlockedRemote = "None",
-}
+		-- ============================================================================
+		-- 1. ANTI-BAN & TELEMETRY SHIELD ENGINE (VIOLET HUB & TEKKIT HUB VIP MECHANISM)
+		-- ============================================================================
+		local AntiBanShield = {
+			Enabled = true,
+			BlockedCount = 0,
+			LastBlockedRemote = "None",
+		}
 
-local DetectionKeywords = {
-	"ban", "detect", "anticheat", "security", "flag", "telemetry",
-	"exploit", "kick", "tamper", "report", "cheat", "suspicious",
-	"unusual", "illegal", "speedhack", "nofall", "flyhack", "abnormal",
-	"damagecheck", "checkdamage", "integrity"
-}
+		local DetectionKeywords = {
+			"ban", "detect", "anticheat", "security", "flag", "telemetry",
+			"exploit", "kick", "tamper", "report", "cheat", "suspicious",
+			"unusual", "illegal", "speedhack", "nofall", "flyhack", "abnormal",
+			"damagecheck", "checkdamage", "integrity"
+		}
 
--- Hook metamethod __namecall to intercept and drop client-side detection reports
-pcall(function()
-	if hookmetamethod then
-		local oldNamecall
-		oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-			local method = getnamecallmethod()
-			if AntiBanShield.Enabled and (method == "FireServer" or method == "InvokeServer") then
-				local remoteName = string.lower(tostring(self.Name))
-				for _, kw in ipairs(DetectionKeywords) do
-					if string.find(remoteName, kw, 1, true) then
-						AntiBanShield.BlockedCount = AntiBanShield.BlockedCount + 1
-						AntiBanShield.LastBlockedRemote = tostring(self.Name)
-						return nil
-					end
-				end
-
-				local args = {...}
-				for _, arg in ipairs(args) do
-					if type(arg) == "string" then
-						local lowerArg = string.lower(arg)
+		-- Hook metamethod __namecall to intercept and drop client-side detection reports
+		pcall(function()
+			if hookmetamethod then
+				local oldNamecall
+				oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+					local method = getnamecallmethod()
+					if AntiBanShield.Enabled and (method == "FireServer" or method == "InvokeServer") then
+						local remoteName = string.lower(tostring(self.Name))
 						for _, kw in ipairs(DetectionKeywords) do
-							if string.find(lowerArg, kw, 1, true) then
+							if string.find(remoteName, kw, 1, true) then
 								AntiBanShield.BlockedCount = AntiBanShield.BlockedCount + 1
-								AntiBanShield.LastBlockedRemote = tostring(self.Name) .. " [" .. arg .. "]"
+								AntiBanShield.LastBlockedRemote = tostring(self.Name)
 								return nil
 							end
 						end
-					end
-				end
-			end
-			return oldNamecall(self, ...)
-		end))
-	end
-end)
 
--- Hook LocalPlayer:Kick to prevent client scripts from kicking the user
-pcall(function()
-	if hookfunction and Players and Players.LocalPlayer then
-		local oldKick
-		oldKick = hookfunction(Players.LocalPlayer.Kick, newcclosure(function(self, ...)
-			if AntiBanShield.Enabled then
-				AntiBanShield.BlockedCount = AntiBanShield.BlockedCount + 1
-				AntiBanShield.LastBlockedRemote = "LocalPlayer:Kick"
-				return nil
-			end
-			return oldKick(self, ...)
-		end))
-	end
-end)
-
--- ============================================================================
--- 2. AUTO GAME DETECTION
--- ============================================================================
-local AOTR_GAME_ID = 4658598196
-local AOTR_PLACES = {
-	[13379208636] = true,
-}
-
-local BLOX_FRUITS_GAME_ID = 994732206
-local BLOX_FRUITS_PLACES = {
-	[2753915549] = true,
-	[4442272183] = true,
-	[7449423635] = true,
-}
-
-local function detectCurrentGame()
-	local pId = game.PlaceId
-	local gId = game.GameId
-
-	if AOTR_PLACES[pId] or gId == AOTR_GAME_ID then
-		return "AOTR"
-	end
-	if BLOX_FRUITS_PLACES[pId] or gId == BLOX_FRUITS_GAME_ID then
-		return "BLOX_FRUITS"
-	end
-
-	local title = ""
-	pcall(function()
-		local product = MarketplaceService:GetProductInfo(pId)
-		if product and product.Name then
-			title = string.lower(product.Name)
-		end
-	end)
-
-	if string.find(title, "attack on titan", 1, true) or string.find(title, "revolution", 1, true) or string.find(title, "aotr", 1, true) then
-		return "AOTR"
-	end
-	if string.find(title, "blox fruits", 1, true) or string.find(title, "bloxfruits", 1, true) then
-		return "BLOX_FRUITS"
-	end
-
-	return "UNIVERSAL"
-end
-
--- ============================================================================
--- 3. FLOATING TOGGLE BUTTON (DRAGGABLE & MOBILE FRIENDLY)
--- ============================================================================
-local rayfieldDestroyed = false
-
-local function createFloatingToggle()
-	local CoreGui = getService("CoreGui")
-	local UserInputService = getService("UserInputService")
-	local TweenService = getService("TweenService")
-	local lp = Players and Players.LocalPlayer
-	local targetParent = CoreGui
-	if not pcall(function() return CoreGui:GetChildren() end) then
-		targetParent = (lp and lp:FindFirstChildOfClass("PlayerGui")) or CoreGui
-	end
-
-	local existing = targetParent:FindFirstChild("HaiAnhFloatingToggle")
-	if existing then existing:Destroy() end
-
-	local screenGui = Instance.new("ScreenGui")
-	screenGui.Name = "HaiAnhFloatingToggle"
-	screenGui.ResetOnSpawn = false
-	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-	local btn = Instance.new("TextButton")
-	btn.Name = "ToggleButton"
-	btn.Size = UDim2.new(0, 50, 0, 50)
-	btn.Position = UDim2.new(0.04, 0, 0.28, 0)
-	btn.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
-	btn.Text = "HA"
-	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-	btn.Font = Enum.Font.GothamBold
-	btn.TextSize = 16
-	btn.AutoButtonColor = false
-	btn.Parent = screenGui
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 14)
-	corner.Parent = btn
-
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = Color3.fromRGB(170, 95, 255)
-	stroke.Thickness = 2.2
-	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	stroke.Parent = btn
-
-	local dragging = false
-	local dragInput, dragStart, startPos
-
-	btn.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-			dragging = true
-			dragStart = input.Position
-			startPos = btn.Position
-			input.Changed:Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragging = false
-				end
-			end)
-		end
-	end)
-
-	btn.InputChanged:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-			dragInput = input
-		end
-	end)
-
-	UserInputService.InputChanged:Connect(function(input)
-		if input == dragInput and dragging then
-			local delta = input.Position - dragStart
-			btn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-		end
-	end)
-
-	btn.MouseButton1Click:Connect(function()
-		pcall(function()
-			local mainGui = CoreGui:FindFirstChild("Rayfield") or (lp and lp:FindFirstChildOfClass("PlayerGui") and lp:FindFirstChildOfClass("PlayerGui"):FindFirstChild("Rayfield"))
-			if mainGui then
-				mainGui.Enabled = not mainGui.Enabled
-			end
-		end)
-	end)
-
-	pcall(function() screenGui.Parent = targetParent end)
-end
-
-local function clickGuiButton(btn)
-	if not btn then return false end
-	pcall(function()
-		if getconnections then
-			for _, c in ipairs(getconnections(btn.MouseButton1Click)) do
-				if c.Function then c.Function() end
-			end
-			for _, c in ipairs(getconnections(btn.Activated)) do
-				if c.Function then c.Function() end
-			end
-		end
-		local vp = (Workspace and Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize) or Vector2.new(1280, 720)
-		local absPos = btn.AbsolutePosition
-		local absSz = btn.AbsoluteSize
-		local cx = absPos.X + absSz.X / 2
-		local cy = absPos.Y + absSz.Y / 2
-		if VirtualInputManager then
-			VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
-			task.wait(0.005)
-			VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
-		end
-	end)
-	return true
-end
-
--- Hệ thống cache GUI Button & Durability Bar: Quét 1 lần mỗi 3 giây, triệt tiêu 100% giật lag FPS
-local cachedGuiState = {
-	m1 = nil,
-	reload = nil,
-	durabilityBar = nil,
-	skills = {},
-	lastScan = 0
-}
-
-local function refreshCachedGuiElements(force)
-	local now = os.clock()
-	if not force and (now - cachedGuiState.lastScan < 3.5) and cachedGuiState.m1 and cachedGuiState.m1.Parent then
-		return
-	end
-	cachedGuiState.lastScan = now
-	local lp = Players and Players.LocalPlayer
-	local pgui = lp and lp:FindFirstChildOfClass("PlayerGui")
-	if not pgui then return end
-
-	cachedGuiState.skills = {}
-	cachedGuiState.buttons = {}
-	for _, obj in ipairs(pgui:GetDescendants()) do
-		if (obj:IsA("TextButton") or obj:IsA("ImageButton")) and obj.Visible then
-			local name = string.lower(obj.Name)
-			local text = obj:IsA("TextButton") and string.lower(obj.Text) or ""
-			local childLabel = obj:FindFirstChildWhichIsA("TextLabel", true)
-			if childLabel and childLabel.Text ~= "" then
-				text = text .. " " .. string.lower(childLabel.Text)
-			end
-			local combined = name .. " " .. text
-			table.insert(cachedGuiState.buttons, { btn = obj, text = combined })
-			if string.find(combined, "m1", 1, true) or string.find(combined, "slash", 1, true) or string.find(combined, "attack", 1, true) then
-				if not cachedGuiState.m1 or not cachedGuiState.m1.Parent then
-					cachedGuiState.m1 = obj
-				end
-			end
-			if string.find(combined, "reload", 1, true) or string.find(combined, "nạp", 1, true) or string.find(combined, "nap", 1, true) then
-				if not cachedGuiState.reload or not cachedGuiState.reload.Parent then
-					cachedGuiState.reload = obj
-				end
-			end
-			if string.find(combined, "skill", 1, true) or string.find(combined, "slot", 1, true) then
-				table.insert(cachedGuiState.skills, obj)
-			end
-		elseif obj:IsA("Frame") or obj:IsA("ImageLabel") then
-			local oName = string.lower(obj.Name)
-			if string.find(oName, "durab", 1, true) or string.find(oName, "bladebar", 1, true) or string.find(oName, "sharp", 1, true) then
-				cachedGuiState.durabilityBar = obj
-			end
-		end
-	end
-end
-
-local function clickGuiButtonFast(btn)
-	if not btn or not btn.Parent then return false end
-	pcall(function()
-		if firesignal then
-			if btn.Activated then firesignal(btn.Activated) end
-			if btn.MouseButton1Click then firesignal(btn.MouseButton1Click) end
-			if btn.MouseButton1Down then firesignal(btn.MouseButton1Down) end
-			if btn.MouseButton1Up then firesignal(btn.MouseButton1Up) end
-		end
-		if VirtualUser then
-			local absPos = btn.AbsolutePosition
-			local absSz = btn.AbsoluteSize
-			VirtualUser:CaptureController()
-			VirtualUser:ClickButton1(Vector2.new(absPos.X + absSz.X / 2, absPos.Y + absSz.Y / 2))
-		end
-	end)
-	return true
-end
-
-local lastActionScan = 0
-local function triggerActionButtons(keywords)
-	-- Popup như Retry, Start, Claim xuất hiện động: làm mới cache tối đa mỗi 1.5 giây
-	if os.clock() - lastActionScan > 1.5 then
-		lastActionScan = os.clock()
-		refreshCachedGuiElements(true)
-	end
-	local triggered = false
-	for _, entry in ipairs(cachedGuiState.buttons or {}) do
-		local obj = entry.btn
-		if obj and obj.Parent and obj.Visible then
-			for _, kw in ipairs(keywords) do
-				if string.find(entry.text, kw, 1, true) then
-					clickGuiButtonFast(obj)
-					triggered = true
-					break
-				end
-			end
-		end
-	end
-	return triggered
-end
-
--- Kích hoạt nút M1 chém siêu tốc 0 delay không tốn CPU
-local function triggerMobileM1Attack()
-	refreshCachedGuiElements(false)
-	if cachedGuiState.m1 and cachedGuiState.m1.Parent and cachedGuiState.m1.Visible then
-		clickGuiButtonFast(cachedGuiState.m1)
-		return true
-	end
-	return false
-end
-
--- Kích hoạt chém vũ khí trực tiếp
-local function activateEquippedTool()
-	local lp = Players and Players.LocalPlayer
-	local char = lp and lp.Character
-	if char then
-		local tool = char:FindFirstChildOfClass("Tool")
-		if tool then
-			pcall(function() tool:Activate() end)
-		end
-	end
-end
-
--- ============================================================================
--- MENU 1: ATTACK ON TITAN: REVOLUTION (HAIANH MENU VIP PRO EDITION)
--- ============================================================================
-local function loadAOTRMenu()
-	local AOTConfig = {
-		-- Auto Farm Elite Config
-		WeaponMode = "Auto",
-		FarmPosition = "Above Nape (Anti-Grab)",
-		TargetPriority = "Closest", -- "Closest", "Bosses First", "Crawlers & Abnormals", "Lowest HP"
-		BehindNapeDistance = 2.0,
-		HoverHeight = 10,
-		FlightSpeed = 420,
-		InstantTeleport = false,
-		MapNoClip = true,
-		AutoFarmTitan = false,
-		SafeLegitDelay = false,
-		TitanShifterMastery = false,
-		AutoTitanShift = true,
-		TitanSkillsBurst = true,
-		AutoReloadWhenBroken = true,
-		ReloadAfterTitanKill = true,
-		SlashesBeforeReload = 22,
-		AutoRefillSupplies = true,
-		AutoResupplyTeleport = true,
-		InfiniteGasDurability = false,
-
-		-- Multi-Target Combat & Thunder Spears Burst
-		MultiTargetAttack = true,
-		MaxTargets = 4,
-		AttackRadius = 85,
-		AutoSpearsBurst = true,
-		AutoBossMechanics = true,
-		AutoUseSkills = true,
-		AutoDodge = true,
-		KillAura = false,
-		KillAuraRange = 120,
-		HitboxExtender = true,
-		NapeHitboxSize = 120,
-		Godmode = false,
-		AutoEscapeGrab = true,
-		InfiniteHookRange = false,
-		NoCooldown = false,
-
-		-- Raid & Story VIP
-		SelectedRaid = "Colossal Titan",
-		SelectedRaidDiff = "Aberrant",
-		AutoRaid = false,
-		AutoOpenRaidChests = true,
-		AutoFireCannons = true,
-		AutoUpgradeHQ = true,
-		SelectedStoryMap = "Shiganshina",
-		SelectedDifficulty = "Hard",
-		AutoStoryMission = false,
-		AutoRetry = false,
-		AutoNextMission = false,
-
-		-- Performance & HUD
-		FastRagdollCleaner = true,
-		DisableScreenShake = true,
-		ShowFarmHUD = false,
-
-		-- Anti-Ban & Security VIP
-		AntiBanShield = true,
-		TargetClans = {"Shiki", "Fritz", "Helos", "Ackerman", "Yeager"},
-		AutoRollFamily = false,
-		TargetPerks = {"Divine", "Kensei", "Berserk", "Artisan", "Deadshot"},
-		AutoRollPerks = false,
-		AntiAFK = true,
-		AutoShadowbanCheck = false,
-		WebhookURL = "",
-		RewardsWebhook = false,
-
-		-- Visuals VIP
-		TitanESP = false,
-		ShowNapeHitbox = false,
-		ESPMaxDistance = 1200,
-		ESPColor = Color3.fromRGB(170, 95, 255),
-	}
-
-	-- Forward declarations cho các hàm engine lõi để các nút UI có thể gọi mà không bị lỗi scope
-	local getAOTRemotes
-	local isBladeActuallyBroken
-	local performAOTReload
-	local refillSuppliesAtStation
-	local clearMapDebris
-	local updateFarmHUD
-	local disableScreenShake
-
-	local Window = RayfieldLibrary:CreateWindow({
-		Name = "HaiAnh Menu | Attack on Titan: Revolution",
-		LoadingTitle = "HaiAnh Menu",
-		LoadingSubtitle = "Attack on Titan: Revolution",
-		ConfigurationSaving = {
-			Enabled = true,
-			FolderName = "HaiAnhMenuConfig",
-			FileName = "AOTRevolution"
-		},
-		KeySystem = false,
-	})
-
-	createFloatingToggle()
-
-	-- TAB 1: Main / Auto Farm
-	local FarmTab = Window:CreateTab("Main / Auto Farm", 0)
-	FarmTab:CreateSection("Farm Configuration")
-
-	FarmTab:CreateDropdown({
-		Name = "Weapon Mode",
-		Options = {"Auto", "Blades", "Thunder Spears"},
-		CurrentOption = {"Auto"},
-		MultipleOptions = false,
-		Flag = "AOT_WeaponMode",
-		Callback = function(Option)
-			AOTConfig.WeaponMode = type(Option) == "table" and Option[1] or Option
-		end,
-	})
-
-	FarmTab:CreateDropdown({
-		Name = "Farm Position",
-		Options = {"Above Nape (Anti-Grab)", "Behind Nape", "High Sky (Anti-Grab)"},
-		CurrentOption = {"Above Nape (Anti-Grab)"},
-		MultipleOptions = false,
-		Flag = "AOT_FarmPosition",
-		Callback = function(Option)
-			AOTConfig.FarmPosition = type(Option) == "table" and Option[1] or Option
-		end,
-	})
-
-	FarmTab:CreateDropdown({
-		Name = "Target Priority",
-		Options = {"Closest", "Bosses First", "Crawlers & Abnormals", "Lowest HP"},
-		CurrentOption = {"Closest"},
-		MultipleOptions = false,
-		Flag = "AOT_TargetPriority",
-		Callback = function(Option)
-			AOTConfig.TargetPriority = type(Option) == "table" and Option[1] or Option
-		end,
-	})
-
-	FarmTab:CreateSlider({
-		Name = "Behind Nape Distance",
-		Range = {0.5, 12},
-		Increment = 0.5,
-		Suffix = "Studs",
-		CurrentValue = 2.0,
-		Flag = "AOT_BehindNapeDistance",
-		Callback = function(Value)
-			AOTConfig.BehindNapeDistance = Value
-		end,
-	})
-
-	FarmTab:CreateSlider({
-		Name = "Hover Height",
-		Range = {2, 35},
-		Increment = 1,
-		Suffix = "Studs",
-		CurrentValue = 10,
-		Flag = "AOT_HoverHeight",
-		Callback = function(Value)
-			AOTConfig.HoverHeight = Value
-		end,
-	})
-
-	FarmTab:CreateSlider({
-		Name = "Flight Speed",
-		Range = {150, 700},
-		Increment = 10,
-		Suffix = "Studs/s",
-		CurrentValue = 420,
-		Flag = "AOT_FlightSpeed",
-		Callback = function(Value)
-			AOTConfig.FlightSpeed = Value
-		end,
-	})
-
-	FarmTab:CreateToggle({
-		Name = "Instant Teleport (Fast Farm)",
-		CurrentValue = false,
-		Flag = "AOT_InstantTeleport",
-		Callback = function(Value)
-			AOTConfig.InstantTeleport = Value
-		end,
-	})
-
-	FarmTab:CreateToggle({
-		Name = "Map NoClip (Pass Obstacles)",
-		CurrentValue = true,
-		Flag = "AOT_MapNoClip",
-		Callback = function(Value)
-			AOTConfig.MapNoClip = Value
-		end,
-	})
-
-	FarmTab:CreateSection("Main Auto Farm")
-
-	FarmTab:CreateToggle({
-		Name = "Auto Farm Titan",
-		CurrentValue = false,
-		Flag = "AOT_AutoFarmTitan",
-		Callback = function(Value)
-			AOTConfig.AutoFarmTitan = Value
-		end,
-	})
-
-	FarmTab:CreateToggle({
-		Name = "Safe Legit Farm",
-		CurrentValue = false,
-		Flag = "AOT_SafeLegitDelay",
-		Callback = function(Value)
-			AOTConfig.SafeLegitDelay = Value
-		end,
-	})
-
-	FarmTab:CreateToggle({
-		Name = "Titan Shifter Mastery",
-		CurrentValue = false,
-		Flag = "AOT_TitanMastery",
-		Callback = function(Value)
-			AOTConfig.TitanShifterMastery = Value
-		end,
-	})
-
-	FarmTab:CreateToggle({
-		Name = "Auto Titan Shift",
-		CurrentValue = true,
-		Flag = "AOT_AutoShift",
-		Callback = function(Value)
-			AOTConfig.AutoTitanShift = Value
-		end,
-	})
-
-	FarmTab:CreateToggle({
-		Name = "Titan Shifter Skills Burst",
-		CurrentValue = true,
-		Flag = "AOT_TitanSkillsBurst",
-		Callback = function(Value)
-			AOTConfig.TitanSkillsBurst = Value
-		end,
-	})
-
-	FarmTab:CreateSection("Blades & Thunder Spears Reload")
-
-	FarmTab:CreateToggle({
-		Name = "Auto Reload When Broken",
-		CurrentValue = true,
-		Flag = "AOT_AutoReloadWhenBroken",
-		Callback = function(Value)
-			AOTConfig.AutoReloadWhenBroken = Value
-		end,
-	})
-
-	FarmTab:CreateToggle({
-		Name = "Reload After Titan Kill",
-		CurrentValue = true,
-		Flag = "AOT_ReloadAfterTitanKill",
-		Callback = function(Value)
-			AOTConfig.ReloadAfterTitanKill = Value
-		end,
-	})
-
-	FarmTab:CreateSlider({
-		Name = "Slashes Before Reload",
-		Range = {10, 40},
-		Increment = 1,
-		Suffix = "Hits",
-		CurrentValue = 22,
-		Flag = "AOT_SlashesBeforeReload",
-		Callback = function(Value)
-			AOTConfig.SlashesBeforeReload = Value
-		end,
-	})
-
-	FarmTab:CreateButton({
-		Name = "Reload Blades Now",
-		Callback = function()
-			if performAOTReload then
-				performAOTReload(true)
-			end
-			RayfieldLibrary:Notify({
-				Title = "Reload",
-				Content = "Đã gửi lệnh nạp lại kiếm mới!",
-				Duration = 2.5,
-			})
-		end,
-	})
-
-	FarmTab:CreateToggle({
-		Name = "Auto Refill Supplies",
-		CurrentValue = true,
-		Flag = "AOT_AutoRefill",
-		Callback = function(Value)
-			AOTConfig.AutoRefillSupplies = Value
-		end,
-	})
-
-	FarmTab:CreateToggle({
-		Name = "Auto Resupply Teleport (Instant Refill)",
-		CurrentValue = true,
-		Flag = "AOT_ResupplyTeleport",
-		Callback = function(Value)
-			AOTConfig.AutoResupplyTeleport = Value
-		end,
-	})
-
-	FarmTab:CreateButton({
-		Name = "Refill Supplies at Station",
-		Callback = function()
-			if refillSuppliesAtStation then
-				refillSuppliesAtStation()
-			end
-			RayfieldLibrary:Notify({
-				Title = "Refill Supplies",
-				Content = "Đã nhận tiếp tế Kiếm và Gas từ trạm!",
-				Duration = 3,
-			})
-		end,
-	})
-
-	FarmTab:CreateToggle({
-		Name = "Infinite Gas & Durability",
-		CurrentValue = false,
-		Flag = "AOT_InfiniteGas",
-		Callback = function(Value)
-			AOTConfig.InfiniteGasDurability = Value
-		end,
-	})
-
-	-- TAB 2: Combat / Buff
-	local CombatTab = Window:CreateTab("Combat / Buff", 0)
-	CombatTab:CreateSection("Multi-Target Combat")
-
-	CombatTab:CreateToggle({
-		Name = "Multi-Target Attack",
-		CurrentValue = true,
-		Flag = "AOT_MultiTargetAttack",
-		Callback = function(Value)
-			AOTConfig.MultiTargetAttack = Value
-		end,
-	})
-
-	CombatTab:CreateSlider({
-		Name = "Max Attack Targets",
-		Range = {1, 8},
-		Increment = 1,
-		Suffix = "Titans",
-		CurrentValue = 4,
-		Flag = "AOT_MaxTargets",
-		Callback = function(Value)
-			AOTConfig.MaxTargets = Value
-		end,
-	})
-
-	CombatTab:CreateSlider({
-		Name = "Attack Radius",
-		Range = {30, 200},
-		Increment = 5,
-		Suffix = "Studs",
-		CurrentValue = 85,
-		Flag = "AOT_AttackRadius",
-		Callback = function(Value)
-			AOTConfig.AttackRadius = Value
-		end,
-	})
-
-	CombatTab:CreateToggle({
-		Name = "Thunder Spears Auto Burst (AOE)",
-		CurrentValue = true,
-		Flag = "AOT_AutoSpearsBurst",
-		Callback = function(Value)
-			AOTConfig.AutoSpearsBurst = Value
-		end,
-	})
-
-	CombatTab:CreateToggle({
-		Name = "Auto Boss Mechanics (Raid Bosses)",
-		CurrentValue = true,
-		Flag = "AOT_BossMechanics",
-		Callback = function(Value)
-			AOTConfig.AutoBossMechanics = Value
-		end,
-	})
-
-	CombatTab:CreateSection("Auto Skills VIP")
-
-	CombatTab:CreateToggle({
-		Name = "Auto Use Skills",
-		CurrentValue = true,
-		Flag = "AOT_AutoSkills",
-		Callback = function(Value)
-			AOTConfig.AutoUseSkills = Value
-		end,
-	})
-
-	CombatTab:CreateToggle({
-		Name = "Auto Dodge Titan Attacks (I-Frame)",
-		CurrentValue = true,
-		Flag = "AOT_AutoDodge",
-		Callback = function(Value)
-			AOTConfig.AutoDodge = Value
-		end,
-	})
-
-	CombatTab:CreateSection("Kill Aura & Hitbox")
-
-	CombatTab:CreateToggle({
-		Name = "Kill Aura",
-		CurrentValue = false,
-		Flag = "AOT_KillAura",
-		Callback = function(Value)
-			AOTConfig.KillAura = Value
-		end,
-	})
-
-	CombatTab:CreateSlider({
-		Name = "Kill Aura Range",
-		Range = {30, 250},
-		Increment = 5,
-		Suffix = "Studs",
-		CurrentValue = 120,
-		Flag = "AOT_KillAuraRange",
-		Callback = function(Value)
-			AOTConfig.KillAuraRange = Value
-		end,
-	})
-
-	CombatTab:CreateToggle({
-		Name = "Nape Hitbox Extender",
-		CurrentValue = true,
-		Flag = "AOT_HitboxExtender",
-		Callback = function(Value)
-			AOTConfig.HitboxExtender = Value
-		end,
-	})
-
-	CombatTab:CreateSlider({
-		Name = "Nape Hitbox Size",
-		Range = {30, 300},
-		Increment = 10,
-		Suffix = "Studs",
-		CurrentValue = 120,
-		Flag = "AOT_NapeSize",
-		Callback = function(Value)
-			AOTConfig.NapeHitboxSize = Value
-		end,
-	})
-
-	CombatTab:CreateSection("Player Buffs & ODMG")
-
-	CombatTab:CreateToggle({
-		Name = "Godmode",
-		CurrentValue = false,
-		Flag = "AOT_Godmode",
-		Callback = function(Value)
-			AOTConfig.Godmode = Value
-		end,
-	})
-
-	CombatTab:CreateToggle({
-		Name = "Auto Escape Grab",
-		CurrentValue = true,
-		Flag = "AOT_AutoEscapeGrab",
-		Callback = function(Value)
-			AOTConfig.AutoEscapeGrab = Value
-		end,
-	})
-
-	CombatTab:CreateToggle({
-		Name = "ODMG Infinite Hook Range",
-		CurrentValue = false,
-		Flag = "AOT_InfHookRange",
-		Callback = function(Value)
-			AOTConfig.InfiniteHookRange = Value
-		end,
-	})
-
-	CombatTab:CreateToggle({
-		Name = "No Skill Cooldown",
-		CurrentValue = false,
-		Flag = "AOT_NoCooldown",
-		Callback = function(Value)
-			AOTConfig.NoCooldown = Value
-		end,
-	})
-
-	-- TAB 3: Raid & Story
-	local RaidTab = Window:CreateTab("Raid & Story", 0)
-	RaidTab:CreateSection("Auto Raid VIP")
-
-	RaidTab:CreateDropdown({
-		Name = "Select Raid Boss",
-		Options = {"Colossal Titan", "Armored Titan", "Female Titan", "Beast Titan"},
-		CurrentOption = {"Colossal Titan"},
-		MultipleOptions = false,
-		Flag = "AOT_RaidBoss",
-		Callback = function(Option)
-			AOTConfig.SelectedRaid = type(Option) == "table" and Option[1] or Option
-		end,
-	})
-
-	RaidTab:CreateDropdown({
-		Name = "Raid Difficulty",
-		Options = {"Easy", "Normal", "Hard", "Severe", "Aberrant", "Freedom"},
-		CurrentOption = {"Aberrant"},
-		MultipleOptions = false,
-		Flag = "AOT_RaidDiff",
-		Callback = function(Option)
-			AOTConfig.SelectedRaidDiff = type(Option) == "table" and Option[1] or Option
-		end,
-	})
-
-	RaidTab:CreateToggle({
-		Name = "Auto Raid",
-		CurrentValue = false,
-		Flag = "AOT_AutoRaid",
-		Callback = function(Value)
-			AOTConfig.AutoRaid = Value
-		end,
-	})
-
-	RaidTab:CreateToggle({
-		Name = "Auto Open Raid Chests",
-		CurrentValue = true,
-		Flag = "AOT_OpenChests",
-		Callback = function(Value)
-			AOTConfig.AutoOpenRaidChests = Value
-		end,
-	})
-
-	RaidTab:CreateToggle({
-		Name = "Auto Fire Cannons",
-		CurrentValue = true,
-		Flag = "AOT_AutoCannons",
-		Callback = function(Value)
-			AOTConfig.AutoFireCannons = Value
-		end,
-	})
-
-	RaidTab:CreateToggle({
-		Name = "Auto Upgrade HQ",
-		CurrentValue = true,
-		Flag = "AOT_AutoUpgradeHQ",
-		Callback = function(Value)
-			AOTConfig.AutoUpgradeHQ = Value
-		end,
-	})
-
-	RaidTab:CreateSection("Auto Story Mission")
-
-	RaidTab:CreateDropdown({
-		Name = "Select Story Chapter",
-		Options = {"Shiganshina", "Trost District", "Giant Tree Forest", "Stohess", "Utgard Castle"},
-		CurrentOption = {"Shiganshina"},
-		MultipleOptions = false,
-		Flag = "AOT_StoryMap",
-		Callback = function(Option)
-			AOTConfig.SelectedStoryMap = type(Option) == "table" and Option[1] or Option
-		end,
-	})
-
-	RaidTab:CreateDropdown({
-		Name = "Mission Difficulty",
-		Options = {"Normal", "Hard", "Severe", "Aberrant", "Freedom"},
-		CurrentOption = {"Hard"},
-		MultipleOptions = false,
-		Flag = "AOT_StoryDiff",
-		Callback = function(Option)
-			AOTConfig.SelectedDifficulty = type(Option) == "table" and Option[1] or Option
-		end,
-	})
-
-	RaidTab:CreateToggle({
-		Name = "Auto Story Mission",
-		CurrentValue = false,
-		Flag = "AOT_AutoStory",
-		Callback = function(Value)
-			AOTConfig.AutoStoryMission = Value
-		end,
-	})
-
-	RaidTab:CreateToggle({
-		Name = "Auto Retry on Failure",
-		CurrentValue = false,
-		Flag = "AOT_AutoRetry",
-		Callback = function(Value)
-			AOTConfig.AutoRetry = Value
-		end,
-	})
-
-	RaidTab:CreateToggle({
-		Name = "Auto Next Mission",
-		CurrentValue = false,
-		Flag = "AOT_AutoNext",
-		Callback = function(Value)
-			AOTConfig.AutoNextMission = Value
-		end,
-	})
-
-	-- TAB 4: Misc / Performance / Gacha
-	local MiscTab = Window:CreateTab("Misc / Performance", 0)
-	MiscTab:CreateSection("Performance & FPS Booster")
-
-	MiscTab:CreateToggle({
-		Name = "Fast Ragdoll Cleaner (FPS Boost)",
-		CurrentValue = true,
-		Flag = "AOT_FastRagdollCleaner",
-		Callback = function(Value)
-			AOTConfig.FastRagdollCleaner = Value
-		end,
-	})
-
-	MiscTab:CreateToggle({
-		Name = "Disable Screen Shake & Blur",
-		CurrentValue = true,
-		Flag = "AOT_DisableScreenShake",
-		Callback = function(Value)
-			AOTConfig.DisableScreenShake = Value
-			if Value and disableScreenShake then disableScreenShake() end
-		end,
-	})
-
-	MiscTab:CreateToggle({
-		Name = "Show Farm Stats HUD",
-		CurrentValue = false,
-		Flag = "AOT_ShowFarmHUD",
-		Callback = function(Value)
-			AOTConfig.ShowFarmHUD = Value
-			if updateFarmHUD then updateFarmHUD() end
-		end,
-	})
-
-	MiscTab:CreateButton({
-		Name = "Clear All Map Debris Now",
-		Callback = function()
-			if clearMapDebris then
-				clearMapDebris()
-			end
-			RayfieldLibrary:Notify({
-				Title = "FPS Booster",
-				Content = "Đã dọn dẹp toàn bộ xác chết và rác hiệu ứng!",
-				Duration = 3,
-			})
-		end,
-	})
-
-	MiscTab:CreateSection("Manual Equipment Controls")
-
-	MiscTab:CreateButton({
-		Name = "Reload Blades Now",
-		Callback = function()
-			if performAOTReload then
-				performAOTReload(true)
-			end
-			RayfieldLibrary:Notify({
-				Title = "Reload",
-				Content = "Đã nạp lại kiếm mới thành công!",
-				Duration = 3,
-			})
-		end,
-	})
-
-	MiscTab:CreateButton({
-		Name = "Refill Supplies at Station",
-		Callback = function()
-			if refillSuppliesAtStation then
-				refillSuppliesAtStation()
-			end
-			RayfieldLibrary:Notify({
-				Title = "Refill Supplies",
-				Content = "Đã nhận tiếp tế Kiếm và Gas từ trạm!",
-				Duration = 3,
-			})
-		end,
-	})
-
-	MiscTab:CreateSection("Family & Perk Gacha")
-
-	MiscTab:CreateDropdown({
-		Name = "Target Families",
-		Options = {"Shiki", "Fritz", "Helos", "Ackerman", "Yeager", "Reiss", "Tybur", "Arlert", "Leonhart"},
-		CurrentOption = {"Shiki", "Fritz", "Helos"},
-		MultipleOptions = true,
-		Flag = "AOT_TargetClans",
-		Callback = function(Options)
-			AOTConfig.TargetClans = Options
-		end,
-	})
-
-	MiscTab:CreateToggle({
-		Name = "Auto Spin Family",
-		CurrentValue = false,
-		Flag = "AOT_AutoFamily",
-		Callback = function(Value)
-			AOTConfig.AutoRollFamily = Value
-		end,
-	})
-
-	MiscTab:CreateDropdown({
-		Name = "Target Perks",
-		Options = {"Divine", "Kensei", "Berserk", "Artisan", "Deadshot", "Thunder Burst"},
-		CurrentOption = {"Divine", "Kensei"},
-		MultipleOptions = true,
-		Flag = "AOT_TargetPerks",
-		Callback = function(Options)
-			AOTConfig.TargetPerks = Options
-		end,
-	})
-
-	MiscTab:CreateToggle({
-		Name = "Auto Spin Perks",
-		CurrentValue = false,
-		Flag = "AOT_AutoPerks",
-		Callback = function(Value)
-			AOTConfig.AutoRollPerks = Value
-		end,
-	})
-
-	MiscTab:CreateSection("Anti-Ban & Security")
-
-	MiscTab:CreateToggle({
-		Name = "Anti-Ban Remote Shield",
-		CurrentValue = true,
-		Flag = "AOT_AntiBanShield",
-		Callback = function(Value)
-			AOTConfig.AntiBanShield = Value
-			AntiBanShield.Enabled = Value
-		end,
-	})
-
-	MiscTab:CreateToggle({
-		Name = "Anti AFK",
-		CurrentValue = true,
-		Flag = "AOT_AntiAFK",
-		Callback = function(Value)
-			AOTConfig.AntiAFK = Value
-		end,
-	})
-
-	local function runShadowbanCheck()
-		local lp = Players and Players.LocalPlayer
-		local suspiciousFlags = {}
-		pcall(function()
-			if lp then
-				for attrName, attrVal in pairs(lp:GetAttributes()) do
-					local lower = string.lower(tostring(attrName))
-					if (string.find(lower, "ban", 1, true) or string.find(lower, "flag", 1, true) or string.find(lower, "cheat", 1, true) or string.find(lower, "restrict", 1, true)) and attrVal == true then
-						table.insert(suspiciousFlags, tostring(attrName))
-					end
-				end
-				for _, child in ipairs(lp:GetDescendants()) do
-					local lower = string.lower(child.Name)
-					if (string.find(lower, "shadowban", 1, true) or string.find(lower, "banned", 1, true)) and child:IsA("BoolValue") and child.Value == true then
-						table.insert(suspiciousFlags, child.Name)
-					end
-				end
-			end
-		end)
-
-		if #suspiciousFlags > 0 then
-			RayfieldLibrary:Notify({
-				Title = "Shadowban Warning",
-				Content = "Flagged attributes detected: " .. table.concat(suspiciousFlags, ", "),
-				Duration = 7,
-			})
-			AOTConfig.AutoFarmTitan = false
-			AOTConfig.AutoRaid = false
-		else
-			RayfieldLibrary:Notify({
-				Title = "Shadowban Status",
-				Content = "Account Clean: Blocked Remotes: " .. tostring(AntiBanShield.BlockedCount),
-				Duration = 5,
-			})
-		end
-	end
-
-	MiscTab:CreateButton({
-		Name = "Check Shadowban Status",
-		Callback = runShadowbanCheck,
-	})
-
-	MiscTab:CreateToggle({
-		Name = "Auto Shadowban Monitor",
-		CurrentValue = false,
-		Flag = "AOT_AutoShadowbanCheck",
-		Callback = function(Value)
-			AOTConfig.AutoShadowbanCheck = Value
-			if Value then runShadowbanCheck() end
-		end,
-	})
-
-	MiscTab:CreateInput({
-		Name = "Discord Webhook URL",
-		CurrentValue = "",
-		PlaceholderText = "https://discord.com/api/webhooks/...",
-		RemoveTextAfterFocusLost = false,
-		Flag = "AOT_WebhookURL",
-		Callback = function(Text)
-			AOTConfig.WebhookURL = tostring(Text or "")
-		end,
-	})
-
-	MiscTab:CreateToggle({
-		Name = "Send Rewards to Webhook",
-		CurrentValue = false,
-		Flag = "AOT_RewardsWebhook",
-		Callback = function(Value)
-			AOTConfig.RewardsWebhook = Value
-		end,
-	})
-
-	local function sendDiscordWebhook(title, description)
-		if AOTConfig.WebhookURL == "" or not string.find(AOTConfig.WebhookURL, "http") then return end
-		local req = requestFunc
-		if req then
-			pcall(function()
-				local payload = {
-					["embeds"] = {{
-						["title"] = title or "HaiAnh Menu - AOT:R Update",
-						["description"] = description or "Auto Farm notification",
-						["color"] = 11141375,
-						["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-						["footer"] = { ["text"] = "HaiAnh Menu | Violet Engine" }
-					}}
-				}
-				local HttpService = getService("HttpService")
-				local json = HttpService and HttpService:JSONEncode(payload)
-				if json then
-					req({
-						Url = AOTConfig.WebhookURL,
-						Method = "POST",
-						Headers = { ["Content-Type"] = "application/json" },
-						Body = json,
-					})
-				end
-			end)
-		end
-	end
-
-	MiscTab:CreateButton({
-		Name = "Test Discord Webhook",
-		Callback = function()
-			sendDiscordWebhook("HaiAnh Menu Test", "Discord Webhook connection verified successfully!")
-			RayfieldLibrary:Notify({
-				Title = "Webhook Test",
-				Content = "Test payload sent to Discord Webhook",
-				Duration = 4,
-			})
-		end,
-	})
-
-	-- TAB 5: Visuals / ESP
-	local VisualTab = Window:CreateTab("Visuals / ESP", 0)
-	VisualTab:CreateSection("Titan ESP")
-
-	VisualTab:CreateToggle({
-		Name = "Titan ESP",
-		CurrentValue = false,
-		Flag = "AOT_TitanESP",
-		Callback = function(Value)
-			AOTConfig.TitanESP = Value
-		end,
-	})
-
-	VisualTab:CreateToggle({
-		Name = "Highlight Titan Nape",
-		CurrentValue = false,
-		Flag = "AOT_ShowNape",
-		Callback = function(Value)
-			AOTConfig.ShowNapeHitbox = Value
-		end,
-	})
-
-	VisualTab:CreateSlider({
-		Name = "ESP Max Distance",
-		Range = {200, 2500},
-		Increment = 50,
-		Suffix = "Studs",
-		CurrentValue = 1200,
-		Flag = "AOT_ESPDistance",
-		Callback = function(Value)
-			AOTConfig.ESPMaxDistance = Value
-		end,
-	})
-
-	VisualTab:CreateColorPicker({
-		Name = "Titan ESP Color",
-		Color = Color3.fromRGB(170, 95, 255),
-		Flag = "AOT_ESPColor",
-		Callback = function(Value)
-			AOTConfig.ESPColor = Value
-		end,
-	})
-
-	-- ========================================================================
-	-- AOT:R CORE LOGIC & ENGINE (VIOLET HUB PRO EDITION)
-	-- ========================================================================
-	local currentTargetTitan = nil
-	local espObjects = {}
-	local deadTitanCache = setmetatable({}, { __mode = "k" })
-	local farmStats = {
-		startTime = os.clock(),
-		titansKilled = 0,
-		bladesReloaded = 0,
-	}
-
-	getAOTRemotes = function()
-		local assets = ReplicatedStorage:FindFirstChild("Assets")
-		local remotes = (assets and assets:FindFirstChild("Remotes")) 
-			or ReplicatedStorage:FindFirstChild("Remotes") 
-			or ReplicatedStorage:FindFirstChild("Remotes", true)
-		local post = (remotes and remotes:FindFirstChild("POST")) or ReplicatedStorage:FindFirstChild("POST", true)
-		local get = (remotes and remotes:FindFirstChild("GET")) or ReplicatedStorage:FindFirstChild("GET", true)
-		return post, get
-	end
-
-	local lastRefillTime = 0
-	refillSuppliesAtStation = function()
-		local now = os.clock()
-		if now - lastRefillTime < 1.2 then return end
-		lastRefillTime = now
-		pcall(function()
-			local postRemote = getAOTRemotes()
-			if postRemote then
-				pcall(function() postRemote:FireServer("S_Equipment", "Refill") end)
-				pcall(function() postRemote:FireServer("Equipment", "Refill") end)
-				pcall(function() postRemote:FireServer("Character", "Refill") end)
-				pcall(function() postRemote:FireServer("Attacks", "Refill") end)
-			end
-
-			local lp = Players and Players.LocalPlayer
-			local char = lp and lp.Character
-			local root = char and char:FindFirstChild("HumanoidRootPart")
-
-			local nearestPrompt = nil
-			local nearestDist = 99999
-			local nearestPos = nil
-
-			if fireproximityprompt and Workspace then
-				for _, obj in ipairs(Workspace:GetDescendants()) do
-					if obj:IsA("ProximityPrompt") and obj.Enabled then
-						local text = string.lower(obj.Name .. " " .. obj.ActionText .. " " .. obj.ObjectText)
-						if string.find(text, "refill", 1, true) or string.find(text, "gas", 1, true) or string.find(text, "blade", 1, true) or string.find(text, "supply", 1, true) or string.find(text, "horse", 1, true) or string.find(text, "chest", 1, true) then
-							local parentPart = obj.Parent
-							local pos = parentPart and (parentPart:IsA("BasePart") and parentPart.Position or (parentPart:IsA("Model") and parentPart:GetPivot().Position))
-							local d = (root and pos) and (pos - root.Position).Magnitude or 100
-							if d < nearestDist then
-								nearestDist = d
-								nearestPrompt = obj
-								nearestPos = pos
-							end
-							pcall(function() fireproximityprompt(obj, 0) end)
-							pcall(function() fireproximityprompt(obj) end)
-						end
-					end
-				end
-			end
-
-			-- Nếu bật AutoResupplyTeleport và trạm ở xa (> 25 studs), teleport tức thì đến trạm, nạp, rồi quay về vị trí farm
-			if AOTConfig.AutoResupplyTeleport and root and nearestPos and nearestPrompt and nearestDist > 25 then
-				local oldCF = root.CFrame
-				task.spawn(function()
-					pcall(function()
-						root.CFrame = CFrame.new(nearestPos + Vector3.new(0, 3, 0))
-						task.wait(0.08)
-						fireproximityprompt(nearestPrompt, 0)
-						fireproximityprompt(nearestPrompt)
-						task.wait(0.08)
-						root.CFrame = oldCF
-					end)
-				end)
-			end
-
-			farmStats.bladesReloaded = farmStats.bladesReloaded + 1
-		end)
-	end
-
-	local function getCleanTitanName(model)
-		if not model then return "Titan" end
-		for _, attr in ipairs({"Title", "TitanType", "Type", "Variant", "BossName", "Class"}) do
-			local val = model:GetAttribute(attr)
-			if type(val) == "string" and val ~= "" and not string.match(val, "%x+%-%x+") and #val < 20 then
-				return val
-			end
-		end
-		local raw = tostring(model.Name)
-		if string.match(raw, "%x+%-%x+") or #raw >= 20 then
-			if model:FindFirstChild("Abnormal") or model:GetAttribute("Abnormal") == true then
-				return "Abnormal Titan"
-			elseif model:FindFirstChild("Crawler") or model:GetAttribute("Crawler") == true then
-				return "Crawler Titan"
-			elseif model:FindFirstChild("Shifter") or model:GetAttribute("Shifter") == true then
-				return "Titan Shifter"
-			elseif model:FindFirstChild("Boss") or model:GetAttribute("Boss") == true or string.find(string.lower(raw), "colossal", 1, true) then
-				return "Colossal Titan"
-			end
-			return "Titan"
-		end
-		return raw
-	end
-
-	-- Xóa rác và xác chết trên Client để tối đa hóa FPS
-	clearMapDebris = function()
-		pcall(function()
-			local debris = Workspace:FindFirstChild("Debris")
-			if debris then
-				for _, item in ipairs(debris:GetChildren()) do
-					pcall(function() item:Destroy() end)
-				end
-			end
-			for titanModel, _ in pairs(deadTitanCache) do
-				if titanModel and titanModel.Parent then
-					pcall(function()
-						for _, p in ipairs(titanModel:GetDescendants()) do
-							if p:IsA("ParticleEmitter") or p:IsA("Trail") or p:IsA("Beam") then
-								p.Enabled = false
-								p:Destroy()
-							elseif p:IsA("BasePart") then
-								p.Transparency = 1
-								p.CanTouch = false
-								p.CanCollide = false
-							end
-						end
-					end)
-				end
-			end
-		end)
-	end
-
-	-- Sự kiện khi Titan chết: tăng chỉ số diệt và dọn dẹp visual ngay lập tức
-	local function onTitanDied(titan)
-		if not deadTitanCache[titan] then
-			deadTitanCache[titan] = true
-			farmStats.titansKilled = farmStats.titansKilled + 1
-			if AOTConfig.FastRagdollCleaner then
-				task.spawn(function()
-					pcall(function()
-						for _, p in ipairs(titan:GetDescendants()) do
-							if p:IsA("ParticleEmitter") or p:IsA("Trail") or p:IsA("Beam") then
-								p.Enabled = false
-								p:Destroy()
-							elseif p:IsA("BasePart") then
-								p.Transparency = 1
-								p.CanTouch = false
-								p.CanCollide = false
-							end
-						end
-					end)
-				end)
-			end
-		end
-	end
-
-	-- Kiểm tra chuẩn xác 100% Titan đã chết, đang ragdoll hoặc mất hitbox
-	local function isTitanDeadOrInvalid(titan, hum, nape)
-		if not titan or not titan.Parent or not titan:IsDescendantOf(Workspace) then
-			return true
-		end
-		if deadTitanCache[titan] then
-			return true
-		end
-		if Players and Players:GetPlayerFromCharacter(titan) then
-			return true
-		end
-
-		-- 1. Thuộc tính báo tử trong AOT:R
-		for _, attrName in ipairs({"Dead", "Died", "Death", "Killed", "Ragdoll", "Defeated", "Despawn", "Down"}) do
-			if titan:GetAttribute(attrName) == true then
-				onTitanDied(titan)
-				return true
-			end
-		end
-
-		-- 2. Tag / Child báo tử
-		if titan:FindFirstChild("Dead") or titan:FindFirstChild("Death") or titan:FindFirstChild("Ragdoll") or titan:FindFirstChild("Defeated") then
-			onTitanDied(titan)
-			return true
-		end
-
-		-- 3. Kiểm tra Humanoid
-		if hum then
-			if hum.Health <= 0 then
-				onTitanDied(titan)
-				return true
-			end
-			local okState, state = pcall(function() return hum:GetState() end)
-			if okState and (state == Enum.HumanoidStateType.Dead or state == Enum.HumanoidStateType.Ragdoll) then
-				onTitanDied(titan)
-				return true
-			end
-		end
-
-		-- 4. Khi Titan bị chém đứt gáy, thư mục Hitboxes hoặc Nape bị Server xóa ngay lập tức
-		local hitboxes = titan:FindFirstChild("Hitboxes")
-		if not hitboxes then
-			local rawName = string.lower(titan.Name)
-			if not string.find(rawName, "boss", 1, true) and not string.find(rawName, "colossal", 1, true) then
-				onTitanDied(titan)
-				return true
-			end
-		end
-
-		-- 5. Part gáy phải còn tồn tại trong Titan
-		if not nape or not nape.Parent or not nape:IsDescendantOf(titan) then
-			onTitanDied(titan)
-			return true
-		end
-
-		return false
-	end
-
-	-- Tìm kiếm chuẩn xác 100% GÁY (Nape) trong Hitboxes, loại bỏ hoàn toàn nhận nhầm khớp cổ của xác chết
-	local napeCache = setmetatable({}, { __mode = "k" })
-	local function findTitanNape(titan)
-		if not titan or not titan.Parent then return nil end
-		if Players and Players:GetPlayerFromCharacter(titan) then return nil end
-		if deadTitanCache[titan] then return nil end
-
-		local cached = napeCache[titan]
-		if cached and cached.Parent and cached:IsDescendantOf(titan) then
-			return cached
-		end
-
-		local hitboxes = titan:FindFirstChild("Hitboxes")
-		local hitFolder = hitboxes and hitboxes:FindFirstChild("Hit")
-		local nape = (hitFolder and hitFolder:FindFirstChild("Nape"))
-			or (hitboxes and hitboxes:FindFirstChild("Nape"))
-
-		if not nape or not nape:IsA("BasePart") then
-			for _, part in ipairs(titan:GetDescendants()) do
-				if part:IsA("BasePart") then
-					local pName = string.lower(part.Name)
-					if pName == "nape" or pName == "weakpoint" or pName == "core" then
-						nape = part
-						break
-					end
-				end
-			end
-		end
-
-		if nape and nape:IsA("BasePart") then
-			napeCache[titan] = nape
-			return nape
-		end
-		return nil
-	end
-
-	-- Quét danh sách Titan với bộ lọc thông minh & sắp xếp theo thứ tự ưu tiên
-	local function getTitansList()
-		local list = {}
-		local lp = Players and Players.LocalPlayer
-		local char = lp and lp.Character
-		local root = char and char:FindFirstChild("HumanoidRootPart")
-		if not Workspace then return list end
-
-		local searchFolders = {}
-		for _, fName in ipairs({"Titans", "Enemies", "Boss", "Bosses", "Raid", "Spawns", "Entities", "Living", "Targets"}) do
-			local f = Workspace:FindFirstChild(fName)
-			if f then table.insert(searchFolders, f) end
-		end
-		local map = Workspace:FindFirstChild("Map")
-		if map then
-			for _, sub in ipairs(map:GetChildren()) do
-				if sub.Name == "Titans" or sub.Name == "Enemies" or sub.Name == "Boss" or sub.Name == "Spawns" then
-					table.insert(searchFolders, sub)
-				end
-			end
-		end
-		if #searchFolders == 0 then table.insert(searchFolders, Workspace) end
-
-		local seen = {}
-		for _, folder in ipairs(searchFolders) do
-			for _, titan in ipairs(folder:GetChildren()) do
-				if titan:IsA("Model") and not seen[titan] and titan ~= char then
-					local hum = titan:FindFirstChildOfClass("Humanoid")
-					local nape = findTitanNape(titan)
-
-					-- Chỉ đưa vào danh sách nếu Titan còn sống và có hitbox Nape thực sự
-					if nape and nape:IsA("BasePart") and not isTitanDeadOrInvalid(titan, hum, nape) then
-						seen[titan] = true
-						local dist = root and (nape.Position - root.Position).Magnitude or 9999
-						local cleanName = getCleanTitanName(titan)
-						local lowerName = string.lower(cleanName .. " " .. titan.Name)
-						local isBoss = string.find(lowerName, "boss", 1, true) 
-							or string.find(lowerName, "colossal", 1, true) 
-							or string.find(lowerName, "armored", 1, true) 
-							or string.find(lowerName, "female", 1, true) 
-							or string.find(lowerName, "beast", 1, true)
-							or string.find(lowerName, "shifter", 1, true)
-							or titan:GetAttribute("Boss") == true
-						local isCrawler = string.find(lowerName, "crawler", 1, true) or titan:GetAttribute("Crawler") == true
-						local isAbnormal = string.find(lowerName, "abnormal", 1, true) or titan:GetAttribute("Abnormal") == true
-						local hp = hum and hum.Health or 100
-
-						table.insert(list, {
-							model = titan,
-							cleanName = cleanName,
-							humanoid = hum,
-							nape = nape,
-							dist = dist,
-							hp = hp,
-							isBoss = isBoss,
-							isCrawler = isCrawler,
-							isAbnormal = isAbnormal,
-						})
-					end
-				end
-			end
-		end
-
-		local priority = AOTConfig.TargetPriority or "Closest"
-		table.sort(list, function(a, b)
-			if priority == "Bosses First" then
-				if a.isBoss ~= b.isBoss then
-					return a.isBoss
-				end
-				return a.dist < b.dist
-			elseif priority == "Crawlers & Abnormals" then
-				local aThreat = a.isCrawler or a.isAbnormal or a.isBoss
-				local bThreat = b.isCrawler or b.isAbnormal or b.isBoss
-				if aThreat ~= bThreat then
-					return aThreat
-				end
-				return a.dist < b.dist
-			elseif priority == "Lowest HP" then
-				if math.abs(a.hp - b.hp) > 50 then
-					return a.hp < b.hp
-				end
-				return a.dist < b.dist
-			else -- "Closest"
-				return a.dist < b.dist
-			end
-		end)
-		return list
-	end
-
-	-- Theo dõi trạng thái kiếm và nhát chém thời gian thực
-	local consecutiveSlashes = 0
-	local lastReloadTime = 0
-	local lastBladeSlashTime = 0
-	local lastSpearFireTime = 0
-
-	-- Kiểm tra độ bền kiếm thông minh
-	isBladeActuallyBroken = function()
-		local lp = Players and Players.LocalPlayer
-		local char = lp and lp.Character
-		if not char then return false end
-
-		-- 1. Thuộc tính trên Character / Tool nếu có
-		if char:GetAttribute("BladesBroken") == true or char:GetAttribute("Broken") == true or char:GetAttribute("BladeBroken") == true then
-			return true
-		end
-		local dur = char:GetAttribute("Durability") or char:GetAttribute("BladeDurability")
-		if dur ~= nil and type(dur) == "number" then
-			if dur <= 2 then
-				return true
-			else
-				return false
-			end
-		end
-		local blades = char:GetAttribute("Blades")
-		if blades ~= nil and type(blades) == "number" and blades <= 0 then
-			return true
-		end
-
-		local tool = char:FindFirstChildOfClass("Tool")
-		if tool then
-			local tDur = tool:GetAttribute("Durability") or tool:GetAttribute("Dur")
-			if tDur ~= nil and type(tDur) == "number" then
-				if tDur <= 2 then
-					return true
-				else
-					return false
-				end
-			end
-		end
-
-		-- 2. Kiểm tra thanh độ bền trên GUI qua đối tượng cache
-		local bar = cachedGuiState.durabilityBar
-		if bar and bar.Parent and bar.Visible then
-			local okBar, empty = pcall(function()
-				return bar.Size.X.Scale <= 0.05 and bar.AbsoluteSize.X <= 4
-			end)
-			if okBar and empty then
-				return true
-			end
-			local okBarHealth, healthy = pcall(function()
-				return bar.Size.X.Scale > 0.1 or bar.AbsoluteSize.X > 15
-			end)
-			if okBarHealth and healthy then
-				return false
-			end
-		end
-
-		-- 3. Kiểm tra số nhát chém tích lũy thực tế
-		if consecutiveSlashes >= (AOTConfig.SlashesBeforeReload or 22) then
-			return true
-		end
-
-		return false
-	end
-
-	performAOTReload = function(force)
-		if not force and not isBladeActuallyBroken() then
-			return
-		end
-		local now = os.clock()
-		if not force and (now - lastReloadTime < 1.0) then return end
-		lastReloadTime = now
-		consecutiveSlashes = 0
-		farmStats.bladesReloaded = farmStats.bladesReloaded + 1
-
-		pcall(function()
-			local postRemote = getAOTRemotes()
-			local lp = Players and Players.LocalPlayer
-			local char = lp and lp.Character
-			if postRemote then
-				pcall(function() postRemote:FireServer("Attacks", "Reload") end)
-				pcall(function() postRemote:FireServer("S_Equipment", "Reload") end)
-				pcall(function() postRemote:FireServer("Equipment", "Reload") end)
-				pcall(function() postRemote:FireServer("Character", "Reload") end)
-			end
-
-			triggerActionButtons({"nạp lại", "nap lai", "reload"})
-
-			if cachedGuiState.reload and cachedGuiState.reload.Parent then
-				clickGuiButtonFast(cachedGuiState.reload)
-			end
-
-			if VirtualInputManager then
-				VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
-				task.spawn(function()
-					task.wait(0.01)
-					VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
-				end)
-			end
-
-			if char then
-				pcall(function()
-					char:SetAttribute("BladesBroken", false)
-					char:SetAttribute("Broken", false)
-					char:SetAttribute("BladeBroken", false)
-					local tool = char:FindFirstChildOfClass("Tool")
-					if tool then
-						tool:SetAttribute("Durability", 100)
-					end
-				end)
-			end
-
-			-- Nếu hết sạch cả hộp kiếm dự phòng, tự động tiếp tế tại trạm
-			if AOTConfig.AutoRefillSupplies then
-				refillSuppliesAtStation()
-			end
-		end)
-	end
-
-	-- Lắng nghe sự kiện hồi sinh để reset toàn bộ trạng thái nạp kiếm và mục tiêu khi chết
-	local function onAOTCharacterAdded(newChar)
-		consecutiveSlashes = 0
-		lastReloadTime = 0
-		lastBladeSlashTime = 0
-		currentTargetTitan = nil
-		table.clear(deadTitanCache)
-		refreshCachedGuiElements(true)
-
-		task.spawn(function()
-			local hum = newChar:WaitForChild("Humanoid", 5)
-			if hum then
-				hum.Died:Connect(function()
-					currentTargetTitan = nil
-					consecutiveSlashes = 0
-				end)
-			end
-		end)
-	end
-
-	local lp = Players and Players.LocalPlayer
-	if lp then
-		if lp.Character then
-			onAOTCharacterAdded(lp.Character)
-		end
-		lp.CharacterAdded:Connect(onAOTCharacterAdded)
-	end
-
-	-- Auto Use Skills: Chạy nền độc lập không làm khựng đòn chém M1
-	local lastSkillCast = 0
-	local function performAOTAutoSkills()
-		if not AOTConfig.AutoUseSkills then return end
-		local now = os.clock()
-		if now - lastSkillCast < 1.2 then return end
-		lastSkillCast = now
-
-		task.spawn(function()
-			pcall(function()
-				local postRemote = getAOTRemotes()
-				if postRemote then
-					for slot = 1, 4 do
-						postRemote:FireServer("Skills", "Use", slot)
-						postRemote:FireServer("S_Character", "Skill", slot)
-					end
-				end
-
-				if VirtualInputManager then
-					for _, key in ipairs({Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four}) do
-						VirtualInputManager:SendKeyEvent(true, key, false, game)
-						task.wait(0.002)
-						VirtualInputManager:SendKeyEvent(false, key, false, game)
-					end
-				end
-
-				for _, btn in ipairs(cachedGuiState.skills) do
-					if btn and btn.Parent and btn.Visible then
-						clickGuiButtonFast(btn)
-					end
-				end
-			end)
-		end)
-	end
-
-	-- Auto Titan Shifter v2: Tự biến hình Titan khi thanh năng lượng đầy và tự xuất combo kỹ năng Titan
-	local lastShiftAttempt = 0
-	local lastTitanSkillTime = 0
-	local function performAOTAutoShifter()
-		if not AOTConfig.AutoTitanShift and not AOTConfig.TitanShifterMastery then return end
-		local lp = Players and Players.LocalPlayer
-		local char = lp and lp.Character
-		if not char then return end
-
-		local isShifted = char:GetAttribute("Shifted") == true 
-			or char:GetAttribute("IsTitan") == true 
-			or char:GetAttribute("Titan") == true 
-			or char:FindFirstChild("Titan") 
-			or char:FindFirstChild("Shifter")
-
-		local postRemote = getAOTRemotes()
-		local now = os.clock()
-
-		-- Nếu ĐANG trong dạng Titan và bật TitanSkillsBurst: Tự động dùng combo kỹ năng Titan
-		if isShifted then
-			if AOTConfig.TitanSkillsBurst and (now - lastTitanSkillTime >= 0.8) then
-				lastTitanSkillTime = now
-				task.spawn(function()
-					pcall(function()
-						if postRemote then
-							postRemote:FireServer("Attacks", "Roar")
-							postRemote:FireServer("Attacks", "Hardening")
-							postRemote:FireServer("Attacks", "Punch")
-							postRemote:FireServer("Attacks", "TitanSkill", 1)
-							postRemote:FireServer("Attacks", "TitanSkill", 2)
-							postRemote:FireServer("Attacks", "TitanSkill", 3)
-							postRemote:FireServer("S_Character", "Roar")
-							postRemote:FireServer("S_Character", "Skill", 1)
-							postRemote:FireServer("S_Character", "Skill", 2)
-						end
-						if VirtualInputManager then
-							for _, key in ipairs({Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.F, Enum.KeyCode.E, Enum.KeyCode.V}) do
-								VirtualInputManager:SendKeyEvent(true, key, false, game)
-								task.wait(0.005)
-								VirtualInputManager:SendKeyEvent(false, key, false, game)
-							end
-						end
-					end)
-				end)
-			end
-			return
-		end
-
-		-- Nếu CHƯA biến hình: Kiểm tra cooldown 6s để thử biến hình
-		if now - lastShiftAttempt < 6.0 then return end
-		lastShiftAttempt = now
-
-		task.spawn(function()
-			pcall(function()
-				if postRemote then
-					pcall(function() postRemote:FireServer("S_Character", "Shift") end)
-					pcall(function() postRemote:FireServer("Attacks", "Shift") end)
-					pcall(function() postRemote:FireServer("Character", "Shift") end)
-				end
-				if VirtualInputManager then
-					VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.G, false, game)
-					task.wait(0.02)
-					VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.G, false, game)
-				end
-			end)
-		end)
-	end
-
-	-- Multi-Target Attack v2: Hỗ trợ Thunder Spears AOE Burst & One-Shot Decapitation 500 Vận Tốc
-	local function performAOTMultiAttack(primaryTarget)
-		if not primaryTarget or not primaryTarget.nape then return end
-		pcall(function()
-			local lp = Players and Players.LocalPlayer
-			local char = lp and lp.Character
-			local root = char and char:FindFirstChild("HumanoidRootPart")
-			local postRemote = getAOTRemotes()
-
-			-- Thu thập các Titan khác còn sống trong bán kính đánh lan
-			local targetEntries = { primaryTarget }
-			if AOTConfig.MultiTargetAttack then
-				local allTitans = getTitansList()
-				local maxT = math.clamp(AOTConfig.MaxTargets or 4, 1, 8)
-				local radius = AOTConfig.AttackRadius or 85
-				for _, t in ipairs(allTitans) do
-					if t ~= primaryTarget and t.nape and t.humanoid and t.humanoid.Health > 0 and not isTitanDeadOrInvalid(t.model, t.humanoid, t.nape) then
-						local dToPrimary = (t.nape.Position - primaryTarget.nape.Position).Magnitude
-						local dToPlayer = root and (t.nape.Position - root.Position).Magnitude or dToPrimary
-						if dToPrimary <= radius or dToPlayer <= radius then
-							table.insert(targetEntries, t)
-							if #targetEntries >= maxT then
-								break
-							end
-						end
-					end
-				end
-			end
-
-			local useSpears = (AOTConfig.WeaponMode == "Thunder Spears") or (AOTConfig.WeaponMode == "Auto")
-			local useBlades = (AOTConfig.WeaponMode == "Blades") or (AOTConfig.WeaponMode == "Auto")
-			local now = os.clock()
-
-			-- 1. Bắn thương sấm sét (Thunder Spears) trực tiếp vào Gáy & AOE Burst
-			local isHighThreat = primaryTarget.isBoss or primaryTarget.isCrawler or #targetEntries >= 2
-			if (useSpears or (AOTConfig.AutoSpearsBurst and isHighThreat)) and (now - lastSpearFireTime >= 0.45) then
-				lastSpearFireTime = now
-				for _, entry in ipairs(targetEntries) do
-					if entry.nape and postRemote then
-						pcall(function() postRemote:FireServer("S_Equipment", "Spears", "Fire", entry.nape.Position) end)
-						pcall(function() postRemote:FireServer("Attacks", "Spears", entry.nape.Position) end)
-						pcall(function() postRemote:FireServer("Hitboxes", "Register", entry.nape, 500, 100) end)
-					end
-				end
-
-				if VirtualInputManager then
-					VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
-					task.spawn(function()
-						task.wait(0.005)
-						VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
-					end)
-				end
-			end
-
-			-- 2. Boss Mechanics: Phá giáp khớp chân Armored Titan
-			if AOTConfig.AutoBossMechanics and primaryTarget.isBoss and postRemote then
-				local titanModel = primaryTarget.model
-				for _, partName in ipairs({"Leg_L", "Leg_R", "Knee_L", "Knee_R", "Ankle_L", "Ankle_R", "Arm_L", "Arm_R"}) do
-					local bodyPart = titanModel:FindFirstChild(partName, true)
-					if bodyPart and bodyPart:IsA("BasePart") then
-						pcall(function() postRemote:FireServer("Hitboxes", "Register", bodyPart, 500, 100) end)
-					end
-				end
-			end
-
-			-- 3. Chém kiếm (Blades Slash) – Truyền vận tốc chém 500 + 100% crit để kết liễu Titan ngay lập tức
-			local slashCooldown = AOTConfig.SafeLegitDelay and 0.30 or 0.18
-			if useBlades and (now - lastBladeSlashTime >= slashCooldown) then
-				lastBladeSlashTime = now
-				consecutiveSlashes = consecutiveSlashes + 1
-
-				if postRemote then
-					pcall(function() postRemote:FireServer("Attacks", "Slash", true) end)
-					pcall(function() postRemote:FireServer("Attacks", "Slash_Release") end)
-					pcall(function() postRemote:FireServer("Attacks", "M1") end)
-				end
-
-				for _, entry in ipairs(targetEntries) do
-					local nape = entry.nape
-					if nape and postRemote then
-						pcall(function() postRemote:FireServer("Hitboxes", "Register", nape, 500, 100) end)
-						pcall(function() postRemote:FireServer("Hitboxes", "Register", nape, math.random(460, 500), 100) end)
-						pcall(function() postRemote:FireServer("Hitboxes", "Register", nape, 500) end)
-					end
-				end
-
-				if VirtualInputManager then
-					VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-					task.spawn(function()
-						task.wait(0.012)
-						VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
-					end)
-				end
-				activateEquippedTool()
-				triggerMobileM1Attack()
-				performAOTAutoSkills()
-			end
-		end)
-	end
-
-	-- 1. Anti-Gravity Stepped Loop: Giữ nhân vật lơ lửng, triệt tiêu trọng lực & Map NoClip
-	local RunService = getService("RunService")
-	RunService.Stepped:Connect(function()
-		if not (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid) then
-			return
-		end
-		local lp = Players and Players.LocalPlayer
-		local char = lp and lp.Character
-		local root = char and char:FindFirstChild("HumanoidRootPart")
-		local hum = char and char:FindFirstChildOfClass("Humanoid")
-
-		if char and hum and hum.Health > 0 then
-			for _, part in ipairs(char:GetDescendants()) do
-				if part:IsA("BasePart") and part.CanCollide then
-					part.CanCollide = false
-				end
-			end
-			if root then
-				root.Velocity = Vector3.zero
-				root.RotVelocity = Vector3.zero
-				root.AssemblyLinearVelocity = Vector3.zero
-				root.AssemblyAngularVelocity = Vector3.zero
-			end
-		end
-	end)
-
-	-- 2. Heartbeat Farm Flight: Khóa vị trí TRÊN CAO AN TOÀN (10 studs trên gáy), chống Titan bắt và chém 100% trúng gáy
-	RunService.Heartbeat:Connect(function(dt)
-		if not (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid) then
-			return
-		end
-		pcall(function()
-			local lp = Players and Players.LocalPlayer
-			local char = lp and lp.Character
-			local root = char and char:FindFirstChild("HumanoidRootPart")
-			if not root then return end
-
-			-- Đổi sang mục tiêu sống tiếp theo NGAY LẬP TỨC khi Titan chết hoặc mất hitbox (< 16ms)
-			if not currentTargetTitan 
-				or not currentTargetTitan.model 
-				or not currentTargetTitan.nape 
-				or isTitanDeadOrInvalid(currentTargetTitan.model, currentTargetTitan.humanoid, currentTargetTitan.nape) then
-				
-				if currentTargetTitan and currentTargetTitan.model then
-					onTitanDied(currentTargetTitan.model)
-				end
-				local list = getTitansList()
-				currentTargetTitan = list[1]
-			end
-
-			if currentTargetTitan and currentTargetTitan.nape and currentTargetTitan.nape.Parent then
-				local titanModel = currentTargetTitan.model
-				local titanRoot = titanModel:FindFirstChild("HumanoidRootPart") or titanModel:FindFirstChild("Torso") or titanModel:FindFirstChild("UpperTorso") or titanModel.PrimaryPart
-				local titanPivot = titanModel:GetPivot()
-				local napePart = currentTargetTitan.nape
-				local napePos = napePart.Position
-
-				local lookVec = titanRoot and titanRoot.CFrame.LookVector or titanPivot.LookVector
-				local behindDist = math.clamp(AOTConfig.BehindNapeDistance or 2.0, 0.5, 12)
-				local heightOffset = math.clamp(AOTConfig.HoverHeight or 10, 2, 35)
-
-				if AOTConfig.FarmPosition == "High Sky (Anti-Grab)" then
-					behindDist = 1.0
-					heightOffset = 16
-				elseif AOTConfig.FarmPosition == "Behind Nape" then
-					behindDist = 3.0
-					heightOffset = 6
-				end
-
-				-- Auto Dodge: Nếu phát hiện Titan vung tay hoặc chồm tới, bay bổng lên thêm 14 studs để né đòn
-				if AOTConfig.AutoDodge then
-					local isAttacking = titanModel:GetAttribute("Attacking") or titanModel:GetAttribute("Swinging") or titanModel:GetAttribute("Grabbing")
-					if isAttacking then
-						heightOffset = heightOffset + 14
-					end
-				end
-
-				-- Vị trí: Đứng cao an toàn phía trên gáy
-				local goalPos = napePos - (lookVec * behindDist) + Vector3.new(0, heightOffset, 0)
-				local targetCF = CFrame.lookAt(goalPos, napePos)
-
-				local currentCF = root.CFrame
-				local dist = (goalPos - currentCF.Position).Magnitude
-
-				if AOTConfig.InstantTeleport then
-					-- Chế độ Teleport tức thì: Snap thẳng đến sau gáy không cần bay
-					root.CFrame = targetCF
-				else
-					if dist > 1.2 then
-						local speed = math.max(AOTConfig.FlightSpeed or 420, 200)
-						-- Adaptive Altitude: Nếu Titan ở xa (> 60 studs), giữ độ cao trên không trung để không bị vướng nhà cửa cây cối
-						if dist > 60 then
-							local highGoal = Vector3.new(goalPos.X, math.max(currentCF.Position.Y, goalPos.Y + 20), goalPos.Z)
-							local highCF = CFrame.lookAt(highGoal, napePos)
-							local alpha = math.clamp((speed * dt) / math.max(dist, 1), 0.35, 1)
-							root.CFrame = currentCF:Lerp(highCF, alpha)
-						else
-							local alpha = math.clamp((speed * dt) / math.max(dist, 1), 0.40, 1)
-							root.CFrame = currentCF:Lerp(targetCF, alpha)
-						end
-					else
-						root.CFrame = targetCF
-					end
-				end
-
-				-- Khóa góc nhìn Camera thẳng vào tâm Gáy
-				local cam = Workspace and Workspace.CurrentCamera
-				if cam then
-					cam.CFrame = CFrame.lookAt(cam.CFrame.Position, napePos)
-				end
-			end
-		end)
-	end)
-
-	-- 3. Dedicated Hitbox Extender Engine & Anti-Grab Shield: Vô hiệu hóa hitbox người/bắt và đưa Gáy đến trước kiếm
-	RunService.Heartbeat:Connect(function()
-		if not (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid or AOTConfig.HitboxExtender) then return end
-		local sz = AOTConfig.NapeHitboxSize or 120
-		pcall(function()
-			local searchFolders = {}
-			for _, fName in ipairs({"Titans", "Enemies", "Boss", "Bosses", "Raid", "Spawns", "Entities"}) do
-				local f = Workspace:FindFirstChild(fName)
-				if f then table.insert(searchFolders, f) end
-			end
-			if #searchFolders == 0 then table.insert(searchFolders, Workspace) end
-
-			local lp = Players and Players.LocalPlayer
-			local char = lp and lp.Character
-			local root = char and char:FindFirstChild("HumanoidRootPart")
-
-			for _, folder in ipairs(searchFolders) do
-				for _, titan in ipairs(folder:GetChildren()) do
-					if titan:IsA("Model") and titan ~= char then
-						local hb = titan:FindFirstChild("Hitboxes")
-						if hb then
-							for _, sub in ipairs(hb:GetDescendants()) do
-								if sub:IsA("BasePart") then
-									if sub.Name == "Nape" then
-										sub.CanTouch = true
-										sub.CanCollide = false
-										sub.Massless = true
-										if AOTConfig.HitboxExtender then
-											sub.Size = Vector3.new(sz, sz, sz)
-										end
-										if AOTConfig.ShowNapeHitbox then
-											sub.Transparency = 0.45
-											sub.Color = AOTConfig.ESPColor
-											sub.Material = Enum.Material.Neon
-										else
-											sub.Transparency = 0.88
-										end
-									else
-										-- TRIỆT TIÊU 100% HITBOX NGƯỜI VÀ GRAB: Body, Torso, Arms, Legs, Eyes, Grab
-										sub.CanTouch = false
-										sub.CanCollide = false
+						local args = { ... }
+						for _, arg in ipairs(args) do
+							if type(arg) == "string" then
+								local lowerArg = string.lower(arg)
+								for _, kw in ipairs(DetectionKeywords) do
+									if string.find(lowerArg, kw, 1, true) then
+										AntiBanShield.BlockedCount = AntiBanShield.BlockedCount + 1
+										AntiBanShield.LastBlockedRemote = tostring(self.Name) .. " [" .. arg .. "]"
+										return nil
 									end
 								end
 							end
 						end
-						for _, part in ipairs(titan:GetChildren()) do
-							if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-								part.CanTouch = false
-							end
-						end
-
-						-- Bring Nape to Weapon: Đưa Nape của Titan mục tiêu đến ngay trước lưỡi kiếm để 100% chém trúng gáy
-						if currentTargetTitan and currentTargetTitan.model == titan and root and currentTargetTitan.nape and currentTargetTitan.nape.Parent then
-							currentTargetTitan.nape.CanCollide = false
-							currentTargetTitan.nape.CFrame = root.CFrame * CFrame.new(0, -1, -2.5)
-						end
 					end
-				end
+					return oldNamecall(self, ...)
+				end))
 			end
 		end)
-	end)
 
-	-- 4. Combat Loop: Tấn công liên tục 60 FPS, chém chính diện gáy, tự nạp kiếm thông minh
-	local lastTargetTitan = nil
-	task.spawn(function()
-		while not rayfieldDestroyed do
-			local delayTime = 0.04
-			if AOTConfig.SafeLegitDelay then
-				delayTime = math.random(80, 120) / 1000
+		-- Hook LocalPlayer:Kick to prevent client scripts from kicking the user
+		pcall(function()
+			if hookfunction and Players and Players.LocalPlayer then
+				local oldKick
+				oldKick = hookfunction(Players.LocalPlayer.Kick, newcclosure(function(self, ...)
+					if AntiBanShield.Enabled then
+						AntiBanShield.BlockedCount = AntiBanShield.BlockedCount + 1
+						AntiBanShield.LastBlockedRemote = "LocalPlayer:Kick"
+						return nil
+					end
+					return oldKick(self, ...)
+				end))
+			end
+		end)
+
+		-- ============================================================================
+		-- 2. AUTO GAME DETECTION
+		-- ============================================================================
+		local AOTR_GAME_ID = 4658598196
+		local AOTR_PLACES = {
+			[13379208636] = true,
+		}
+
+		local BLOX_FRUITS_GAME_ID = 994732206
+		local BLOX_FRUITS_PLACES = {
+			[2753915549] = true,
+			[4442272183] = true,
+			[7449423635] = true,
+		}
+
+		local function detectCurrentGame()
+			local pId = game.PlaceId
+			local gId = game.GameId
+
+			if AOTR_PLACES[pId] or gId == AOTR_GAME_ID then
+				return "AOTR"
+			end
+			if BLOX_FRUITS_PLACES[pId] or gId == BLOX_FRUITS_GAME_ID then
+				return "BLOX_FRUITS"
 			end
 
+			local title = ""
 			pcall(function()
-				local titans = getTitansList()
-				currentTargetTitan = titans[1]
-
-				-- Phát hiện khi Titan vừa chết: Đánh dấu tử và đổi mục tiêu ngay lập tức không bị khựng lại
-				if lastTargetTitan and isTitanDeadOrInvalid(lastTargetTitan.model, lastTargetTitan.humanoid, lastTargetTitan.nape) then
-					onTitanDied(lastTargetTitan.model)
-					currentTargetTitan = nil
-					if AOTConfig.ReloadAfterTitanKill and consecutiveSlashes >= 12 then
-						task.spawn(function()
-							performAOTReload(true)
-						end)
-					end
-				end
-				lastTargetTitan = currentTargetTitan
-
-				if AOTConfig.AutoTitanShift or AOTConfig.TitanShifterMastery then
-					performAOTAutoShifter()
-				end
-
-				-- Chém mục tiêu
-				local primaryTarget = nil
-				if (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid) and currentTargetTitan then
-					if currentTargetTitan.dist <= 180 then
-						primaryTarget = currentTargetTitan
-					end
-				elseif AOTConfig.KillAura and currentTargetTitan then
-					if currentTargetTitan.dist <= AOTConfig.KillAuraRange then
-						primaryTarget = currentTargetTitan
-					end
-				end
-
-				if primaryTarget then
-					performAOTMultiAttack(primaryTarget)
-				end
-
-				-- Tự động nạp kiếm thông minh khi kiếm cùn hoặc gãy
-				if AOTConfig.AutoReloadWhenBroken and isBladeActuallyBroken() then
-					performAOTReload(false)
+				local product = MarketplaceService:GetProductInfo(pId)
+				if product and product.Name then
+					title = string.lower(product.Name)
 				end
 			end)
-			task.wait(delayTime)
-		end
-	end)
 
-	-- 5. Buff Loop: Godmode, Auto Escape Grab, Gas Durability, Infinite Hook, No Cooldown
-	task.spawn(function()
-		while not rayfieldDestroyed do
-			pcall(function()
-				local lp = Players and Players.LocalPlayer
-				local char = lp and lp.Character
-				local titans = getTitansList()
-				local postRemote = getAOTRemotes()
+			if string.find(title, "attack on titan", 1, true) or string.find(title, "revolution", 1, true) or string.find(title, "aotr", 1, true) then
+				return "AOTR"
+			end
+			if string.find(title, "blox fruits", 1, true) or string.find(title, "bloxfruits", 1, true) then
+				return "BLOX_FRUITS"
+			end
 
-				if AOTConfig.Godmode then
-					for _, t in ipairs(titans) do
-						local hb = t.model:FindFirstChild("Hitboxes")
-						if hb then
-							for _, sub in ipairs(hb:GetDescendants()) do
-								if sub:IsA("BasePart") and sub.Name ~= "Nape" then
-									sub.CanTouch = false
-									sub.CanCollide = false
-								end
-							end
-						end
-						for _, part in ipairs(t.model:GetDescendants()) do
-							if part:IsA("BasePart") and (string.find(string.lower(part.Name), "steam", 1, true) or string.find(string.lower(part.Name), "burn", 1, true) or string.find(string.lower(part.Name), "damage", 1, true)) then
-								part.CanTouch = false
-								part.CanCollide = false
-							end
-						end
-					end
-				end
-
-				if char then
-					if AOTConfig.Godmode then
-						local hum = char:FindFirstChildOfClass("Humanoid")
-						if hum and hum.Health > 0 and hum.Health < hum.MaxHealth then
-							pcall(function() hum.Health = hum.MaxHealth end)
-						end
-						pcall(function()
-							char:SetAttribute("Invulnerable", true)
-							char:SetAttribute("IFrame", true)
-						end)
-					end
-					if AOTConfig.AutoEscapeGrab then
-						local grabbed = char:FindFirstChild("Grabbed") or char:GetAttribute("Grabbed")
-						if grabbed then
-							pcall(function()
-								if postRemote then
-									postRemote:FireServer("Attacks", "Grab_Escape")
-									postRemote:FireServer("S_Character", "Escape")
-								end
-								triggerActionButtons({"escape", "thoát", "thoat", "break"})
-							end)
-						end
-					end
-					if AOTConfig.InfiniteGasDurability then
-						pcall(function()
-							char:SetAttribute("Gas", 100)
-							char:SetAttribute("Blades", 100)
-							char:SetAttribute("MaxGas", 100)
-							char:SetAttribute("InfiniteGas", true)
-						end)
-					end
-					if AOTConfig.InfiniteHookRange then
-						pcall(function()
-							char:SetAttribute("HookRange", 999999)
-							char:SetAttribute("MaxHookRange", 999999)
-						end)
-					end
-					if AOTConfig.NoCooldown then
-						pcall(function()
-							char:SetAttribute("Cooldown", 0)
-							char:SetAttribute("SkillCooldown", 0)
-						end)
-					end
-				end
-			end)
-			task.wait(0.12)
-		end
-	end)
-
-	-- 6. Raid & Story VIP Automation Loop
-	task.spawn(function()
-		while not rayfieldDestroyed do
-			pcall(function()
-				local postRemote = getAOTRemotes()
-
-				if AOTConfig.AutoRaid then
-					triggerActionButtons({"start", "bắt đầu", "bat dau", "ready", "sẵn sàng", "join", "tham gia"})
-					if AOTConfig.AutoOpenRaidChests then
-						triggerActionButtons({"claim", "nhận", "nhan", "open", "mở", "chest", "rương"})
-					end
-					if AOTConfig.AutoRetry then
-						triggerActionButtons({"retry", "chơi lại", "choi lai", "replay"})
-					end
-
-					if (AOTConfig.AutoFireCannons or AOTConfig.AutoOpenRaidChests) and fireproximityprompt and Workspace then
-						for _, obj in ipairs(Workspace:GetDescendants()) do
-							if obj:IsA("ProximityPrompt") and obj.Enabled then
-								pcall(function() fireproximityprompt(obj, 1) end)
-							end
-						end
-					end
-
-					if AOTConfig.AutoUpgradeHQ and postRemote then
-						pcall(function() postRemote:FireServer("Shop", "UpgradeHQ") end)
-						pcall(function() postRemote:FireServer("Raid", "Upgrade") end)
-						triggerActionButtons({"upgrade", "nâng cấp", "nang cap", "hq", "fortify"})
-					end
-				end
-
-				if AOTConfig.AutoStoryMission then
-					triggerActionButtons({"start", "bắt đầu", "deploy", "ra trận", "ready"})
-					if AOTConfig.AutoNextMission then
-						triggerActionButtons({"next", "tiếp tục", "tiep tuc", "continue"})
-					end
-					if AOTConfig.AutoRetry then
-						triggerActionButtons({"retry", "chơi lại", "choi lai"})
-					end
-				end
-			end)
-			task.wait(1.5)
-		end
-	end)
-
-	-- 7. Gacha / Spin Automation Loop
-	task.spawn(function()
-		while not rayfieldDestroyed do
-			pcall(function()
-				local postRemote = getAOTRemotes()
-				local lp = Players and Players.LocalPlayer
-				if AOTConfig.AutoRollFamily and postRemote then
-					local currentClan = lp and (lp:GetAttribute("Family") or lp:GetAttribute("Clan"))
-					local matched = false
-					if currentClan then
-						for _, target in ipairs(AOTConfig.TargetClans) do
-							if string.lower(tostring(currentClan)) == string.lower(tostring(target)) then
-								matched = true
-								break
-							end
-						end
-					end
-					if matched then
-						AOTConfig.AutoRollFamily = false
-						RayfieldLibrary:Notify({
-							Title = "Gacha Success",
-							Content = "Rolled Target Family: " .. tostring(currentClan),
-							Duration = 7,
-						})
-					else
-						postRemote:FireServer("Slots", "Roll", "Family")
-					end
-				end
-
-				if AOTConfig.AutoRollPerks and postRemote then
-					local currentPerk = lp and (lp:GetAttribute("Perk") or lp:GetAttribute("EquippedPerk"))
-					local matchedPerk = false
-					if currentPerk and AOTConfig.TargetPerks then
-						for _, pTarget in ipairs(AOTConfig.TargetPerks) do
-							if string.find(string.lower(tostring(currentPerk)), string.lower(tostring(pTarget)), 1, true) then
-								matchedPerk = true
-								break
-							end
-						end
-					end
-					if matchedPerk then
-						AOTConfig.AutoRollPerks = false
-						RayfieldLibrary:Notify({
-							Title = "Perk Success",
-							Content = "Rolled Target Perk: " .. tostring(currentPerk),
-							Duration = 7,
-						})
-					else
-						postRemote:FireServer("Slots", "Roll", "Perks")
-					end
-				end
-			end)
-			task.wait(0.6)
-		end
-	end)
-
-	-- 8. Anti-AFK & Shadowban Monitor Loop
-	task.spawn(function()
-		while not rayfieldDestroyed do
-			pcall(function()
-				if AOTConfig.AntiAFK then
-					local vu = VirtualUser
-					if vu then
-						vu:CaptureController()
-						vu:ClickButton2(Vector2.new(50, 50))
-					end
-				end
-
-				if AOTConfig.AutoShadowbanCheck then
-					local lp = Players and Players.LocalPlayer
-					if lp then
-						for attrName, attrVal in pairs(lp:GetAttributes()) do
-							local lower = string.lower(tostring(attrName))
-							if (string.find(lower, "shadowban", 1, true) or string.find(lower, "ban", 1, true) or string.find(lower, "restrict", 1, true)) and attrVal == true then
-								AOTConfig.AutoFarmTitan = false
-								AOTConfig.AutoRaid = false
-								RayfieldLibrary:Notify({
-									Title = "Emergency Stop",
-									Content = "Shadowban detected! Auto Farm stopped to prevent ban.",
-									Duration = 10,
-								})
-								break
-							end
-						end
-					end
-				end
-			end)
-			task.wait(15)
-		end
-	end)
-
-	-- 9. Visuals / Titan ESP Loop
-	local function cleanupESP()
-		for _, esp in pairs(espObjects) do
-			pcall(function()
-				if esp.highlight then esp.highlight:Destroy() end
-				if esp.billboard then esp.billboard:Destroy() end
-			end)
-		end
-		espObjects = {}
-	end
-
-	task.spawn(function()
-		while not rayfieldDestroyed do
-			pcall(function()
-				if not AOTConfig.TitanESP then
-					cleanupESP()
-					return
-				end
-
-				local titans = getTitansList()
-				local seenTitans = {}
-
-				for _, t in ipairs(titans) do
-					if t.model and t.model.Parent and t.dist <= AOTConfig.ESPMaxDistance then
-						seenTitans[t.model] = true
-						local esp = espObjects[t.model]
-						if not esp then
-							esp = {}
-							espObjects[t.model] = esp
-
-							local hl = Instance.new("Highlight")
-							hl.Name = "TitanHighlight"
-							hl.Adornee = t.model
-							hl.FillColor = AOTConfig.ESPColor
-							hl.FillTransparency = 0.72
-							hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-							hl.OutlineTransparency = 0.2
-							hl.Parent = t.model
-							esp.highlight = hl
-
-							local bb = Instance.new("BillboardGui")
-							bb.Name = "TitanInfo"
-							bb.Adornee = t.nape or t.model:FindFirstChild("Head")
-							bb.Size = UDim2.new(0, 180, 0, 45)
-							bb.StudsOffset = Vector3.new(0, 5, 0)
-							bb.AlwaysOnTop = true
-
-							local lbl = Instance.new("TextLabel")
-							lbl.Size = UDim2.new(1, 0, 1, 0)
-							lbl.BackgroundTransparency = 1
-							lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-							lbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-							lbl.TextStrokeTransparency = 0.2
-							lbl.Font = Enum.Font.GothamBold
-							lbl.TextSize = 13
-							lbl.Parent = bb
-							esp.label = lbl
-							esp.billboard = bb
-							bb.Parent = t.model
-						end
-
-						if esp.highlight then
-							esp.highlight.FillColor = AOTConfig.ESPColor
-						end
-
-						if esp.label then
-							local hpText = "HP: 100%"
-							if t.humanoid then
-								local pct = math.clamp(math.floor((t.humanoid.Health / math.max(t.humanoid.MaxHealth, 1)) * 100), 0, 100)
-								hpText = "HP: " .. pct .. "%"
-							end
-							esp.label.Text = string.format("%s [%dm] | %s", t.cleanName, math.floor(t.dist), hpText)
-						end
-					end
-				end
-
-				for model, esp in pairs(espObjects) do
-					if not seenTitans[model] or not model.Parent then
-						pcall(function()
-							if esp.highlight then esp.highlight:Destroy() end
-							if esp.billboard then esp.billboard:Destroy() end
-						end)
-						espObjects[model] = nil
-					end
-				end
-			end)
-			task.wait(0.2)
-		end
-		cleanupESP()
-	end)
-
-	-- 10. Performance, Screen Shake & Farm Statistics HUD Loop
-	local hudGui = nil
-	local hudTitansLabel = nil
-	local hudKpmLabel = nil
-	local hudBladesLabel = nil
-	local hudTimeLabel = nil
-	local hudTargetLabel = nil
-
-	updateFarmHUD = function()
-		if not AOTConfig.ShowFarmHUD then
-			if hudGui then hudGui.Enabled = false end
-			return
+			return "UNIVERSAL"
 		end
 
-		if not hudGui then
-			local parentGui = (gethui and gethui()) or (CoreGui and pcall(function() return CoreGui end) and CoreGui) or (lp and lp:FindFirstChild("PlayerGui"))
-			if not parentGui then return end
+		-- ============================================================================
+		-- 3. FLOATING TOGGLE BUTTON (DRAGGABLE & MOBILE FRIENDLY)
+		-- ============================================================================
+		local rayfieldDestroyed = false
 
-			hudGui = Instance.new("ScreenGui")
-			hudGui.Name = "HaiAnh_AOTR_FarmHUD"
-			hudGui.ResetOnSpawn = false
-			hudGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+		local function createFloatingToggle()
+			local CoreGui = getService("CoreGui")
+			local UserInputService = getService("UserInputService")
+			local TweenService = getService("TweenService")
+			local lp = Players and Players.LocalPlayer
+			local targetParent = CoreGui
+			if not pcall(function() return CoreGui:GetChildren() end) then
+				targetParent = (lp and lp:FindFirstChildOfClass("PlayerGui")) or CoreGui
+			end
 
-			local mainFrame = Instance.new("Frame")
-			mainFrame.Name = "MainFrame"
-			mainFrame.Size = UDim2.new(0, 240, 0, 155)
-			mainFrame.Position = UDim2.new(0, 20, 0.5, -80)
-			mainFrame.BackgroundColor3 = Color3.fromRGB(18, 16, 26)
-			mainFrame.BackgroundTransparency = 0.15
-			mainFrame.BorderSizePixel = 0
-			mainFrame.Active = true
-			mainFrame.Draggable = true
-			mainFrame.Parent = hudGui
+			local existing = targetParent:FindFirstChild("HaiAnhFloatingToggle")
+			if existing then existing:Destroy() end
+
+			local screenGui = Instance.new("ScreenGui")
+			screenGui.Name = "HaiAnhFloatingToggle"
+			screenGui.ResetOnSpawn = false
+			screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+			local btn = Instance.new("TextButton")
+			btn.Name = "ToggleButton"
+			btn.Size = UDim2.new(0, 50, 0, 50)
+			btn.Position = UDim2.new(0.04, 0, 0.28, 0)
+			btn.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+			btn.Text = "HA"
+			btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+			btn.Font = Enum.Font.GothamBold
+			btn.TextSize = 16
+			btn.AutoButtonColor = false
+			btn.Parent = screenGui
 
 			local corner = Instance.new("UICorner")
-			corner.CornerRadius = UDim.new(0, 10)
-			corner.Parent = mainFrame
+			corner.CornerRadius = UDim.new(0, 14)
+			corner.Parent = btn
 
 			local stroke = Instance.new("UIStroke")
 			stroke.Color = Color3.fromRGB(170, 95, 255)
-			stroke.Thickness = 1.5
-			stroke.Transparency = 0.3
-			stroke.Parent = mainFrame
+			stroke.Thickness = 2.2
+			stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			stroke.Parent = btn
 
-			local title = Instance.new("TextLabel")
-			title.Size = UDim2.new(1, 0, 0, 28)
-			title.BackgroundTransparency = 1
-			title.Font = Enum.Font.GothamBold
-			title.Text = "⚔️ AOT:R FARM STATS"
-			title.TextColor3 = Color3.fromRGB(200, 150, 255)
-			title.TextSize = 13
-			title.Parent = mainFrame
+			local dragging = false
+			local dragInput, dragStart, startPos
 
-			local function createRow(name, yPos)
-				local lbl = Instance.new("TextLabel")
-				lbl.Name = name
-				lbl.Size = UDim2.new(1, -20, 0, 22)
-				lbl.Position = UDim2.new(0, 10, 0, yPos)
-				lbl.BackgroundTransparency = 1
-				lbl.Font = Enum.Font.GothamMedium
-				lbl.TextColor3 = Color3.fromRGB(235, 235, 245)
-				lbl.TextSize = 12
-				lbl.TextXAlignment = Enum.TextXAlignment.Left
-				lbl.Parent = mainFrame
-				return lbl
-			end
-
-			hudTitansLabel = createRow("TitansLabel", 30)
-			hudKpmLabel = createRow("KpmLabel", 54)
-			hudBladesLabel = createRow("BladesLabel", 78)
-			hudTimeLabel = createRow("TimeLabel", 102)
-			hudTargetLabel = createRow("TargetLabel", 126)
-
-			pcall(function() hudGui.Parent = parentGui end)
-		end
-
-		hudGui.Enabled = true
-
-		local elapsed = math.max(os.clock() - farmStats.startTime, 1)
-		local mins = elapsed / 60
-		local kpm = math.floor((farmStats.titansKilled / mins) * 10) / 10
-		local h = math.floor(elapsed / 3600)
-		local m = math.floor((elapsed % 3600) / 60)
-		local s = math.floor(elapsed % 60)
-		local timeStr = string.format("%02d:%02d:%02d", h, m, s)
-
-		local targetName = currentTargetTitan and currentTargetTitan.cleanName or "None"
-
-		hudTitansLabel.Text = "💀 Titans Slayed: " .. tostring(farmStats.titansKilled)
-		hudKpmLabel.Text = "⚡ Kill Rate: " .. tostring(kpm) .. " / min"
-		hudBladesLabel.Text = "🗡️ Blades Used: " .. tostring(farmStats.bladesReloaded)
-		hudTimeLabel.Text = "⏱️ Runtime: " .. timeStr
-		hudTargetLabel.Text = "🎯 Target: " .. targetName
-	end
-
-	disableScreenShake = function()
-		if not AOTConfig.DisableScreenShake then return end
-		pcall(function()
-			local cam = Workspace.CurrentCamera
-			if cam then
-				local camScript = cam:FindFirstChild("CameraShake") or cam:FindFirstChild("Shake")
-				if camScript then camScript:Destroy() end
-			end
-			local Lighting = getService("Lighting")
-			if Lighting then
-				for _, effect in ipairs(Lighting:GetChildren()) do
-					if effect:IsA("BlurEffect") and string.find(string.lower(effect.Name), "shake", 1, true) then
-						effect.Enabled = false
-					end
+			btn.InputBegan:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+					dragging = true
+					dragStart = input.Position
+					startPos = btn.Position
+					input.Changed:Connect(function()
+						if input.UserInputState == Enum.UserInputState.End then
+							dragging = false
+						end
+					end)
 				end
-			end
-		end)
-	end
-
-	task.spawn(function()
-		while not rayfieldDestroyed do
-			pcall(function()
-				updateFarmHUD()
-				disableScreenShake()
 			end)
-			task.wait(1.0)
-		end
-		if hudGui then
-			pcall(function() hudGui:Destroy() end)
-		end
-	end)
-end
 
--- ============================================================================
--- MENU 2: BLOX FRUITS (HAIANH MENU VIP EDITION)
--- ============================================================================
-local function loadBloxFruitsMenu()
-	local HubConfig = {
-		SelectedWeapon = "Melee",
-		AttackSpeed = "Super Fast",
-		HoverHeight = 15,
-		FlightSpeed = 260,
-		BringMobs = true,
-		AutoBuso = true,
-		AutoLevel = false,
-		AutoNearestMob = false,
-		AutoBoss = false,
-		AutoCandy = false,
-		KillAura = false,
-		HitboxSize = 65,
-		AutoStatMelee = false,
-		AutoStatDefense = false,
-		AutoStatSword = false,
-		AutoStatFruit = false,
-		AntiAFK = true,
-	}
-
-	local Window = RayfieldLibrary:CreateWindow({
-		Name = "HaiAnh Menu | Blox Fruits",
-		LoadingTitle = "HaiAnh Menu",
-		LoadingSubtitle = "Blox Fruits",
-		ConfigurationSaving = {
-			Enabled = true,
-			FolderName = "HaiAnhMenuConfig",
-			FileName = "BloxFruits"
-		},
-		KeySystem = false,
-	})
-
-	createFloatingToggle()
-
-	-- TAB 1: Auto Farm
-	local FarmTab = Window:CreateTab("Auto Farm", 0)
-	FarmTab:CreateSection("Farm Settings")
-
-	FarmTab:CreateDropdown({
-		Name = "Select Weapon",
-		Options = {"Melee", "Sword", "Fruit"},
-		CurrentOption = {"Melee"},
-		MultipleOptions = false,
-		Flag = "BF_Weapon",
-		Callback = function(Option)
-			HubConfig.SelectedWeapon = type(Option) == "table" and Option[1] or Option
-		end,
-	})
-
-	FarmTab:CreateSlider({
-		Name = "Farm Distance",
-		Range = {5, 30},
-		Increment = 1,
-		Suffix = "Studs",
-		CurrentValue = 15,
-		Flag = "BF_FarmDist",
-		Callback = function(Value)
-			HubConfig.HoverHeight = Value
-		end,
-	})
-
-	FarmTab:CreateSlider({
-		Name = "Tween Speed",
-		Range = {150, 400},
-		Increment = 10,
-		Suffix = "Studs/s",
-		CurrentValue = 260,
-		Flag = "BF_FlightSpeed",
-		Callback = function(Value)
-			HubConfig.FlightSpeed = Value
-		end,
-	})
-
-	FarmTab:CreateToggle({
-		Name = "Bring Mobs",
-		CurrentValue = true,
-		Flag = "BF_BringMobs",
-		Callback = function(Value)
-			HubConfig.BringMobs = Value
-		end,
-	})
-
-	FarmTab:CreateToggle({
-		Name = "Auto Buso Haki",
-		CurrentValue = true,
-		Flag = "BF_AutoBuso",
-		Callback = function(Value)
-			HubConfig.AutoBuso = Value
-		end,
-	})
-
-	FarmTab:CreateSection("Level Farming")
-
-	FarmTab:CreateToggle({
-		Name = "Auto Farm Level",
-		CurrentValue = false,
-		Flag = "BF_AutoLevel",
-		Callback = function(Value)
-			HubConfig.AutoLevel = Value
-		end,
-	})
-
-	FarmTab:CreateToggle({
-		Name = "Auto Farm Nearest Mob",
-		CurrentValue = false,
-		Flag = "BF_AutoNearest",
-		Callback = function(Value)
-			HubConfig.AutoNearestMob = Value
-		end,
-	})
-
-	FarmTab:CreateToggle({
-		Name = "Auto Farm Bosses",
-		CurrentValue = false,
-		Flag = "BF_AutoBoss",
-		Callback = function(Value)
-			HubConfig.AutoBoss = Value
-		end,
-	})
-
-	-- TAB 2: Combat & Stats
-	local CombatTab = Window:CreateTab("Combat & Stats", 0)
-	CombatTab:CreateSection("Combat & Aura")
-
-	CombatTab:CreateToggle({
-		Name = "Fast Attack Kill Aura",
-		CurrentValue = false,
-		Flag = "BF_KillAura",
-		Callback = function(Value)
-			HubConfig.KillAura = Value
-		end,
-	})
-
-	CombatTab:CreateSlider({
-		Name = "Mob Hitbox Expander",
-		Range = {15, 120},
-		Increment = 5,
-		Suffix = "Studs",
-		CurrentValue = 65,
-		Flag = "BF_Hitbox",
-		Callback = function(Value)
-			HubConfig.HitboxSize = Value
-		end,
-	})
-
-	CombatTab:CreateSection("Auto Stats")
-
-	CombatTab:CreateToggle({
-		Name = "Auto Melee Stat",
-		CurrentValue = false,
-		Flag = "BF_StatMelee",
-		Callback = function(Value)
-			HubConfig.AutoStatMelee = Value
-		end,
-	})
-
-	CombatTab:CreateToggle({
-		Name = "Auto Defense Stat",
-		CurrentValue = false,
-		Flag = "BF_StatDefense",
-		Callback = function(Value)
-			HubConfig.AutoStatDefense = Value
-		end,
-	})
-
-	CombatTab:CreateToggle({
-		Name = "Auto Sword Stat",
-		CurrentValue = false,
-		Flag = "BF_StatSword",
-		Callback = function(Value)
-			HubConfig.AutoStatSword = Value
-		end,
-	})
-
-	CombatTab:CreateToggle({
-		Name = "Auto Demon Fruit Stat",
-		CurrentValue = false,
-		Flag = "BF_StatFruit",
-		Callback = function(Value)
-			HubConfig.AutoStatFruit = Value
-		end,
-	})
-
-	-- TAB 3: Misc & Anti-Ban
-	local MiscTab = Window:CreateTab("Misc & Anti-Ban", 0)
-	MiscTab:CreateSection("Account Protection")
-
-	MiscTab:CreateToggle({
-		Name = "Anti-Ban Remote Shield",
-		CurrentValue = true,
-		Flag = "BF_AntiBan",
-		Callback = function(Value)
-			AntiBanShield.Enabled = Value
-		end,
-	})
-
-	MiscTab:CreateToggle({
-		Name = "Anti AFK",
-		CurrentValue = true,
-		Flag = "BF_AntiAFK",
-		Callback = function(Value)
-			HubConfig.AntiAFK = Value
-		end,
-	})
-
-	MiscTab:CreateButton({
-		Name = "Check Shield Status",
-		Callback = function()
-			RayfieldLibrary:Notify({
-				Title = "Anti-Ban Shield",
-				Content = "Active: Blocked " .. tostring(AntiBanShield.BlockedCount) .. " malicious remote calls",
-				Duration = 5,
-			})
-		end,
-	})
-
-	-- BF Logic Loops
-	local function getBFEnemies()
-		local enemies = {}
-		local lp = Players and Players.LocalPlayer
-		local char = lp and lp.Character
-		local root = char and char:FindFirstChild("HumanoidRootPart")
-		local folder = Workspace:FindFirstChild("Enemies")
-		if folder then
-			for _, mob in ipairs(folder:GetChildren()) do
-				local hum = mob:FindFirstChildOfClass("Humanoid")
-				local hrp = mob:FindFirstChild("HumanoidRootPart")
-				if hum and hum.Health > 0 and hrp then
-					local dist = root and (hrp.Position - root.Position).Magnitude or 9999
-					table.insert(enemies, { model = mob, humanoid = hum, root = hrp, dist = dist })
+			btn.InputChanged:Connect(function(input)
+				if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+					dragInput = input
 				end
-			end
-		end
-		table.sort(enemies, function(a, b) return a.dist < b.dist end)
-		return enemies
-	end
+			end)
 
-	local function equipBFWeapon()
-		pcall(function()
+			UserInputService.InputChanged:Connect(function(input)
+				if input == dragInput and dragging then
+					local delta = input.Position - dragStart
+					btn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale,
+						startPos.Y.Offset + delta.Y)
+				end
+			end)
+
+			btn.MouseButton1Click:Connect(function()
+				pcall(function()
+					local mainGui = CoreGui:FindFirstChild("Rayfield") or
+						(lp and lp:FindFirstChildOfClass("PlayerGui") and lp:FindFirstChildOfClass("PlayerGui"):FindFirstChild("Rayfield"))
+					if mainGui then
+						mainGui.Enabled = not mainGui.Enabled
+					end
+				end)
+			end)
+
+			pcall(function() screenGui.Parent = targetParent end)
+		end
+
+		local function clickGuiButton(btn)
+			if not btn then return false end
+			pcall(function()
+				if getconnections then
+					for _, c in ipairs(getconnections(btn.MouseButton1Click)) do
+						if c.Function then c.Function() end
+					end
+					for _, c in ipairs(getconnections(btn.Activated)) do
+						if c.Function then c.Function() end
+					end
+				end
+				local vp = (Workspace and Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize) or
+					Vector2.new(1280, 720)
+				local absPos = btn.AbsolutePosition
+				local absSz = btn.AbsoluteSize
+				local cx = absPos.X + absSz.X / 2
+				local cy = absPos.Y + absSz.Y / 2
+				if VirtualInputManager then
+					VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
+					task.wait(0.005)
+					VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
+				end
+			end)
+			return true
+		end
+
+		-- Hệ thống cache GUI Button & Durability Bar: Quét 1 lần mỗi 3 giây, triệt tiêu 100% giật lag FPS
+		local cachedGuiState = {
+			m1 = nil,
+			reload = nil,
+			durabilityBar = nil,
+			skills = {},
+			lastScan = 0
+		}
+
+		local function refreshCachedGuiElements(force)
+			local now = os.clock()
+			if not force and (now - cachedGuiState.lastScan < 3.5) and cachedGuiState.m1 and cachedGuiState.m1.Parent then
+				return
+			end
+			cachedGuiState.lastScan = now
 			local lp = Players and Players.LocalPlayer
-			local char = lp and lp.Character
-			local bp = lp and lp:FindFirstChildOfClass("Backpack")
-			if not char or not bp then return end
-			local targetType = HubConfig.SelectedWeapon
-			for _, tool in ipairs(bp:GetChildren()) do
-				if tool:IsA("Tool") then
-					local tType = tool:GetAttribute("WeaponType") or tool.ToolTip or tool.Name
-					if string.find(string.lower(tType), string.lower(targetType), 1, true) then
-						char.Humanoid:EquipTool(tool)
-						break
+			local pgui = lp and lp:FindFirstChildOfClass("PlayerGui")
+			if not pgui then return end
+
+			cachedGuiState.skills = {}
+			cachedGuiState.buttons = {}
+			for _, obj in ipairs(pgui:GetDescendants()) do
+				if (obj:IsA("TextButton") or obj:IsA("ImageButton")) and obj.Visible then
+					local name = string.lower(obj.Name)
+					local text = obj:IsA("TextButton") and string.lower(obj.Text) or ""
+					local childLabel = obj:FindFirstChildWhichIsA("TextLabel", true)
+					if childLabel and childLabel.Text ~= "" then
+						text = text .. " " .. string.lower(childLabel.Text)
+					end
+					local combined = name .. " " .. text
+					table.insert(cachedGuiState.buttons, { btn = obj, text = combined })
+					if string.find(combined, "m1", 1, true) or string.find(combined, "slash", 1, true) or string.find(combined, "attack", 1, true) then
+						if not cachedGuiState.m1 or not cachedGuiState.m1.Parent then
+							cachedGuiState.m1 = obj
+						end
+					end
+					if string.find(combined, "reload", 1, true) or string.find(combined, "nạp", 1, true) or string.find(combined, "nap", 1, true) then
+						if not cachedGuiState.reload or not cachedGuiState.reload.Parent then
+							cachedGuiState.reload = obj
+						end
+					end
+					if string.find(combined, "skill", 1, true) or string.find(combined, "slot", 1, true) then
+						table.insert(cachedGuiState.skills, obj)
+					end
+				elseif obj:IsA("Frame") or obj:IsA("ImageLabel") then
+					local oName = string.lower(obj.Name)
+					if string.find(oName, "durab", 1, true) or string.find(oName, "bladebar", 1, true) or string.find(oName, "sharp", 1, true) then
+						cachedGuiState.durabilityBar = obj
 					end
 				end
 			end
-		end)
-	end
+		end
 
-	local function performBFAttack(targets)
-		pcall(function()
-			local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-			local validator = remotes and remotes:FindFirstChild("Validator")
-			if validator then
-				validator:FireServer(math.floor(os.clock()))
+		local function clickGuiButtonFast(btn)
+			if not btn or not btn.Parent then return false end
+			pcall(function()
+				if firesignal then
+					if btn.Activated then firesignal(btn.Activated) end
+					if btn.MouseButton1Click then firesignal(btn.MouseButton1Click) end
+					if btn.MouseButton1Down then firesignal(btn.MouseButton1Down) end
+					if btn.MouseButton1Up then firesignal(btn.MouseButton1Up) end
+				end
+				if VirtualUser then
+					local absPos = btn.AbsolutePosition
+					local absSz = btn.AbsoluteSize
+					VirtualUser:CaptureController()
+					VirtualUser:ClickButton1(Vector2.new(absPos.X + absSz.X / 2, absPos.Y + absSz.Y / 2))
+				end
+			end)
+			return true
+		end
+
+		local lastActionScan = 0
+		local function triggerActionButtons(keywords)
+			-- Popup như Retry, Start, Claim xuất hiện động: làm mới cache tối đa mỗi 1.5 giây
+			if os.clock() - lastActionScan > 1.5 then
+				lastActionScan = os.clock()
+				refreshCachedGuiElements(true)
 			end
-
-			local combatRemote = (ReplicatedStorage:FindFirstChild("Modules") and ReplicatedStorage.Modules:FindFirstChild("Net") and ReplicatedStorage.Modules.Net:FindFirstChild("RE/CombatRegister"))
-				or ReplicatedStorage:FindFirstChild("RE/CombatRegister", true)
-
-			if combatRemote then
-				combatRemote:FireServer(0.1)
+			local triggered = false
+			for _, entry in ipairs(cachedGuiState.buttons or {}) do
+				local obj = entry.btn
+				if obj and obj.Parent and obj.Visible then
+					for _, kw in ipairs(keywords) do
+						if string.find(entry.text, kw, 1, true) then
+							clickGuiButtonFast(obj)
+							triggered = true
+							break
+						end
+					end
+				end
 			end
+			return triggered
+		end
 
-			if VirtualUser then
-				VirtualUser:CaptureController()
-				VirtualUser:ClickButton1(Vector2.new(640, 360))
+		-- Kích hoạt nút M1 chém siêu tốc 0 delay không tốn CPU
+		local function triggerMobileM1Attack()
+			refreshCachedGuiElements(false)
+			if cachedGuiState.m1 and cachedGuiState.m1.Parent and cachedGuiState.m1.Visible then
+				clickGuiButtonFast(cachedGuiState.m1)
+				return true
 			end
-		end)
-	end
+			return false
+		end
 
-	local function tweenBFFlight(targetPos)
-		pcall(function()
+		-- Kích hoạt chém vũ khí trực tiếp
+		local function activateEquippedTool()
 			local lp = Players and Players.LocalPlayer
 			local char = lp and lp.Character
-			local root = char and char:FindFirstChild("HumanoidRootPart")
-			if not root then return end
+			if char then
+				local tool = char:FindFirstChildOfClass("Tool")
+				if tool then
+					pcall(function() tool:Activate() end)
+				end
+			end
+		end
 
-			local bv = root:FindFirstChild("HaiAnh_BFAntiGrav")
-			if not bv then
-				bv = Instance.new("BodyVelocity")
-				bv.Name = "HaiAnh_BFAntiGrav"
-				bv.Velocity = Vector3.zero
-				bv.MaxForce = Vector3.new(9e8, 9e8, 9e8)
-				bv.Parent = root
-			else
-				bv.Velocity = Vector3.zero
+		-- ============================================================================
+		-- MENU 1: ATTACK ON TITAN: REVOLUTION (HAIANH MENU VIP PRO EDITION)
+		-- ============================================================================
+		local function loadAOTRMenu()
+			local AOTConfig = {
+				-- Auto Farm Elite Config
+				WeaponMode = "Auto",
+				FarmPosition = "Above Nape (Anti-Grab)",
+				TargetPriority = "Closest", -- "Closest", "Bosses First", "Crawlers & Abnormals", "Lowest HP"
+				BehindNapeDistance = 2.0,
+				HoverHeight = 10,
+				FlightSpeed = 420,
+				InstantTeleport = false,
+				MapNoClip = true,
+				AutoFarmTitan = false,
+				SafeLegitDelay = false,
+				TitanShifterMastery = false,
+				AutoTitanShift = true,
+				TitanSkillsBurst = true,
+				AutoReloadWhenBroken = true,
+				ReloadAfterTitanKill = true,
+				SlashesBeforeReload = 22,
+				AutoRefillSupplies = true,
+				AutoResupplyTeleport = true,
+				InfiniteGasDurability = false,
+
+				-- Multi-Target Combat & Thunder Spears Burst
+				MultiTargetAttack = true,
+				MaxTargets = 4,
+				AttackRadius = 85,
+				AutoSpearsBurst = true,
+				AutoBossMechanics = true,
+				AutoUseSkills = true,
+				AutoDodge = true,
+				KillAura = false,
+				KillAuraRange = 120,
+				HitboxExtender = true,
+				NapeHitboxSize = 120,
+				Godmode = false,
+				AutoEscapeGrab = true,
+				InfiniteHookRange = false,
+				NoCooldown = false,
+
+				-- Raid & Story VIP
+				SelectedRaid = "Colossal Titan",
+				SelectedRaidDiff = "Aberrant",
+				AutoRaid = false,
+				AutoOpenRaidChests = true,
+				AutoFireCannons = true,
+				AutoUpgradeHQ = true,
+				SelectedStoryMap = "Shiganshina",
+				SelectedDifficulty = "Hard",
+				AutoStoryMission = false,
+				AutoRetry = false,
+				AutoNextMission = false,
+
+				-- Performance & HUD
+				FastRagdollCleaner = true,
+				DisableScreenShake = true,
+				ShowFarmHUD = false,
+
+				-- Anti-Ban & Security VIP
+				AntiBanShield = true,
+				TargetClans = { "Shiki", "Fritz", "Helos", "Ackerman", "Yeager" },
+				AutoRollFamily = false,
+				TargetPerks = { "Divine", "Kensei", "Berserk", "Artisan", "Deadshot" },
+				AutoRollPerks = false,
+				AntiAFK = true,
+				AutoShadowbanCheck = false,
+				WebhookURL = "",
+				RewardsWebhook = false,
+
+				-- Visuals VIP
+				TitanESP = false,
+				ShowNapeHitbox = false,
+				ESPMaxDistance = 1200,
+				ESPColor = Color3.fromRGB(170, 95, 255),
+			}
+
+			-- Forward declarations cho các hàm engine lõi để các nút UI có thể gọi mà không bị lỗi scope
+			local getAOTRemotes
+			local isBladeActuallyBroken
+			local performAOTReload
+			local refillSuppliesAtStation
+			local clearMapDebris
+			local updateFarmHUD
+			local disableScreenShake
+
+			local Window = RayfieldLibrary:CreateWindow({
+				Name = "HaiAnh Menu | Attack on Titan: Revolution",
+				LoadingTitle = "HaiAnh Menu",
+				LoadingSubtitle = "Attack on Titan: Revolution",
+				ConfigurationSaving = {
+					Enabled = true,
+					FolderName = "HaiAnhMenuConfig",
+					FileName = "AOTRevolution"
+				},
+				KeySystem = false,
+			})
+
+			createFloatingToggle()
+
+			-- TAB 1: Main / Auto Farm
+			local FarmTab = Window:CreateTab("Main / Auto Farm", 0)
+			FarmTab:CreateSection("Farm Configuration")
+
+			FarmTab:CreateDropdown({
+				Name = "Weapon Mode",
+				Options = { "Auto", "Blades", "Thunder Spears" },
+				CurrentOption = { "Auto" },
+				MultipleOptions = false,
+				Flag = "AOT_WeaponMode",
+				Callback = function(Option)
+					AOTConfig.WeaponMode = type(Option) == "table" and Option[1] or Option
+				end,
+			})
+
+			FarmTab:CreateDropdown({
+				Name = "Farm Position",
+				Options = { "Above Nape (Anti-Grab)", "Behind Nape", "High Sky (Anti-Grab)" },
+				CurrentOption = { "Above Nape (Anti-Grab)" },
+				MultipleOptions = false,
+				Flag = "AOT_FarmPosition",
+				Callback = function(Option)
+					AOTConfig.FarmPosition = type(Option) == "table" and Option[1] or Option
+				end,
+			})
+
+			FarmTab:CreateDropdown({
+				Name = "Target Priority",
+				Options = { "Closest", "Bosses First", "Crawlers & Abnormals", "Lowest HP" },
+				CurrentOption = { "Closest" },
+				MultipleOptions = false,
+				Flag = "AOT_TargetPriority",
+				Callback = function(Option)
+					AOTConfig.TargetPriority = type(Option) == "table" and Option[1] or Option
+				end,
+			})
+
+			FarmTab:CreateSlider({
+				Name = "Behind Nape Distance",
+				Range = { 0.5, 12 },
+				Increment = 0.5,
+				Suffix = "Studs",
+				CurrentValue = 2.0,
+				Flag = "AOT_BehindNapeDistance",
+				Callback = function(Value)
+					AOTConfig.BehindNapeDistance = Value
+				end,
+			})
+
+			FarmTab:CreateSlider({
+				Name = "Hover Height",
+				Range = { 2, 35 },
+				Increment = 1,
+				Suffix = "Studs",
+				CurrentValue = 10,
+				Flag = "AOT_HoverHeight",
+				Callback = function(Value)
+					AOTConfig.HoverHeight = Value
+				end,
+			})
+
+			FarmTab:CreateSlider({
+				Name = "Flight Speed",
+				Range = { 150, 700 },
+				Increment = 10,
+				Suffix = "Studs/s",
+				CurrentValue = 420,
+				Flag = "AOT_FlightSpeed",
+				Callback = function(Value)
+					AOTConfig.FlightSpeed = Value
+				end,
+			})
+
+			FarmTab:CreateToggle({
+				Name = "Instant Teleport (Fast Farm)",
+				CurrentValue = false,
+				Flag = "AOT_InstantTeleport",
+				Callback = function(Value)
+					AOTConfig.InstantTeleport = Value
+				end,
+			})
+
+			FarmTab:CreateToggle({
+				Name = "Map NoClip (Pass Obstacles)",
+				CurrentValue = true,
+				Flag = "AOT_MapNoClip",
+				Callback = function(Value)
+					AOTConfig.MapNoClip = Value
+				end,
+			})
+
+			FarmTab:CreateSection("Main Auto Farm")
+
+			FarmTab:CreateToggle({
+				Name = "Auto Farm Titan",
+				CurrentValue = false,
+				Flag = "AOT_AutoFarmTitan",
+				Callback = function(Value)
+					AOTConfig.AutoFarmTitan = Value
+				end,
+			})
+
+			FarmTab:CreateToggle({
+				Name = "Safe Legit Farm",
+				CurrentValue = false,
+				Flag = "AOT_SafeLegitDelay",
+				Callback = function(Value)
+					AOTConfig.SafeLegitDelay = Value
+				end,
+			})
+
+			FarmTab:CreateToggle({
+				Name = "Titan Shifter Mastery",
+				CurrentValue = false,
+				Flag = "AOT_TitanMastery",
+				Callback = function(Value)
+					AOTConfig.TitanShifterMastery = Value
+				end,
+			})
+
+			FarmTab:CreateToggle({
+				Name = "Auto Titan Shift",
+				CurrentValue = true,
+				Flag = "AOT_AutoShift",
+				Callback = function(Value)
+					AOTConfig.AutoTitanShift = Value
+				end,
+			})
+
+			FarmTab:CreateToggle({
+				Name = "Titan Shifter Skills Burst",
+				CurrentValue = true,
+				Flag = "AOT_TitanSkillsBurst",
+				Callback = function(Value)
+					AOTConfig.TitanSkillsBurst = Value
+				end,
+			})
+
+			FarmTab:CreateSection("Blades & Thunder Spears Reload")
+
+			FarmTab:CreateToggle({
+				Name = "Auto Reload When Broken",
+				CurrentValue = true,
+				Flag = "AOT_AutoReloadWhenBroken",
+				Callback = function(Value)
+					AOTConfig.AutoReloadWhenBroken = Value
+				end,
+			})
+
+			FarmTab:CreateToggle({
+				Name = "Reload After Titan Kill",
+				CurrentValue = true,
+				Flag = "AOT_ReloadAfterTitanKill",
+				Callback = function(Value)
+					AOTConfig.ReloadAfterTitanKill = Value
+				end,
+			})
+
+			FarmTab:CreateSlider({
+				Name = "Slashes Before Reload",
+				Range = { 10, 40 },
+				Increment = 1,
+				Suffix = "Hits",
+				CurrentValue = 22,
+				Flag = "AOT_SlashesBeforeReload",
+				Callback = function(Value)
+					AOTConfig.SlashesBeforeReload = Value
+				end,
+			})
+
+			FarmTab:CreateButton({
+				Name = "Reload Blades Now",
+				Callback = function()
+					if performAOTReload then
+						performAOTReload(true)
+					end
+					RayfieldLibrary:Notify({
+						Title = "Reload",
+						Content = "Đã gửi lệnh nạp lại kiếm mới!",
+						Duration = 2.5,
+					})
+				end,
+			})
+
+			FarmTab:CreateToggle({
+				Name = "Auto Refill Supplies",
+				CurrentValue = true,
+				Flag = "AOT_AutoRefill",
+				Callback = function(Value)
+					AOTConfig.AutoRefillSupplies = Value
+				end,
+			})
+
+			FarmTab:CreateToggle({
+				Name = "Auto Resupply Teleport (Instant Refill)",
+				CurrentValue = true,
+				Flag = "AOT_ResupplyTeleport",
+				Callback = function(Value)
+					AOTConfig.AutoResupplyTeleport = Value
+				end,
+			})
+
+			FarmTab:CreateButton({
+				Name = "Refill Supplies at Station",
+				Callback = function()
+					if refillSuppliesAtStation then
+						refillSuppliesAtStation()
+					end
+					RayfieldLibrary:Notify({
+						Title = "Refill Supplies",
+						Content = "Đã nhận tiếp tế Kiếm và Gas từ trạm!",
+						Duration = 3,
+					})
+				end,
+			})
+
+			FarmTab:CreateToggle({
+				Name = "Infinite Gas & Durability",
+				CurrentValue = false,
+				Flag = "AOT_InfiniteGas",
+				Callback = function(Value)
+					AOTConfig.InfiniteGasDurability = Value
+				end,
+			})
+
+			-- TAB 2: Combat / Buff
+			local CombatTab = Window:CreateTab("Combat / Buff", 0)
+			CombatTab:CreateSection("Multi-Target Combat")
+
+			CombatTab:CreateToggle({
+				Name = "Multi-Target Attack",
+				CurrentValue = true,
+				Flag = "AOT_MultiTargetAttack",
+				Callback = function(Value)
+					AOTConfig.MultiTargetAttack = Value
+				end,
+			})
+
+			CombatTab:CreateSlider({
+				Name = "Max Attack Targets",
+				Range = { 1, 8 },
+				Increment = 1,
+				Suffix = "Titans",
+				CurrentValue = 4,
+				Flag = "AOT_MaxTargets",
+				Callback = function(Value)
+					AOTConfig.MaxTargets = Value
+				end,
+			})
+
+			CombatTab:CreateSlider({
+				Name = "Attack Radius",
+				Range = { 30, 200 },
+				Increment = 5,
+				Suffix = "Studs",
+				CurrentValue = 85,
+				Flag = "AOT_AttackRadius",
+				Callback = function(Value)
+					AOTConfig.AttackRadius = Value
+				end,
+			})
+
+			CombatTab:CreateToggle({
+				Name = "Thunder Spears Auto Burst (AOE)",
+				CurrentValue = true,
+				Flag = "AOT_AutoSpearsBurst",
+				Callback = function(Value)
+					AOTConfig.AutoSpearsBurst = Value
+				end,
+			})
+
+			CombatTab:CreateToggle({
+				Name = "Auto Boss Mechanics (Raid Bosses)",
+				CurrentValue = true,
+				Flag = "AOT_BossMechanics",
+				Callback = function(Value)
+					AOTConfig.AutoBossMechanics = Value
+				end,
+			})
+
+			CombatTab:CreateSection("Auto Skills VIP")
+
+			CombatTab:CreateToggle({
+				Name = "Auto Use Skills",
+				CurrentValue = true,
+				Flag = "AOT_AutoSkills",
+				Callback = function(Value)
+					AOTConfig.AutoUseSkills = Value
+				end,
+			})
+
+			CombatTab:CreateToggle({
+				Name = "Auto Dodge Titan Attacks (I-Frame)",
+				CurrentValue = true,
+				Flag = "AOT_AutoDodge",
+				Callback = function(Value)
+					AOTConfig.AutoDodge = Value
+				end,
+			})
+
+			CombatTab:CreateSection("Kill Aura & Hitbox")
+
+			CombatTab:CreateToggle({
+				Name = "Kill Aura",
+				CurrentValue = false,
+				Flag = "AOT_KillAura",
+				Callback = function(Value)
+					AOTConfig.KillAura = Value
+				end,
+			})
+
+			CombatTab:CreateSlider({
+				Name = "Kill Aura Range",
+				Range = { 30, 250 },
+				Increment = 5,
+				Suffix = "Studs",
+				CurrentValue = 120,
+				Flag = "AOT_KillAuraRange",
+				Callback = function(Value)
+					AOTConfig.KillAuraRange = Value
+				end,
+			})
+
+			CombatTab:CreateToggle({
+				Name = "Nape Hitbox Extender",
+				CurrentValue = true,
+				Flag = "AOT_HitboxExtender",
+				Callback = function(Value)
+					AOTConfig.HitboxExtender = Value
+				end,
+			})
+
+			CombatTab:CreateSlider({
+				Name = "Nape Hitbox Size",
+				Range = { 30, 300 },
+				Increment = 10,
+				Suffix = "Studs",
+				CurrentValue = 120,
+				Flag = "AOT_NapeSize",
+				Callback = function(Value)
+					AOTConfig.NapeHitboxSize = Value
+				end,
+			})
+
+			CombatTab:CreateSection("Player Buffs & ODMG")
+
+			CombatTab:CreateToggle({
+				Name = "Godmode",
+				CurrentValue = false,
+				Flag = "AOT_Godmode",
+				Callback = function(Value)
+					AOTConfig.Godmode = Value
+				end,
+			})
+
+			CombatTab:CreateToggle({
+				Name = "Auto Escape Grab",
+				CurrentValue = true,
+				Flag = "AOT_AutoEscapeGrab",
+				Callback = function(Value)
+					AOTConfig.AutoEscapeGrab = Value
+				end,
+			})
+
+			CombatTab:CreateToggle({
+				Name = "ODMG Infinite Hook Range",
+				CurrentValue = false,
+				Flag = "AOT_InfHookRange",
+				Callback = function(Value)
+					AOTConfig.InfiniteHookRange = Value
+				end,
+			})
+
+			CombatTab:CreateToggle({
+				Name = "No Skill Cooldown",
+				CurrentValue = false,
+				Flag = "AOT_NoCooldown",
+				Callback = function(Value)
+					AOTConfig.NoCooldown = Value
+				end,
+			})
+
+			-- TAB 3: Raid & Story
+			local RaidTab = Window:CreateTab("Raid & Story", 0)
+			RaidTab:CreateSection("Auto Raid VIP")
+
+			RaidTab:CreateDropdown({
+				Name = "Select Raid Boss",
+				Options = { "Colossal Titan", "Armored Titan", "Female Titan", "Beast Titan" },
+				CurrentOption = { "Colossal Titan" },
+				MultipleOptions = false,
+				Flag = "AOT_RaidBoss",
+				Callback = function(Option)
+					AOTConfig.SelectedRaid = type(Option) == "table" and Option[1] or Option
+				end,
+			})
+
+			RaidTab:CreateDropdown({
+				Name = "Raid Difficulty",
+				Options = { "Easy", "Normal", "Hard", "Severe", "Aberrant", "Freedom" },
+				CurrentOption = { "Aberrant" },
+				MultipleOptions = false,
+				Flag = "AOT_RaidDiff",
+				Callback = function(Option)
+					AOTConfig.SelectedRaidDiff = type(Option) == "table" and Option[1] or Option
+				end,
+			})
+
+			RaidTab:CreateToggle({
+				Name = "Auto Raid",
+				CurrentValue = false,
+				Flag = "AOT_AutoRaid",
+				Callback = function(Value)
+					AOTConfig.AutoRaid = Value
+				end,
+			})
+
+			RaidTab:CreateToggle({
+				Name = "Auto Open Raid Chests",
+				CurrentValue = true,
+				Flag = "AOT_OpenChests",
+				Callback = function(Value)
+					AOTConfig.AutoOpenRaidChests = Value
+				end,
+			})
+
+			RaidTab:CreateToggle({
+				Name = "Auto Fire Cannons",
+				CurrentValue = true,
+				Flag = "AOT_AutoCannons",
+				Callback = function(Value)
+					AOTConfig.AutoFireCannons = Value
+				end,
+			})
+
+			RaidTab:CreateToggle({
+				Name = "Auto Upgrade HQ",
+				CurrentValue = true,
+				Flag = "AOT_AutoUpgradeHQ",
+				Callback = function(Value)
+					AOTConfig.AutoUpgradeHQ = Value
+				end,
+			})
+
+			RaidTab:CreateSection("Auto Story Mission")
+
+			RaidTab:CreateDropdown({
+				Name = "Select Story Chapter",
+				Options = { "Shiganshina", "Trost District", "Giant Tree Forest", "Stohess", "Utgard Castle" },
+				CurrentOption = { "Shiganshina" },
+				MultipleOptions = false,
+				Flag = "AOT_StoryMap",
+				Callback = function(Option)
+					AOTConfig.SelectedStoryMap = type(Option) == "table" and Option[1] or Option
+				end,
+			})
+
+			RaidTab:CreateDropdown({
+				Name = "Mission Difficulty",
+				Options = { "Normal", "Hard", "Severe", "Aberrant", "Freedom" },
+				CurrentOption = { "Hard" },
+				MultipleOptions = false,
+				Flag = "AOT_StoryDiff",
+				Callback = function(Option)
+					AOTConfig.SelectedDifficulty = type(Option) == "table" and Option[1] or Option
+				end,
+			})
+
+			RaidTab:CreateToggle({
+				Name = "Auto Story Mission",
+				CurrentValue = false,
+				Flag = "AOT_AutoStory",
+				Callback = function(Value)
+					AOTConfig.AutoStoryMission = Value
+				end,
+			})
+
+			RaidTab:CreateToggle({
+				Name = "Auto Retry on Failure",
+				CurrentValue = false,
+				Flag = "AOT_AutoRetry",
+				Callback = function(Value)
+					AOTConfig.AutoRetry = Value
+				end,
+			})
+
+			RaidTab:CreateToggle({
+				Name = "Auto Next Mission",
+				CurrentValue = false,
+				Flag = "AOT_AutoNext",
+				Callback = function(Value)
+					AOTConfig.AutoNextMission = Value
+				end,
+			})
+
+			-- TAB 4: Misc / Performance / Gacha
+			local MiscTab = Window:CreateTab("Misc / Performance", 0)
+			MiscTab:CreateSection("Performance & FPS Booster")
+
+			MiscTab:CreateToggle({
+				Name = "Fast Ragdoll Cleaner (FPS Boost)",
+				CurrentValue = true,
+				Flag = "AOT_FastRagdollCleaner",
+				Callback = function(Value)
+					AOTConfig.FastRagdollCleaner = Value
+				end,
+			})
+
+			MiscTab:CreateToggle({
+				Name = "Disable Screen Shake & Blur",
+				CurrentValue = true,
+				Flag = "AOT_DisableScreenShake",
+				Callback = function(Value)
+					AOTConfig.DisableScreenShake = Value
+					if Value and disableScreenShake then disableScreenShake() end
+				end,
+			})
+
+			MiscTab:CreateToggle({
+				Name = "Show Farm Stats HUD",
+				CurrentValue = false,
+				Flag = "AOT_ShowFarmHUD",
+				Callback = function(Value)
+					AOTConfig.ShowFarmHUD = Value
+					if updateFarmHUD then updateFarmHUD() end
+				end,
+			})
+
+			MiscTab:CreateButton({
+				Name = "Clear All Map Debris Now",
+				Callback = function()
+					if clearMapDebris then
+						clearMapDebris()
+					end
+					RayfieldLibrary:Notify({
+						Title = "FPS Booster",
+						Content = "Đã dọn dẹp toàn bộ xác chết và rác hiệu ứng!",
+						Duration = 3,
+					})
+				end,
+			})
+
+			MiscTab:CreateSection("Manual Equipment Controls")
+
+			MiscTab:CreateButton({
+				Name = "Reload Blades Now",
+				Callback = function()
+					if performAOTReload then
+						performAOTReload(true)
+					end
+					RayfieldLibrary:Notify({
+						Title = "Reload",
+						Content = "Đã nạp lại kiếm mới thành công!",
+						Duration = 3,
+					})
+				end,
+			})
+
+			MiscTab:CreateButton({
+				Name = "Refill Supplies at Station",
+				Callback = function()
+					if refillSuppliesAtStation then
+						refillSuppliesAtStation()
+					end
+					RayfieldLibrary:Notify({
+						Title = "Refill Supplies",
+						Content = "Đã nhận tiếp tế Kiếm và Gas từ trạm!",
+						Duration = 3,
+					})
+				end,
+			})
+
+			MiscTab:CreateSection("Family & Perk Gacha")
+
+			MiscTab:CreateDropdown({
+				Name = "Target Families",
+				Options = { "Shiki", "Fritz", "Helos", "Ackerman", "Yeager", "Reiss", "Tybur", "Arlert", "Leonhart" },
+				CurrentOption = { "Shiki", "Fritz", "Helos" },
+				MultipleOptions = true,
+				Flag = "AOT_TargetClans",
+				Callback = function(Options)
+					AOTConfig.TargetClans = Options
+				end,
+			})
+
+			MiscTab:CreateToggle({
+				Name = "Auto Spin Family",
+				CurrentValue = false,
+				Flag = "AOT_AutoFamily",
+				Callback = function(Value)
+					AOTConfig.AutoRollFamily = Value
+				end,
+			})
+
+			MiscTab:CreateDropdown({
+				Name = "Target Perks",
+				Options = { "Divine", "Kensei", "Berserk", "Artisan", "Deadshot", "Thunder Burst" },
+				CurrentOption = { "Divine", "Kensei" },
+				MultipleOptions = true,
+				Flag = "AOT_TargetPerks",
+				Callback = function(Options)
+					AOTConfig.TargetPerks = Options
+				end,
+			})
+
+			MiscTab:CreateToggle({
+				Name = "Auto Spin Perks",
+				CurrentValue = false,
+				Flag = "AOT_AutoPerks",
+				Callback = function(Value)
+					AOTConfig.AutoRollPerks = Value
+				end,
+			})
+
+			MiscTab:CreateSection("Anti-Ban & Security")
+
+			MiscTab:CreateToggle({
+				Name = "Anti-Ban Remote Shield",
+				CurrentValue = true,
+				Flag = "AOT_AntiBanShield",
+				Callback = function(Value)
+					AOTConfig.AntiBanShield = Value
+					AntiBanShield.Enabled = Value
+				end,
+			})
+
+			MiscTab:CreateToggle({
+				Name = "Anti AFK",
+				CurrentValue = true,
+				Flag = "AOT_AntiAFK",
+				Callback = function(Value)
+					AOTConfig.AntiAFK = Value
+				end,
+			})
+
+			local function runShadowbanCheck()
+				local lp = Players and Players.LocalPlayer
+				local suspiciousFlags = {}
+				pcall(function()
+					if lp then
+						for attrName, attrVal in pairs(lp:GetAttributes()) do
+							local lower = string.lower(tostring(attrName))
+							if (string.find(lower, "ban", 1, true) or string.find(lower, "flag", 1, true) or string.find(lower, "cheat", 1, true) or string.find(lower, "restrict", 1, true)) and attrVal == true then
+								table.insert(suspiciousFlags, tostring(attrName))
+							end
+						end
+						for _, child in ipairs(lp:GetDescendants()) do
+							local lower = string.lower(child.Name)
+							if (string.find(lower, "shadowban", 1, true) or string.find(lower, "banned", 1, true)) and child:IsA("BoolValue") and child.Value == true then
+								table.insert(suspiciousFlags, child.Name)
+							end
+						end
+					end
+				end)
+
+				if #suspiciousFlags > 0 then
+					RayfieldLibrary:Notify({
+						Title = "Shadowban Warning",
+						Content = "Flagged attributes detected: " .. table.concat(suspiciousFlags, ", "),
+						Duration = 7,
+					})
+					AOTConfig.AutoFarmTitan = false
+					AOTConfig.AutoRaid = false
+				else
+					RayfieldLibrary:Notify({
+						Title = "Shadowban Status",
+						Content = "Account Clean: Blocked Remotes: " .. tostring(AntiBanShield.BlockedCount),
+						Duration = 5,
+					})
+				end
 			end
 
-			local currentPos = root.Position
-			local dist = (targetPos - currentPos).Magnitude
-			local speed = math.max(HubConfig.FlightSpeed, 150)
-			local step = math.min(dist, speed * 0.05)
-			if dist > 5 then
-				local dir = (targetPos - currentPos).Unit
-				root.CFrame = CFrame.new(currentPos + dir * step, targetPos)
-			else
-				root.CFrame = CFrame.new(targetPos)
-			end
-		end)
-	end
+			MiscTab:CreateButton({
+				Name = "Check Shadowban Status",
+				Callback = runShadowbanCheck,
+			})
 
-	task.spawn(function()
-		while not rayfieldDestroyed do
-			pcall(function()
-				if HubConfig.AutoBuso then
+			MiscTab:CreateToggle({
+				Name = "Auto Shadowban Monitor",
+				CurrentValue = false,
+				Flag = "AOT_AutoShadowbanCheck",
+				Callback = function(Value)
+					AOTConfig.AutoShadowbanCheck = Value
+					if Value then runShadowbanCheck() end
+				end,
+			})
+
+			MiscTab:CreateInput({
+				Name = "Discord Webhook URL",
+				CurrentValue = "",
+				PlaceholderText = "https://discord.com/api/webhooks/...",
+				RemoveTextAfterFocusLost = false,
+				Flag = "AOT_WebhookURL",
+				Callback = function(Text)
+					AOTConfig.WebhookURL = tostring(Text or "")
+				end,
+			})
+
+			MiscTab:CreateToggle({
+				Name = "Send Rewards to Webhook",
+				CurrentValue = false,
+				Flag = "AOT_RewardsWebhook",
+				Callback = function(Value)
+					AOTConfig.RewardsWebhook = Value
+				end,
+			})
+
+			local function sendDiscordWebhook(title, description)
+				if AOTConfig.WebhookURL == "" or not string.find(AOTConfig.WebhookURL, "http") then return end
+				local req = requestFunc
+				if req then
+					pcall(function()
+						local payload = {
+							["embeds"] = { {
+								["title"] = title or "HaiAnh Menu - AOT:R Update",
+								["description"] = description or "Auto Farm notification",
+								["color"] = 11141375,
+								["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+								["footer"] = { ["text"] = "HaiAnh Menu | Violet Engine" }
+							} }
+						}
+						local HttpService = getService("HttpService")
+						local json = HttpService and HttpService:JSONEncode(payload)
+						if json then
+							req({
+								Url = AOTConfig.WebhookURL,
+								Method = "POST",
+								Headers = { ["Content-Type"] = "application/json" },
+								Body = json,
+							})
+						end
+					end)
+				end
+			end
+
+			MiscTab:CreateButton({
+				Name = "Test Discord Webhook",
+				Callback = function()
+					sendDiscordWebhook("HaiAnh Menu Test", "Discord Webhook connection verified successfully!")
+					RayfieldLibrary:Notify({
+						Title = "Webhook Test",
+						Content = "Test payload sent to Discord Webhook",
+						Duration = 4,
+					})
+				end,
+			})
+
+			-- TAB 5: Visuals / ESP
+			local VisualTab = Window:CreateTab("Visuals / ESP", 0)
+			VisualTab:CreateSection("Titan ESP")
+
+			VisualTab:CreateToggle({
+				Name = "Titan ESP",
+				CurrentValue = false,
+				Flag = "AOT_TitanESP",
+				Callback = function(Value)
+					AOTConfig.TitanESP = Value
+				end,
+			})
+
+			VisualTab:CreateToggle({
+				Name = "Highlight Titan Nape",
+				CurrentValue = false,
+				Flag = "AOT_ShowNape",
+				Callback = function(Value)
+					AOTConfig.ShowNapeHitbox = Value
+				end,
+			})
+
+			VisualTab:CreateSlider({
+				Name = "ESP Max Distance",
+				Range = { 200, 2500 },
+				Increment = 50,
+				Suffix = "Studs",
+				CurrentValue = 1200,
+				Flag = "AOT_ESPDistance",
+				Callback = function(Value)
+					AOTConfig.ESPMaxDistance = Value
+				end,
+			})
+
+			VisualTab:CreateColorPicker({
+				Name = "Titan ESP Color",
+				Color = Color3.fromRGB(170, 95, 255),
+				Flag = "AOT_ESPColor",
+				Callback = function(Value)
+					AOTConfig.ESPColor = Value
+				end,
+			})
+
+			-- ========================================================================
+			-- AOT:R CORE LOGIC & ENGINE (VIOLET HUB PRO EDITION)
+			-- ========================================================================
+			local currentTargetTitan = nil
+			local espObjects = {}
+			local deadTitanCache = setmetatable({}, { __mode = "k" })
+			local farmStats = {
+				startTime = os.clock(),
+				titansKilled = 0,
+				bladesReloaded = 0,
+			}
+
+			getAOTRemotes = function()
+				local assets = ReplicatedStorage:FindFirstChild("Assets")
+				local remotes = (assets and assets:FindFirstChild("Remotes"))
+					or ReplicatedStorage:FindFirstChild("Remotes")
+					or ReplicatedStorage:FindFirstChild("Remotes", true)
+				local post = (remotes and remotes:FindFirstChild("POST")) or
+					ReplicatedStorage:FindFirstChild("POST", true)
+				local get = (remotes and remotes:FindFirstChild("GET")) or ReplicatedStorage:FindFirstChild("GET", true)
+				return post, get
+			end
+
+			local lastRefillTime = 0
+			refillSuppliesAtStation = function()
+				local now = os.clock()
+				if now - lastRefillTime < 1.2 then return end
+				lastRefillTime = now
+				pcall(function()
+					local postRemote = getAOTRemotes()
+					if postRemote then
+						pcall(function() postRemote:FireServer("S_Equipment", "Refill") end)
+						pcall(function() postRemote:FireServer("Equipment", "Refill") end)
+						pcall(function() postRemote:FireServer("Character", "Refill") end)
+						pcall(function() postRemote:FireServer("Attacks", "Refill") end)
+					end
+
 					local lp = Players and Players.LocalPlayer
 					local char = lp and lp.Character
-					local hasHaki = char and (char:FindFirstChild("HasBuso") or char:GetAttribute("HasBuso"))
-					if not hasHaki then
-						local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-						local commF = remotes and remotes:FindFirstChild("CommF_")
-						if commF then
-							commF:InvokeServer("Buso")
+					local root = char and char:FindFirstChild("HumanoidRootPart")
+
+					local nearestPrompt = nil
+					local nearestDist = 99999
+					local nearestPos = nil
+
+					if fireproximityprompt and Workspace then
+						for _, obj in ipairs(Workspace:GetDescendants()) do
+							if obj:IsA("ProximityPrompt") and obj.Enabled then
+								local text = string.lower(obj.Name .. " " .. obj.ActionText .. " " .. obj.ObjectText)
+								if string.find(text, "refill", 1, true) or string.find(text, "gas", 1, true) or string.find(text, "blade", 1, true) or string.find(text, "supply", 1, true) or string.find(text, "horse", 1, true) or string.find(text, "chest", 1, true) then
+									local parentPart = obj.Parent
+									local pos = parentPart and
+										(parentPart:IsA("BasePart") and parentPart.Position or (parentPart:IsA("Model") and parentPart:GetPivot().Position))
+									local d = (root and pos) and (pos - root.Position).Magnitude or 100
+									if d < nearestDist then
+										nearestDist = d
+										nearestPrompt = obj
+										nearestPos = pos
+									end
+									pcall(function() fireproximityprompt(obj, 0) end)
+									pcall(function() fireproximityprompt(obj) end)
+								end
+							end
+						end
+					end
+
+					-- Nếu bật AutoResupplyTeleport và trạm ở xa (> 25 studs), teleport tức thì đến trạm, nạp, rồi quay về vị trí farm
+					if AOTConfig.AutoResupplyTeleport and root and nearestPos and nearestPrompt and nearestDist > 25 then
+						local oldCF = root.CFrame
+						task.spawn(function()
+							pcall(function()
+								root.CFrame = CFrame.new(nearestPos + Vector3.new(0, 3, 0))
+								task.wait(0.08)
+								fireproximityprompt(nearestPrompt, 0)
+								fireproximityprompt(nearestPrompt)
+								task.wait(0.08)
+								root.CFrame = oldCF
+							end)
+						end)
+					end
+
+					farmStats.bladesReloaded = farmStats.bladesReloaded + 1
+				end)
+			end
+
+			local function getCleanTitanName(model)
+				if not model then return "Titan" end
+				for _, attr in ipairs({ "Title", "TitanType", "Type", "Variant", "BossName", "Class" }) do
+					local val = model:GetAttribute(attr)
+					if type(val) == "string" and val ~= "" and not string.match(val, "%x+%-%x+") and #val < 20 then
+						return val
+					end
+				end
+				local raw = tostring(model.Name)
+				if string.match(raw, "%x+%-%x+") or #raw >= 20 then
+					if model:FindFirstChild("Abnormal") or model:GetAttribute("Abnormal") == true then
+						return "Abnormal Titan"
+					elseif model:FindFirstChild("Crawler") or model:GetAttribute("Crawler") == true then
+						return "Crawler Titan"
+					elseif model:FindFirstChild("Shifter") or model:GetAttribute("Shifter") == true then
+						return "Titan Shifter"
+					elseif model:FindFirstChild("Boss") or model:GetAttribute("Boss") == true or string.find(string.lower(raw), "colossal", 1, true) then
+						return "Colossal Titan"
+					end
+					return "Titan"
+				end
+				return raw
+			end
+
+			-- Xóa rác và xác chết trên Client để tối đa hóa FPS
+			clearMapDebris = function()
+				pcall(function()
+					local debris = Workspace:FindFirstChild("Debris")
+					if debris then
+						for _, item in ipairs(debris:GetChildren()) do
+							pcall(function() item:Destroy() end)
+						end
+					end
+					for titanModel, _ in pairs(deadTitanCache) do
+						if titanModel and titanModel.Parent then
+							pcall(function()
+								for _, p in ipairs(titanModel:GetDescendants()) do
+									if p:IsA("ParticleEmitter") or p:IsA("Trail") or p:IsA("Beam") then
+										p.Enabled = false
+										p:Destroy()
+									elseif p:IsA("BasePart") then
+										p.Transparency = 1
+										p.CanTouch = false
+										p.CanCollide = false
+									end
+								end
+							end)
+						end
+					end
+				end)
+			end
+
+			-- Sự kiện khi Titan chết: tăng chỉ số diệt và dọn dẹp visual ngay lập tức
+			local function onTitanDied(titan)
+				if not deadTitanCache[titan] then
+					deadTitanCache[titan] = true
+					farmStats.titansKilled = farmStats.titansKilled + 1
+					if AOTConfig.FastRagdollCleaner then
+						task.spawn(function()
+							pcall(function()
+								for _, p in ipairs(titan:GetDescendants()) do
+									if p:IsA("ParticleEmitter") or p:IsA("Trail") or p:IsA("Beam") then
+										p.Enabled = false
+										p:Destroy()
+									elseif p:IsA("BasePart") then
+										p.Transparency = 1
+										p.CanTouch = false
+										p.CanCollide = false
+									end
+								end
+							end)
+						end)
+					end
+				end
+			end
+
+			-- Kiểm tra chuẩn xác 100% Titan đã chết, đang ragdoll hoặc mất hitbox
+			local function isTitanDeadOrInvalid(titan, hum, nape)
+				if not titan or not titan.Parent or not titan:IsDescendantOf(Workspace) then
+					return true
+				end
+				if deadTitanCache[titan] then
+					return true
+				end
+				if Players and Players:GetPlayerFromCharacter(titan) then
+					return true
+				end
+
+				-- 1. Thuộc tính báo tử trong AOT:R
+				for _, attrName in ipairs({ "Dead", "Died", "Death", "Killed", "Ragdoll", "Defeated", "Despawn", "Down" }) do
+					if titan:GetAttribute(attrName) == true then
+						onTitanDied(titan)
+						return true
+					end
+				end
+
+				-- 2. Tag / Child báo tử
+				if titan:FindFirstChild("Dead") or titan:FindFirstChild("Death") or titan:FindFirstChild("Ragdoll") or titan:FindFirstChild("Defeated") then
+					onTitanDied(titan)
+					return true
+				end
+
+				-- 3. Kiểm tra Humanoid
+				if hum then
+					if hum.Health <= 0 then
+						onTitanDied(titan)
+						return true
+					end
+					local okState, state = pcall(function() return hum:GetState() end)
+					if okState and (state == Enum.HumanoidStateType.Dead or state == Enum.HumanoidStateType.Ragdoll) then
+						onTitanDied(titan)
+						return true
+					end
+				end
+
+				-- 4. Khi Titan bị chém đứt gáy, thư mục Hitboxes hoặc Nape bị Server xóa ngay lập tức
+				local hitboxes = titan:FindFirstChild("Hitboxes")
+				if not hitboxes then
+					local rawName = string.lower(titan.Name)
+					if not string.find(rawName, "boss", 1, true) and not string.find(rawName, "colossal", 1, true) then
+						onTitanDied(titan)
+						return true
+					end
+				end
+
+				-- 5. Part gáy phải còn tồn tại trong Titan
+				if not nape or not nape.Parent or not nape:IsDescendantOf(titan) then
+					onTitanDied(titan)
+					return true
+				end
+
+				return false
+			end
+
+			-- Tìm kiếm chuẩn xác 100% GÁY (Nape) trong Hitboxes, loại bỏ hoàn toàn nhận nhầm khớp cổ của xác chết
+			local napeCache = setmetatable({}, { __mode = "k" })
+			local function findTitanNape(titan)
+				if not titan or not titan.Parent then return nil end
+				if Players and Players:GetPlayerFromCharacter(titan) then return nil end
+				if deadTitanCache[titan] then return nil end
+
+				local cached = napeCache[titan]
+				if cached and cached.Parent and cached:IsDescendantOf(titan) then
+					return cached
+				end
+
+				local hitboxes = titan:FindFirstChild("Hitboxes")
+				local hitFolder = hitboxes and hitboxes:FindFirstChild("Hit")
+				local nape = (hitFolder and hitFolder:FindFirstChild("Nape"))
+					or (hitboxes and hitboxes:FindFirstChild("Nape"))
+
+				if not nape or not nape:IsA("BasePart") then
+					for _, part in ipairs(titan:GetDescendants()) do
+						if part:IsA("BasePart") then
+							local pName = string.lower(part.Name)
+							if pName == "nape" or pName == "weakpoint" or pName == "core" then
+								nape = part
+								break
+							end
 						end
 					end
 				end
 
-				if HubConfig.KillAura or HubConfig.AutoLevel or HubConfig.AutoNearestMob or HubConfig.AutoBoss then
-					local enemies = getBFEnemies()
-					if #enemies > 0 then
-						equipBFWeapon()
-						local target = enemies[1]
-						if HubConfig.AutoLevel or HubConfig.AutoNearestMob or HubConfig.AutoBoss then
-							local hoverPos = target.root.Position + Vector3.new(0, HubConfig.HoverHeight, 0)
-							tweenBFFlight(hoverPos)
-						end
+				if nape and nape:IsA("BasePart") then
+					napeCache[titan] = nape
+					return nape
+				end
+				return nil
+			end
 
-						if HubConfig.BringMobs and #enemies > 1 then
-							for i = 2, math.min(#enemies, 6) do
-								pcall(function()
-									enemies[i].root.CFrame = target.root.CFrame
-									enemies[i].root.CanCollide = false
-								end)
+			-- Quét danh sách Titan với bộ lọc thông minh & sắp xếp theo thứ tự ưu tiên
+			local function getTitansList()
+				local list = {}
+				local lp = Players and Players.LocalPlayer
+				local char = lp and lp.Character
+				local root = char and char:FindFirstChild("HumanoidRootPart")
+				if not Workspace then return list end
+
+				local searchFolders = {}
+				for _, fName in ipairs({ "Titans", "Enemies", "Boss", "Bosses", "Raid", "Spawns", "Entities", "Living", "Targets" }) do
+					local f = Workspace:FindFirstChild(fName)
+					if f then table.insert(searchFolders, f) end
+				end
+				local map = Workspace:FindFirstChild("Map")
+				if map then
+					for _, sub in ipairs(map:GetChildren()) do
+						if sub.Name == "Titans" or sub.Name == "Enemies" or sub.Name == "Boss" or sub.Name == "Spawns" then
+							table.insert(searchFolders, sub)
+						end
+					end
+				end
+				if #searchFolders == 0 then table.insert(searchFolders, Workspace) end
+
+				local seen = {}
+				for _, folder in ipairs(searchFolders) do
+					for _, titan in ipairs(folder:GetChildren()) do
+						if titan:IsA("Model") and not seen[titan] and titan ~= char then
+							local hum = titan:FindFirstChildOfClass("Humanoid")
+							local nape = findTitanNape(titan)
+
+							-- Chỉ đưa vào danh sách nếu Titan còn sống và có hitbox Nape thực sự
+							if nape and nape:IsA("BasePart") and not isTitanDeadOrInvalid(titan, hum, nape) then
+								seen[titan] = true
+								local dist = root and (nape.Position - root.Position).Magnitude or 9999
+								local cleanName = getCleanTitanName(titan)
+								local lowerName = string.lower(cleanName .. " " .. titan.Name)
+								local isBoss = string.find(lowerName, "boss", 1, true)
+									or string.find(lowerName, "colossal", 1, true)
+									or string.find(lowerName, "armored", 1, true)
+									or string.find(lowerName, "female", 1, true)
+									or string.find(lowerName, "beast", 1, true)
+									or string.find(lowerName, "shifter", 1, true)
+									or titan:GetAttribute("Boss") == true
+								local isCrawler = string.find(lowerName, "crawler", 1, true) or
+									titan:GetAttribute("Crawler") == true
+								local isAbnormal = string.find(lowerName, "abnormal", 1, true) or
+									titan:GetAttribute("Abnormal") == true
+								local hp = hum and hum.Health or 100
+
+								table.insert(list, {
+									model = titan,
+									cleanName = cleanName,
+									humanoid = hum,
+									nape = nape,
+									dist = dist,
+									hp = hp,
+									isBoss = isBoss,
+									isCrawler = isCrawler,
+									isAbnormal = isAbnormal,
+								})
+							end
+						end
+					end
+				end
+
+				local priority = AOTConfig.TargetPriority or "Closest"
+				table.sort(list, function(a, b)
+					if priority == "Bosses First" then
+						if a.isBoss ~= b.isBoss then
+							return a.isBoss
+						end
+						return a.dist < b.dist
+					elseif priority == "Crawlers & Abnormals" then
+						local aThreat = a.isCrawler or a.isAbnormal or a.isBoss
+						local bThreat = b.isCrawler or b.isAbnormal or b.isBoss
+						if aThreat ~= bThreat then
+							return aThreat
+						end
+						return a.dist < b.dist
+					elseif priority == "Lowest HP" then
+						if math.abs(a.hp - b.hp) > 50 then
+							return a.hp < b.hp
+						end
+						return a.dist < b.dist
+					else -- "Closest"
+						return a.dist < b.dist
+					end
+				end)
+				return list
+			end
+
+			-- Theo dõi trạng thái kiếm và nhát chém thời gian thực
+			local consecutiveSlashes = 0
+			local lastReloadTime = 0
+			local lastBladeSlashTime = 0
+			local lastSpearFireTime = 0
+
+			-- Kiểm tra độ bền kiếm thông minh
+			isBladeActuallyBroken = function()
+				local lp = Players and Players.LocalPlayer
+				local char = lp and lp.Character
+				if not char then return false end
+
+				-- 1. Thuộc tính trên Character / Tool nếu có
+				if char:GetAttribute("BladesBroken") == true or char:GetAttribute("Broken") == true or char:GetAttribute("BladeBroken") == true then
+					return true
+				end
+				local dur = char:GetAttribute("Durability") or char:GetAttribute("BladeDurability")
+				if dur ~= nil and type(dur) == "number" then
+					if dur <= 2 then
+						return true
+					else
+						return false
+					end
+				end
+				local blades = char:GetAttribute("Blades")
+				if blades ~= nil and type(blades) == "number" and blades <= 0 then
+					return true
+				end
+
+				local tool = char:FindFirstChildOfClass("Tool")
+				if tool then
+					local tDur = tool:GetAttribute("Durability") or tool:GetAttribute("Dur")
+					if tDur ~= nil and type(tDur) == "number" then
+						if tDur <= 2 then
+							return true
+						else
+							return false
+						end
+					end
+				end
+
+				-- 2. Kiểm tra thanh độ bền trên GUI qua đối tượng cache
+				local bar = cachedGuiState.durabilityBar
+				if bar and bar.Parent and bar.Visible then
+					local okBar, empty = pcall(function()
+						return bar.Size.X.Scale <= 0.05 and bar.AbsoluteSize.X <= 4
+					end)
+					if okBar and empty then
+						return true
+					end
+					local okBarHealth, healthy = pcall(function()
+						return bar.Size.X.Scale > 0.1 or bar.AbsoluteSize.X > 15
+					end)
+					if okBarHealth and healthy then
+						return false
+					end
+				end
+
+				-- 3. Kiểm tra số nhát chém tích lũy thực tế
+				if consecutiveSlashes >= (AOTConfig.SlashesBeforeReload or 22) then
+					return true
+				end
+
+				return false
+			end
+
+			performAOTReload = function(force)
+				if not force and not isBladeActuallyBroken() then
+					return
+				end
+				local now = os.clock()
+				if not force and (now - lastReloadTime < 1.0) then return end
+				lastReloadTime = now
+				consecutiveSlashes = 0
+				farmStats.bladesReloaded = farmStats.bladesReloaded + 1
+
+				pcall(function()
+					local postRemote = getAOTRemotes()
+					local lp = Players and Players.LocalPlayer
+					local char = lp and lp.Character
+					if postRemote then
+						pcall(function() postRemote:FireServer("Attacks", "Reload") end)
+						pcall(function() postRemote:FireServer("S_Equipment", "Reload") end)
+						pcall(function() postRemote:FireServer("Equipment", "Reload") end)
+						pcall(function() postRemote:FireServer("Character", "Reload") end)
+					end
+
+					triggerActionButtons({ "nạp lại", "nap lai", "reload" })
+
+					if cachedGuiState.reload and cachedGuiState.reload.Parent then
+						clickGuiButtonFast(cachedGuiState.reload)
+					end
+
+					if VirtualInputManager then
+						VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
+						task.spawn(function()
+							task.wait(0.01)
+							VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
+						end)
+					end
+
+					if char then
+						pcall(function()
+							char:SetAttribute("BladesBroken", false)
+							char:SetAttribute("Broken", false)
+							char:SetAttribute("BladeBroken", false)
+							local tool = char:FindFirstChildOfClass("Tool")
+							if tool then
+								tool:SetAttribute("Durability", 100)
+							end
+						end)
+					end
+
+					-- Nếu hết sạch cả hộp kiếm dự phòng, tự động tiếp tế tại trạm
+					if AOTConfig.AutoRefillSupplies then
+						refillSuppliesAtStation()
+					end
+				end)
+			end
+
+			-- Lắng nghe sự kiện hồi sinh để reset toàn bộ trạng thái nạp kiếm và mục tiêu khi chết
+			local function onAOTCharacterAdded(newChar)
+				consecutiveSlashes = 0
+				lastReloadTime = 0
+				lastBladeSlashTime = 0
+				currentTargetTitan = nil
+				table.clear(deadTitanCache)
+				refreshCachedGuiElements(true)
+
+				task.spawn(function()
+					local hum = newChar:WaitForChild("Humanoid", 5)
+					if hum then
+						hum.Died:Connect(function()
+							currentTargetTitan = nil
+							consecutiveSlashes = 0
+						end)
+					end
+				end)
+			end
+
+			local lp = Players and Players.LocalPlayer
+			if lp then
+				if lp.Character then
+					onAOTCharacterAdded(lp.Character)
+				end
+				lp.CharacterAdded:Connect(onAOTCharacterAdded)
+			end
+
+			-- Auto Use Skills: Chạy nền độc lập không làm khựng đòn chém M1
+			local lastSkillCast = 0
+			local function performAOTAutoSkills()
+				if not AOTConfig.AutoUseSkills then return end
+				local now = os.clock()
+				if now - lastSkillCast < 1.2 then return end
+				lastSkillCast = now
+
+				task.spawn(function()
+					pcall(function()
+						local postRemote = getAOTRemotes()
+						if postRemote then
+							for slot = 1, 4 do
+								postRemote:FireServer("Skills", "Use", slot)
+								postRemote:FireServer("S_Character", "Skill", slot)
 							end
 						end
 
-						performBFAttack(enemies)
-					end
-				end
-			end)
-			task.wait(0.04)
-		end
-	end)
+						if VirtualInputManager then
+							for _, key in ipairs({ Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four }) do
+								VirtualInputManager:SendKeyEvent(true, key, false, game)
+								task.wait(0.002)
+								VirtualInputManager:SendKeyEvent(false, key, false, game)
+							end
+						end
 
-	task.spawn(function()
-		while not rayfieldDestroyed do
-			pcall(function()
-				if HubConfig.HitboxSize > 15 then
-					local enemies = getBFEnemies()
-					for _, mob in ipairs(enemies) do
-						mob.root.Size = Vector3.new(HubConfig.HitboxSize, HubConfig.HitboxSize, HubConfig.HitboxSize)
-						mob.root.Transparency = 0.85
-						mob.root.CanCollide = false
-					end
-				end
-
-				if HubConfig.AntiAFK and VirtualUser then
-					VirtualUser:CaptureController()
-					VirtualUser:ClickButton2(Vector2.new(50, 50))
-				end
-			end)
-			task.wait(1)
-		end
-	end)
-end
-
--- ============================================================================
--- MENU 3: UNIVERSAL FALLBACK
--- ============================================================================
-local function loadUniversalMenu()
-	local Window = RayfieldLibrary:CreateWindow({
-		Name = "HaiAnh Menu | Universal",
-		LoadingTitle = "HaiAnh Menu",
-		LoadingSubtitle = "Universal Hub",
-		ConfigurationSaving = {
-			Enabled = true,
-			FolderName = "HaiAnhMenuConfig",
-			FileName = "Universal"
-		},
-		KeySystem = false,
-	})
-
-	createFloatingToggle()
-
-	local MainTab = Window:CreateTab("Main", 0)
-	MainTab:CreateSection("Universal Protection")
-
-	MainTab:CreateToggle({
-		Name = "Anti-Ban Remote Shield",
-		CurrentValue = true,
-		Flag = "Uni_AntiBan",
-		Callback = function(Value)
-			AntiBanShield.Enabled = Value
-		end,
-	})
-
-	MainTab:CreateToggle({
-		Name = "Anti AFK",
-		CurrentValue = true,
-		Flag = "Uni_AntiAFK",
-		Callback = function(Value)
-			if Value and VirtualUser then
-				VirtualUser:CaptureController()
-				VirtualUser:ClickButton2(Vector2.new(50, 50))
+						for _, btn in ipairs(cachedGuiState.skills) do
+							if btn and btn.Parent and btn.Visible then
+								clickGuiButtonFast(btn)
+							end
+						end
+					end)
+				end)
 			end
-		end,
-	})
-end
 
--- ============================================================================
--- AUTO EXECUTION ROUTER
--- ============================================================================
-local detectedGame = detectCurrentGame()
-if detectedGame == "AOTR" then
-	loadAOTRMenu()
-elseif detectedGame == "BLOX_FRUITS" then
-	loadBloxFruitsMenu()
-else
-	loadUniversalMenu()
-end
+			-- Auto Titan Shifter v2: Tự biến hình Titan khi thanh năng lượng đầy và tự xuất combo kỹ năng Titan
+			local lastShiftAttempt = 0
+			local lastTitanSkillTime = 0
+			local function performAOTAutoShifter()
+				if not AOTConfig.AutoTitanShift and not AOTConfig.TitanShifterMastery then return end
+				local lp = Players and Players.LocalPlayer
+				local char = lp and lp.Character
+				if not char then return end
 
+				local isShifted = char:GetAttribute("Shifted") == true
+					or char:GetAttribute("IsTitan") == true
+					or char:GetAttribute("Titan") == true
+					or char:FindFirstChild("Titan")
+					or char:FindFirstChild("Shifter")
+
+				local postRemote = getAOTRemotes()
+				local now = os.clock()
+
+				-- Nếu ĐANG trong dạng Titan và bật TitanSkillsBurst: Tự động dùng combo kỹ năng Titan
+				if isShifted then
+					if AOTConfig.TitanSkillsBurst and (now - lastTitanSkillTime >= 0.8) then
+						lastTitanSkillTime = now
+						task.spawn(function()
+							pcall(function()
+								if postRemote then
+									postRemote:FireServer("Attacks", "Roar")
+									postRemote:FireServer("Attacks", "Hardening")
+									postRemote:FireServer("Attacks", "Punch")
+									postRemote:FireServer("Attacks", "TitanSkill", 1)
+									postRemote:FireServer("Attacks", "TitanSkill", 2)
+									postRemote:FireServer("Attacks", "TitanSkill", 3)
+									postRemote:FireServer("S_Character", "Roar")
+									postRemote:FireServer("S_Character", "Skill", 1)
+									postRemote:FireServer("S_Character", "Skill", 2)
+								end
+								if VirtualInputManager then
+									for _, key in ipairs({ Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.F, Enum.KeyCode.E, Enum.KeyCode.V }) do
+										VirtualInputManager:SendKeyEvent(true, key, false, game)
+										task.wait(0.005)
+										VirtualInputManager:SendKeyEvent(false, key, false, game)
+									end
+								end
+							end)
+						end)
+					end
+					return
+				end
+
+				-- Nếu CHƯA biến hình: Kiểm tra cooldown 6s để thử biến hình
+				if now - lastShiftAttempt < 6.0 then return end
+				lastShiftAttempt = now
+
+				task.spawn(function()
+					pcall(function()
+						if postRemote then
+							pcall(function() postRemote:FireServer("S_Character", "Shift") end)
+							pcall(function() postRemote:FireServer("Attacks", "Shift") end)
+							pcall(function() postRemote:FireServer("Character", "Shift") end)
+						end
+						if VirtualInputManager then
+							VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.G, false, game)
+							task.wait(0.02)
+							VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.G, false, game)
+						end
+					end)
+				end)
+			end
+
+			-- Multi-Target Attack v2: Hỗ trợ Thunder Spears AOE Burst & One-Shot Decapitation 500 Vận Tốc
+			local function performAOTMultiAttack(primaryTarget)
+				if not primaryTarget or not primaryTarget.nape then return end
+				pcall(function()
+					local lp = Players and Players.LocalPlayer
+					local char = lp and lp.Character
+					local root = char and char:FindFirstChild("HumanoidRootPart")
+					local postRemote = getAOTRemotes()
+
+					-- Thu thập các Titan khác còn sống trong bán kính đánh lan
+					local targetEntries = { primaryTarget }
+					if AOTConfig.MultiTargetAttack then
+						local allTitans = getTitansList()
+						local maxT = math.clamp(AOTConfig.MaxTargets or 4, 1, 8)
+						local radius = AOTConfig.AttackRadius or 85
+						for _, t in ipairs(allTitans) do
+							if t ~= primaryTarget and t.nape and t.humanoid and t.humanoid.Health > 0 and not isTitanDeadOrInvalid(t.model, t.humanoid, t.nape) then
+								local dToPrimary = (t.nape.Position - primaryTarget.nape.Position).Magnitude
+								local dToPlayer = root and (t.nape.Position - root.Position).Magnitude or dToPrimary
+								if dToPrimary <= radius or dToPlayer <= radius then
+									table.insert(targetEntries, t)
+									if #targetEntries >= maxT then
+										break
+									end
+								end
+							end
+						end
+					end
+
+					local useSpears = (AOTConfig.WeaponMode == "Thunder Spears") or (AOTConfig.WeaponMode == "Auto")
+					local useBlades = (AOTConfig.WeaponMode == "Blades") or (AOTConfig.WeaponMode == "Auto")
+					local now = os.clock()
+
+					-- 1. Bắn thương sấm sét (Thunder Spears) trực tiếp vào Gáy & AOE Burst
+					local isHighThreat = primaryTarget.isBoss or primaryTarget.isCrawler or #targetEntries >= 2
+					if (useSpears or (AOTConfig.AutoSpearsBurst and isHighThreat)) and (now - lastSpearFireTime >= 0.45) then
+						lastSpearFireTime = now
+						for _, entry in ipairs(targetEntries) do
+							if entry.nape and postRemote then
+								pcall(function()
+									postRemote:FireServer("S_Equipment", "Spears", "Fire",
+										entry.nape.Position)
+								end)
+								pcall(function() postRemote:FireServer("Attacks", "Spears", entry.nape.Position) end)
+								pcall(function() postRemote:FireServer("Hitboxes", "Register", entry.nape, 500, 100) end)
+							end
+						end
+
+						if VirtualInputManager then
+							VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+							task.spawn(function()
+								task.wait(0.005)
+								VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+							end)
+						end
+					end
+
+					-- 2. Boss Mechanics: Phá giáp khớp chân Armored Titan
+					if AOTConfig.AutoBossMechanics and primaryTarget.isBoss and postRemote then
+						local titanModel = primaryTarget.model
+						for _, partName in ipairs({ "Leg_L", "Leg_R", "Knee_L", "Knee_R", "Ankle_L", "Ankle_R", "Arm_L", "Arm_R" }) do
+							local bodyPart = titanModel:FindFirstChild(partName, true)
+							if bodyPart and bodyPart:IsA("BasePart") then
+								pcall(function() postRemote:FireServer("Hitboxes", "Register", bodyPart, 500, 100) end)
+							end
+						end
+					end
+
+					-- 3. Chém kiếm (Blades Slash) – Truyền vận tốc chém 500 + 100% crit để kết liễu Titan ngay lập tức
+					local slashCooldown = AOTConfig.SafeLegitDelay and 0.30 or 0.18
+					if useBlades and (now - lastBladeSlashTime >= slashCooldown) then
+						lastBladeSlashTime = now
+						consecutiveSlashes = consecutiveSlashes + 1
+
+						if postRemote then
+							pcall(function() postRemote:FireServer("Attacks", "Slash", true) end)
+							pcall(function() postRemote:FireServer("Attacks", "Slash_Release") end)
+							pcall(function() postRemote:FireServer("Attacks", "M1") end)
+						end
+
+						for _, entry in ipairs(targetEntries) do
+							local nape = entry.nape
+							if nape and postRemote then
+								pcall(function() postRemote:FireServer("Hitboxes", "Register", nape, 500, 100) end)
+								pcall(function()
+									postRemote:FireServer("Hitboxes", "Register", nape,
+										math.random(460, 500), 100)
+								end)
+								pcall(function() postRemote:FireServer("Hitboxes", "Register", nape, 500) end)
+							end
+						end
+
+						if VirtualInputManager then
+							VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+							task.spawn(function()
+								task.wait(0.012)
+								VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+							end)
+						end
+						activateEquippedTool()
+						triggerMobileM1Attack()
+						performAOTAutoSkills()
+					end
+				end)
+			end
+
+			-- 1. Anti-Gravity Stepped Loop: Giữ nhân vật lơ lửng, triệt tiêu trọng lực & Map NoClip
+			local RunService = getService("RunService")
+			RunService.Stepped:Connect(function()
+				if not (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid) then
+					return
+				end
+				local lp = Players and Players.LocalPlayer
+				local char = lp and lp.Character
+				local root = char and char:FindFirstChild("HumanoidRootPart")
+				local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+				if char and hum and hum.Health > 0 then
+					for _, part in ipairs(char:GetDescendants()) do
+						if part:IsA("BasePart") and part.CanCollide then
+							part.CanCollide = false
+						end
+					end
+					if root then
+						root.Velocity = Vector3.zero
+						root.RotVelocity = Vector3.zero
+						root.AssemblyLinearVelocity = Vector3.zero
+						root.AssemblyAngularVelocity = Vector3.zero
+					end
+				end
+			end)
+
+			-- 2. Heartbeat Farm Flight: Khóa vị trí TRÊN CAO AN TOÀN (10 studs trên gáy), chống Titan bắt và chém 100% trúng gáy
+			RunService.Heartbeat:Connect(function(dt)
+				if not (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid) then
+					return
+				end
+				pcall(function()
+					local lp = Players and Players.LocalPlayer
+					local char = lp and lp.Character
+					local root = char and char:FindFirstChild("HumanoidRootPart")
+					if not root then return end
+
+					-- Đổi sang mục tiêu sống tiếp theo NGAY LẬP TỨC khi Titan chết hoặc mất hitbox (< 16ms)
+					if not currentTargetTitan
+						or not currentTargetTitan.model
+						or not currentTargetTitan.nape
+						or isTitanDeadOrInvalid(currentTargetTitan.model, currentTargetTitan.humanoid, currentTargetTitan.nape) then
+						if currentTargetTitan and currentTargetTitan.model then
+							onTitanDied(currentTargetTitan.model)
+						end
+						local list = getTitansList()
+						currentTargetTitan = list[1]
+					end
+
+					if currentTargetTitan and currentTargetTitan.nape and currentTargetTitan.nape.Parent then
+						local titanModel = currentTargetTitan.model
+						local titanRoot = titanModel:FindFirstChild("HumanoidRootPart") or
+							titanModel:FindFirstChild("Torso") or titanModel:FindFirstChild("UpperTorso") or
+							titanModel.PrimaryPart
+						local titanPivot = titanModel:GetPivot()
+						local napePart = currentTargetTitan.nape
+						local napePos = napePart.Position
+
+						local lookVec = titanRoot and titanRoot.CFrame.LookVector or titanPivot.LookVector
+						local behindDist = math.clamp(AOTConfig.BehindNapeDistance or 2.0, 0.5, 12)
+						local heightOffset = math.clamp(AOTConfig.HoverHeight or 10, 2, 35)
+
+						if AOTConfig.FarmPosition == "High Sky (Anti-Grab)" then
+							behindDist = 1.0
+							heightOffset = 16
+						elseif AOTConfig.FarmPosition == "Behind Nape" then
+							behindDist = 3.0
+							heightOffset = 6
+						end
+
+						-- Auto Dodge: Nếu phát hiện Titan vung tay hoặc chồm tới, bay bổng lên thêm 14 studs để né đòn
+						if AOTConfig.AutoDodge then
+							local isAttacking = titanModel:GetAttribute("Attacking") or
+								titanModel:GetAttribute("Swinging") or titanModel:GetAttribute("Grabbing")
+							if isAttacking then
+								heightOffset = heightOffset + 14
+							end
+						end
+
+						-- Vị trí: Đứng cao an toàn phía trên gáy
+						local goalPos = napePos - (lookVec * behindDist) + Vector3.new(0, heightOffset, 0)
+						local targetCF = CFrame.lookAt(goalPos, napePos)
+
+						local currentCF = root.CFrame
+						local dist = (goalPos - currentCF.Position).Magnitude
+
+						if AOTConfig.InstantTeleport then
+							-- Chế độ Teleport tức thì: Snap thẳng đến sau gáy không cần bay
+							root.CFrame = targetCF
+						else
+							if dist > 1.2 then
+								local speed = math.max(AOTConfig.FlightSpeed or 420, 200)
+								-- Adaptive Altitude: Nếu Titan ở xa (> 60 studs), giữ độ cao trên không trung để không bị vướng nhà cửa cây cối
+								if dist > 60 then
+									local highGoal = Vector3.new(goalPos.X,
+										math.max(currentCF.Position.Y, goalPos.Y + 20), goalPos.Z)
+									local highCF = CFrame.lookAt(highGoal, napePos)
+									local alpha = math.clamp((speed * dt) / math.max(dist, 1), 0.35, 1)
+									root.CFrame = currentCF:Lerp(highCF, alpha)
+								else
+									local alpha = math.clamp((speed * dt) / math.max(dist, 1), 0.40, 1)
+									root.CFrame = currentCF:Lerp(targetCF, alpha)
+								end
+							else
+								root.CFrame = targetCF
+							end
+						end
+
+						-- Khóa góc nhìn Camera thẳng vào tâm Gáy
+						local cam = Workspace and Workspace.CurrentCamera
+						if cam then
+							cam.CFrame = CFrame.lookAt(cam.CFrame.Position, napePos)
+						end
+					end
+				end)
+			end)
+
+			-- 3. Dedicated Hitbox Extender Engine & Anti-Grab Shield: Vô hiệu hóa hitbox người/bắt và đưa Gáy đến trước kiếm
+			RunService.Heartbeat:Connect(function()
+				if not (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid or AOTConfig.HitboxExtender) then return end
+				local sz = AOTConfig.NapeHitboxSize or 120
+				pcall(function()
+					local searchFolders = {}
+					for _, fName in ipairs({ "Titans", "Enemies", "Boss", "Bosses", "Raid", "Spawns", "Entities" }) do
+						local f = Workspace:FindFirstChild(fName)
+						if f then table.insert(searchFolders, f) end
+					end
+					if #searchFolders == 0 then table.insert(searchFolders, Workspace) end
+
+					local lp = Players and Players.LocalPlayer
+					local char = lp and lp.Character
+					local root = char and char:FindFirstChild("HumanoidRootPart")
+
+					for _, folder in ipairs(searchFolders) do
+						for _, titan in ipairs(folder:GetChildren()) do
+							if titan:IsA("Model") and titan ~= char then
+								local hb = titan:FindFirstChild("Hitboxes")
+								if hb then
+									for _, sub in ipairs(hb:GetDescendants()) do
+										if sub:IsA("BasePart") then
+											if sub.Name == "Nape" then
+												sub.CanTouch = true
+												sub.CanCollide = false
+												sub.Massless = true
+												if AOTConfig.HitboxExtender then
+													sub.Size = Vector3.new(sz, sz, sz)
+												end
+												if AOTConfig.ShowNapeHitbox then
+													sub.Transparency = 0.45
+													sub.Color = AOTConfig.ESPColor
+													sub.Material = Enum.Material.Neon
+												else
+													sub.Transparency = 0.88
+												end
+											else
+												-- TRIỆT TIÊU 100% HITBOX NGƯỜI VÀ GRAB: Body, Torso, Arms, Legs, Eyes, Grab
+												sub.CanTouch = false
+												sub.CanCollide = false
+											end
+										end
+									end
+								end
+								for _, part in ipairs(titan:GetChildren()) do
+									if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+										part.CanTouch = false
+									end
+								end
+
+								-- Bring Nape to Weapon: Đưa Nape của Titan mục tiêu đến ngay trước lưỡi kiếm để 100% chém trúng gáy
+								if currentTargetTitan and currentTargetTitan.model == titan and root and currentTargetTitan.nape and currentTargetTitan.nape.Parent then
+									currentTargetTitan.nape.CanCollide = false
+									currentTargetTitan.nape.CFrame = root.CFrame * CFrame.new(0, -1, -2.5)
+								end
+							end
+						end
+					end
+				end)
+			end)
+
+			-- 4. Combat Loop: Tấn công liên tục 60 FPS, chém chính diện gáy, tự nạp kiếm thông minh
+			local lastTargetTitan = nil
+			task.spawn(function()
+				while not rayfieldDestroyed do
+					local delayTime = 0.04
+					if AOTConfig.SafeLegitDelay then
+						delayTime = math.random(80, 120) / 1000
+					end
+
+					pcall(function()
+						local titans = getTitansList()
+						currentTargetTitan = titans[1]
+
+						-- Phát hiện khi Titan vừa chết: Đánh dấu tử và đổi mục tiêu ngay lập tức không bị khựng lại
+						if lastTargetTitan and isTitanDeadOrInvalid(lastTargetTitan.model, lastTargetTitan.humanoid, lastTargetTitan.nape) then
+							onTitanDied(lastTargetTitan.model)
+							currentTargetTitan = nil
+							if AOTConfig.ReloadAfterTitanKill and consecutiveSlashes >= 12 then
+								task.spawn(function()
+									performAOTReload(true)
+								end)
+							end
+						end
+						lastTargetTitan = currentTargetTitan
+
+						if AOTConfig.AutoTitanShift or AOTConfig.TitanShifterMastery then
+							performAOTAutoShifter()
+						end
+
+						-- Chém mục tiêu
+						local primaryTarget = nil
+						if (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid) and currentTargetTitan then
+							if currentTargetTitan.dist <= 180 then
+								primaryTarget = currentTargetTitan
+							end
+						elseif AOTConfig.KillAura and currentTargetTitan then
+							if currentTargetTitan.dist <= AOTConfig.KillAuraRange then
+								primaryTarget = currentTargetTitan
+							end
+						end
+
+						if primaryTarget then
+							performAOTMultiAttack(primaryTarget)
+						end
+
+						-- Tự động nạp kiếm thông minh khi kiếm cùn hoặc gãy
+						if AOTConfig.AutoReloadWhenBroken and isBladeActuallyBroken() then
+							performAOTReload(false)
+						end
+					end)
+					task.wait(delayTime)
+				end
+			end)
+
+			-- 5. Buff Loop: Godmode, Auto Escape Grab, Gas Durability, Infinite Hook, No Cooldown
+			task.spawn(function()
+				while not rayfieldDestroyed do
+					pcall(function()
+						local lp = Players and Players.LocalPlayer
+						local char = lp and lp.Character
+						local titans = getTitansList()
+						local postRemote = getAOTRemotes()
+
+						if AOTConfig.Godmode then
+							for _, t in ipairs(titans) do
+								local hb = t.model:FindFirstChild("Hitboxes")
+								if hb then
+									for _, sub in ipairs(hb:GetDescendants()) do
+										if sub:IsA("BasePart") and sub.Name ~= "Nape" then
+											sub.CanTouch = false
+											sub.CanCollide = false
+										end
+									end
+								end
+								for _, part in ipairs(t.model:GetDescendants()) do
+									if part:IsA("BasePart") and (string.find(string.lower(part.Name), "steam", 1, true) or string.find(string.lower(part.Name), "burn", 1, true) or string.find(string.lower(part.Name), "damage", 1, true)) then
+										part.CanTouch = false
+										part.CanCollide = false
+									end
+								end
+							end
+						end
+
+						if char then
+							if AOTConfig.Godmode then
+								local hum = char:FindFirstChildOfClass("Humanoid")
+								if hum and hum.Health > 0 and hum.Health < hum.MaxHealth then
+									pcall(function() hum.Health = hum.MaxHealth end)
+								end
+								pcall(function()
+									char:SetAttribute("Invulnerable", true)
+									char:SetAttribute("IFrame", true)
+								end)
+							end
+							if AOTConfig.AutoEscapeGrab then
+								local grabbed = char:FindFirstChild("Grabbed") or char:GetAttribute("Grabbed")
+								if grabbed then
+									pcall(function()
+										if postRemote then
+											postRemote:FireServer("Attacks", "Grab_Escape")
+											postRemote:FireServer("S_Character", "Escape")
+										end
+										triggerActionButtons({ "escape", "thoát", "thoat", "break" })
+									end)
+								end
+							end
+							if AOTConfig.InfiniteGasDurability then
+								pcall(function()
+									char:SetAttribute("Gas", 100)
+									char:SetAttribute("Blades", 100)
+									char:SetAttribute("MaxGas", 100)
+									char:SetAttribute("InfiniteGas", true)
+								end)
+							end
+							if AOTConfig.InfiniteHookRange then
+								pcall(function()
+									char:SetAttribute("HookRange", 999999)
+									char:SetAttribute("MaxHookRange", 999999)
+								end)
+							end
+							if AOTConfig.NoCooldown then
+								pcall(function()
+									char:SetAttribute("Cooldown", 0)
+									char:SetAttribute("SkillCooldown", 0)
+								end)
+							end
+						end
+					end)
+					task.wait(0.12)
+				end
+			end)
+
+			-- 6. Raid & Story VIP Automation Loop
+			task.spawn(function()
+				while not rayfieldDestroyed do
+					pcall(function()
+						local postRemote = getAOTRemotes()
+
+						if AOTConfig.AutoRaid then
+							triggerActionButtons({ "start", "bắt đầu", "bat dau", "ready", "sẵn sàng", "join", "tham gia" })
+							if AOTConfig.AutoOpenRaidChests then
+								triggerActionButtons({ "claim", "nhận", "nhan", "open", "mở", "chest", "rương" })
+							end
+							if AOTConfig.AutoRetry then
+								triggerActionButtons({ "retry", "chơi lại", "choi lai", "replay" })
+							end
+
+							if (AOTConfig.AutoFireCannons or AOTConfig.AutoOpenRaidChests) and fireproximityprompt and Workspace then
+								for _, obj in ipairs(Workspace:GetDescendants()) do
+									if obj:IsA("ProximityPrompt") and obj.Enabled then
+										pcall(function() fireproximityprompt(obj, 1) end)
+									end
+								end
+							end
+
+							if AOTConfig.AutoUpgradeHQ and postRemote then
+								pcall(function() postRemote:FireServer("Shop", "UpgradeHQ") end)
+								pcall(function() postRemote:FireServer("Raid", "Upgrade") end)
+								triggerActionButtons({ "upgrade", "nâng cấp", "nang cap", "hq", "fortify" })
+							end
+						end
+
+						if AOTConfig.AutoStoryMission then
+							triggerActionButtons({ "start", "bắt đầu", "deploy", "ra trận", "ready" })
+							if AOTConfig.AutoNextMission then
+								triggerActionButtons({ "next", "tiếp tục", "tiep tuc", "continue" })
+							end
+							if AOTConfig.AutoRetry then
+								triggerActionButtons({ "retry", "chơi lại", "choi lai" })
+							end
+						end
+					end)
+					task.wait(1.5)
+				end
+			end)
+
+			-- 7. Gacha / Spin Automation Loop
+			task.spawn(function()
+				while not rayfieldDestroyed do
+					pcall(function()
+						local postRemote = getAOTRemotes()
+						local lp = Players and Players.LocalPlayer
+						if AOTConfig.AutoRollFamily and postRemote then
+							local currentClan = lp and (lp:GetAttribute("Family") or lp:GetAttribute("Clan"))
+							local matched = false
+							if currentClan then
+								for _, target in ipairs(AOTConfig.TargetClans) do
+									if string.lower(tostring(currentClan)) == string.lower(tostring(target)) then
+										matched = true
+										break
+									end
+								end
+							end
+							if matched then
+								AOTConfig.AutoRollFamily = false
+								RayfieldLibrary:Notify({
+									Title = "Gacha Success",
+									Content = "Rolled Target Family: " .. tostring(currentClan),
+									Duration = 7,
+								})
+							else
+								postRemote:FireServer("Slots", "Roll", "Family")
+							end
+						end
+
+						if AOTConfig.AutoRollPerks and postRemote then
+							local currentPerk = lp and (lp:GetAttribute("Perk") or lp:GetAttribute("EquippedPerk"))
+							local matchedPerk = false
+							if currentPerk and AOTConfig.TargetPerks then
+								for _, pTarget in ipairs(AOTConfig.TargetPerks) do
+									if string.find(string.lower(tostring(currentPerk)), string.lower(tostring(pTarget)), 1, true) then
+										matchedPerk = true
+										break
+									end
+								end
+							end
+							if matchedPerk then
+								AOTConfig.AutoRollPerks = false
+								RayfieldLibrary:Notify({
+									Title = "Perk Success",
+									Content = "Rolled Target Perk: " .. tostring(currentPerk),
+									Duration = 7,
+								})
+							else
+								postRemote:FireServer("Slots", "Roll", "Perks")
+							end
+						end
+					end)
+					task.wait(0.6)
+				end
+			end)
+
+			-- 8. Anti-AFK & Shadowban Monitor Loop
+			task.spawn(function()
+				while not rayfieldDestroyed do
+					pcall(function()
+						if AOTConfig.AntiAFK then
+							local vu = VirtualUser
+							if vu then
+								vu:CaptureController()
+								vu:ClickButton2(Vector2.new(50, 50))
+							end
+						end
+
+						if AOTConfig.AutoShadowbanCheck then
+							local lp = Players and Players.LocalPlayer
+							if lp then
+								for attrName, attrVal in pairs(lp:GetAttributes()) do
+									local lower = string.lower(tostring(attrName))
+									if (string.find(lower, "shadowban", 1, true) or string.find(lower, "ban", 1, true) or string.find(lower, "restrict", 1, true)) and attrVal == true then
+										AOTConfig.AutoFarmTitan = false
+										AOTConfig.AutoRaid = false
+										RayfieldLibrary:Notify({
+											Title = "Emergency Stop",
+											Content = "Shadowban detected! Auto Farm stopped to prevent ban.",
+											Duration = 10,
+										})
+										break
+									end
+								end
+							end
+						end
+					end)
+					task.wait(15)
+				end
+			end)
+
+			-- 9. Visuals / Titan ESP Loop
+			local function cleanupESP()
+				for _, esp in pairs(espObjects) do
+					pcall(function()
+						if esp.highlight then esp.highlight:Destroy() end
+						if esp.billboard then esp.billboard:Destroy() end
+					end)
+				end
+				espObjects = {}
+			end
+
+			task.spawn(function()
+				while not rayfieldDestroyed do
+					pcall(function()
+						if not AOTConfig.TitanESP then
+							cleanupESP()
+							return
+						end
+
+						local titans = getTitansList()
+						local seenTitans = {}
+
+						for _, t in ipairs(titans) do
+							if t.model and t.model.Parent and t.dist <= AOTConfig.ESPMaxDistance then
+								seenTitans[t.model] = true
+								local esp = espObjects[t.model]
+								if not esp then
+									esp = {}
+									espObjects[t.model] = esp
+
+									local hl = Instance.new("Highlight")
+									hl.Name = "TitanHighlight"
+									hl.Adornee = t.model
+									hl.FillColor = AOTConfig.ESPColor
+									hl.FillTransparency = 0.72
+									hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+									hl.OutlineTransparency = 0.2
+									hl.Parent = t.model
+									esp.highlight = hl
+
+									local bb = Instance.new("BillboardGui")
+									bb.Name = "TitanInfo"
+									bb.Adornee = t.nape or t.model:FindFirstChild("Head")
+									bb.Size = UDim2.new(0, 180, 0, 45)
+									bb.StudsOffset = Vector3.new(0, 5, 0)
+									bb.AlwaysOnTop = true
+
+									local lbl = Instance.new("TextLabel")
+									lbl.Size = UDim2.new(1, 0, 1, 0)
+									lbl.BackgroundTransparency = 1
+									lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+									lbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+									lbl.TextStrokeTransparency = 0.2
+									lbl.Font = Enum.Font.GothamBold
+									lbl.TextSize = 13
+									lbl.Parent = bb
+									esp.label = lbl
+									esp.billboard = bb
+									bb.Parent = t.model
+								end
+
+								if esp.highlight then
+									esp.highlight.FillColor = AOTConfig.ESPColor
+								end
+
+								if esp.label then
+									local hpText = "HP: 100%"
+									if t.humanoid then
+										local pct = math.clamp(
+											math.floor((t.humanoid.Health / math.max(t.humanoid.MaxHealth, 1)) * 100), 0,
+											100)
+										hpText = "HP: " .. pct .. "%"
+									end
+									esp.label.Text = string.format("%s [%dm] | %s", t.cleanName, math.floor(t.dist),
+										hpText)
+								end
+							end
+						end
+
+						for model, esp in pairs(espObjects) do
+							if not seenTitans[model] or not model.Parent then
+								pcall(function()
+									if esp.highlight then esp.highlight:Destroy() end
+									if esp.billboard then esp.billboard:Destroy() end
+								end)
+								espObjects[model] = nil
+							end
+						end
+					end)
+					task.wait(0.2)
+				end
+				cleanupESP()
+			end)
+
+			-- 10. Performance, Screen Shake & Farm Statistics HUD Loop
+			local hudGui = nil
+			local hudTitansLabel = nil
+			local hudKpmLabel = nil
+			local hudBladesLabel = nil
+			local hudTimeLabel = nil
+			local hudTargetLabel = nil
+
+			updateFarmHUD = function()
+				if not AOTConfig.ShowFarmHUD then
+					if hudGui then hudGui.Enabled = false end
+					return
+				end
+
+				if not hudGui then
+					local parentGui = (gethui and gethui()) or
+						(CoreGui and pcall(function() return CoreGui end) and CoreGui) or
+						(lp and lp:FindFirstChild("PlayerGui"))
+					if not parentGui then return end
+
+					hudGui = Instance.new("ScreenGui")
+					hudGui.Name = "HaiAnh_AOTR_FarmHUD"
+					hudGui.ResetOnSpawn = false
+					hudGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+					local mainFrame = Instance.new("Frame")
+					mainFrame.Name = "MainFrame"
+					mainFrame.Size = UDim2.new(0, 240, 0, 155)
+					mainFrame.Position = UDim2.new(0, 20, 0.5, -80)
+					mainFrame.BackgroundColor3 = Color3.fromRGB(18, 16, 26)
+					mainFrame.BackgroundTransparency = 0.15
+					mainFrame.BorderSizePixel = 0
+					mainFrame.Active = true
+					mainFrame.Draggable = true
+					mainFrame.Parent = hudGui
+
+					local corner = Instance.new("UICorner")
+					corner.CornerRadius = UDim.new(0, 10)
+					corner.Parent = mainFrame
+
+					local stroke = Instance.new("UIStroke")
+					stroke.Color = Color3.fromRGB(170, 95, 255)
+					stroke.Thickness = 1.5
+					stroke.Transparency = 0.3
+					stroke.Parent = mainFrame
+
+					local title = Instance.new("TextLabel")
+					title.Size = UDim2.new(1, 0, 0, 28)
+					title.BackgroundTransparency = 1
+					title.Font = Enum.Font.GothamBold
+					title.Text = "⚔️ AOT:R FARM STATS"
+					title.TextColor3 = Color3.fromRGB(200, 150, 255)
+					title.TextSize = 13
+					title.Parent = mainFrame
+
+					local function createRow(name, yPos)
+						local lbl = Instance.new("TextLabel")
+						lbl.Name = name
+						lbl.Size = UDim2.new(1, -20, 0, 22)
+						lbl.Position = UDim2.new(0, 10, 0, yPos)
+						lbl.BackgroundTransparency = 1
+						lbl.Font = Enum.Font.GothamMedium
+						lbl.TextColor3 = Color3.fromRGB(235, 235, 245)
+						lbl.TextSize = 12
+						lbl.TextXAlignment = Enum.TextXAlignment.Left
+						lbl.Parent = mainFrame
+						return lbl
+					end
+
+					hudTitansLabel = createRow("TitansLabel", 30)
+					hudKpmLabel = createRow("KpmLabel", 54)
+					hudBladesLabel = createRow("BladesLabel", 78)
+					hudTimeLabel = createRow("TimeLabel", 102)
+					hudTargetLabel = createRow("TargetLabel", 126)
+
+					pcall(function() hudGui.Parent = parentGui end)
+				end
+
+				hudGui.Enabled = true
+
+				local elapsed = math.max(os.clock() - farmStats.startTime, 1)
+				local mins = elapsed / 60
+				local kpm = math.floor((farmStats.titansKilled / mins) * 10) / 10
+				local h = math.floor(elapsed / 3600)
+				local m = math.floor((elapsed % 3600) / 60)
+				local s = math.floor(elapsed % 60)
+				local timeStr = string.format("%02d:%02d:%02d", h, m, s)
+
+				local targetName = currentTargetTitan and currentTargetTitan.cleanName or "None"
+
+				hudTitansLabel.Text = "💀 Titans Slayed: " .. tostring(farmStats.titansKilled)
+				hudKpmLabel.Text = "⚡ Kill Rate: " .. tostring(kpm) .. " / min"
+				hudBladesLabel.Text = "🗡️ Blades Used: " .. tostring(farmStats.bladesReloaded)
+				hudTimeLabel.Text = "⏱️ Runtime: " .. timeStr
+				hudTargetLabel.Text = "🎯 Target: " .. targetName
+			end
+
+			disableScreenShake = function()
+				if not AOTConfig.DisableScreenShake then return end
+				pcall(function()
+					local cam = Workspace.CurrentCamera
+					if cam then
+						local camScript = cam:FindFirstChild("CameraShake") or cam:FindFirstChild("Shake")
+						if camScript then camScript:Destroy() end
+					end
+					local Lighting = getService("Lighting")
+					if Lighting then
+						for _, effect in ipairs(Lighting:GetChildren()) do
+							if effect:IsA("BlurEffect") and string.find(string.lower(effect.Name), "shake", 1, true) then
+								effect.Enabled = false
+							end
+						end
+					end
+				end)
+			end
+
+			task.spawn(function()
+				while not rayfieldDestroyed do
+					pcall(function()
+						updateFarmHUD()
+						disableScreenShake()
+					end)
+					task.wait(1.0)
+				end
+				if hudGui then
+					pcall(function() hudGui:Destroy() end)
+				end
+			end)
+		end
+
+		-- ============================================================================
+		-- MENU 2: BLOX FRUITS (HAIANH MENU VIP EDITION)
+		-- ============================================================================
+		local function loadBloxFruitsMenu()
+			local HubConfig = {
+				SelectedWeapon = "Melee",
+				AttackSpeed = "Super Fast",
+				HoverHeight = 15,
+				FlightSpeed = 260,
+				BringMobs = true,
+				AutoBuso = true,
+				AutoLevel = false,
+				AutoNearestMob = false,
+				AutoBoss = false,
+				AutoCandy = false,
+				KillAura = false,
+				HitboxSize = 65,
+				AutoStatMelee = false,
+				AutoStatDefense = false,
+				AutoStatSword = false,
+				AutoStatFruit = false,
+				AntiAFK = true,
+			}
+
+			local Window = RayfieldLibrary:CreateWindow({
+				Name = "HaiAnh Menu | Blox Fruits",
+				LoadingTitle = "HaiAnh Menu",
+				LoadingSubtitle = "Blox Fruits",
+				ConfigurationSaving = {
+					Enabled = true,
+					FolderName = "HaiAnhMenuConfig",
+					FileName = "BloxFruits"
+				},
+				KeySystem = false,
+			})
+
+			createFloatingToggle()
+
+			-- TAB 1: Auto Farm
+			local FarmTab = Window:CreateTab("Auto Farm", 0)
+			FarmTab:CreateSection("Farm Settings")
+
+			FarmTab:CreateDropdown({
+				Name = "Select Weapon",
+				Options = { "Melee", "Sword", "Fruit" },
+				CurrentOption = { "Melee" },
+				MultipleOptions = false,
+				Flag = "BF_Weapon",
+				Callback = function(Option)
+					HubConfig.SelectedWeapon = type(Option) == "table" and Option[1] or Option
+				end,
+			})
+
+			FarmTab:CreateSlider({
+				Name = "Farm Distance",
+				Range = { 5, 30 },
+				Increment = 1,
+				Suffix = "Studs",
+				CurrentValue = 15,
+				Flag = "BF_FarmDist",
+				Callback = function(Value)
+					HubConfig.HoverHeight = Value
+				end,
+			})
+
+			FarmTab:CreateSlider({
+				Name = "Tween Speed",
+				Range = { 150, 400 },
+				Increment = 10,
+				Suffix = "Studs/s",
+				CurrentValue = 260,
+				Flag = "BF_FlightSpeed",
+				Callback = function(Value)
+					HubConfig.FlightSpeed = Value
+				end,
+			})
+
+			FarmTab:CreateToggle({
+				Name = "Bring Mobs",
+				CurrentValue = true,
+				Flag = "BF_BringMobs",
+				Callback = function(Value)
+					HubConfig.BringMobs = Value
+				end,
+			})
+
+			FarmTab:CreateToggle({
+				Name = "Auto Buso Haki",
+				CurrentValue = true,
+				Flag = "BF_AutoBuso",
+				Callback = function(Value)
+					HubConfig.AutoBuso = Value
+				end,
+			})
+
+			FarmTab:CreateSection("Level Farming")
+
+			FarmTab:CreateToggle({
+				Name = "Auto Farm Level",
+				CurrentValue = false,
+				Flag = "BF_AutoLevel",
+				Callback = function(Value)
+					HubConfig.AutoLevel = Value
+				end,
+			})
+
+			FarmTab:CreateToggle({
+				Name = "Auto Farm Nearest Mob",
+				CurrentValue = false,
+				Flag = "BF_AutoNearest",
+				Callback = function(Value)
+					HubConfig.AutoNearestMob = Value
+				end,
+			})
+
+			FarmTab:CreateToggle({
+				Name = "Auto Farm Bosses",
+				CurrentValue = false,
+				Flag = "BF_AutoBoss",
+				Callback = function(Value)
+					HubConfig.AutoBoss = Value
+				end,
+			})
+
+			-- TAB 2: Combat & Stats
+			local CombatTab = Window:CreateTab("Combat & Stats", 0)
+			CombatTab:CreateSection("Combat & Aura")
+
+			CombatTab:CreateToggle({
+				Name = "Fast Attack Kill Aura",
+				CurrentValue = false,
+				Flag = "BF_KillAura",
+				Callback = function(Value)
+					HubConfig.KillAura = Value
+				end,
+			})
+
+			CombatTab:CreateSlider({
+				Name = "Mob Hitbox Expander",
+				Range = { 15, 120 },
+				Increment = 5,
+				Suffix = "Studs",
+				CurrentValue = 65,
+				Flag = "BF_Hitbox",
+				Callback = function(Value)
+					HubConfig.HitboxSize = Value
+				end,
+			})
+
+			CombatTab:CreateSection("Auto Stats")
+
+			CombatTab:CreateToggle({
+				Name = "Auto Melee Stat",
+				CurrentValue = false,
+				Flag = "BF_StatMelee",
+				Callback = function(Value)
+					HubConfig.AutoStatMelee = Value
+				end,
+			})
+
+			CombatTab:CreateToggle({
+				Name = "Auto Defense Stat",
+				CurrentValue = false,
+				Flag = "BF_StatDefense",
+				Callback = function(Value)
+					HubConfig.AutoStatDefense = Value
+				end,
+			})
+
+			CombatTab:CreateToggle({
+				Name = "Auto Sword Stat",
+				CurrentValue = false,
+				Flag = "BF_StatSword",
+				Callback = function(Value)
+					HubConfig.AutoStatSword = Value
+				end,
+			})
+
+			CombatTab:CreateToggle({
+				Name = "Auto Demon Fruit Stat",
+				CurrentValue = false,
+				Flag = "BF_StatFruit",
+				Callback = function(Value)
+					HubConfig.AutoStatFruit = Value
+				end,
+			})
+
+			-- TAB 3: Misc & Anti-Ban
+			local MiscTab = Window:CreateTab("Misc & Anti-Ban", 0)
+			MiscTab:CreateSection("Account Protection")
+
+			MiscTab:CreateToggle({
+				Name = "Anti-Ban Remote Shield",
+				CurrentValue = true,
+				Flag = "BF_AntiBan",
+				Callback = function(Value)
+					AntiBanShield.Enabled = Value
+				end,
+			})
+
+			MiscTab:CreateToggle({
+				Name = "Anti AFK",
+				CurrentValue = true,
+				Flag = "BF_AntiAFK",
+				Callback = function(Value)
+					HubConfig.AntiAFK = Value
+				end,
+			})
+
+			MiscTab:CreateButton({
+				Name = "Check Shield Status",
+				Callback = function()
+					RayfieldLibrary:Notify({
+						Title = "Anti-Ban Shield",
+						Content = "Active: Blocked " .. tostring(AntiBanShield.BlockedCount) .. " malicious remote calls",
+						Duration = 5,
+					})
+				end,
+			})
+
+			-- BF Logic Loops
+			local function getBFEnemies()
+				local enemies = {}
+				local lp = Players and Players.LocalPlayer
+				local char = lp and lp.Character
+				local root = char and char:FindFirstChild("HumanoidRootPart")
+				local folder = Workspace:FindFirstChild("Enemies")
+				if folder then
+					for _, mob in ipairs(folder:GetChildren()) do
+						local hum = mob:FindFirstChildOfClass("Humanoid")
+						local hrp = mob:FindFirstChild("HumanoidRootPart")
+						if hum and hum.Health > 0 and hrp then
+							local dist = root and (hrp.Position - root.Position).Magnitude or 9999
+							table.insert(enemies, { model = mob, humanoid = hum, root = hrp, dist = dist })
+						end
+					end
+				end
+				table.sort(enemies, function(a, b) return a.dist < b.dist end)
+				return enemies
+			end
+
+			local function equipBFWeapon()
+				pcall(function()
+					local lp = Players and Players.LocalPlayer
+					local char = lp and lp.Character
+					local bp = lp and lp:FindFirstChildOfClass("Backpack")
+					if not char or not bp then return end
+					local targetType = HubConfig.SelectedWeapon
+					for _, tool in ipairs(bp:GetChildren()) do
+						if tool:IsA("Tool") then
+							local tType = tool:GetAttribute("WeaponType") or tool.ToolTip or tool.Name
+							if string.find(string.lower(tType), string.lower(targetType), 1, true) then
+								char.Humanoid:EquipTool(tool)
+								break
+							end
+						end
+					end
+				end)
+			end
+
+			local function performBFAttack(targets)
+				pcall(function()
+					local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+					local validator = remotes and remotes:FindFirstChild("Validator")
+					if validator then
+						validator:FireServer(math.floor(os.clock()))
+					end
+
+					local combatRemote = (ReplicatedStorage:FindFirstChild("Modules") and ReplicatedStorage.Modules:FindFirstChild("Net") and ReplicatedStorage.Modules.Net:FindFirstChild("RE/CombatRegister"))
+						or ReplicatedStorage:FindFirstChild("RE/CombatRegister", true)
+
+					if combatRemote then
+						combatRemote:FireServer(0.1)
+					end
+
+					if VirtualUser then
+						VirtualUser:CaptureController()
+						VirtualUser:ClickButton1(Vector2.new(640, 360))
+					end
+				end)
+			end
+
+			local function tweenBFFlight(targetPos)
+				pcall(function()
+					local lp = Players and Players.LocalPlayer
+					local char = lp and lp.Character
+					local root = char and char:FindFirstChild("HumanoidRootPart")
+					if not root then return end
+
+					local bv = root:FindFirstChild("HaiAnh_BFAntiGrav")
+					if not bv then
+						bv = Instance.new("BodyVelocity")
+						bv.Name = "HaiAnh_BFAntiGrav"
+						bv.Velocity = Vector3.zero
+						bv.MaxForce = Vector3.new(9e8, 9e8, 9e8)
+						bv.Parent = root
+					else
+						bv.Velocity = Vector3.zero
+					end
+
+					local currentPos = root.Position
+					local dist = (targetPos - currentPos).Magnitude
+					local speed = math.max(HubConfig.FlightSpeed, 150)
+					local step = math.min(dist, speed * 0.05)
+					if dist > 5 then
+						local dir = (targetPos - currentPos).Unit
+						root.CFrame = CFrame.new(currentPos + dir * step, targetPos)
+					else
+						root.CFrame = CFrame.new(targetPos)
+					end
+				end)
+			end
+
+			task.spawn(function()
+				while not rayfieldDestroyed do
+					pcall(function()
+						if HubConfig.AutoBuso then
+							local lp = Players and Players.LocalPlayer
+							local char = lp and lp.Character
+							local hasHaki = char and (char:FindFirstChild("HasBuso") or char:GetAttribute("HasBuso"))
+							if not hasHaki then
+								local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+								local commF = remotes and remotes:FindFirstChild("CommF_")
+								if commF then
+									commF:InvokeServer("Buso")
+								end
+							end
+						end
+
+						if HubConfig.KillAura or HubConfig.AutoLevel or HubConfig.AutoNearestMob or HubConfig.AutoBoss then
+							local enemies = getBFEnemies()
+							if #enemies > 0 then
+								equipBFWeapon()
+								local target = enemies[1]
+								if HubConfig.AutoLevel or HubConfig.AutoNearestMob or HubConfig.AutoBoss then
+									local hoverPos = target.root.Position + Vector3.new(0, HubConfig.HoverHeight, 0)
+									tweenBFFlight(hoverPos)
+								end
+
+								if HubConfig.BringMobs and #enemies > 1 then
+									for i = 2, math.min(#enemies, 6) do
+										pcall(function()
+											enemies[i].root.CFrame = target.root.CFrame
+											enemies[i].root.CanCollide = false
+										end)
+									end
+								end
+
+								performBFAttack(enemies)
+							end
+						end
+					end)
+					task.wait(0.04)
+				end
+			end)
+
+			task.spawn(function()
+				while not rayfieldDestroyed do
+					pcall(function()
+						if HubConfig.HitboxSize > 15 then
+							local enemies = getBFEnemies()
+							for _, mob in ipairs(enemies) do
+								mob.root.Size = Vector3.new(HubConfig.HitboxSize, HubConfig.HitboxSize,
+									HubConfig.HitboxSize)
+								mob.root.Transparency = 0.85
+								mob.root.CanCollide = false
+							end
+						end
+
+						if HubConfig.AntiAFK and VirtualUser then
+							VirtualUser:CaptureController()
+							VirtualUser:ClickButton2(Vector2.new(50, 50))
+						end
+					end)
+					task.wait(1)
+				end
+			end)
+		end
+
+		-- ============================================================================
+		-- MENU 3: UNIVERSAL FALLBACK
+		-- ============================================================================
+		local function loadUniversalMenu()
+			local Window = RayfieldLibrary:CreateWindow({
+				Name = "HaiAnh Menu | Universal",
+				LoadingTitle = "HaiAnh Menu",
+				LoadingSubtitle = "Universal Hub",
+				ConfigurationSaving = {
+					Enabled = true,
+					FolderName = "HaiAnhMenuConfig",
+					FileName = "Universal"
+				},
+				KeySystem = false,
+			})
+
+			createFloatingToggle()
+
+			local MainTab = Window:CreateTab("Main", 0)
+			MainTab:CreateSection("Universal Protection")
+
+			MainTab:CreateToggle({
+				Name = "Anti-Ban Remote Shield",
+				CurrentValue = true,
+				Flag = "Uni_AntiBan",
+				Callback = function(Value)
+					AntiBanShield.Enabled = Value
+				end,
+			})
+
+			MainTab:CreateToggle({
+				Name = "Anti AFK",
+				CurrentValue = true,
+				Flag = "Uni_AntiAFK",
+				Callback = function(Value)
+					if Value and VirtualUser then
+						VirtualUser:CaptureController()
+						VirtualUser:ClickButton2(Vector2.new(50, 50))
+					end
+				end,
+			})
+		end
+
+
+		local detectedGame = detectCurrentGame()
+		if detectedGame == "AOTR" then
+			loadAOTRMenu()
+		elseif detectedGame == "BLOX_FRUITS" then
+			loadBloxFruitsMenu()
+		else
+			loadUniversalMenu()
+		end
 	end)
 end
 
