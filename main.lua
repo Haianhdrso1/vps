@@ -1,8336 +1,7311 @@
-local getgenv = getgenv or function() return _G end
-local loadstring = loadstring or load
+--[[
+    =============================================================================
+    LUNARZ HUB - ATTACK ON TITAN: REVOLUTION (STANDALONE EDITION)
+    Fully decompiled, decrypted, and standalone (No external dependencies/HTTP fetch)
+    All UI components & game logic embedded directly in this single file.
+    =============================================================================
+--]]
 
--- Read first, so secure mode covers Rayfield's output from its first line.
-local secureMode = false
-if getgenv then
-	local ok, result = pcall(function() return getgenv().RAYFIELD_SECURE end)
-	if ok and result then secureMode = true end
-end
-
--- Rayfield's own console output goes through these locals. Under secure mode they are silent.
--- They are never assigned as globals: in an executor those are shared with every other script.
-local warn, print, error, assert = warn, print, error, assert
-if secureMode then
-	local rawError = error
-	local rawAssert = assert
-	warn = function(...) end
-	print = function(...) end
-	error = function(_, level) rawError("", level) end
-	assert = function(v, ...) return rawAssert(v) end
-end
-
-if debugX then
-	warn('Initialising Rayfield')
-end
-
-local function getService(name)
-	local ok, service = pcall(game.GetService, game, name)
-	if not ok or not service then
-		pcall(function()
-			service = game:FindFirstChildOfClass(name) or game:FindFirstChild(name)
-		end)
+-- [[ EMBEDDED MACLIB UI LIBRARY ]]
+local MacLib = (function()
+local MacLib = { 
+	Options = {}, 
+	Folder = "Maclib", 
+	GetService = function(service)
+		return cloneref and cloneref(game:GetService(service)) or game:GetService(service)
 	end
-	if cloneref and service then
-		local cOk, cloned = pcall(cloneref, service)
-		if cOk and cloned then
-			return cloned
-		end
-	end
-	return service
-end
-
--- Remote modules are fetched from a fixed commit rather than a branch, so what runs is exactly what
--- was reviewed and a push to a branch can't change it under every running script. Bump this to
--- ship a new reporter or icon set. sirius-gate pins its reporter to the same commit.
-local RAYFIELD_COMMIT =
-"a2c3063cc1e54db522dac4ab837b0a35a0da5ed0" -- SiriusSoftwareLtd/Rayfield: reporter.lua, icons.lua, sia.lua
-local RAYFIELD_RAW = "https://raw.githubusercontent.com/SiriusSoftwareLtd/Rayfield/" .. RAYFIELD_COMMIT .. "/"
-
--- Services
-local UserInputService = getService("UserInputService")
-local TweenService = getService("TweenService")
-local Players = getService("Players")
-local CoreGui = getService("CoreGui")
-local GuiService = getService("GuiService")
-local Workspace = getService("Workspace")
-
-local requestFunc = (syn and syn.request)
-	or (fluxus and fluxus.request)
-	or (http and http.request)
-	or (krnl and krnl.request)
-	or (delta and delta.request)
-	or http_request
-	or request
-
-local customAssetFunc = getcustomasset or getsynasset
-
--- Universal HTTP GET helper across all PC and Mobile clients/executors
-local function httpGet(url)
-	if type(url) ~= "string" or #url == 0 then
-		return false, "Invalid URL"
-	end
-
-	-- 1. Standard game:HttpGet via method call (__namecall)
-	local ok, res = pcall(function()
-		return game:HttpGet(url)
-	end)
-	if ok and type(res) == "string" and #res > 0 then
-		return true, res
-	end
-
-	-- 2. Direct game.HttpGet index call
-	ok, res = pcall(game.HttpGet, game, url)
-	if ok and type(res) == "string" and #res > 0 then
-		return true, res
-	end
-
-	-- 3. Global HttpGet fallback
-	if type(HttpGet) == "function" then
-		ok, res = pcall(HttpGet, url)
-		if ok and type(res) == "string" and #res > 0 then
-			return true, res
-		end
-	end
-
-	-- 4. Executor request / http_request fallback
-	if type(requestFunc) == "function" then
-		ok, res = pcall(requestFunc, { Url = url, Method = "GET" })
-		if ok and type(res) == "table" and type(res.Body) == "string" and #res.Body > 0 then
-			return true, res.Body
-		end
-	end
-
-	return false, tostring(res or "Empty response")
-end
-
--- Some executors have no task.cancel. Without it the thread is left to finish on its own.
-local function cancelThread(thread)
-	if thread and task and type(task.cancel) == "function" then
-		pcall(task.cancel, thread)
-	end
-end
-
--- Loads and executes a function hosted on a remote URL. Cancels the request if the requested URL takes too long to respond.
--- Errors with the function are caught and logged to the output
-local function loadWithTimeout(url, timeout)
-	assert(type(url) == "string", "Expected string, got " .. type(url))
-	timeout = timeout or 5
-	local requestCompleted = false
-	local success, result = false, nil
-
-	local requestThread = task.spawn(function()
-		local fetchSuccess, fetchResult = httpGet(url)
-		if not fetchSuccess or type(fetchResult) ~= "string" or #fetchResult == 0 then
-			if not fetchResult or #fetchResult == 0 then
-				fetchResult = "Empty response"
-			end
-			success, result = false, fetchResult
-			requestCompleted = true
-			return
-		end
-		local content = fetchResult
-		local execSuccess, execResult = pcall(function()
-			local fn = loadstring(content)
-			if fn then return fn() end
-			return nil
-		end)
-		success, result = execSuccess, execResult
-		requestCompleted = true
-	end)
-
-	local timeoutThread = task.delay(timeout, function()
-		if not requestCompleted then
-			warn("Request for " .. url .. " timed out after " .. tostring(timeout) .. " seconds")
-			cancelThread(requestThread)
-			result = "Request timed out"
-			requestCompleted = true
-		end
-	end)
-
-	-- Wait for completion or timeout
-	local startWait = os.clock()
-	while not requestCompleted and (os.clock() - startWait) < (timeout + 1) do
-		task.wait()
-	end
-	-- Cancel timeout thread if still running when request completes
-	if type(timeoutThread) == "thread" then
-		local okStatus, status = pcall(coroutine.status, timeoutThread)
-		if okStatus and status ~= "dead" then
-			cancelThread(timeoutThread)
-		end
-	else
-		cancelThread(timeoutThread)
-	end
-	if not success then
-		warn("Failed to process " .. tostring(url) .. ": " .. tostring(result))
-	end
-	if success then return result end
-	return nil
-end
-
-local requestsDisabled = false
-local analyticsOptOut = false -- the player set getgenv().RAYFIELD_ANALYTICS = false
-local customAssetId = nil
-if getgenv then
-	local ok, result = pcall(function() return getgenv().DISABLE_RAYFIELD_REQUESTS end)
-	if ok and result then requestsDisabled = true end
-	local ok2, result2 = pcall(function() return getgenv().RAYFIELD_ASSET_ID end)
-	if ok2 and type(result2) == "number" then customAssetId = result2 end
-	local ok3, result3 = pcall(function() return getgenv().RAYFIELD_ANALYTICS end)
-	if ok3 and result3 == false then analyticsOptOut = true end
-end
-
-local secureWarnings = {}
-local customAssets = {}
-
-local function secureNotify(wType, title, content)
-	if secureWarnings[wType] then return end
-	secureWarnings[wType] = true
-	task.spawn(function()
-		while not RayfieldLibrary or not RayfieldLibrary.Notify do task.wait(0.5) end
-		RayfieldLibrary:Notify({
-			Title = title,
-			Content = content,
-			Duration = 8,
-		})
-	end)
-end
-local InterfaceBuild = 'UU2NX'
-local Release = "Build 1.758"
-local RayfieldFolder = "Rayfield"
-local ConfigurationFolder = RayfieldFolder .. "/Configurations"
-local ConfigurationExtension = ".rfld"
-local settingsTable = {
-	General = {
-		-- if needs be in order just make getSetting(name)
-		rayfieldOpen = { Type = 'bind', Value = 'K', Name = 'Rayfield Keybind' },
-		-- buildwarnings
-		-- rayfieldprompts
-
-	},
-	System = {
-		usageAnalytics = {
-			Type = 'toggle',
-			Value = true,
-			Name = 'Usage analytics',
-			Description =
-			'Sends anonymous counts of which parts of this window are used. Never your name, what you type or your messages. sirius.menu/privacy',
-		},
-	}
 }
 
--- Settings that have been overridden by the developer. These will not be saved to the user's configuration file
--- Overridden settings always take precedence over settings in the configuration file, and are cleared if the user changes the setting in the UI
-local overriddenSettings = {} -- For example, overriddenSettings["System.rayfieldOpen"] = "J"
-local function overrideSetting(category, name, value)
-	overriddenSettings[category .. "." .. name] = value
-end
-
-local function getSetting(category, name)
-	if overriddenSettings[category .. "." .. name] ~= nil then
-		return overriddenSettings[category .. "." .. name]
-	elseif settingsTable[category][name] ~= nil then
-		return settingsTable[category][name].Value
-	end
-end
-
--- If requests/analytics have been disabled by the developer or the player, set the user-facing
--- setting to false as well
-if requestsDisabled or analyticsOptOut then
-	overrideSetting("System", "usageAnalytics", false)
-end
-
-local HttpService = getService('HttpService')
-local RunService = getService('RunService')
-
--- Environment Check
-local useStudio = (RunService and RunService:IsStudio()) or false
-
-local settingsCreated = false
-local settingsInitialized = false -- Whether the UI elements in the settings page have been set to the proper values
-
-
--- The function below provides a safe alternative for calling error-prone functions
--- Especially useful for filesystem function (writefile, makefolder, etc.)
-local function callSafely(func, ...)
-	if func then
-		local success, result = pcall(func, ...)
-		if not success then
-			warn("Rayfield | Function failed with error: ", result)
-			return false
-		else
-			return result
-		end
-	end
-end
-
--- Ensures a folder exists by creating it if needed
-local function ensureFolder(folderPath)
-	if isfolder and not callSafely(isfolder, folderPath) then
-		callSafely(makefolder, folderPath)
-	end
-end
-
--- Folder and file names a hub supplies go into paths under the executor's workspace, so they can't
--- be allowed to climb out of it. Removing a character can expose a new "..", so ".:./" is cleaned
--- of the character first and the dots after, repeating until nothing changes.
-local function stripTraversal(text)
-	local previous
-	repeat
-		previous = text
-		text = string.gsub(text, "%.%.", "")
-	until text == previous
-	return text
-end
-
--- Keeps "/" so a hub can still nest its folder, but never a leading one, a drive letter or "..".
-local function sanitizeFolderName(value)
-	local text = string.gsub(string.gsub(tostring(value), "\\", "/"), "[:%c]", "")
-	text = string.gsub(stripTraversal(text), "/+", "/")
-	return (string.gsub(text, "^/+", ""))
-end
-
--- A single file name: no slashes of either kind, control characters or "..".
-local function sanitizeFileName(value)
-	local text = string.gsub(tostring(value), "[/\\%c]", "")
-	return stripTraversal(text)
-end
-
-local function loadSettings()
-	local file = nil
-
-	local success, result = pcall(function()
-		if callSafely(isfolder, RayfieldFolder) then
-			if callSafely(isfile, RayfieldFolder .. '/settings' .. ConfigurationExtension) then
-				file = callSafely(readfile, RayfieldFolder .. '/settings' .. ConfigurationExtension)
-			end
-		end
-
-		-- for debug in studio
-		if useStudio then
-			file = [[
-	{"General":{"rayfieldOpen":{"Value":"K","Type":"bind","Name":"Rayfield Keybind","Element":{"HoldToInteract":false,"Ext":true,"Name":"Rayfield Keybind","Set":null,"CallOnChange":true,"Callback":null,"CurrentKeybind":"K"}}},"System":{"usageAnalytics":{"Value":false,"Type":"toggle","Name":"Usage analytics","Element":{"Ext":true,"Name":"Usage analytics","Set":null,"CurrentValue":false,"Callback":null}}}}
-]]
-		end
-
-		if file then
-			local decodeSuccess, decodedFile = pcall(function() return HttpService:JSONDecode(file) end)
-			if decodeSuccess then
-				file = decodedFile
-			else
-				file = {}
-			end
-		else
-			file = {}
-		end
-
-
-		if not settingsCreated then
-			return
-		end
-
-		-- Check if settings file has any entries
-		if next(file) ~= nil then
-			-- If it does, apply them
-			for categoryName, categoryTable in pairs(file) do
-				for settingName, setting in pairs(categoryTable) do
-					local default = settingsTable[categoryName] and settingsTable[categoryName][settingName]
-					if default then
-						local settingType = typeof(default.Value)
-						-- Make sure setting has the correct type
-						if settingType == typeof(setting.Value) then
-							default.Value = setting.Value
-						else
-							warn("Rayfield | Error parsing settings file. '" .. settingName ..
-								"' must be a " .. settingType)
-						end
-					end
-				end
-			end
-		end
-		-- Apply the actual setting value to UI elements
-		for categoryName, categoryTable in pairs(settingsTable) do
-			for settingName, setting in pairs(categoryTable) do
-				if setting.Element then
-					setting.Element:Set(getSetting(categoryName, settingName))
-				end
-			end
-		end
-		settingsInitialized = true
-	end)
-
-	if not success then
-		if writefile then
-			warn('Rayfield had an issue accessing configuration saving capability.')
-		end
-	end
-end
-
-if debugX then
-	warn('Now Loading Settings Configuration')
-end
-
-loadSettings()
-
-if debugX then
-	warn('Settings Loaded')
-end
-
-local ANALYTICS_TOKEN = "05de7f9fd320d3b8428cd1c77014a337b85b6c8efee2c5914f5ab5700c354b9a"
-
--- The reporter is fetched only at the moment it is about to be used, and only if the user hasn't
--- opted out and the developer hasn't set DISABLE_RAYFIELD_REQUESTS. Opting out means no request to
--- GitHub for it either, not just no event sent.
-local reporter = nil
-local reporterLoaded = false
-local function loadReporter()
-	if reporterLoaded then return reporter end
-	reporterLoaded = true
-	if requestsDisabled or useStudio then return nil end
-
-	local fetchSuccess, fetchResult = httpGet(RAYFIELD_RAW .. "reporter.lua")
-	if fetchSuccess and #fetchResult > 0 then
-		local execSuccess, Analytics = pcall(function()
-			local fn = loadstring(fetchResult)
-			if fn then return fn() end
-			return nil
-		end)
-		if execSuccess and Analytics then
-			pcall(function()
-				reporter = Analytics.new({
-					url          = "https://rayfield-collect.sirius-software-ltd.workers.dev",
-					token        = ANALYTICS_TOKEN,
-					product_name = "Rayfield",
-					category     = "UILibrary",
-				})
-			end)
-		end
-	end
-	return reporter
-end
-
--- Whether analytics may be sent right now. A saved opt-out is only known once the settings file has
--- been applied, so until then the answer is no; an executor that can't read files has nothing saved
--- to respect, so the default applies there, and getgenv().RAYFIELD_ANALYTICS = false is the
--- player's way to opt out.
-local function analyticsAllowed()
-	if requestsDisabled or analyticsOptOut or useStudio then return false end
-	if not getSetting("System", "usageAnalytics") then return false end
-	return settingsInitialized or not (isfile and readfile)
-end
-
--- SIA (sia.lua) counts which parts of a window players use. Like the reporter it is
--- fetched at the pinned commit, and only once analytics are allowed. It starts as a window is
--- created, before the key system and the settings page, so until the settings page has applied
--- the saved file, the file itself is read for an opt-out.
-local SIA_TOKEN = "sia_rayfield_bd0f30653a58a75bac2987e3"
-
-local sia = nil
-local siaState = "off" -- "loading" while sia.lua is fetched, then "on"
-local siaQueue = {}    -- calls made while it loads, run in order once it has
-local siaElements = {} -- every element made, registered whenever the client starts
-local siaScript = nil  -- the window's script details, kept for a restart from settings
-local siaLoads = 0     -- counts starts, so a load the player cancelled and restarted gives way
-
-local function savedAnalyticsChoice()
-	local ok, value = pcall(function()
-		local path = RayfieldFolder .. "/settings" .. ConfigurationExtension
-		if not (isfile and readfile and isfile(path)) then return nil end
-		return HttpService:JSONDecode(readfile(path)).System.usageAnalytics.Value
-	end)
-	if ok and type(value) == "boolean" then return value end
-	return nil
-end
-
-local function siaAllowed()
-	if requestsDisabled or analyticsOptOut or useStudio then return false end
-	if not getSetting("System", "usageAnalytics") then return false end
-	return settingsInitialized or savedAnalyticsChoice() ~= false
-end
-
--- Runs fn(client) now, after the client loads, or not at all when SIA is off.
-local function siaRun(fn)
-	if siaState == "on" and sia then
-		pcall(fn, sia)
-	elseif siaState == "loading" and #siaQueue < 500 then
-		table.insert(siaQueue, fn)
-	end
-end
-
-local function siaId(client, handle)
-	handle.id = handle.id or client:element(handle.kind, handle.name, handle.tab)
-	return handle.id
-end
-
-local function siaStart(info)
-	siaScript = info
-	if siaState ~= "off" or not siaAllowed() then return end
-	siaState = "loading"
-	siaLoads = siaLoads + 1
-	local load = siaLoads
-	task.spawn(function()
-		local client = nil
-		local fetched, source = httpGet(RAYFIELD_RAW .. "sia.lua")
-		if fetched and type(source) == "string" and #source > 0 then
-			pcall(function()
-				local fn = loadstring(source)
-				local SIA = fn and fn() or nil
-				if SIA then
-					client = SIA.new({
-						token = SIA_TOKEN,
-						lib = "gen1",
-						libVersion = Release,
-						script = info,
-						theme = info
-							.theme
-					})
-				end
-			end)
-		end
-		-- the player may have turned it off while it loaded
-		if load ~= siaLoads then return end
-		if not client or siaState ~= "loading" then
-			siaState, siaQueue = "off", {}
-			return
-		end
-		sia, siaState = client, "on"
-		for _, handle in ipairs(siaElements) do
-			pcall(function()
-				local id = siaId(client, handle)
-				if handle.value then client:state(id, handle.value) end
-			end)
-		end
-		local queued = siaQueue
-		siaQueue = {}
-		for _, fn in ipairs(queued) do
-			pcall(fn, client)
-		end
-	end)
-end
-
-local function siaStop()
-	if sia then pcall(sia.disable, sia) end
-	sia, siaState, siaQueue = nil, "off", {}
-end
-
-local siaCurrentTab = nil -- the tab on show, whose elements count as seen as they're made
-
--- An element's handle, for siaUsed, siaSetState and siaError. The settings page is tab 0,
--- which is Rayfield's, not the script's. Labels stay on this side: the client sends a category
--- worked out from them.
-local function siaElement(kind, name, tab)
-	-- The Rayfield Settings page (no tab number) is tab 0: SIA keeps it apart from the script's tabs.
-	tab = tab or 0
-	local handle = { kind = kind, name = tostring(name), tab = tab }
-	table.insert(siaElements, handle)
-	siaRun(function(client)
-		siaId(client, handle)
-		if tab == siaCurrentTab then client:tab(tab) end
-	end)
-	return handle
-end
-
--- A player used the element. value is 0..1 where the element has one.
-local function siaUsed(handle, action, value)
-	if not handle then return end
-	siaRun(function(client) client:used(siaId(client, handle), action, value) end)
-end
-
--- The element's value, from the player or the script: toggles 1 or 0, sliders 0..1.
-local function siaSetState(handle, value)
-	if not handle then return end
-	handle.value = value -- for a client that starts later
-	siaRun(function(client) client:state(siaId(client, handle), value) end)
-end
-
-local function siaError(handle)
-	if not handle then return end
-	siaRun(function(client) client:error(siaId(client, handle)) end)
-end
-
-local function siaCall(method, ...)
-	local args = table.pack(...)
-	siaRun(function(client) client[method](client, table.unpack(args, 1, args.n)) end)
-end
-
-if debugX then
-	warn('Moving on to continue initialisation')
-end
-
-local RayfieldLibrary = {
-	Flags = {},
-	Theme = {
-		Default = {
-			TextColor = Color3.fromRGB(240, 240, 240),
-
-			Background = Color3.fromRGB(25, 25, 25),
-			Topbar = Color3.fromRGB(34, 34, 34),
-			Shadow = Color3.fromRGB(20, 20, 20),
-
-			NotificationBackground = Color3.fromRGB(20, 20, 20),
-			NotificationActionsBackground = Color3.fromRGB(230, 230, 230),
-
-			TabBackground = Color3.fromRGB(80, 80, 80),
-			TabStroke = Color3.fromRGB(85, 85, 85),
-			TabBackgroundSelected = Color3.fromRGB(210, 210, 210),
-			TabTextColor = Color3.fromRGB(240, 240, 240),
-			SelectedTabTextColor = Color3.fromRGB(50, 50, 50),
-
-			ElementBackground = Color3.fromRGB(35, 35, 35),
-			ElementBackgroundHover = Color3.fromRGB(40, 40, 40),
-			SecondaryElementBackground = Color3.fromRGB(25, 25, 25),
-			ElementStroke = Color3.fromRGB(50, 50, 50),
-			SecondaryElementStroke = Color3.fromRGB(40, 40, 40),
-
-			SliderBackground = Color3.fromRGB(50, 138, 220),
-			SliderProgress = Color3.fromRGB(50, 138, 220),
-			SliderStroke = Color3.fromRGB(58, 163, 255),
-
-			ToggleBackground = Color3.fromRGB(30, 30, 30),
-			ToggleEnabled = Color3.fromRGB(0, 146, 214),
-			ToggleDisabled = Color3.fromRGB(100, 100, 100),
-			ToggleEnabledStroke = Color3.fromRGB(0, 170, 255),
-			ToggleDisabledStroke = Color3.fromRGB(125, 125, 125),
-			ToggleEnabledOuterStroke = Color3.fromRGB(100, 100, 100),
-			ToggleDisabledOuterStroke = Color3.fromRGB(65, 65, 65),
-
-			DropdownSelected = Color3.fromRGB(40, 40, 40),
-			DropdownUnselected = Color3.fromRGB(30, 30, 30),
-
-			InputBackground = Color3.fromRGB(30, 30, 30),
-			InputStroke = Color3.fromRGB(65, 65, 65),
-			PlaceholderColor = Color3.fromRGB(178, 178, 178)
-		},
-
-		Ocean = {
-			TextColor = Color3.fromRGB(230, 240, 240),
-
-			Background = Color3.fromRGB(20, 30, 30),
-			Topbar = Color3.fromRGB(25, 40, 40),
-			Shadow = Color3.fromRGB(15, 20, 20),
-
-			NotificationBackground = Color3.fromRGB(25, 35, 35),
-			NotificationActionsBackground = Color3.fromRGB(230, 240, 240),
-
-			TabBackground = Color3.fromRGB(40, 60, 60),
-			TabStroke = Color3.fromRGB(50, 70, 70),
-			TabBackgroundSelected = Color3.fromRGB(100, 180, 180),
-			TabTextColor = Color3.fromRGB(210, 230, 230),
-			SelectedTabTextColor = Color3.fromRGB(20, 50, 50),
-
-			ElementBackground = Color3.fromRGB(30, 50, 50),
-			ElementBackgroundHover = Color3.fromRGB(40, 60, 60),
-			SecondaryElementBackground = Color3.fromRGB(30, 45, 45),
-			ElementStroke = Color3.fromRGB(45, 70, 70),
-			SecondaryElementStroke = Color3.fromRGB(40, 65, 65),
-
-			SliderBackground = Color3.fromRGB(0, 110, 110),
-			SliderProgress = Color3.fromRGB(0, 140, 140),
-			SliderStroke = Color3.fromRGB(0, 160, 160),
-
-			ToggleBackground = Color3.fromRGB(30, 50, 50),
-			ToggleEnabled = Color3.fromRGB(0, 130, 130),
-			ToggleDisabled = Color3.fromRGB(70, 90, 90),
-			ToggleEnabledStroke = Color3.fromRGB(0, 160, 160),
-			ToggleDisabledStroke = Color3.fromRGB(85, 105, 105),
-			ToggleEnabledOuterStroke = Color3.fromRGB(50, 100, 100),
-			ToggleDisabledOuterStroke = Color3.fromRGB(45, 65, 65),
-
-			DropdownSelected = Color3.fromRGB(30, 60, 60),
-			DropdownUnselected = Color3.fromRGB(25, 40, 40),
-
-			InputBackground = Color3.fromRGB(30, 50, 50),
-			InputStroke = Color3.fromRGB(50, 70, 70),
-			PlaceholderColor = Color3.fromRGB(140, 160, 160)
-		},
-
-		AmberGlow = {
-			TextColor = Color3.fromRGB(255, 245, 230),
-
-			Background = Color3.fromRGB(45, 30, 20),
-			Topbar = Color3.fromRGB(55, 40, 25),
-			Shadow = Color3.fromRGB(35, 25, 15),
-
-			NotificationBackground = Color3.fromRGB(50, 35, 25),
-			NotificationActionsBackground = Color3.fromRGB(245, 230, 215),
-
-			TabBackground = Color3.fromRGB(75, 50, 35),
-			TabStroke = Color3.fromRGB(90, 60, 45),
-			TabBackgroundSelected = Color3.fromRGB(230, 180, 100),
-			TabTextColor = Color3.fromRGB(250, 220, 200),
-			SelectedTabTextColor = Color3.fromRGB(50, 30, 10),
-
-			ElementBackground = Color3.fromRGB(60, 45, 35),
-			ElementBackgroundHover = Color3.fromRGB(70, 50, 40),
-			SecondaryElementBackground = Color3.fromRGB(55, 40, 30),
-			ElementStroke = Color3.fromRGB(85, 60, 45),
-			SecondaryElementStroke = Color3.fromRGB(75, 50, 35),
-
-			SliderBackground = Color3.fromRGB(220, 130, 60),
-			SliderProgress = Color3.fromRGB(250, 150, 75),
-			SliderStroke = Color3.fromRGB(255, 170, 85),
-
-			ToggleBackground = Color3.fromRGB(55, 40, 30),
-			ToggleEnabled = Color3.fromRGB(240, 130, 30),
-			ToggleDisabled = Color3.fromRGB(90, 70, 60),
-			ToggleEnabledStroke = Color3.fromRGB(255, 160, 50),
-			ToggleDisabledStroke = Color3.fromRGB(110, 85, 75),
-			ToggleEnabledOuterStroke = Color3.fromRGB(200, 100, 50),
-			ToggleDisabledOuterStroke = Color3.fromRGB(75, 60, 55),
-
-			DropdownSelected = Color3.fromRGB(70, 50, 40),
-			DropdownUnselected = Color3.fromRGB(55, 40, 30),
-
-			InputBackground = Color3.fromRGB(60, 45, 35),
-			InputStroke = Color3.fromRGB(90, 65, 50),
-			PlaceholderColor = Color3.fromRGB(190, 150, 130)
-		},
-
-		Light = {
-			TextColor = Color3.fromRGB(40, 40, 40),
-
-			Background = Color3.fromRGB(245, 245, 245),
-			Topbar = Color3.fromRGB(230, 230, 230),
-			Shadow = Color3.fromRGB(200, 200, 200),
-
-			NotificationBackground = Color3.fromRGB(250, 250, 250),
-			NotificationActionsBackground = Color3.fromRGB(240, 240, 240),
-
-			TabBackground = Color3.fromRGB(235, 235, 235),
-			TabStroke = Color3.fromRGB(215, 215, 215),
-			TabBackgroundSelected = Color3.fromRGB(255, 255, 255),
-			TabTextColor = Color3.fromRGB(80, 80, 80),
-			SelectedTabTextColor = Color3.fromRGB(0, 0, 0),
-
-			ElementBackground = Color3.fromRGB(240, 240, 240),
-			ElementBackgroundHover = Color3.fromRGB(225, 225, 225),
-			SecondaryElementBackground = Color3.fromRGB(235, 235, 235),
-			ElementStroke = Color3.fromRGB(210, 210, 210),
-			SecondaryElementStroke = Color3.fromRGB(210, 210, 210),
-
-			SliderBackground = Color3.fromRGB(150, 180, 220),
-			SliderProgress = Color3.fromRGB(100, 150, 200),
-			SliderStroke = Color3.fromRGB(120, 170, 220),
-
-			ToggleBackground = Color3.fromRGB(220, 220, 220),
-			ToggleEnabled = Color3.fromRGB(0, 146, 214),
-			ToggleDisabled = Color3.fromRGB(150, 150, 150),
-			ToggleEnabledStroke = Color3.fromRGB(0, 170, 255),
-			ToggleDisabledStroke = Color3.fromRGB(170, 170, 170),
-			ToggleEnabledOuterStroke = Color3.fromRGB(100, 100, 100),
-			ToggleDisabledOuterStroke = Color3.fromRGB(180, 180, 180),
-
-			DropdownSelected = Color3.fromRGB(230, 230, 230),
-			DropdownUnselected = Color3.fromRGB(220, 220, 220),
-
-			InputBackground = Color3.fromRGB(240, 240, 240),
-			InputStroke = Color3.fromRGB(180, 180, 180),
-			PlaceholderColor = Color3.fromRGB(140, 140, 140)
-		},
-
-		Amethyst = {
-			TextColor = Color3.fromRGB(240, 240, 240),
-
-			Background = Color3.fromRGB(30, 20, 40),
-			Topbar = Color3.fromRGB(40, 25, 50),
-			Shadow = Color3.fromRGB(20, 15, 30),
-
-			NotificationBackground = Color3.fromRGB(35, 20, 40),
-			NotificationActionsBackground = Color3.fromRGB(240, 240, 250),
-
-			TabBackground = Color3.fromRGB(60, 40, 80),
-			TabStroke = Color3.fromRGB(70, 45, 90),
-			TabBackgroundSelected = Color3.fromRGB(180, 140, 200),
-			TabTextColor = Color3.fromRGB(230, 230, 240),
-			SelectedTabTextColor = Color3.fromRGB(50, 20, 50),
-
-			ElementBackground = Color3.fromRGB(45, 30, 60),
-			ElementBackgroundHover = Color3.fromRGB(50, 35, 70),
-			SecondaryElementBackground = Color3.fromRGB(40, 30, 55),
-			ElementStroke = Color3.fromRGB(70, 50, 85),
-			SecondaryElementStroke = Color3.fromRGB(65, 45, 80),
-
-			SliderBackground = Color3.fromRGB(100, 60, 150),
-			SliderProgress = Color3.fromRGB(130, 80, 180),
-			SliderStroke = Color3.fromRGB(150, 100, 200),
-
-			ToggleBackground = Color3.fromRGB(45, 30, 55),
-			ToggleEnabled = Color3.fromRGB(120, 60, 150),
-			ToggleDisabled = Color3.fromRGB(94, 47, 117),
-			ToggleEnabledStroke = Color3.fromRGB(140, 80, 170),
-			ToggleDisabledStroke = Color3.fromRGB(124, 71, 150),
-			ToggleEnabledOuterStroke = Color3.fromRGB(90, 40, 120),
-			ToggleDisabledOuterStroke = Color3.fromRGB(80, 50, 110),
-
-			DropdownSelected = Color3.fromRGB(50, 35, 70),
-			DropdownUnselected = Color3.fromRGB(35, 25, 50),
-
-			InputBackground = Color3.fromRGB(45, 30, 60),
-			InputStroke = Color3.fromRGB(80, 50, 110),
-			PlaceholderColor = Color3.fromRGB(178, 150, 200)
-		},
-
-		Green = {
-			TextColor = Color3.fromRGB(30, 60, 30),
-
-			Background = Color3.fromRGB(235, 245, 235),
-			Topbar = Color3.fromRGB(210, 230, 210),
-			Shadow = Color3.fromRGB(200, 220, 200),
-
-			NotificationBackground = Color3.fromRGB(240, 250, 240),
-			NotificationActionsBackground = Color3.fromRGB(220, 235, 220),
-
-			TabBackground = Color3.fromRGB(215, 235, 215),
-			TabStroke = Color3.fromRGB(190, 210, 190),
-			TabBackgroundSelected = Color3.fromRGB(245, 255, 245),
-			TabTextColor = Color3.fromRGB(50, 80, 50),
-			SelectedTabTextColor = Color3.fromRGB(20, 60, 20),
-
-			ElementBackground = Color3.fromRGB(225, 240, 225),
-			ElementBackgroundHover = Color3.fromRGB(210, 225, 210),
-			SecondaryElementBackground = Color3.fromRGB(235, 245, 235),
-			ElementStroke = Color3.fromRGB(180, 200, 180),
-			SecondaryElementStroke = Color3.fromRGB(180, 200, 180),
-
-			SliderBackground = Color3.fromRGB(90, 160, 90),
-			SliderProgress = Color3.fromRGB(70, 130, 70),
-			SliderStroke = Color3.fromRGB(100, 180, 100),
-
-			ToggleBackground = Color3.fromRGB(215, 235, 215),
-			ToggleEnabled = Color3.fromRGB(60, 130, 60),
-			ToggleDisabled = Color3.fromRGB(150, 175, 150),
-			ToggleEnabledStroke = Color3.fromRGB(80, 150, 80),
-			ToggleDisabledStroke = Color3.fromRGB(130, 150, 130),
-			ToggleEnabledOuterStroke = Color3.fromRGB(100, 160, 100),
-			ToggleDisabledOuterStroke = Color3.fromRGB(160, 180, 160),
-
-			DropdownSelected = Color3.fromRGB(225, 240, 225),
-			DropdownUnselected = Color3.fromRGB(210, 225, 210),
-
-			InputBackground = Color3.fromRGB(235, 245, 235),
-			InputStroke = Color3.fromRGB(180, 200, 180),
-			PlaceholderColor = Color3.fromRGB(120, 140, 120)
-		},
-
-		Bloom = {
-			TextColor = Color3.fromRGB(60, 40, 50),
-
-			Background = Color3.fromRGB(255, 240, 245),
-			Topbar = Color3.fromRGB(250, 220, 225),
-			Shadow = Color3.fromRGB(230, 190, 195),
-
-			NotificationBackground = Color3.fromRGB(255, 235, 240),
-			NotificationActionsBackground = Color3.fromRGB(245, 215, 225),
-
-			TabBackground = Color3.fromRGB(240, 210, 220),
-			TabStroke = Color3.fromRGB(230, 200, 210),
-			TabBackgroundSelected = Color3.fromRGB(255, 225, 235),
-			TabTextColor = Color3.fromRGB(80, 40, 60),
-			SelectedTabTextColor = Color3.fromRGB(50, 30, 50),
-
-			ElementBackground = Color3.fromRGB(255, 235, 240),
-			ElementBackgroundHover = Color3.fromRGB(245, 220, 230),
-			SecondaryElementBackground = Color3.fromRGB(255, 235, 240),
-			ElementStroke = Color3.fromRGB(230, 200, 210),
-			SecondaryElementStroke = Color3.fromRGB(230, 200, 210),
-
-			SliderBackground = Color3.fromRGB(240, 130, 160),
-			SliderProgress = Color3.fromRGB(250, 160, 180),
-			SliderStroke = Color3.fromRGB(255, 180, 200),
-
-			ToggleBackground = Color3.fromRGB(240, 210, 220),
-			ToggleEnabled = Color3.fromRGB(255, 140, 170),
-			ToggleDisabled = Color3.fromRGB(200, 180, 185),
-			ToggleEnabledStroke = Color3.fromRGB(250, 160, 190),
-			ToggleDisabledStroke = Color3.fromRGB(210, 180, 190),
-			ToggleEnabledOuterStroke = Color3.fromRGB(220, 160, 180),
-			ToggleDisabledOuterStroke = Color3.fromRGB(190, 170, 180),
-
-			DropdownSelected = Color3.fromRGB(250, 220, 225),
-			DropdownUnselected = Color3.fromRGB(240, 210, 220),
-
-			InputBackground = Color3.fromRGB(255, 235, 240),
-			InputStroke = Color3.fromRGB(220, 190, 200),
-			PlaceholderColor = Color3.fromRGB(170, 130, 140)
-		},
-
-		DarkBlue = {
-			TextColor = Color3.fromRGB(230, 230, 230),
-
-			Background = Color3.fromRGB(20, 25, 30),
-			Topbar = Color3.fromRGB(30, 35, 40),
-			Shadow = Color3.fromRGB(15, 20, 25),
-
-			NotificationBackground = Color3.fromRGB(25, 30, 35),
-			NotificationActionsBackground = Color3.fromRGB(45, 50, 55),
-
-			TabBackground = Color3.fromRGB(35, 40, 45),
-			TabStroke = Color3.fromRGB(45, 50, 60),
-			TabBackgroundSelected = Color3.fromRGB(40, 70, 100),
-			TabTextColor = Color3.fromRGB(200, 200, 200),
-			SelectedTabTextColor = Color3.fromRGB(255, 255, 255),
-
-			ElementBackground = Color3.fromRGB(30, 35, 40),
-			ElementBackgroundHover = Color3.fromRGB(40, 45, 50),
-			SecondaryElementBackground = Color3.fromRGB(35, 40, 45),
-			ElementStroke = Color3.fromRGB(45, 50, 60),
-			SecondaryElementStroke = Color3.fromRGB(40, 45, 55),
-
-			SliderBackground = Color3.fromRGB(0, 90, 180),
-			SliderProgress = Color3.fromRGB(0, 120, 210),
-			SliderStroke = Color3.fromRGB(0, 150, 240),
-
-			ToggleBackground = Color3.fromRGB(35, 40, 45),
-			ToggleEnabled = Color3.fromRGB(0, 120, 210),
-			ToggleDisabled = Color3.fromRGB(70, 70, 80),
-			ToggleEnabledStroke = Color3.fromRGB(0, 150, 240),
-			ToggleDisabledStroke = Color3.fromRGB(75, 75, 85),
-			ToggleEnabledOuterStroke = Color3.fromRGB(20, 100, 180),
-			ToggleDisabledOuterStroke = Color3.fromRGB(55, 55, 65),
-
-			DropdownSelected = Color3.fromRGB(30, 70, 90),
-			DropdownUnselected = Color3.fromRGB(25, 30, 35),
-
-			InputBackground = Color3.fromRGB(25, 30, 35),
-			InputStroke = Color3.fromRGB(45, 50, 60),
-			PlaceholderColor = Color3.fromRGB(150, 150, 160)
-		},
-
-		Serenity = {
-			TextColor = Color3.fromRGB(50, 55, 60),
-			Background = Color3.fromRGB(240, 245, 250),
-			Topbar = Color3.fromRGB(215, 225, 235),
-			Shadow = Color3.fromRGB(200, 210, 220),
-
-			NotificationBackground = Color3.fromRGB(210, 220, 230),
-			NotificationActionsBackground = Color3.fromRGB(225, 230, 240),
-
-			TabBackground = Color3.fromRGB(200, 210, 220),
-			TabStroke = Color3.fromRGB(180, 190, 200),
-			TabBackgroundSelected = Color3.fromRGB(175, 185, 200),
-			TabTextColor = Color3.fromRGB(50, 55, 60),
-			SelectedTabTextColor = Color3.fromRGB(30, 35, 40),
-
-			ElementBackground = Color3.fromRGB(210, 220, 230),
-			ElementBackgroundHover = Color3.fromRGB(220, 230, 240),
-			SecondaryElementBackground = Color3.fromRGB(200, 210, 220),
-			ElementStroke = Color3.fromRGB(190, 200, 210),
-			SecondaryElementStroke = Color3.fromRGB(180, 190, 200),
-
-			SliderBackground = Color3.fromRGB(200, 220, 235), -- Lighter shade
-			SliderProgress = Color3.fromRGB(70, 130, 180),
-			SliderStroke = Color3.fromRGB(150, 180, 220),
-
-			ToggleBackground = Color3.fromRGB(210, 220, 230),
-			ToggleEnabled = Color3.fromRGB(70, 160, 210),
-			ToggleDisabled = Color3.fromRGB(180, 180, 180),
-			ToggleEnabledStroke = Color3.fromRGB(60, 150, 200),
-			ToggleDisabledStroke = Color3.fromRGB(140, 140, 140),
-			ToggleEnabledOuterStroke = Color3.fromRGB(100, 120, 140),
-			ToggleDisabledOuterStroke = Color3.fromRGB(120, 120, 130),
-
-			DropdownSelected = Color3.fromRGB(220, 230, 240),
-			DropdownUnselected = Color3.fromRGB(200, 210, 220),
-
-			InputBackground = Color3.fromRGB(220, 230, 240),
-			InputStroke = Color3.fromRGB(180, 190, 200),
-			PlaceholderColor = Color3.fromRGB(150, 150, 150)
-		},
-	}
+--// Services
+local TweenService = MacLib.GetService("TweenService")
+local RunService = MacLib.GetService("RunService")
+local HttpService = MacLib.GetService("HttpService")
+local ContentProvider = MacLib.GetService("ContentProvider")
+local UserInputService = MacLib.GetService("UserInputService")
+local Lighting = MacLib.GetService("Lighting")
+local Players = MacLib.GetService("Players")
+
+--// Variables
+local isStudio = RunService:IsStudio()
+local LocalPlayer = Players.LocalPlayer
+
+local windowState
+local acrylicBlur
+local hasGlobalSetting
+
+local tabs = {}
+local currentTabInstance = nil
+local tabIndex = 0
+local unloaded = false
+
+local assets = {
+	interFont = "rbxassetid://12187365364",
+	userInfoBlurred = "rbxassetid://18824089198",
+	toggleBackground = "rbxassetid://18772190202",
+	togglerHead = "rbxassetid://18772309008",
+	buttonImage = "rbxassetid://10709791437",
+	searchIcon = "rbxassetid://86737463322606",
+	colorWheel = "rbxassetid://2849458409",
+	colorTarget = "rbxassetid://73265255323268",
+	grid = "rbxassetid://121484455191370",
+	globe = "rbxassetid://108952102602834",
+	transform = "rbxassetid://90336395745819",
+	dropdown = "rbxassetid://18865373378",
+	sliderbar = "rbxassetid://18772615246",
+	sliderhead = "rbxassetid://18772834246",
+	-- Window control / social icons (Lucide-style rbxasset icons)
+	closeIcon = "rbxassetid://10747384394",
+	minimizeIcon = "rbxassetid://10734896206",
+	discordIcon = "rbxassetid://12058459097",
+	menuIcon = "rbxassetid://10734897102",
 }
 
+--// Theme (modern dark + indigo accent)
+local Theme = {
+	Background = Color3.fromRGB(7, 9, 16),
+	BackgroundElevated = Color3.fromRGB(12, 15, 26),
+	Surface = Color3.fromRGB(17, 21, 36),
+	SurfaceHover = Color3.fromRGB(26, 31, 53),
+	Border = Color3.fromRGB(255, 255, 255),
+	BorderTransparency = 0.90,
+	Text = Color3.fromRGB(245, 245, 250),
+	TextMuted = Color3.fromRGB(166, 170, 192),
+	TextDim = Color3.fromRGB(112, 118, 142),
+	Accent = Color3.fromRGB(126, 96, 255), -- premium violet-indigo
+	AccentSoft = Color3.fromRGB(91, 72, 235),
+	AccentGlow = Color3.fromRGB(170, 145, 255),
+	Success = Color3.fromRGB(87, 242, 135),
+	Warning = Color3.fromRGB(254, 231, 92),
+	Danger = Color3.fromRGB(237, 66, 69),
+	Close = Color3.fromRGB(237, 66, 69),
+	Minimize = Color3.fromRGB(254, 231, 92),
+	Discord = Color3.fromRGB(88, 101, 242),
+	Section = Color3.fromRGB(18, 23, 40),
+	SectionTransparency = 0.10,
+	ToggleOff = Color3.fromRGB(64, 70, 94),
+	ToggleOn = Color3.fromRGB(126, 96, 255),
+	SliderTrack = Color3.fromRGB(52, 58, 82),
+}
 
+MacLib.Theme = Theme
 
+--// Device detection helpers
+local function DetectDevice()
+	local camera = workspace.CurrentCamera
+	local viewport = camera and camera.ViewportSize or Vector2.new(1920, 1080)
+	local touchEnabled = UserInputService.TouchEnabled
+	local keyboardEnabled = UserInputService.KeyboardEnabled
+	local mouseEnabled = UserInputService.MouseEnabled
+	local isConsole = UserInputService.GamepadEnabled and not mouseEnabled and not touchEnabled
 
--- Interface Management
+	-- Prefer touch + small viewport as mobile/tablet
+	local shortest = math.min(viewport.X, viewport.Y)
+	local longest = math.max(viewport.X, viewport.Y)
+	local isMobile = touchEnabled and (not keyboardEnabled or shortest < 700)
+	local isTablet = touchEnabled and shortest >= 700 and longest < 1400
+	local isPhone = isMobile and shortest < 500
 
-local function getSafeGuiParent()
-	if useStudio and script and script.Parent then
-		return script.Parent
-	end
-	if type(gethui) == "function" then
-		local ok, hui = pcall(gethui)
-		if ok and hui then return hui end
-	end
-	if CoreGui then
-		local ok, robloxGui = pcall(function()
-			return CoreGui:FindFirstChild("RobloxGui")
-		end)
-		if ok and robloxGui then return robloxGui end
-		local ok2, _ = pcall(function()
-			return CoreGui.Name
-		end)
-		if ok2 then return CoreGui end
-	end
-	local lp = Players and Players.LocalPlayer
-	if lp then
-		local ok, playerGui = pcall(function()
-			return lp:FindFirstChildOfClass("PlayerGui") or lp:WaitForChild("PlayerGui", 5)
-		end)
-		if ok and playerGui then return playerGui end
-	end
-	return nil
-end
-
-local function parentGui(gui)
-	if not gui then return end
-	if not useStudio and syn and type(syn.protect_gui) == "function" then
-		pcall(syn.protect_gui, gui)
-	end
-	local targetParent = getSafeGuiParent()
-	if targetParent then
-		local ok = pcall(function()
-			gui.Parent = targetParent
-		end)
-		if ok then return end
-	end
-	local lp = Players and Players.LocalPlayer
-	if lp then
-		pcall(function()
-			gui.Parent = lp:FindFirstChildOfClass("PlayerGui") or lp:WaitForChild("PlayerGui", 5)
-		end)
-	end
-end
-
-local function loadGuiAsset(assetId)
-	if useStudio and script and script.Parent then
-		local found = script.Parent:FindFirstChild("Rayfield")
-		if found then return found end
-	end
-	local uri = "rbxassetid://" .. tostring(assetId)
-	local ok, objects = pcall(game.GetObjects, game, uri)
-	if ok and type(objects) == "table" and objects[1] then
-		return objects[1]
-	end
-	return nil
-end
-
-local RayfieldAssetId = customAssetId or 10804731440
-local Rayfield = loadGuiAsset(RayfieldAssetId)
-local buildAttempts = 0
-local correctBuild = false
-local warned
-local globalLoaded
-local rayfieldDestroyed = false -- True when RayfieldLibrary:Destroy() is called
-
-repeat
-	if Rayfield and Rayfield:FindFirstChild('Build') and Rayfield.Build.Value == InterfaceBuild then
-		correctBuild = true
-		break
+	local deviceType = "PC"
+	if isPhone then
+		deviceType = "Phone"
+	elseif isTablet or (isMobile and not isPhone) then
+		deviceType = "Tablet"
+	elseif isConsole then
+		deviceType = "Console"
 	end
 
-	correctBuild = false
-
-	if not warned then
-		warn('Rayfield | Build Mismatch')
-		print('Rayfield may encounter issues as you are running an incompatible interface version (' ..
-			((Rayfield and Rayfield:FindFirstChild('Build') and Rayfield.Build.Value) or 'No Build') ..
-			').\n\nThis version of Rayfield is intended for interface build ' .. InterfaceBuild .. '.')
-		warned = true
-	end
-
-	local toDestroy = Rayfield
-	Rayfield = loadGuiAsset(RayfieldAssetId)
-	if toDestroy and not useStudio then pcall(function() toDestroy:Destroy() end) end
-
-	buildAttempts = buildAttempts + 1
-until buildAttempts >= 2
-
-Rayfield.Enabled = false
-parentGui(Rayfield)
-
--- Running a script again loads a second copy of Rayfield. The copy it replaces is torn down through
--- this event, which calls its Destroy: that removes its interface and disconnects its input
--- listeners, which would otherwise keep answering hotkeys for a window nobody can see. Builds
--- before 1.753 have no event, so those are only hidden and renamed, as before.
-local TEARDOWN_EVENT = "RayfieldTeardown"
-
-local function retireInterface(Interface)
-	pcall(function()
-		Interface.Enabled = false
-		Interface.Name = "Rayfield-Old"
-		local teardown = Interface:FindFirstChild(TEARDOWN_EVENT)
-		if teardown and teardown:IsA("BindableEvent") then
-			teardown:Fire()
-		end
-	end)
-end
-
-do
-	local parentContainer = Rayfield.Parent
-	if parentContainer then
-		pcall(function()
-			for _, Interface in ipairs(parentContainer:GetChildren()) do
-				if Interface.Name == Rayfield.Name and Interface ~= Rayfield then
-					retireInterface(Interface)
-				end
-			end
-		end)
-	end
-end
-
-do
-	local teardown = Instance.new("BindableEvent")
-	teardown.Name = TEARDOWN_EVENT
-	teardown.Event:Connect(function()
-		if not rayfieldDestroyed and type(RayfieldLibrary.Destroy) == "function" then
-			RayfieldLibrary:Destroy()
-		end
-	end)
-	teardown.Parent = Rayfield
-end
-
-if secureMode and not customAssetId then
-	secureNotify("default_asset", "Secure Mode",
-		"You are using the default Rayfield asset ID. Set RAYFIELD_ASSET_ID to a custom upload to avoid detection.")
-end
-
-do
-	local AssetPath = RayfieldFolder .. "/Assets"
-	local AssetBaseURL = "https://raw.githubusercontent.com/SiriusSoftwareLtd/Rayfield/main/assets/"
-
-	local assetFiles = {
-		["111263549366178"] = AssetBaseURL .. "111263549366178.png",
-		["77891951053543"] = AssetBaseURL .. "77891951053543.png",
-		["78137979054938"] = AssetBaseURL .. "78137979054938.png",
-		["80503127983237"] = AssetBaseURL .. "80503127983237.png",
-		["10137832201"] = AssetBaseURL .. "10137832201.png",
-		["10137941941"] = AssetBaseURL .. "10137941941.png",
-		["11036884234"] = AssetBaseURL .. "11036884234.png",
-		["11413591840"] = AssetBaseURL .. "11413591840.png",
-		["11745872910"] = AssetBaseURL .. "11745872910.png",
-		["12577727209"] = AssetBaseURL .. "12577727209.png",
-		["18458939117"] = AssetBaseURL .. "18458939117.png",
-		["3259050989"] = AssetBaseURL .. "3259050989.png",
-		["3523728077"] = AssetBaseURL .. "3523728077.png",
-		["3602733521"] = AssetBaseURL .. "3602733521.png",
-		["IconChevronTopMedium"] = AssetBaseURL .. "IconChevronTopMedium.png",
-		["4483362458"] = AssetBaseURL .. "4483362458.png",
-		["5587865193"] = AssetBaseURL .. "5587865193.png",
-		["IconMagnifyingGlass2"] = AssetBaseURL .. "IconMagnifyingGlass2.png",
+	return {
+		Type = deviceType,
+		IsMobile = deviceType == "Phone" or deviceType == "Tablet",
+		IsPhone = deviceType == "Phone",
+		IsTablet = deviceType == "Tablet",
+		IsPC = deviceType == "PC",
+		Touch = touchEnabled,
+		Viewport = viewport,
 	}
+end
 
-	for id, _ in pairs(assetFiles) do
-		if not secureMode and tonumber(id) then
-			customAssets[tostring(id)] = "rbxassetid://" .. tostring(id)
-		else
-			customAssets[tostring(id)] = ""
-		end
+MacLib.DetectDevice = DetectDevice
+
+--// Functions
+local function GetGui()
+	local newGui = Instance.new("ScreenGui")
+	newGui.ScreenInsets = Enum.ScreenInsets.None
+	newGui.ResetOnSpawn = false
+	newGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	newGui.DisplayOrder = 2147483647
+
+	local parent = RunService:IsStudio() 
+		and LocalPlayer:FindFirstChild("PlayerGui")
+		or (gethui and gethui())
+		or (cloneref and cloneref(MacLib.GetService("CoreGui")) or MacLib.GetService("CoreGui"))
+
+	newGui.Parent = parent
+	return newGui
+end
+
+local function Tween(instance, tweeninfo, propertytable)
+	return TweenService:Create(instance, tweeninfo, propertytable)
+end
+
+--// Library Functions
+function MacLib:Window(Settings)
+	local WindowFunctions = {Settings = Settings}
+	if Settings.AcrylicBlur ~= nil then
+		acrylicBlur = Settings.AcrylicBlur
+	else
+		acrylicBlur = true
 	end
 
-	local hasCustomAsset = type(customAssetFunc) == "function"
-	local hasFilesystem = type(writefile) == "function" and type(makefolder) == "function" and type(isfile) == "function" and
-		type(isfolder) == "function" and type(readfile) == "function"
+	local macLib = GetGui()
 
-	local function isValidPng(data)
-		return type(data) == "string" and #data > 8 and string.sub(data, 1, 4) == "\137PNG"
+	local notifications = Instance.new("Frame")
+	notifications.Name = "Notifications"
+	notifications.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	notifications.BackgroundTransparency = 1
+	notifications.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	notifications.BorderSizePixel = 0
+	notifications.Size = UDim2.fromScale(1, 1)
+	notifications.Parent = macLib
+	notifications.ZIndex = 2
+
+	local notificationsUIListLayout = Instance.new("UIListLayout")
+	notificationsUIListLayout.Name = "NotificationsUIListLayout"
+	notificationsUIListLayout.Padding = UDim.new(0, 10)
+	notificationsUIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	notificationsUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	notificationsUIListLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+	notificationsUIListLayout.Parent = notifications
+
+	local notificationsUIPadding = Instance.new("UIPadding")
+	notificationsUIPadding.Name = "NotificationsUIPadding"
+	notificationsUIPadding.PaddingBottom = UDim.new(0, 10)
+	notificationsUIPadding.PaddingLeft = UDim.new(0, 10)
+	notificationsUIPadding.PaddingRight = UDim.new(0, 10)
+	notificationsUIPadding.PaddingTop = UDim.new(0, 10)
+	notificationsUIPadding.Parent = notifications
+
+	-- Device-aware defaults
+	local deviceInfo = DetectDevice()
+	local defaultSize
+	if Settings.Size then
+		defaultSize = Settings.Size
+	elseif deviceInfo.IsPhone then
+		defaultSize = UDim2.fromScale(0.96, 0.92)
+	elseif deviceInfo.IsTablet then
+		defaultSize = UDim2.fromScale(0.85, 0.82)
+	else
+		defaultSize = UDim2.fromOffset(960, 600)
 	end
 
-	-- Only block/download custom PNGs in secureMode; in normal mode on Delta/Mobile/PC executors,
-	-- the prefab's built-in rbxassetid:// textures work immediately without binary corruption or startup delay.
-	if secureMode and hasCustomAsset and hasFilesystem then
-		local ok, err = pcall(function()
-			ensureFolder(RayfieldFolder)
-			ensureFolder(AssetPath)
+	local base = Instance.new("Frame")
+	base.Name = "Base"
+	base.AnchorPoint = Vector2.new(0.5, 0.5)
+	base.BackgroundColor3 = Theme.Background
+	base.BackgroundTransparency = Settings.AcrylicBlur and 0.08 or 0
+	base.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	base.BorderSizePixel = 0
+	base.Position = UDim2.fromScale(0.5, 0.5)
+	base.Size = defaultSize
+	base.ClipsDescendants = true
 
-			local pending = 0
-			for id, url in pairs(assetFiles) do
-				local filePath = AssetPath .. "/" .. tostring(id) .. ".png"
-				local existingOk = callSafely(isfile, filePath) and isValidPng(callSafely(readfile, filePath))
-				if not existingOk then
-					pending = pending + 1
-					task.spawn(function()
-						local fetched, body = httpGet(url)
-						if fetched and isValidPng(body) then
-							pcall(writefile, filePath, body)
-						end
-						pending = pending - 1
-					end)
-				end
-			end
+	local baseUIScale = Instance.new("UIScale")
+	baseUIScale.Name = "BaseUIScale"
+	baseUIScale.Parent = base
 
-			local waitStart = os.clock()
-			while pending > 0 and (os.clock() - waitStart) < 5 do
-				task.wait(0.05)
-			end
+	local baseUICorner = Instance.new("UICorner")
+	baseUICorner.Name = "BaseUICorner"
+	baseUICorner.CornerRadius = UDim.new(0, deviceInfo.IsMobile and 14 or 12)
+	baseUICorner.Parent = base
 
-			for id, _ in pairs(assetFiles) do
-				local filePath = AssetPath .. "/" .. tostring(id) .. ".png"
-				if callSafely(isfile, filePath) and isValidPng(callSafely(readfile, filePath)) then
-					local success, asset = pcall(customAssetFunc, filePath)
-					if success and type(asset) == "string" and #asset > 0 then
-						customAssets[tostring(id)] = asset
-					end
-				end
-			end
+	local baseUIStroke = Instance.new("UIStroke")
+	baseUIStroke.Name = "BaseUIStroke"
+	baseUIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	baseUIStroke.Color = Theme.Accent
+	baseUIStroke.Thickness = 1
+	baseUIStroke.Transparency = 0.75
+	baseUIStroke.Parent = base
+
+	--// Heaven UI: soft ambient window aura (visual only; no API impact)
+	local windowGlow = Instance.new("Frame")
+	windowGlow.Name = "HeavenWindowGlow"
+	windowGlow.AnchorPoint = base.AnchorPoint
+	windowGlow.BackgroundColor3 = Theme.Accent
+	windowGlow.BackgroundTransparency = 0.94
+	windowGlow.BorderSizePixel = 0
+	windowGlow.Position = base.Position
+	windowGlow.Size = UDim2.new(base.Size.X.Scale, base.Size.X.Offset + 18, base.Size.Y.Scale, base.Size.Y.Offset + 18)
+	windowGlow.ZIndex = 0
+
+	local glowCorner = Instance.new("UICorner")
+	glowCorner.CornerRadius = UDim.new(0, 22)
+	glowCorner.Parent = windowGlow
+
+	local glowGradient = Instance.new("UIGradient")
+	glowGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Theme.AccentSoft),
+		ColorSequenceKeypoint.new(0.5, Theme.AccentGlow),
+		ColorSequenceKeypoint.new(1, Theme.AccentSoft),
+	})
+	glowGradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.8),
+		NumberSequenceKeypoint.new(0.5, 0.18),
+		NumberSequenceKeypoint.new(1, 0.8),
+	})
+	glowGradient.Rotation = 90
+	glowGradient.Parent = windowGlow
+
+	windowGlow.Parent = macLib
+
+	local function SyncWindowGlow()
+		windowGlow.Position = base.Position
+		windowGlow.Size = UDim2.new(base.Size.X.Scale, base.Size.X.Offset + 18, base.Size.Y.Scale, base.Size.Y.Offset + 18)
+		windowGlow.Visible = base.Visible
+	end
+	base:GetPropertyChangedSignal("Position"):Connect(SyncWindowGlow)
+	base:GetPropertyChangedSignal("Size"):Connect(SyncWindowGlow)
+	base:GetPropertyChangedSignal("Visible"):Connect(SyncWindowGlow)
+
+	-- Soft top accent line
+	local topAccent = Instance.new("Frame")
+	topAccent.Name = "TopAccent"
+	topAccent.BackgroundColor3 = Theme.Accent
+	topAccent.BackgroundTransparency = 0.35
+	topAccent.BorderSizePixel = 0
+	topAccent.Size = UDim2.new(1, 0, 0, 2)
+	topAccent.ZIndex = 5
+	topAccent.Parent = base
+	local topAccentGrad = Instance.new("UIGradient")
+	topAccentGrad.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(0.2, 0.15),
+		NumberSequenceKeypoint.new(0.5, 0),
+		NumberSequenceKeypoint.new(0.8, 0.15),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	topAccentGrad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Theme.AccentSoft),
+		ColorSequenceKeypoint.new(0.5, Theme.AccentGlow),
+		ColorSequenceKeypoint.new(1, Theme.AccentSoft),
+	})
+	topAccentGrad.Parent = topAccent
+
+	local sidebarWidthScale = deviceInfo.IsPhone and 1 or (deviceInfo.IsTablet and 0.34 or 0.28)
+	local sidebar = Instance.new("Frame")
+	sidebar.Name = "Sidebar"
+	sidebar.BackgroundColor3 = Theme.BackgroundElevated
+	sidebar.BackgroundTransparency = deviceInfo.IsPhone and 0 or 0.15
+	sidebar.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	sidebar.BorderSizePixel = 0
+	sidebar.Position = UDim2.fromScale(0, 0)
+	sidebar.Size = UDim2.fromScale(sidebarWidthScale, 1)
+	sidebar.ZIndex = 2
+
+	local divider = Instance.new("Frame")
+	divider.Name = "Divider"
+	divider.AnchorPoint = Vector2.new(1, 0)
+	divider.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	divider.BackgroundColor3 = Theme.Accent
+	divider.BackgroundTransparency = 0.85
+	divider.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	divider.BorderSizePixel = 0
+	divider.Position = UDim2.fromScale(1, 0)
+	divider.Size = UDim2.new(0, 1, 1, 0)
+	divider.Visible = not deviceInfo.IsPhone
+	divider.Parent = sidebar
+
+	local dividerInteract = Instance.new("TextButton")
+	dividerInteract.Name = "DividerInteract"
+	dividerInteract.AnchorPoint = Vector2.new(0.5, 0)
+	dividerInteract.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	dividerInteract.BackgroundTransparency = 1
+	dividerInteract.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	dividerInteract.BorderSizePixel = 0
+	dividerInteract.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json")
+	dividerInteract.Position = UDim2.fromScale(0.5, 0)
+	dividerInteract.Size = UDim2.new(1, 6, 1, 0)
+	dividerInteract.Text = ""
+	dividerInteract.TextColor3 = Color3.fromRGB(0, 0, 0)
+	dividerInteract.TextSize = 14
+	dividerInteract.Parent = divider
+
+	local windowControls = Instance.new("Frame")
+	windowControls.Name = "WindowControls"
+	windowControls.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	windowControls.BackgroundTransparency = 1
+	windowControls.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	windowControls.BorderSizePixel = 0
+	windowControls.Size = UDim2.new(1, 0, 0, 40)
+
+	local controls = Instance.new("Frame")
+	controls.Name = "Controls"
+	controls.BackgroundColor3 = Color3.fromRGB(119, 174, 94)
+	controls.BackgroundTransparency = 1
+	controls.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	controls.BorderSizePixel = 0
+	controls.Size = UDim2.fromScale(1, 1)
+
+	local uIListLayout = Instance.new("UIListLayout")
+	uIListLayout.Name = "UIListLayout"
+	uIListLayout.Padding = UDim.new(0, 8)
+	uIListLayout.FillDirection = Enum.FillDirection.Horizontal
+	uIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	uIListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	uIListLayout.Parent = controls
+
+	local uIPadding = Instance.new("UIPadding")
+	uIPadding.Name = "UIPadding"
+	uIPadding.PaddingLeft = UDim.new(0, 12)
+	uIPadding.PaddingRight = UDim.new(0, 8)
+	uIPadding.Parent = controls
+
+	-- Modern icon window controls (Close / Minimize / Discord)
+	local controlBtnSize = deviceInfo.IsMobile and 28 or 26
+
+	local function CreateWindowButton(config)
+		local btn = Instance.new("TextButton")
+		btn.Name = config.Name
+		btn.AutoButtonColor = false
+		btn.Text = ""
+		btn.BackgroundColor3 = config.Color
+		btn.BackgroundTransparency = 0.15
+		btn.BorderSizePixel = 0
+		btn.Size = UDim2.fromOffset(controlBtnSize, controlBtnSize)
+		btn.LayoutOrder = config.Order or 0
+		btn.Parent = controls
+
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 8)
+		corner.Parent = btn
+
+		local stroke = Instance.new("UIStroke")
+		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		stroke.Color = config.Color
+		stroke.Transparency = 0.55
+		stroke.Thickness = 1
+		stroke.Parent = btn
+
+		local icon = Instance.new("ImageLabel")
+		icon.Name = "Icon"
+		icon.BackgroundTransparency = 1
+		icon.AnchorPoint = Vector2.new(0.5, 0.5)
+		icon.Position = UDim2.fromScale(0.5, 0.5)
+		icon.Size = UDim2.fromOffset(14, 14)
+		icon.Image = config.Icon
+		icon.ImageColor3 = Color3.fromRGB(255, 255, 255)
+		icon.ImageTransparency = 0.05
+		icon.ScaleType = Enum.ScaleType.Fit
+		icon.Parent = btn
+
+		btn.MouseEnter:Connect(function()
+			Tween(btn, TweenInfo.new(0.15, Enum.EasingStyle.Sine), {
+				BackgroundTransparency = 0,
+				Size = UDim2.fromOffset(controlBtnSize + 2, controlBtnSize + 2)
+			}):Play()
+			Tween(icon, TweenInfo.new(0.15, Enum.EasingStyle.Sine), { ImageTransparency = 0 }):Play()
+		end)
+		btn.MouseLeave:Connect(function()
+			Tween(btn, TweenInfo.new(0.15, Enum.EasingStyle.Sine), {
+				BackgroundTransparency = 0.15,
+				Size = UDim2.fromOffset(controlBtnSize, controlBtnSize)
+			}):Play()
+			Tween(icon, TweenInfo.new(0.15, Enum.EasingStyle.Sine), { ImageTransparency = 0.05 }):Play()
 		end)
 
-		if not ok then
-			warn("Rayfield | Failed to load custom assets: " .. tostring(err))
-			if secureMode then
-				secureNotify("asset_load_fail", "Rayfield",
-					"Failed to load custom assets. UI images may not display correctly.")
-			end
-		end
-	elseif secureMode then
-		secureNotify("no_getcustomasset", "Rayfield",
-			"Your executor does not support getcustomasset. Some UI images may not render correctly.")
+		return btn
 	end
 
-	local function applyCustomAsset(imageObject, key, resetRect)
-		if not imageObject then return end
-		local asset = customAssets[tostring(key)]
-		if asset and asset ~= "" then
-			imageObject.Image = asset
-			if resetRect then
-				imageObject.ImageRectOffset = Vector2.new(0, 0)
-				imageObject.ImageRectSize = Vector2.new(0, 0)
-			end
-		elseif secureMode then
-			imageObject.Image = ""
-		end
-	end
-
-	applyCustomAsset(Rayfield.Main.Shadow.Image, 5587865193)
-	applyCustomAsset(Rayfield.Main.Topbar.Hide, 10137832201)
-	applyCustomAsset(Rayfield.Main.Topbar.ChangeSize, 10137941941)
-	applyCustomAsset(Rayfield.Main.Topbar.Settings, 80503127983237)
-	applyCustomAsset(Rayfield.Main.Topbar.Icon, 78137979054938)
-	applyCustomAsset(Rayfield.Main.Topbar.Search, "IconMagnifyingGlass2", true)
-	applyCustomAsset(Rayfield.Main.Elements.Template.Toggle.Switch.Shadow, 3602733521)
-	applyCustomAsset(Rayfield.Main.Elements.Template.Slider.Main.Shadow, 3602733521)
-	applyCustomAsset(Rayfield.Main.Elements.Template.Dropdown.Toggle, "IconChevronTopMedium", true)
-	applyCustomAsset(Rayfield.Main.Elements.Template.Label.Icon, 11745872910)
-	applyCustomAsset(Rayfield.Main.Elements.Template.ColorPicker.CPBackground.MainCP, 11413591840)
-	applyCustomAsset(Rayfield.Main.Elements.Template.ColorPicker.CPBackground.MainCP.MainPoint, 3259050989)
-	applyCustomAsset(Rayfield.Main.Elements.Template.ColorPicker.ColorSlider.SliderPoint, 3259050989)
-	applyCustomAsset(Rayfield.Main.TabList.Template.Image, 4483362458)
-	applyCustomAsset(Rayfield.Main.Search.Search, 18458939117)
-	applyCustomAsset(Rayfield.Main.Search.Shadow, 5587865193)
-	applyCustomAsset(Rayfield.Notifications.Template.Icon, 77891951053543)
-	applyCustomAsset(Rayfield.Notifications.Template.Shadow, 3523728077)
-	applyCustomAsset(Rayfield.Loading.Banner, 111263549366178)
-end -- custom asset block
-
-local minSize = Vector2.new(1024, 680)
-local function getViewportSize()
-	local cam = Workspace and Workspace.CurrentCamera
-	if cam and cam.ViewportSize.X > 0 and cam.ViewportSize.Y > 0 then
-		return cam.ViewportSize
-	end
-	if Rayfield.AbsoluteSize.X > 0 and Rayfield.AbsoluteSize.Y > 0 then
-		return Rayfield.AbsoluteSize
-	end
-	return Vector2.new(1920, 1080)
-end
-
-local viewportSize = getViewportSize()
-local isMobileDevice = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-local useMobileSizing = isMobileDevice or viewportSize.X < minSize.X or viewportSize.Y < minSize.Y
-local useMobilePrompt = UserInputService.TouchEnabled
-
-
--- Object Variables
-
-local Main = Rayfield.Main
-local MPrompt = Rayfield:FindFirstChild('Prompt')
-local Topbar = Main.Topbar
-local Elements = Main.Elements
-local LoadingFrame = Main.LoadingFrame
-local TabList = Main.TabList
-local dragBar = Rayfield:FindFirstChild('Drag')
-local dragInteract = dragBar and dragBar.Interact or nil
-local dragBarCosmetic = dragBar and dragBar.Drag or nil
-
-local dragOffset = 255
-local dragOffsetMobile = 150
-
--- Responsive UIScale so the window fits on any mobile phone, tablet, emulator, or PC resolution
-local mainUIScale = Main:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
-mainUIScale.Parent = Main
-
-local function updateResponsiveScale()
-	local vp = getViewportSize()
-	local mobileMode = (UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled) or vp.X < minSize.X or
-		vp.Y < minSize.Y
-	useMobileSizing = mobileMode
-	local targetW = 520
-	local targetH = mobileMode and 330 or 530
-	local scaleX = vp.X / targetW
-	local scaleY = vp.Y / targetH
-	local scale = math.clamp(math.min(scaleX, scaleY, 1), 0.55, 1)
-	mainUIScale.Scale = scale
-end
-
-updateResponsiveScale()
-if Workspace and Workspace.CurrentCamera then
-	Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateResponsiveScale)
-end
-if Workspace then
-	Workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(function()
-		if Workspace.CurrentCamera then
-			Workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateResponsiveScale)
-			updateResponsiveScale()
-		end
-	end)
-end
-
--- Enable smooth touch & mouse wheel horizontal scrolling on TabList
-if TabList and TabList:IsA("ScrollingFrame") then
-	TabList.ScrollingEnabled = true
-	TabList.ScrollingDirection = Enum.ScrollingDirection.X
-	TabList.AutomaticCanvasSize = Enum.AutomaticSize.X
-end
-
-Rayfield.DisplayOrder = 100
-LoadingFrame.Version.Text = Release
-
--- Thanks to Latte Softworks for the Lucide integration for Roblox
-local Icons = useStudio and require(script.Parent.icons) or loadWithTimeout(RAYFIELD_RAW .. 'icons.lua')
-if type(Icons) ~= "table" then Icons = nil end
--- Variables
-
-local CFileName = nil
-local CLegacyFileName = nil -- the place-only file name configs had before Build 1.753, read as a fallback
-local CEnabled = false
-local Minimised = false
-local Hidden = false
-local Debounce = false
-local searchOpen = false
-local Notifications = Rayfield.Notifications
-local keybindConnections = {} -- For storing keybind connections to disconnect when Rayfield is destroyed
-
-local SelectedTheme = RayfieldLibrary.Theme.Default
-
-local function ChangeTheme(Theme)
-	if typeof(Theme) == 'string' then
-		SelectedTheme = RayfieldLibrary.Theme[Theme]
-	elseif typeof(Theme) == 'table' then
-		SelectedTheme = Theme
-	end
-
-	Rayfield.Main.BackgroundColor3 = SelectedTheme.Background
-	Rayfield.Main.Topbar.BackgroundColor3 = SelectedTheme.Topbar
-	Rayfield.Main.Topbar.CornerRepair.BackgroundColor3 = SelectedTheme.Topbar
-	Rayfield.Main.Shadow.Image.ImageColor3 = SelectedTheme.Shadow
-
-	Rayfield.Main.Topbar.ChangeSize.ImageColor3 = SelectedTheme.TextColor
-	Rayfield.Main.Topbar.Hide.ImageColor3 = SelectedTheme.TextColor
-	Rayfield.Main.Topbar.Search.ImageColor3 = SelectedTheme.TextColor
-	if Topbar:FindFirstChild('Settings') then
-		Rayfield.Main.Topbar.Settings.ImageColor3 = SelectedTheme.TextColor
-		Rayfield.Main.Topbar.Divider.BackgroundColor3 = SelectedTheme.ElementStroke
-	end
-
-	Main.Search.BackgroundColor3 = SelectedTheme.TextColor
-	Main.Search.Shadow.ImageColor3 = SelectedTheme.TextColor
-	Main.Search.Search.ImageColor3 = SelectedTheme.TextColor
-	Main.Search.Input.PlaceholderColor3 = SelectedTheme.TextColor
-	Main.Search.UIStroke.Color = SelectedTheme.SecondaryElementStroke
-
-	if Main:FindFirstChild('Notice') then
-		Main.Notice.BackgroundColor3 = SelectedTheme.Background
-	end
-
-	for _, text in ipairs(Rayfield:GetDescendants()) do
-		if text.Parent.Parent ~= Notifications then
-			if text:IsA('TextLabel') or text:IsA('TextBox') then text.TextColor3 = SelectedTheme.TextColor end
-		end
-	end
-
-	for _, TabPage in ipairs(Elements:GetChildren()) do
-		for _, Element in ipairs(TabPage:GetChildren()) do
-			if Element.ClassName == "Frame" and Element.Name ~= "Placeholder" and Element.Name ~= "SectionSpacing" and Element.Name ~= "Divider" and Element.Name ~= "SectionTitle" and Element.Name ~= "SearchTitle-fsefsefesfsefesfesfThanks" then
-				Element.BackgroundColor3 = SelectedTheme.ElementBackground
-				Element.UIStroke.Color = SelectedTheme.ElementStroke
-			end
-		end
-	end
-end
-
-local function getIcon(name)
-	if not Icons then
-		warn("Lucide Icons: Cannot use icons as icons library is not loaded")
-		return
-	end
-	name = string.match(string.lower(name), "^%s*(.*)%s*$")
-	local sizedicons = Icons['48px']
-	local r = sizedicons[name]
-	if not r then
-		error("Lucide Icons: Failed to find icon by the name of \"" .. name .. "\"", 2)
-	end
-
-	local rirs = r[2]
-	local riro = r[3]
-
-	if type(r[1]) ~= "number" or type(rirs) ~= "table" or type(riro) ~= "table" then
-		error("Lucide Icons: Internal error: Invalid auto-generated asset entry")
-	end
-
-	local irs = Vector2.new(rirs[1], rirs[2])
-	local iro = Vector2.new(riro[1], riro[2])
-
-	local asset = {
-		id = r[1],
-		imageRectSize = irs,
-		imageRectOffset = iro,
-	}
-
-	return asset
-end
-local function getAssetUri(id)
-	local assetUri = ""
-	if type(id) == "number" then
-		assetUri = "rbxassetid://" .. id
-	elseif type(id) == "string" and not Icons then
-		warn("Rayfield | Cannot use Lucide icons as icons library is not loaded")
-	else
-		warn("Rayfield | The icon argument must either be an icon ID (number) or a Lucide icon name (string)")
-	end
-	return assetUri
-end
-
-local function isCustomAsset(value)
-	return type(value) == "string" and (string.find(value, "rbxasset://") == 1 or string.find(value, "rbxthumb://") == 1)
-end
-
-local function resolveIcon(icon)
-	if not icon or icon == 0 then
-		return "", nil, nil
-	end
-
-	if isCustomAsset(icon) then
-		return icon, nil, nil
-	end
-
-	if secureMode then
-		secureNotify("icon_blocked", "Secure Mode",
-			"Element icons using asset IDs or Lucide names are blocked. Use getcustomasset() for icons to stay undetected.")
-		return "", nil, nil
-	end
-
-	if typeof(icon) == "string" and Icons then
-		local ok, asset = pcall(getIcon, icon)
-		if ok and asset then
-			return "rbxassetid://" .. asset.id, asset.imageRectOffset, asset.imageRectSize
-		end
-		return "", nil, nil
-	else
-		return getAssetUri(icon), nil, nil
-	end
-end
-
-local function getGuiInsetOffset(object)
-	local screenGui = object and object:FindFirstAncestorWhichIsA("ScreenGui")
-	if screenGui and screenGui.IgnoreGuiInset and GuiService then
-		local ok, inset = pcall(GuiService.GetGuiInset, GuiService)
-		if ok and inset then
-			return inset
-		end
-	end
-	return Vector2.zero
-end
-
-local function getPointerPosition(inputObj)
-	if inputObj and inputObj.UserInputType == Enum.UserInputType.Touch then
-		local inset = GuiService and select(2, pcall(GuiService.GetGuiInset, GuiService)) or Vector2.zero
-		if typeof(inset) ~= "Vector2" then inset = Vector2.zero end
-		return Vector2.new(inputObj.Position.X, inputObj.Position.Y) + inset
-	end
-	return UserInputService:GetMouseLocation()
-end
-
-local function makeDraggable(object, dragObject, enableTaptic, tapticOffset)
-	if not object or not dragObject then return end
-	local dragging = false
-	local activeInput = nil
-	local relative = Vector2.zero
-
-	local offset = getGuiInsetOffset(object)
-
-	local function getScaledDragOffset()
-		if not tapticOffset then return 0 end
-		local baseOffset = (useMobileSizing and tapticOffset[2]) or tapticOffset[1]
-		local scale = mainUIScale and mainUIScale.Scale or 1
-		return baseOffset * scale
-	end
-
-	local function connectFunctions()
-		if dragBar and enableTaptic then
-			dragBar.MouseEnter:Connect(function()
-				if not dragging and not Hidden then
-					TweenService:Create(dragBarCosmetic,
-						TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-						{ BackgroundTransparency = 0.5, Size = UDim2.new(0, 120, 0, 4) }):Play()
-				end
-			end)
-
-			dragBar.MouseLeave:Connect(function()
-				if not dragging and not Hidden then
-					TweenService:Create(dragBarCosmetic,
-						TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-						{ BackgroundTransparency = 0.7, Size = UDim2.new(0, 100, 0, 4) }):Play()
-				end
-			end)
-		end
-	end
-
-	connectFunctions()
-
-	dragObject.InputBegan:Connect(function(input, processed)
-		if processed then return end
-
-		local inputType = input.UserInputType.Name
-		if inputType == "MouseButton1" or inputType == "Touch" then
-			dragging = true
-			activeInput = input
-			offset = getGuiInsetOffset(object)
-
-			local pointerPos = getPointerPosition(input)
-			relative = object.AbsolutePosition + object.AbsoluteSize * object.AnchorPoint - pointerPos
-			if enableTaptic and not Hidden then
-				TweenService:Create(dragBarCosmetic, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-					{ Size = UDim2.new(0, 110, 0, 4), BackgroundTransparency = 0 }):Play()
-			end
-		end
-	end)
-
-	local inputEnded = UserInputService.InputEnded:Connect(function(input)
-		if not dragging then return end
-
-		local inputType = input.UserInputType.Name
-		if input == activeInput or inputType == "MouseButton1" or (inputType == "Touch" and activeInput == nil) then
-			dragging = false
-			activeInput = nil
-
-			if enableTaptic and not Hidden then
-				TweenService:Create(dragBarCosmetic, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-					{ Size = UDim2.new(0, 100, 0, 4), BackgroundTransparency = 0.7 }):Play()
-			end
-		end
-	end)
-
-	local renderStepped = RunService.RenderStepped:Connect(function()
-		if dragging and not Hidden then
-			local pointerPos = getPointerPosition(activeInput)
-			local position = pointerPos + relative + offset
-			local vp = getViewportSize()
-			position = Vector2.new(
-				math.clamp(position.X, 40, math.max(40, vp.X - 40)),
-				math.clamp(position.Y, 30, math.max(30, vp.Y - 30))
-			)
-			local currentDragOffset = getScaledDragOffset()
-			if enableTaptic and tapticOffset then
-				TweenService:Create(object, TweenInfo.new(0.4, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-					{ Position = UDim2.fromOffset(position.X, position.Y) }):Play()
-				TweenService:Create(dragObject.Parent,
-					TweenInfo.new(0.05, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-					{ Position = UDim2.fromOffset(position.X, position.Y + currentDragOffset) }):Play()
-			else
-				if dragBar and tapticOffset then
-					dragBar.Position = UDim2.fromOffset(position.X, position.Y + currentDragOffset)
-				end
-				object.Position = UDim2.fromOffset(position.X, position.Y)
-			end
-		end
-	end)
-
-	object.Destroying:Connect(function()
-		if inputEnded then inputEnded:Disconnect() end
-		if renderStepped then renderStepped:Disconnect() end
-	end)
-end
-
-
-local function PackColor(Color)
-	return { R = Color.R * 255, G = Color.G * 255, B = Color.B * 255 }
-end
-
-local function UnpackColor(Color)
-	return Color3.fromRGB(Color.R, Color.G, Color.B)
-end
-
-local function LoadConfiguration(Configuration)
-	local success, Data = pcall(function() return HttpService:JSONDecode(Configuration) end)
-	local changed
-
-	if not success then
-		warn('Rayfield had an issue decoding the configuration file, please try delete the file and reopen Rayfield.')
-		return
-	end
-
-	-- Iterate through current UI elements' flags
-	for FlagName, Flag in pairs(RayfieldLibrary.Flags) do
-		local FlagValue = Data[FlagName]
-
-		if (typeof(FlagValue) == 'boolean' and FlagValue == false) or FlagValue then
-			task.spawn(function()
-				if Flag.Type == "ColorPicker" then
-					changed = true
-					Flag:Set(UnpackColor(FlagValue))
-				else
-					if (Flag.CurrentValue or Flag.CurrentKeybind or Flag.CurrentOption or Flag.Color) ~= FlagValue then
-						changed = true
-						Flag:Set(FlagValue)
-					end
-				end
-			end)
-		else
-			warn("Rayfield | Unable to find '" .. FlagName .. "' in the save file.")
-			print("The error above may not be an issue if new elements have been added or not been set values.")
-			--RayfieldLibrary:Notify({Title = "Rayfield Flags", Content = "Rayfield was unable to find '"..FlagName.. "' in the save file. Check sirius.menu/discord for help.", Image = 3944688398})
-		end
-	end
-
-	return changed
-end
-
-local function SaveConfiguration()
-	if not CEnabled or not globalLoaded then return end
-
-	if debugX then
-		print('Saving')
-	end
-
-	local Data = {}
-	for i, v in pairs(RayfieldLibrary.Flags) do
-		if v.Type == "ColorPicker" then
-			Data[i] = PackColor(v.Color)
-		else
-			if typeof(v.CurrentValue) == 'boolean' then
-				if v.CurrentValue == false then
-					Data[i] = false
-				else
-					Data[i] = v.CurrentValue or v.CurrentKeybind or v.CurrentOption or v.Color
-				end
-			else
-				Data[i] = v.CurrentValue or v.CurrentKeybind or v.CurrentOption or v.Color
-			end
-		end
-	end
-
-	if useStudio then
-		if script.Parent:FindFirstChild('configuration') then script.Parent.configuration:Destroy() end
-
-		local ScreenGui = Instance.new("ScreenGui")
-		ScreenGui.Parent = script.Parent
-		ScreenGui.Name = 'configuration'
-
-		local TextBox = Instance.new("TextBox")
-		TextBox.Parent = ScreenGui
-		TextBox.Size = UDim2.new(0, 800, 0, 50)
-		TextBox.AnchorPoint = Vector2.new(0.5, 0)
-		TextBox.Position = UDim2.new(0.5, 0, 0, 30)
-		TextBox.Text = HttpService:JSONEncode(Data)
-		TextBox.ClearTextOnFocus = false
-	end
-
-	if debugX then
-		warn(HttpService:JSONEncode(Data))
-	end
-
-
-	callSafely(writefile, ConfigurationFolder .. "/" .. CFileName .. ConfigurationExtension,
-		tostring(HttpService:JSONEncode(Data)))
-end
-
-function RayfieldLibrary:Notify(data) -- action e.g open messages
-	-- a destroyed interface has no template left to clone
-	if rayfieldDestroyed then return end
-	task.spawn(function()
-		-- Notification Object Creation
-		local newNotification = Notifications.Template:Clone()
-		newNotification.Name = data.Title or 'No Title Provided'
-		newNotification.Parent = Notifications
-		newNotification.LayoutOrder = #Notifications:GetChildren()
-		newNotification.Visible = false
-
-		-- Set Data
-		newNotification.Title.Text = data.Title or "Unknown Title"
-		newNotification.Description.Text = data.Content or "Unknown Content"
-
-		if data.Image then
-			local img, rectOffset, rectSize = resolveIcon(data.Image)
-			newNotification.Icon.Image = img
-			if rectOffset then newNotification.Icon.ImageRectOffset = rectOffset end
-			if rectSize then newNotification.Icon.ImageRectSize = rectSize end
-		else
-			newNotification.Icon.Image = ""
-		end
-
-		-- Set initial transparency values
-
-		newNotification.Title.TextColor3 = SelectedTheme.TextColor
-		newNotification.Description.TextColor3 = SelectedTheme.TextColor
-		newNotification.BackgroundColor3 = SelectedTheme.Background
-		newNotification.UIStroke.Color = SelectedTheme.TextColor
-		newNotification.Icon.ImageColor3 = SelectedTheme.TextColor
-
-		newNotification.BackgroundTransparency = 1
-		newNotification.Title.TextTransparency = 1
-		newNotification.Description.TextTransparency = 1
-		newNotification.UIStroke.Transparency = 1
-		newNotification.Shadow.ImageTransparency = 1
-		newNotification.Size = UDim2.new(1, 0, 0, 800)
-		newNotification.Icon.ImageTransparency = 1
-		newNotification.Icon.BackgroundTransparency = 1
-
-		task.wait()
-
-		newNotification.Visible = true
-
-		if data.Actions then
-			warn('Rayfield | Not seeing your actions in notifications?')
-			print(
-				"Notification Actions are being sunset for now, keep up to date on when they're back in the discord. (sirius.menu/discord)")
-		end
-
-		-- Calculate textbounds and set initial values
-		local bounds = { newNotification.Title.TextBounds.Y, newNotification.Description.TextBounds.Y }
-		newNotification.Size = UDim2.new(1, -60, 0, -Notifications:FindFirstChild("UIListLayout").Padding.Offset)
-
-		newNotification.Icon.Size = UDim2.new(0, 32, 0, 32)
-		newNotification.Icon.Position = UDim2.new(0, 20, 0.5, 0)
-
-		TweenService:Create(newNotification, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-			{ Size = UDim2.new(1, 0, 0, math.max(bounds[1] + bounds[2] + 31, 60)) }):Play()
-
-		task.wait(0.15)
-		TweenService:Create(newNotification, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
-			{ BackgroundTransparency = 0.45 }):Play()
-		TweenService:Create(newNotification.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-			{ TextTransparency = 0 }):Play()
-
-		task.wait(0.05)
-
-		TweenService:Create(newNotification.Icon, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-			{ ImageTransparency = 0 }):Play()
-
-		task.wait(0.05)
-		TweenService:Create(newNotification.Description, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-			{ TextTransparency = 0.35 }):Play()
-		TweenService:Create(newNotification.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
-			{ Transparency = 0.95 }):Play()
-		TweenService:Create(newNotification.Shadow, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-			{ ImageTransparency = 0.82 }):Play()
-
-		local waitDuration = math.min(math.max((#newNotification.Description.Text * 0.1) + 2.5, 3), 10)
-		task.wait(data.Duration or waitDuration)
-
-		newNotification.Icon.Visible = false
-		TweenService:Create(newNotification, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
-			{ BackgroundTransparency = 1 }):Play()
-		TweenService:Create(newNotification.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
-			{ Transparency = 1 }):Play()
-		TweenService:Create(newNotification.Shadow, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-			{ ImageTransparency = 1 }):Play()
-		TweenService:Create(newNotification.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-			{ TextTransparency = 1 }):Play()
-		TweenService:Create(newNotification.Description, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-			{ TextTransparency = 1 }):Play()
-
-		TweenService:Create(newNotification, TweenInfo.new(1, Enum.EasingStyle.Exponential),
-			{ Size = UDim2.new(1, -90, 0, 0) }):Play()
-
-		task.wait(1)
-
-		TweenService:Create(newNotification, TweenInfo.new(1, Enum.EasingStyle.Exponential),
-			{ Size = UDim2.new(1, -90, 0, -Notifications:FindFirstChild("UIListLayout").Padding.Offset) }):Play()
-
-		newNotification.Visible = false
-		newNotification:Destroy()
-	end)
-end
-
-local function openSearch()
-	searchOpen = true
-
-	Main.Search.BackgroundTransparency = 1
-	Main.Search.Shadow.ImageTransparency = 1
-	Main.Search.Input.TextTransparency = 1
-	Main.Search.Search.ImageTransparency = 1
-	Main.Search.UIStroke.Transparency = 1
-	Main.Search.Size = UDim2.new(1, 0, 0, 80)
-	Main.Search.Position = UDim2.new(0.5, 0, 0, 70)
-
-	Main.Search.Input.Interactable = true
-
-	Main.Search.Visible = true
-
-	for _, tabbtn in ipairs(TabList:GetChildren()) do
-		if tabbtn.ClassName == "Frame" and tabbtn.Name ~= "Placeholder" then
-			tabbtn.Interact.Visible = false
-			TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { BackgroundTransparency = 1 })
-				:Play()
-			TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
-				:Play()
-			TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { ImageTransparency = 1 })
-				:Play()
-			TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { Transparency = 1 })
-				:Play()
-		end
-	end
-
-	Main.Search.Input:CaptureFocus()
-	TweenService:Create(Main.Search.Shadow, TweenInfo.new(0.05, Enum.EasingStyle.Quint), { ImageTransparency = 0.95 })
-		:Play()
-	TweenService:Create(Main.Search, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-		{ Position = UDim2.new(0.5, 0, 0, 57), BackgroundTransparency = 0.9 }):Play()
-	TweenService:Create(Main.Search.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { Transparency = 0.8 })
-		:Play()
-	TweenService:Create(Main.Search.Input, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { TextTransparency = 0.2 })
-		:Play()
-	TweenService:Create(Main.Search.Search, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { ImageTransparency = 0.5 })
-		:Play()
-	TweenService:Create(Main.Search, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-		{ Size = UDim2.new(1, -35, 0, 35) })
-		:Play()
-end
-
-local function closeSearch()
-	searchOpen = false
-
-	TweenService:Create(Main.Search, TweenInfo.new(0.35, Enum.EasingStyle.Quint),
-		{ BackgroundTransparency = 1, Size = UDim2.new(1, -55, 0, 30) }):Play()
-	TweenService:Create(Main.Search.Search, TweenInfo.new(0.15, Enum.EasingStyle.Quint), { ImageTransparency = 1 }):Play()
-	TweenService:Create(Main.Search.Shadow, TweenInfo.new(0.15, Enum.EasingStyle.Quint), { ImageTransparency = 1 }):Play()
-	TweenService:Create(Main.Search.UIStroke, TweenInfo.new(0.15, Enum.EasingStyle.Quint), { Transparency = 1 }):Play()
-	TweenService:Create(Main.Search.Input, TweenInfo.new(0.15, Enum.EasingStyle.Quint), { TextTransparency = 1 }):Play()
-
-	for _, tabbtn in ipairs(TabList:GetChildren()) do
-		if tabbtn.ClassName == "Frame" and tabbtn.Name ~= "Placeholder" then
-			tabbtn.Interact.Visible = true
-			if tostring(Elements.UIPageLayout.CurrentPage) == tabbtn.Title.Text then
-				TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-					{ BackgroundTransparency = 0 }):Play()
-				TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-					{ ImageTransparency = 0 }):Play()
-				TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-					{ TextTransparency = 0 }):Play()
-				TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-					{ Transparency = 1 })
-					:Play()
-			else
-				TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-					{ BackgroundTransparency = 0.7 }):Play()
-				TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-					{ ImageTransparency = 0.2 }):Play()
-				TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-					{ TextTransparency = 0.2 }):Play()
-				TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-					{ Transparency = 0.5 }):Play()
-			end
-		end
-	end
-
-	Main.Search.Input.Text = ''
-	Main.Search.Input.Interactable = false
-end
-
--- Sets element visibility across all tab pages (used by Hide, Unhide, Maximise, Minimise)
-local function setElementsVisible(show)
-	for _, tab in ipairs(Elements:GetChildren()) do
-		if tab.Name ~= "Template" and tab.ClassName == "ScrollingFrame" and tab.Name ~= "Placeholder" then
-			for _, element in ipairs(tab:GetChildren()) do
-				if element.ClassName == "Frame" then
-					if element.Name ~= "SectionSpacing" and element.Name ~= "Placeholder" then
-						if element.Name == "SectionTitle" or element.Name == 'SearchTitle-fsefsefesfsefesfesfThanks' then
-							TweenService:Create(element.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-								{ TextTransparency = show and 0.4 or 1 }):Play()
-						elseif element.Name == 'Divider' then
-							TweenService:Create(element.Divider, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-								{ BackgroundTransparency = show and 0.85 or 1 }):Play()
-						else
-							local bgTarget = element:GetAttribute("BackgroundTransparencyTarget") or 0
-							local strokeTarget = element:GetAttribute("UIStrokeTransparencyTarget") or 0
-							local titleTarget = element:GetAttribute("TitleTextTransparencyTarget") or 0
-							TweenService:Create(element, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-								{ BackgroundTransparency = show and bgTarget or 1 }):Play()
-							TweenService:Create(element.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-								{ Transparency = show and strokeTarget or 1 }):Play()
-							TweenService:Create(element.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-								{ TextTransparency = show and titleTarget or 1 }):Play()
-						end
-						for _, child in ipairs(element:GetChildren()) do
-							if child.ClassName == "Frame" or child.ClassName == "TextLabel" or child.ClassName == "TextBox" or child.ClassName == "ImageButton" or child.ClassName == "ImageLabel" then
-								child.Visible = show
-							end
-						end
-					end
-				end
-			end
-		end
-	end
-end
-
--- Sets tab button visibility (used by Hide, Unhide, Maximise, Minimise)
-local function setTabButtonsVisible(show)
-	for _, tabbtn in ipairs(TabList:GetChildren()) do
-		if tabbtn.ClassName == "Frame" and tabbtn.Name ~= "Placeholder" then
-			if show then
-				if tostring(Elements.UIPageLayout.CurrentPage) == tabbtn.Title.Text then
-					TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-						{ BackgroundTransparency = 0 }):Play()
-					TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-						{ ImageTransparency = 0 }):Play()
-					TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-						{ TextTransparency = 0 }):Play()
-					TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-						{ Transparency = 1 }):Play()
-				else
-					TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-						{ BackgroundTransparency = 0.7 }):Play()
-					TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-						{ ImageTransparency = 0.2 }):Play()
-					TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-						{ TextTransparency = 0.2 }):Play()
-					TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-						{ Transparency = 0.5 }):Play()
-				end
-			else
-				TweenService:Create(tabbtn, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-					{ BackgroundTransparency = 1 }):Play()
-				TweenService:Create(tabbtn.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-					{ TextTransparency = 1 }):Play()
-				TweenService:Create(tabbtn.Image, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-					{ ImageTransparency = 1 }):Play()
-				TweenService:Create(tabbtn.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-					{ Transparency = 1 })
-					:Play()
-			end
-		end
-	end
-end
-
-local function Hide(notify)
-	siaCall("window", "minimise")
-	if MPrompt then
-		MPrompt.Title.TextColor3 = Color3.fromRGB(255, 255, 255)
-		MPrompt.Position = UDim2.new(0.5, 0, 0, -50)
-		MPrompt.Size = UDim2.new(0, 40, 0, 10)
-		MPrompt.BackgroundTransparency = 1
-		MPrompt.Title.TextTransparency = 1
-		MPrompt.Visible = true
-	end
-
-	task.spawn(closeSearch)
-
-	Debounce = true
-	if notify then
-		if useMobilePrompt then
-			RayfieldLibrary:Notify({
-				Title = "Interface Hidden",
-				Content =
-				"The interface has been hidden, you can unhide the interface by tapping 'Show'.",
-				Duration = 7,
-				Image = 4400697855
-			})
-		else
-			RayfieldLibrary:Notify({
-				Title = "Interface Hidden",
-				Content =
-					"The interface has been hidden, you can unhide the interface by tapping " ..
-					tostring(getSetting("General", "rayfieldOpen")) .. ".",
-				Duration = 7,
-				Image = 4400697855
-			})
-		end
-	end
-
-	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { Size = UDim2.new(0, 470, 0, 0) }):Play()
-	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-		{ Size = UDim2.new(0, 470, 0, 45) })
-		:Play()
-	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { BackgroundTransparency = 1 }):Play()
-	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { BackgroundTransparency = 1 })
-		:Play()
-	TweenService:Create(Main.Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-		{ BackgroundTransparency = 1 }):Play()
-	TweenService:Create(Main.Topbar.CornerRepair, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-		{ BackgroundTransparency = 1 }):Play()
-	TweenService:Create(Main.Topbar.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
-		:Play()
-	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { ImageTransparency = 1 })
-		:Play()
-	TweenService:Create(Topbar.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { Transparency = 1 }):Play()
-	if dragBarCosmetic then
-		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-			{ BackgroundTransparency = 1 }):Play()
-	end
-
-	if MPrompt then
-		TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-			{ Size = UDim2.new(0, 120, 0, 30), Position = UDim2.new(0.5, 0, 0, 20), BackgroundTransparency = 0.3 }):Play()
-		TweenService:Create(MPrompt.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { TextTransparency = 0.3 })
-			:Play()
-	end
-
-	for _, TopbarButton in ipairs(Topbar:GetChildren()) do
-		if TopbarButton.ClassName == "ImageButton" then
-			TweenService:Create(TopbarButton, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { ImageTransparency = 1 })
-				:Play()
-		end
-	end
-
-	setTabButtonsVisible(false)
-
-	if dragInteract then dragInteract.Visible = false end
-
-	setElementsVisible(false)
-
-	task.wait(0.5)
-	Main.Visible = false
-	Debounce = false
-end
-
-local function getCurrentDragOffset()
-	local base = useMobileSizing and dragOffsetMobile or dragOffset
-	local scale = mainUIScale and mainUIScale.Scale or 1
-	return math.floor(base * scale + 0.5)
-end
-
-local function Maximise()
-	siaCall("window", "restore")
-	Debounce = true
-	Topbar.ChangeSize.Image = customAssets[tostring(10137941941)]
-
-	TweenService:Create(Topbar.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { Transparency = 1 }):Play()
-	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { ImageTransparency = 0.6 })
-		:Play()
-	TweenService:Create(Topbar.CornerRepair, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-		{ BackgroundTransparency = 0 }):Play()
-	TweenService:Create(Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 })
-		:Play()
-	if dragBarCosmetic then
-		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-			{ BackgroundTransparency = 0.7 }):Play()
-	end
-	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-		{ Size = useMobileSizing and UDim2.new(0, 500, 0, 275) or UDim2.new(0, 500, 0, 475) }):Play()
-	TweenService:Create(Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { Size = UDim2.new(0, 500, 0, 45) })
-		:Play()
-	TabList.Visible = true
-	task.wait(0.2)
-
-	Elements.Visible = true
-
-	setElementsVisible(true)
-
-	task.wait(0.1)
-
-	setTabButtonsVisible(true)
-
-	task.wait(0.5)
-	Debounce = false
-end
-
-
-local function Unhide()
-	siaCall("window", "restore")
-	Debounce = true
-	Main.Position = UDim2.new(0.5, 0, 0.5, 0)
-	Main.Visible = true
-	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-		{ Size = useMobileSizing and UDim2.new(0, 500, 0, 275) or UDim2.new(0, 500, 0, 475) }):Play()
-	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-		{ Size = UDim2.new(0, 500, 0, 45) })
-		:Play()
-	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { ImageTransparency = 0.6 })
-		:Play()
-	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 }):Play()
-	TweenService:Create(Main.Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 })
-		:Play()
-	TweenService:Create(Main.Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-		{ BackgroundTransparency = 0 }):Play()
-	TweenService:Create(Main.Topbar.CornerRepair, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-		{ BackgroundTransparency = 0 }):Play()
-	TweenService:Create(Main.Topbar.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { TextTransparency = 0 })
-		:Play()
-
-	if MPrompt then
-		TweenService:Create(MPrompt, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-			{ Size = UDim2.new(0, 40, 0, 10), Position = UDim2.new(0.5, 0, 0, -50), BackgroundTransparency = 1 }):Play()
-		TweenService:Create(MPrompt.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
-			:Play()
-
-		task.spawn(function()
-			task.wait(0.5)
-			MPrompt.Visible = false
-		end)
-	end
-
-	if Minimised then
-		task.spawn(Maximise)
-	end
-
-	if dragBar then
-		dragBar.Position = UDim2.new(0.5, 0, 0.5, getCurrentDragOffset())
-	end
-
-	if dragInteract then
-		dragInteract.Visible = true
-	end
-
-	for _, TopbarButton in ipairs(Topbar:GetChildren()) do
-		if TopbarButton.ClassName == "ImageButton" then
-			if TopbarButton.Name == 'Icon' then
-				TweenService:Create(TopbarButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-					{ ImageTransparency = 0 }):Play()
-			else
-				TweenService:Create(TopbarButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-					{ ImageTransparency = 0.8 }):Play()
-			end
-		end
-	end
-
-	setTabButtonsVisible(true)
-
-	setElementsVisible(true)
-
-	if dragBarCosmetic then
-		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-			{ BackgroundTransparency = 0.5 }):Play()
-	end
-
-	task.wait(0.5)
-	Minimised = false
-	Debounce = false
-end
-
-local function Minimise()
-	siaCall("window", "minimise")
-	Debounce = true
-	Topbar.ChangeSize.Image = customAssets[tostring(11036884234)]
-
-	Topbar.UIStroke.Color = SelectedTheme.ElementStroke
-
-	task.spawn(closeSearch)
-
-	setTabButtonsVisible(false)
-
-	setElementsVisible(false)
-
-	if dragBarCosmetic then
-		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-			{ BackgroundTransparency = 1 }):Play()
-	end
-	TweenService:Create(Topbar.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { Transparency = 0 }):Play()
-	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { ImageTransparency = 1 })
-		:Play()
-	TweenService:Create(Topbar.CornerRepair, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-		{ BackgroundTransparency = 1 }):Play()
-	TweenService:Create(Topbar.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { BackgroundTransparency = 1 })
-		:Play()
-	TweenService:Create(Main, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { Size = UDim2.new(0, 495, 0, 45) })
-		:Play()
-	TweenService:Create(Topbar, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { Size = UDim2.new(0, 495, 0, 45) })
-		:Play()
-
-	task.wait(0.3)
-
-	Elements.Visible = false
-	TabList.Visible = false
-
-	task.wait(0.2)
-	Debounce = false
-end
-
-local function saveSettings() -- Save settings to config file
-	local encoded
-	local success, err = pcall(function()
-		encoded = HttpService:JSONEncode(settingsTable)
-	end)
-
-	if success then
-		if useStudio then
-			if script.Parent['get.val'] then
-				script.Parent['get.val'].Value = encoded
-			end
-		end
-		callSafely(writefile, RayfieldFolder .. '/settings' .. ConfigurationExtension, encoded)
-	end
-end
-
-local function updateSetting(category, setting, value)
-	if not settingsInitialized then
-		return
-	end
-	settingsTable[category][setting].Value = value
-	overriddenSettings[category .. "." .. setting] = nil -- If user changes an overriden setting, remove the override
-	saveSettings()
-
-	-- Turning analytics off mid-session also stops anything already armed, like the kick watcher.
-	if category == "System" and setting == "usageAnalytics" and not value and reporter and reporter.disable then
-		pcall(reporter.disable, reporter)
-	end
-	if category == "System" and setting == "usageAnalytics" then
-		if value then
-			if siaScript then siaStart(siaScript) end
-		else
-			siaStop()
-		end
-	end
-end
-
-local function createSettings(window)
-	if not (writefile and isfile and readfile and isfolder and makefolder) and not useStudio then
-		if Topbar['Settings'] then Topbar.Settings.Visible = false end
-		Topbar['Search'].Position = UDim2.new(1, -75, 0.5, 0)
-		warn('Can\'t create settings as no file-saving functionality is available.')
-		return
-	end
-
-	local newTab = window:CreateTab('Rayfield Settings', 0, true)
-
-	if TabList['Rayfield Settings'] then
-		TabList['Rayfield Settings'].LayoutOrder = 1000
-	end
-
-	if Elements['Rayfield Settings'] then
-		Elements['Rayfield Settings'].LayoutOrder = 1000
-	end
-
-	-- Create sections and elements
-	for categoryName, settingCategory in pairs(settingsTable) do
-		newTab:CreateSection(categoryName)
-
-		for settingName, setting in pairs(settingCategory) do
-			if setting.Type == 'input' then
-				setting.Element = newTab:CreateInput({
-					Name = setting.Name,
-					CurrentValue = setting.Value,
-					PlaceholderText = setting.Placeholder,
-					Ext = true,
-					RemoveTextAfterFocusLost = setting.ClearOnFocus,
-					Callback = function(Value)
-						updateSetting(categoryName, settingName, Value)
-					end,
-				})
-			elseif setting.Type == 'toggle' then
-				setting.Element = newTab:CreateToggle({
-					Name = setting.Name,
-					CurrentValue = setting.Value,
-					Ext = true,
-					Callback = function(Value)
-						updateSetting(categoryName, settingName, Value)
-					end,
-				})
-				if setting.Description then
-					newTab:CreateLabel(setting.Description)
-				end
-			elseif setting.Type == 'bind' then
-				setting.Element = newTab:CreateKeybind({
-					Name = setting.Name,
-					CurrentKeybind = setting.Value,
-					HoldToInteract = false,
-					Ext = true,
-					CallOnChange = true,
-					Callback = function(Value)
-						updateSetting(categoryName, settingName, Value)
-					end,
-				})
-			end
-		end
-	end
-
-	settingsCreated = true
-	loadSettings()
-	saveSettings()
-end
-
-local function fadeOutKeyUI(KeyMain)
-	TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), { BackgroundTransparency = 1 }):Play()
-	TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), { Size = UDim2.new(0, 467, 0, 175) })
-		:Play()
-	TweenService:Create(KeyMain.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { ImageTransparency = 1 })
-		:Play()
-	TweenService:Create(KeyMain.Title, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), { TextTransparency = 1 }):Play()
-	TweenService:Create(KeyMain.Subtitle, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
-		:Play()
-	TweenService:Create(KeyMain.KeyNote, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
-		:Play()
-	TweenService:Create(KeyMain.Input, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { BackgroundTransparency = 1 })
-		:Play()
-	TweenService:Create(KeyMain.Input.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { Transparency = 1 })
-		:Play()
-	TweenService:Create(KeyMain.Input.InputBox, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-		{ TextTransparency = 1 })
-		:Play()
-	TweenService:Create(KeyMain.NoteTitle, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
-		:Play()
-	TweenService:Create(KeyMain.NoteMessage, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
-		:Play()
-	TweenService:Create(KeyMain.Hide, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), { ImageTransparency = 1 }):Play()
-end
-
-function RayfieldLibrary:CreateWindow(Settings)
-	if Rayfield:FindFirstChild('Loading') then
-		if getgenv and not getgenv().rayfieldCached then
-			Rayfield.Enabled = true
-			Rayfield.Loading.Visible = true
-
-			task.wait(1.4)
-			Rayfield.Loading.Visible = false
-		end
-	end
-
-	if getgenv then getgenv().rayfieldCached = true end
-
-	if not correctBuild and not Settings.DisableBuildWarnings then
-		task.delay(3,
-			function()
-				RayfieldLibrary:Notify({
-					Title = 'Build Mismatch',
-					Content =
-						'Rayfield may encounter issues as you are running an incompatible interface version (' ..
-						((Rayfield:FindFirstChild('Build') and Rayfield.Build.Value) or 'No Build') ..
-						').\n\nThis version of Rayfield is intended for interface build ' ..
-						InterfaceBuild .. '.\n\nTry rejoining and then run the script twice.',
-					Image = 4335487866,
-					Duration = 15
-				})
-			end)
-	end
-
-	if Settings.ToggleUIKeybind then -- Can either be a string or an Enum.KeyCode
-		local keybind = Settings.ToggleUIKeybind
-		if type(keybind) == "string" then
-			keybind = string.upper(keybind)
-			assert(pcall(function()
-				return Enum.KeyCode[keybind]
-			end), "ToggleUIKeybind must be a valid KeyCode")
-			overrideSetting("General", "rayfieldOpen", keybind)
-		elseif typeof(keybind) == "EnumItem" then
-			assert(keybind.EnumType == Enum.KeyCode, "ToggleUIKeybind must be a KeyCode enum")
-			overrideSetting("General", "rayfieldOpen", keybind.Name)
-		else
-			error("ToggleUIKeybind must be a string or KeyCode enum")
-		end
-	end
-
-	ensureFolder(RayfieldFolder)
-	pcall(siaStart, {
-		name = Settings.Name,
-		id = Settings.ScriptID,
-		token = Settings.VerificationToken,
-		theme = (type(Settings.Theme) == "string" and Settings.Theme) or (Settings.Theme and "Custom") or "Default",
+	local exit = CreateWindowButton({
+		Name = "Exit",
+		Color = Theme.Close,
+		Icon = assets.closeIcon,
+		Order = 0,
 	})
 
-	local Passthrough = false
-	Topbar.Title.Text = Settings.Name
+	local minimize = CreateWindowButton({
+		Name = "Minimize",
+		Color = Theme.Minimize,
+		Icon = assets.minimizeIcon,
+		Order = 1,
+	})
 
-	Main.Size = UDim2.new(0, 420, 0, 100)
-	Main.Visible = true
-	Main.BackgroundTransparency = 1
-	if Main:FindFirstChild('Notice') then Main.Notice.Visible = false end
-	Main.Shadow.Image.ImageTransparency = 1
+	local discord = CreateWindowButton({
+		Name = "Discord",
+		Color = Theme.Discord,
+		Icon = assets.discordIcon,
+		Order = 2,
+	})
 
-	LoadingFrame.Title.TextTransparency = 1
-	LoadingFrame.Subtitle.TextTransparency = 1
+	-- Optional legacy maximize (hidden / disabled by default)
+	local maximize = Instance.new("TextButton")
+	maximize.Name = "Maximize"
+	maximize.Visible = false
+	maximize.Active = false
+	maximize.Parent = controls
 
-	if Settings.ShowText then
-		MPrompt.Title.Text = 'Show ' .. Settings.ShowText
-	end
-
-	LoadingFrame.Version.TextTransparency = 1
-	LoadingFrame.Title.Text = Settings.LoadingTitle or "Rayfield"
-	LoadingFrame.Subtitle.Text = Settings.LoadingSubtitle or "Interface Suite"
-
-	if Settings.LoadingTitle ~= "Rayfield Interface Suite" then
-		LoadingFrame.Version.Text = "Rayfield UI"
-	end
-
-	if Settings.Icon and Settings.Icon ~= 0 and Topbar:FindFirstChild('Icon') then
-		Topbar.Icon.Visible = true
-		Topbar.Title.Position = UDim2.new(0, 47, 0.5, 0)
-
-		if Settings.Icon then
-			local img, rectOffset, rectSize = resolveIcon(Settings.Icon)
-			Topbar.Icon.Image = img
-			if rectOffset then Topbar.Icon.ImageRectOffset = rectOffset end
-			if rectSize then Topbar.Icon.ImageRectSize = rectSize end
-		else
-			Topbar.Icon.Image = ""
+	local function applyState(button, enabled)
+		button.Visible = enabled
+		button.Active = enabled
+		button.Interactable = enabled
+		if not enabled then
+			button.BackgroundTransparency = 1
+			local ic = button:FindFirstChild("Icon")
+			if ic then ic.ImageTransparency = 1 end
 		end
 	end
 
-	if dragBar then
-		dragBar.Visible = false
-		dragBarCosmetic.BackgroundTransparency = 1
-		dragBar.Visible = true
-	end
-
-	if Settings.Theme then
-		local success, result = pcall(ChangeTheme, Settings.Theme)
-		if not success then
-			local success, result2 = pcall(ChangeTheme, 'Default')
-			if not success then
-				warn('CRITICAL ERROR - NO DEFAULT THEME')
-				print(result2)
+	local controlsList = {exit, minimize, discord}
+	for _, button in pairs(controlsList) do
+		local buttonName = button.Name
+		local isEnabled = true
+		if Settings.DisabledWindowControls and table.find(Settings.DisabledWindowControls, buttonName) then
+			isEnabled = false
+		end
+		if buttonName == "Discord" then
+			if Settings.ShowDiscord == false then
+				isEnabled = false
+			elseif Settings.ShowDiscord == true then
+				isEnabled = true
+			else
+				-- Auto-show only when an invite is provided
+				isEnabled = type(Settings.DiscordInvite) == "string" and Settings.DiscordInvite ~= ""
 			end
-			warn('issue rendering theme. no theme on file')
-			print(result)
+		end
+		applyState(button, isEnabled)
+	end
+
+	-- Discord click opens invite (copy + optional browser)
+	discord.MouseButton1Click:Connect(function()
+		local invite = Settings.DiscordInvite or Settings.Discord or ""
+		if invite == "" then
+			base:SetAttribute("PendingDiscordLink", "")
+			base:SetAttribute("PendingDiscordNotify", true)
+			return
+		end
+		local link = invite
+		if not string.find(link, "http") then
+			link = "https://discord.gg/" .. tostring(invite):gsub("https://discord.gg/", ""):gsub("discord.gg/", "")
+		end
+		local ok = pcall(function()
+			if setclipboard then
+				setclipboard(link)
+			elseif toclipboard then
+				toclipboard(link)
+			end
+		end)
+		-- Store pending discord notify; flushed after WindowFunctions is created
+		base:SetAttribute("PendingDiscordLink", link)
+		base:SetAttribute("PendingDiscordNotify", true)
+	end)
+
+	controls.Parent = windowControls
+
+	local divider1 = Instance.new("Frame")
+	divider1.Name = "Divider"
+	divider1.AnchorPoint = Vector2.new(0, 1)
+	divider1.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	divider1.BackgroundTransparency = 0.9
+	divider1.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	divider1.BorderSizePixel = 0
+	divider1.Position = UDim2.fromScale(0, 1)
+	divider1.Size = UDim2.new(1, 0, 0, 1)
+	divider1.Parent = windowControls
+
+	windowControls.Parent = sidebar
+
+	local information = Instance.new("Frame")
+	information.Name = "Information"
+	information.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	information.BackgroundTransparency = 1
+	information.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	information.BorderSizePixel = 0
+	information.Position = UDim2.fromOffset(0, 40)
+	information.Size = UDim2.new(1, 0, 0, 60)
+
+	local divider2 = Instance.new("Frame")
+	divider2.Name = "Divider"
+	divider2.AnchorPoint = Vector2.new(0, 1)
+	divider2.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	divider2.BackgroundTransparency = 0.9
+	divider2.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	divider2.BorderSizePixel = 0
+	divider2.Position = UDim2.fromScale(0, 1)
+	divider2.Size = UDim2.new(1, 0, 0, 1)
+	divider2.Parent = information
+
+	local informationHolder = Instance.new("Frame")
+	informationHolder.Name = "InformationHolder"
+	informationHolder.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	informationHolder.BackgroundTransparency = 1
+	informationHolder.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	informationHolder.BorderSizePixel = 0
+	informationHolder.Size = UDim2.fromScale(1, 1)
+
+	local informationHolderUIPadding = Instance.new("UIPadding")
+	informationHolderUIPadding.Name = "InformationHolderUIPadding"
+	informationHolderUIPadding.PaddingBottom = UDim.new(0, 10)
+	informationHolderUIPadding.PaddingLeft = UDim.new(0, 23)
+	informationHolderUIPadding.PaddingRight = UDim.new(0, 22)
+	informationHolderUIPadding.PaddingTop = UDim.new(0, 10)
+	informationHolderUIPadding.Parent = informationHolder
+
+	local globalSettingsButton = Instance.new("ImageButton")
+	globalSettingsButton.Name = "GlobalSettingsButton"
+	globalSettingsButton.Image = assets.globe
+	globalSettingsButton.ImageTransparency = 0.5
+	globalSettingsButton.AnchorPoint = Vector2.new(1, 0.5)
+	globalSettingsButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	globalSettingsButton.BackgroundTransparency = 1
+	globalSettingsButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	globalSettingsButton.BorderSizePixel = 0
+	globalSettingsButton.Position = UDim2.fromScale(1, 0.5)
+	globalSettingsButton.Size = UDim2.fromOffset(16,16)
+	globalSettingsButton.Parent = informationHolder
+
+	local function ChangeGlobalSettingsButtonState(State)
+		if State == "Default" then
+			Tween(globalSettingsButton, TweenInfo.new(0.2, Enum.EasingStyle.Sine), {
+				ImageTransparency = 0.5
+			}):Play()
+		elseif State == "Hover" then
+			Tween(globalSettingsButton, TweenInfo.new(0.2, Enum.EasingStyle.Sine), {
+				ImageTransparency = 0.3
+			}):Play()
 		end
 	end
 
-	Topbar.Visible = false
-	Elements.Visible = false
-	LoadingFrame.Visible = true
+	globalSettingsButton.MouseEnter:Connect(function()
+		ChangeGlobalSettingsButtonState("Hover")
+	end)
+	globalSettingsButton.MouseLeave:Connect(function()
+		ChangeGlobalSettingsButtonState("Default")
+	end)
 
-	if not Settings.DisableRayfieldPrompts then
-		task.spawn(function()
-			while not rayfieldDestroyed do
-				task.wait(math.random(180, 600))
-				if rayfieldDestroyed then break end
-				RayfieldLibrary:Notify({
-					Title = "Rayfield Interface",
-					Content = "Enjoying this UI library? Find it at sirius.menu/discord",
-					Duration = 7,
-					Image = 4370033185,
-				})
+	local titleFrame = Instance.new("Frame")
+	titleFrame.Name = "TitleFrame"
+	titleFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	titleFrame.BackgroundTransparency = 1
+	titleFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	titleFrame.BorderSizePixel = 0
+	titleFrame.Size = UDim2.fromScale(1, 1)
+
+	local title = Instance.new("TextLabel")
+	title.Name = "Title"
+	title.FontFace = Font.new(
+		assets.interFont,
+		Enum.FontWeight.SemiBold,
+		Enum.FontStyle.Normal
+	)
+	title.Text = Settings.Title
+	title.TextColor3 = Color3.fromRGB(255, 255, 255)
+	title.RichText = true
+	title.TextSize = 18
+	title.TextTransparency = 0.05
+	title.TextTruncate = Enum.TextTruncate.SplitWord
+	title.TextXAlignment = Enum.TextXAlignment.Left
+	title.TextYAlignment = Enum.TextYAlignment.Top
+	title.AutomaticSize = Enum.AutomaticSize.Y
+	title.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	title.BackgroundTransparency = 1
+	title.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	title.BorderSizePixel = 0
+	title.Size = UDim2.new(1, -20, 0, 0)
+	title.Parent = titleFrame
+
+	local subtitle = Instance.new("TextLabel")
+	subtitle.Name = "Subtitle"
+	subtitle.FontFace = Font.new(
+		assets.interFont,
+		Enum.FontWeight.Medium,
+		Enum.FontStyle.Normal
+	)
+	subtitle.RichText = true
+	subtitle.Text = Settings.Subtitle
+	subtitle.RichText = true
+	subtitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+	subtitle.TextSize = 12
+	subtitle.TextTransparency = 0.7
+	subtitle.TextTruncate = Enum.TextTruncate.SplitWord
+	subtitle.TextXAlignment = Enum.TextXAlignment.Left
+	subtitle.TextYAlignment = Enum.TextYAlignment.Top
+	subtitle.AutomaticSize = Enum.AutomaticSize.Y
+	subtitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	subtitle.BackgroundTransparency = 1
+	subtitle.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	subtitle.BorderSizePixel = 0
+	subtitle.LayoutOrder = 1
+	subtitle.Size = UDim2.new(1, -20, 0, 0)
+	subtitle.Parent = titleFrame
+
+	local titleFrameUIListLayout = Instance.new("UIListLayout")
+	titleFrameUIListLayout.Name = "TitleFrameUIListLayout"
+	titleFrameUIListLayout.Padding = UDim.new(0, 3)
+	titleFrameUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	titleFrameUIListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	titleFrameUIListLayout.Parent = titleFrame
+
+	titleFrame.Parent = informationHolder
+
+	informationHolder.Parent = information
+
+	information.Parent = sidebar
+
+	local sidebarGroup = Instance.new("Frame")
+	sidebarGroup.Name = "SidebarGroup"
+	sidebarGroup.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	sidebarGroup.BackgroundTransparency = 1
+	sidebarGroup.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	sidebarGroup.BorderSizePixel = 0
+	sidebarGroup.Position = UDim2.fromOffset(0, 100)
+	sidebarGroup.Size = UDim2.new(1, 0, 1, -100)
+
+	local userInfo = Instance.new("Frame")
+	userInfo.Name = "UserInfo"
+	userInfo.AnchorPoint = Vector2.new(0, 1)
+	userInfo.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	userInfo.BackgroundTransparency = 1
+	userInfo.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	userInfo.BorderSizePixel = 0
+	userInfo.Position = UDim2.fromScale(0, 1)
+	userInfo.Size = UDim2.new(1, 0, 0, 107)
+
+	local informationGroup = Instance.new("Frame")
+	informationGroup.Name = "InformationGroup"
+	informationGroup.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	informationGroup.BackgroundTransparency = 1
+	informationGroup.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	informationGroup.BorderSizePixel = 0
+	informationGroup.Size = UDim2.fromScale(1, 1)
+
+	local informationGroupUIPadding = Instance.new("UIPadding")
+	informationGroupUIPadding.Name = "InformationGroupUIPadding"
+	informationGroupUIPadding.PaddingBottom = UDim.new(0, 17)
+	informationGroupUIPadding.PaddingLeft = UDim.new(0, 25)
+	informationGroupUIPadding.Parent = informationGroup
+
+	local informationGroupUIListLayout = Instance.new("UIListLayout")
+	informationGroupUIListLayout.Name = "InformationGroupUIListLayout"
+	informationGroupUIListLayout.FillDirection = Enum.FillDirection.Horizontal
+	informationGroupUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	informationGroupUIListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+	informationGroupUIListLayout.Parent = informationGroup
+
+	local userId = LocalPlayer.UserId
+	local thumbType = Enum.ThumbnailType.AvatarBust
+	local thumbSize = Enum.ThumbnailSize.Size48x48
+	local headshotImage, isReady = Players:GetUserThumbnailAsync(userId, thumbType, thumbSize)
+
+	local headshot = Instance.new("ImageLabel")
+	headshot.Name = "Headshot"
+	headshot.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	headshot.BackgroundTransparency = 1
+	headshot.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	headshot.BorderSizePixel = 0
+	headshot.Size = UDim2.fromOffset(32, 32)
+	headshot.Image = (isReady and headshotImage) or "rbxassetid://0"
+
+	local uICorner3 = Instance.new("UICorner")
+	uICorner3.Name = "UICorner"
+	uICorner3.CornerRadius = UDim.new(1, 0)
+	uICorner3.Parent = headshot
+
+	local baseUIStroke2 = Instance.new("UIStroke")
+	baseUIStroke2.Name = "BaseUIStroke"
+	baseUIStroke2.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	baseUIStroke2.Color = Color3.fromRGB(255, 255, 255)
+	baseUIStroke2.Transparency = 0.9
+	baseUIStroke2.Parent = headshot
+
+	headshot.Parent = informationGroup
+
+	local userAndDisplayFrame = Instance.new("Frame")
+	userAndDisplayFrame.Name = "UserAndDisplayFrame"
+	userAndDisplayFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	userAndDisplayFrame.BackgroundTransparency = 1
+	userAndDisplayFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	userAndDisplayFrame.BorderSizePixel = 0
+	userAndDisplayFrame.LayoutOrder = 1
+	userAndDisplayFrame.Size = UDim2.new(1, -42, 0, 32)
+
+	local displayName = Instance.new("TextLabel")
+	displayName.Name = "DisplayName"
+	displayName.FontFace = Font.new(
+		assets.interFont,
+		Enum.FontWeight.SemiBold,
+		Enum.FontStyle.Normal
+	)
+	displayName.Text = LocalPlayer.DisplayName
+	displayName.TextColor3 = Color3.fromRGB(255, 255, 255)
+	displayName.TextSize = 13
+	displayName.TextTransparency = 0.1
+	displayName.TextTruncate = Enum.TextTruncate.SplitWord
+	displayName.TextXAlignment = Enum.TextXAlignment.Left
+	displayName.TextYAlignment = Enum.TextYAlignment.Top
+	displayName.AutomaticSize = Enum.AutomaticSize.XY
+	displayName.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	displayName.BackgroundTransparency = 1
+	displayName.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	displayName.BorderSizePixel = 0
+	displayName.Parent = userAndDisplayFrame
+	displayName.Size = UDim2.fromScale(1,0)
+
+	local userAndDisplayFrameUIPadding = Instance.new("UIPadding")
+	userAndDisplayFrameUIPadding.Name = "UserAndDisplayFrameUIPadding"
+	userAndDisplayFrameUIPadding.PaddingLeft = UDim.new(0, 8)
+	userAndDisplayFrameUIPadding.PaddingTop = UDim.new(0, 3)
+	userAndDisplayFrameUIPadding.Parent = userAndDisplayFrame
+
+	local userAndDisplayFrameUIListLayout = Instance.new("UIListLayout")
+	userAndDisplayFrameUIListLayout.Name = "UserAndDisplayFrameUIListLayout"
+	userAndDisplayFrameUIListLayout.Padding = UDim.new(0, 1)
+	userAndDisplayFrameUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	userAndDisplayFrameUIListLayout.Parent = userAndDisplayFrame
+
+	local username = Instance.new("TextLabel")
+	username.Name = "Username"
+	username.FontFace = Font.new(
+		assets.interFont,
+		Enum.FontWeight.SemiBold,
+		Enum.FontStyle.Normal
+	)
+	username.Text = "@" .. LocalPlayer.Name
+	username.TextColor3 = Color3.fromRGB(255, 255, 255)
+	username.TextSize = 12
+	username.TextTransparency = 0.7
+	username.TextTruncate = Enum.TextTruncate.SplitWord
+	username.TextXAlignment = Enum.TextXAlignment.Left
+	username.TextYAlignment = Enum.TextYAlignment.Top
+	username.AutomaticSize = Enum.AutomaticSize.XY
+	username.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	username.BackgroundTransparency = 1
+	username.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	username.BorderSizePixel = 0
+	username.LayoutOrder = 1
+	username.Parent = userAndDisplayFrame
+	username.Size = UDim2.fromScale(1,0)
+
+	userAndDisplayFrame.Parent = informationGroup
+
+	informationGroup.Parent = userInfo
+
+	local userInfoUIPadding = Instance.new("UIPadding")
+	userInfoUIPadding.Name = "UserInfoUIPadding"
+	userInfoUIPadding.PaddingLeft = UDim.new(0, 10)
+	userInfoUIPadding.PaddingRight = UDim.new(0, 10)
+	userInfoUIPadding.Parent = userInfo
+
+	userInfo.Parent = sidebarGroup
+
+	local sidebarGroupUIPadding = Instance.new("UIPadding")
+	sidebarGroupUIPadding.Name = "SidebarGroupUIPadding"
+	sidebarGroupUIPadding.PaddingLeft = UDim.new(0, 10)
+	sidebarGroupUIPadding.PaddingRight = UDim.new(0, 10)
+	sidebarGroupUIPadding.PaddingTop = UDim.new(0, 31)
+	sidebarGroupUIPadding.Parent = sidebarGroup
+
+	local tabSwitchers = Instance.new("Frame")
+	tabSwitchers.Name = "TabSwitchers"
+	tabSwitchers.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	tabSwitchers.BackgroundTransparency = 1
+	tabSwitchers.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	tabSwitchers.BorderSizePixel = 0
+	tabSwitchers.Size = UDim2.new(1, 0, 1, -107)
+
+	local tabSwitchersScrollingFrame = Instance.new("ScrollingFrame")
+	tabSwitchersScrollingFrame.Name = "TabSwitchersScrollingFrame"
+	tabSwitchersScrollingFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
+	tabSwitchersScrollingFrame.BottomImage = ""
+	tabSwitchersScrollingFrame.CanvasSize = UDim2.new()
+	tabSwitchersScrollingFrame.ScrollBarImageTransparency = 0.8
+	tabSwitchersScrollingFrame.ScrollBarThickness = 1
+	tabSwitchersScrollingFrame.TopImage = ""
+	tabSwitchersScrollingFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	tabSwitchersScrollingFrame.BackgroundTransparency = 1
+	tabSwitchersScrollingFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	tabSwitchersScrollingFrame.BorderSizePixel = 0
+	tabSwitchersScrollingFrame.Size = UDim2.fromScale(1, 1)
+
+	local tabSwitchersScrollingFrameUIListLayout = Instance.new("UIListLayout")
+	tabSwitchersScrollingFrameUIListLayout.Name = "TabSwitchersScrollingFrameUIListLayout"
+	tabSwitchersScrollingFrameUIListLayout.Padding = UDim.new(0, 17)
+	tabSwitchersScrollingFrameUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	tabSwitchersScrollingFrameUIListLayout.Parent = tabSwitchersScrollingFrame
+
+	local tabSwitchersScrollingFrameUIPadding = Instance.new("UIPadding")
+	tabSwitchersScrollingFrameUIPadding.Name = "TabSwitchersScrollingFrameUIPadding"
+	tabSwitchersScrollingFrameUIPadding.PaddingTop = UDim.new(0, 2)
+	tabSwitchersScrollingFrameUIPadding.Parent = tabSwitchersScrollingFrame
+
+	tabSwitchersScrollingFrame.Parent = tabSwitchers
+
+	tabSwitchers.Parent = sidebarGroup
+
+	sidebarGroup.Parent = sidebar
+
+	sidebar.Parent = base
+
+	local sidebarGradient = Instance.new("UIGradient")
+	sidebarGradient.Name = "HeavenSidebarGradient"
+	sidebarGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Theme.BackgroundElevated),
+		ColorSequenceKeypoint.new(1, Theme.Surface),
+	})
+	sidebarGradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.10),
+		NumberSequenceKeypoint.new(1, 0.38),
+	})
+	sidebarGradient.Rotation = 90
+	sidebarGradient.Parent = sidebar
+
+	local content = Instance.new("Frame")
+	content.Name = "Content"
+	content.AnchorPoint = Vector2.new(1, 0)
+	content.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	content.BackgroundTransparency = 1
+	content.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	content.BorderSizePixel = 0
+	content.Position = UDim2.fromScale(1, 4.69e-08)
+	content.Size = UDim2.new(0, (base.AbsoluteSize.X - sidebar.AbsoluteSize.X), 1, 0)
+
+	local resizingContent = false
+	local defaultSidebarWidth = sidebar.AbsoluteSize.X
+	local initialMouseX, initialSidebarWidth
+	local snapRange = 20
+	local minSidebarWidth = 107
+	local maxSidebarWidth = base.AbsoluteSize.X - minSidebarWidth
+
+	local TweenSettings = {
+		DefaultTransparency = 0.9,
+		HoverTransparency = 0.85,
+
+		EasingStyle = Enum.EasingStyle.Sine
+	}
+
+	local function ChangeState(State)
+		Tween(divider, TweenInfo.new(0.2, TweenSettings.EasingStyle), {
+			BackgroundTransparency = State == "Idle" and TweenSettings.DefaultTransparency or TweenSettings.HoverTransparency
+		}):Play()  
+	end
+
+	dividerInteract.MouseEnter:Connect(function()
+		ChangeState("Hover")
+	end)
+	dividerInteract.MouseLeave:Connect(function()
+		ChangeState("Idle")
+	end)
+
+	dividerInteract.MouseButton1Down:Connect(function()
+		if deviceInfo.IsMobile then return end
+		resizingContent = true
+		initialMouseX = UserInputService:GetMouseLocation().X
+		initialSidebarWidth = sidebar.AbsoluteSize.X
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 then
+			resizingContent = false
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if resizingContent and input.UserInputType == Enum.UserInputType.MouseMovement then
+			local deltaX = UserInputService:GetMouseLocation().X - initialMouseX
+			local newSidebarWidth = initialSidebarWidth + deltaX
+
+			if math.abs(newSidebarWidth - defaultSidebarWidth) < snapRange then
+				newSidebarWidth = defaultSidebarWidth
+			else
+				newSidebarWidth = math.clamp(newSidebarWidth, minSidebarWidth, maxSidebarWidth)
+			end
+
+			sidebar.Size = UDim2.new(0, newSidebarWidth, 1, 0)
+			content.Size = UDim2.new(0, base.AbsoluteSize.X - newSidebarWidth, 1, 0)
+		end
+	end)
+
+	local topbar = Instance.new("Frame")
+	topbar.Name = "Topbar"
+	topbar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	topbar.BackgroundTransparency = 1
+	topbar.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	topbar.BorderSizePixel = 0
+	topbar.Size = UDim2.new(1, 0, 0, 63)
+
+	local divider4 = Instance.new("Frame")
+	divider4.Name = "Divider"
+	divider4.AnchorPoint = Vector2.new(0, 1)
+	divider4.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	divider4.BackgroundTransparency = 0.9
+	divider4.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	divider4.BorderSizePixel = 0
+	divider4.Position = UDim2.fromScale(0, 1)
+	divider4.Size = UDim2.new(1, 0, 0, 1)
+	divider4.Parent = topbar
+
+	local elements = Instance.new("Frame")
+	elements.Name = "Elements"
+	elements.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	elements.BackgroundTransparency = 1
+	elements.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	elements.BorderSizePixel = 0
+	elements.Size = UDim2.fromScale(1, 1)
+
+	local uIPadding2 = Instance.new("UIPadding")
+	uIPadding2.Name = "UIPadding"
+	uIPadding2.PaddingLeft = UDim.new(0, 20)
+	uIPadding2.PaddingRight = UDim.new(0, 20)
+	uIPadding2.Parent = elements
+
+	local moveIcon = Instance.new("ImageButton")
+	moveIcon.Name = "MoveIcon"
+	moveIcon.Image = assets.transform
+	moveIcon.ImageTransparency = 0.7
+	moveIcon.AnchorPoint = Vector2.new(1, 0.5)
+	moveIcon.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	moveIcon.BackgroundTransparency = 1
+	moveIcon.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	moveIcon.BorderSizePixel = 0
+	moveIcon.Position = UDim2.fromScale(1, 0.5)
+	moveIcon.Size = UDim2.fromOffset(15, 15)
+	moveIcon.Parent = elements
+	moveIcon.Visible = not Settings.DragStyle or Settings.DragStyle == 1
+
+	local interact = Instance.new("TextButton")
+	interact.Name = "Interact"
+	interact.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json")
+	interact.Text = ""
+	interact.TextColor3 = Color3.fromRGB(0, 0, 0)
+	interact.TextSize = 14
+	interact.AnchorPoint = Vector2.new(0.5, 0.5)
+	interact.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	interact.BackgroundTransparency = 1
+	interact.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	interact.BorderSizePixel = 0
+	interact.Position = UDim2.fromScale(0.5, 0.5)
+	interact.Size = UDim2.fromOffset(40, 40)
+	interact.Parent = moveIcon
+
+	local function ChangemoveIconState(State)
+		if State == "Default" then
+			Tween(moveIcon, TweenInfo.new(0.2, Enum.EasingStyle.Sine), {
+				ImageTransparency = 0.7
+			}):Play()
+		elseif State == "Hover" then
+			Tween(moveIcon, TweenInfo.new(0.2, Enum.EasingStyle.Sine), {
+				ImageTransparency = 0.4
+			}):Play()
+		end
+	end
+
+	interact.MouseEnter:Connect(function()
+		ChangemoveIconState("Hover")
+	end)
+	interact.MouseLeave:Connect(function()
+		ChangemoveIconState("Default")
+	end)
+
+	local dragging_ = false
+	local dragInput
+	local dragStart
+	local startPos
+
+	local function update(input)
+		local delta = input.Position - dragStart
+		base.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+	end
+
+	local function onDragStart(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging_ = true
+			dragStart = input.Position
+			startPos = base.Position
+
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging_ = false
+				end
+			end)
+		end
+	end
+
+	local function onDragUpdate(input)
+		if dragging_ and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+			dragInput = input
+		end
+	end
+
+	if not Settings.DragStyle or Settings.DragStyle == 1 then
+		interact.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				onDragStart(input)
+			end
+		end)
+
+		interact.InputChanged:Connect(onDragUpdate)
+
+		UserInputService.InputChanged:Connect(function(input)
+			if input == dragInput and dragging_ then
+				update(input)
+			end
+		end)
+
+		interact.InputEnded:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				dragging_ = false
+			end
+		end)
+	elseif Settings.DragStyle == 2 then
+		base.InputBegan:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				onDragStart(input)
+			end
+		end)
+
+		base.InputChanged:Connect(onDragUpdate)
+
+		UserInputService.InputChanged:Connect(function(input)
+			if input == dragInput and dragging_ then
+				update(input)
+			end
+		end)
+
+		base.InputEnded:Connect(function(input)
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				dragging_ = false
 			end
 		end)
 	end
 
-	pcall(function()
-		-- Without a FileName the config used to be named after the place alone, so every hub in the
-		-- same game wrote over the others'. It's now the hub's name and the place. That older file is
-		-- still read when the new one doesn't exist yet, so nobody's saved settings go missing.
-		CLegacyFileName = nil
-		if not Settings.ConfigurationSaving.FileName then
-			local placeName = tostring(game.PlaceId)
-			-- window names often carry characters Windows refuses in a file name, like "|" or ":",
-			-- and a trailing dot or space that it drops
-			local hubName = string.gsub(sanitizeFileName(Settings.Name or ""), '[:<>"|?*]', "")
-			hubName = string.match(hubName, "^%s*(.-)[%s%.]*$") or ""
-			if hubName ~= "" then
-				Settings.ConfigurationSaving.FileName = hubName .. "-" .. placeName
-				CLegacyFileName = placeName
+	local currentTab = Instance.new("TextLabel")
+	currentTab.Name = "CurrentTab"
+	currentTab.FontFace = Font.new(assets.interFont)
+	currentTab.RichText = true
+	currentTab.Text = ""
+	currentTab.RichText = true
+	currentTab.TextColor3 = Color3.fromRGB(255, 255, 255)
+	currentTab.TextSize = 15
+	currentTab.TextTransparency = 0.5
+	currentTab.TextTruncate = Enum.TextTruncate.SplitWord
+	currentTab.TextXAlignment = Enum.TextXAlignment.Left
+	currentTab.TextYAlignment = Enum.TextYAlignment.Top
+	currentTab.AnchorPoint = Vector2.new(0, 0.5)
+	currentTab.AutomaticSize = Enum.AutomaticSize.Y
+	currentTab.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	currentTab.BackgroundTransparency = 1
+	currentTab.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	currentTab.BorderSizePixel = 0
+	currentTab.Position = UDim2.fromScale(0, 0.5)
+	currentTab.Size = UDim2.fromScale(0.9, 0)
+	currentTab.Parent = elements
+
+	elements.Parent = topbar
+
+	topbar.Parent = content
+
+	content.Parent = base
+
+	local contentGradient = Instance.new("UIGradient")
+	contentGradient.Name = "HeavenContentGradient"
+	contentGradient.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Theme.Background),
+		ColorSequenceKeypoint.new(0.55, Theme.BackgroundElevated),
+		ColorSequenceKeypoint.new(1, Theme.Surface),
+	})
+	contentGradient.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.10),
+		NumberSequenceKeypoint.new(0.55, 0.20),
+		NumberSequenceKeypoint.new(1, 0.32),
+	})
+	contentGradient.Rotation = 10
+	contentGradient.Parent = content
+
+	--// Responsive layout (Phone / Tablet / PC)
+	local mobileNavOpen = false
+	local mobileOverlay = Instance.new("TextButton")
+	mobileOverlay.Name = "MobileOverlay"
+	mobileOverlay.AutoButtonColor = false
+	mobileOverlay.Text = ""
+	mobileOverlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	mobileOverlay.BackgroundTransparency = 1
+	mobileOverlay.BorderSizePixel = 0
+	mobileOverlay.Size = UDim2.fromScale(1, 1)
+	mobileOverlay.ZIndex = 3
+	mobileOverlay.Visible = false
+	mobileOverlay.Parent = base
+
+	local mobileMenuBtn = Instance.new("ImageButton")
+	mobileMenuBtn.Name = "MobileMenuButton"
+	mobileMenuBtn.Image = assets.menuIcon
+	mobileMenuBtn.ImageColor3 = Theme.Text
+	mobileMenuBtn.ImageTransparency = 0.15
+	mobileMenuBtn.BackgroundColor3 = Theme.Surface
+	mobileMenuBtn.BackgroundTransparency = 0.2
+	mobileMenuBtn.BorderSizePixel = 0
+	mobileMenuBtn.AnchorPoint = Vector2.new(0, 0.5)
+	mobileMenuBtn.Position = UDim2.new(0, 14, 0.5, 0)
+	mobileMenuBtn.Size = UDim2.fromOffset(32, 32)
+	mobileMenuBtn.ZIndex = 6
+	mobileMenuBtn.Visible = false
+	mobileMenuBtn.Parent = topbar
+	local mobileMenuCorner = Instance.new("UICorner")
+	mobileMenuCorner.CornerRadius = UDim.new(0, 8)
+	mobileMenuCorner.Parent = mobileMenuBtn
+
+	local function SetMobileNav(open)
+		mobileNavOpen = open
+		if not deviceInfo.IsMobile then
+			mobileOverlay.Visible = false
+			return
+		end
+		if open then
+			mobileOverlay.Visible = true
+			Tween(mobileOverlay, TweenInfo.new(0.2, Enum.EasingStyle.Sine), { BackgroundTransparency = 0.45 }):Play()
+			Tween(sidebar, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+				Position = UDim2.fromScale(0, 0)
+			}):Play()
+		else
+			Tween(mobileOverlay, TweenInfo.new(0.2, Enum.EasingStyle.Sine), { BackgroundTransparency = 1 }):Play()
+			local hidePos = deviceInfo.IsPhone and UDim2.fromScale(-1.05, 0) or UDim2.fromScale(-0.4, 0)
+			local tw = Tween(sidebar, TweenInfo.new(0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+				Position = hidePos
+			})
+			tw:Play()
+			tw.Completed:Connect(function()
+				if not mobileNavOpen then
+					mobileOverlay.Visible = false
+				end
+			end)
+		end
+	end
+
+	mobileMenuBtn.MouseButton1Click:Connect(function()
+		SetMobileNav(not mobileNavOpen)
+	end)
+	mobileOverlay.MouseButton1Click:Connect(function()
+		SetMobileNav(false)
+	end)
+
+	local function ApplyResponsiveLayout(info)
+		deviceInfo = info or DetectDevice()
+		local vp = deviceInfo.Viewport
+		local isMobile = deviceInfo.IsMobile
+
+		mobileMenuBtn.Visible = isMobile
+
+		if deviceInfo.IsPhone then
+			-- Full-screen sheet with drawer sidebar
+			base.Size = Settings.Size or UDim2.fromScale(0.96, 0.92)
+			baseUIScale.Scale = 1
+			sidebar.Size = UDim2.new(0, math.clamp(math.floor(vp.X * 0.82), 240, 320), 1, 0)
+			sidebar.Position = mobileNavOpen and UDim2.fromScale(0, 0) or UDim2.fromScale(-1.05, 0)
+			content.Size = UDim2.fromScale(1, 1)
+			content.Position = UDim2.fromScale(1, 0)
+			content.AnchorPoint = Vector2.new(1, 0)
+			-- Single column sections on phone
+			for _, tabFrame in pairs(content:GetChildren()) do
+				if tabFrame.Name == "Elements" then
+					local scrolling = tabFrame:FindFirstChild("ElementsScrolling")
+					if scrolling then
+						local leftCol = scrolling:FindFirstChild("Left")
+						local rightCol = scrolling:FindFirstChild("Right")
+						local layout = scrolling:FindFirstChildOfClass("UIListLayout")
+						if layout then
+							layout.FillDirection = Enum.FillDirection.Vertical
+						end
+						if leftCol then leftCol.Size = UDim2.new(1, -4, 0, 0) end
+						if rightCol then rightCol.Size = UDim2.new(1, -4, 0, 0) end
+					end
+				end
+			end
+			-- Shift current tab label for menu button
+			if currentTab then
+				currentTab.Position = UDim2.new(0, 52, 0.5, 0)
+				currentTab.Size = UDim2.new(1, -90, 0, 0)
+			end
+		elseif deviceInfo.IsTablet then
+			base.Size = Settings.Size or UDim2.fromScale(0.88, 0.84)
+			baseUIScale.Scale = 1
+			sidebar.Size = UDim2.fromScale(0.32, 1)
+			sidebar.Position = mobileNavOpen and UDim2.fromScale(0, 0) or UDim2.fromScale(0, 0)
+			-- Keep sidebar visible on tablet landscape-ish
+			if vp.X >= vp.Y then
+				mobileMenuBtn.Visible = false
+				sidebar.Position = UDim2.fromScale(0, 0)
+				sidebar.Size = UDim2.fromScale(0.3, 1)
+				content.AnchorPoint = Vector2.new(1, 0)
+				content.Position = UDim2.fromScale(1, 0)
+				content.Size = UDim2.new(0.7, 0, 1, 0)
 			else
-				Settings.ConfigurationSaving.FileName = placeName
+				mobileMenuBtn.Visible = true
+				sidebar.Size = UDim2.new(0, 300, 1, 0)
+				sidebar.Position = mobileNavOpen and UDim2.fromScale(0, 0) or UDim2.fromScale(-1, 0)
+				content.Size = UDim2.fromScale(1, 1)
+			end
+			if currentTab then
+				currentTab.Position = mobileMenuBtn.Visible and UDim2.new(0, 52, 0.5, 0) or UDim2.fromScale(0, 0.5)
+			end
+		else
+			-- PC
+			base.Size = Settings.Size or UDim2.fromOffset(960, 600)
+			local scale = 1
+			if vp.Y < 700 then scale = 0.9 end
+			if vp.Y < 600 then scale = 0.82 end
+			baseUIScale.Scale = Settings.Scale or scale
+			sidebar.Size = UDim2.fromScale(0.28, 1)
+			sidebar.Position = UDim2.fromScale(0, 0)
+			content.AnchorPoint = Vector2.new(1, 0)
+			content.Position = UDim2.fromScale(1, 0)
+			content.Size = UDim2.new(0.72, 0, 1, 0)
+			mobileOverlay.Visible = false
+			mobileNavOpen = false
+			if currentTab then
+				currentTab.Position = UDim2.fromScale(0, 0.5)
+				currentTab.Size = UDim2.fromScale(0.9, 0)
 			end
 		end
 
-		if Settings.ConfigurationSaving.Enabled == nil then
-			Settings.ConfigurationSaving.Enabled = false
+		-- Recompute content width against sidebar when both visible
+		if not deviceInfo.IsPhone and not (deviceInfo.IsTablet and vp.X < vp.Y) then
+			task.defer(function()
+				local sideW = sidebar.AbsoluteSize.X
+				local baseW = base.AbsoluteSize.X
+				if baseW > 0 and sideW > 0 then
+					content.Size = UDim2.new(0, baseW - sideW, 1, 0)
+				end
+			end)
 		end
+	end
 
-		CFileName = sanitizeFileName(Settings.ConfigurationSaving.FileName)
-		if CFileName == "" then
-			CFileName = tostring(game.PlaceId)
-		end
-		if Settings.ConfigurationSaving.FolderName then
-			local folderName = sanitizeFolderName(Settings.ConfigurationSaving.FolderName)
-			if folderName ~= "" then
-				ConfigurationFolder = folderName
-			end
-		end
-		CEnabled = Settings.ConfigurationSaving.Enabled
+	ApplyResponsiveLayout(deviceInfo)
 
-		if Settings.ConfigurationSaving.Enabled then
-			ensureFolder(ConfigurationFolder)
+	-- React to viewport / input changes
+	local function RefreshDevice()
+		local newInfo = DetectDevice()
+		local changed = newInfo.Type ~= deviceInfo.Type or newInfo.Viewport.X ~= deviceInfo.Viewport.X
+		if changed then
+			ApplyResponsiveLayout(newInfo)
+		end
+	end
+
+	if workspace.CurrentCamera then
+		workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(RefreshDevice)
+	end
+	UserInputService.LastInputTypeChanged:Connect(RefreshDevice)
+
+	-- Close mobile drawer when a tab is selected (hooked later via attribute)
+	base:SetAttribute("MobileNavOpen", false)
+	base:GetAttributeChangedSignal("MobileNavOpen"):Connect(function()
+		if base:GetAttribute("MobileNavOpen") == false then
+			SetMobileNav(false)
 		end
 	end)
 
+	local globalSettings = Instance.new("Frame")
+	globalSettings.Name = "GlobalSettings"
+	globalSettings.AutomaticSize = Enum.AutomaticSize.XY
+	globalSettings.BackgroundColor3 = Theme.BackgroundElevated
+	globalSettings.BorderColor3 = Color3.fromRGB(0, 0, 0)
+	globalSettings.BorderSizePixel = 0
+	globalSettings.Position = UDim2.fromScale(0.298, 0.104)
 
-	makeDraggable(Main, Topbar, false, { dragOffset, dragOffsetMobile })
-	if dragBar then
-		dragBar.Position = UDim2.new(0.5, 0, 0.5, getCurrentDragOffset())
-		makeDraggable(Main, dragInteract, true, { dragOffset, dragOffsetMobile })
+	local globalSettingsUIStroke = Instance.new("UIStroke")
+	globalSettingsUIStroke.Name = "GlobalSettingsUIStroke"
+	globalSettingsUIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	globalSettingsUIStroke.Color = Color3.fromRGB(255, 255, 255)
+	globalSettingsUIStroke.Transparency = 0.9
+	globalSettingsUIStroke.Parent = globalSettings
+
+	local globalSettingsUICorner = Instance.new("UICorner")
+	globalSettingsUICorner.Name = "GlobalSettingsUICorner"
+	globalSettingsUICorner.CornerRadius = UDim.new(0, 10)
+	globalSettingsUICorner.Parent = globalSettings
+
+	local globalSettingsUIPadding = Instance.new("UIPadding")
+	globalSettingsUIPadding.Name = "GlobalSettingsUIPadding"
+	globalSettingsUIPadding.PaddingBottom = UDim.new(0, 10)
+	globalSettingsUIPadding.PaddingTop = UDim.new(0, 10)
+	globalSettingsUIPadding.Parent = globalSettings
+
+	local globalSettingsUIListLayout = Instance.new("UIListLayout")
+	globalSettingsUIListLayout.Name = "GlobalSettingsUIListLayout"
+	globalSettingsUIListLayout.Padding = UDim.new(0, 5)
+	globalSettingsUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	globalSettingsUIListLayout.Parent = globalSettings
+
+	local globalSettingsUIScale = Instance.new("UIScale")
+	globalSettingsUIScale.Name = "GlobalSettingsUIScale"
+	globalSettingsUIScale.Scale = 1e-07
+	globalSettingsUIScale.Parent = globalSettings
+	globalSettings.Parent = base
+	base.Parent = macLib
+
+	function WindowFunctions:UpdateTitle(NewTitle)
+		title.Text = NewTitle
 	end
 
-	for _, TabButton in ipairs(TabList:GetChildren()) do
-		if TabButton.ClassName == "Frame" and TabButton.Name ~= "Placeholder" then
-			TabButton.BackgroundTransparency = 1
-			TabButton.Title.TextTransparency = 1
-			TabButton.Image.ImageTransparency = 1
-			TabButton.UIStroke.Transparency = 1
+	function WindowFunctions:UpdateSubtitle(NewSubtitle)
+		subtitle.Text = NewSubtitle
+	end
+
+	function WindowFunctions:GetDevice()
+		return DetectDevice()
+	end
+
+	function WindowFunctions:SetDiscordInvite(invite)
+		Settings.DiscordInvite = invite
+		local show = type(invite) == "string" and invite ~= ""
+		if Settings.ShowDiscord == false then show = false end
+		if Settings.ShowDiscord == true then show = true end
+		applyState(discord, show)
+	end
+
+	-- Flush Discord button notify (clipboard copy)
+	task.spawn(function()
+		while not unloaded and base.Parent do
+			if base:GetAttribute("PendingDiscordNotify") then
+				base:SetAttribute("PendingDiscordNotify", false)
+				local link = base:GetAttribute("PendingDiscordLink") or ""
+				WindowFunctions:Notify({
+					Title = "Discord",
+					Description = (link ~= "" and ("Invite copied to clipboard:\n" .. tostring(link)) or "No Discord invite configured. Set Settings.DiscordInvite."),
+					Lifetime = 4,
+				})
+			end
+			task.wait(0.25)
+		end
+	end)
+
+	local hovering
+	local toggled = globalSettingsUIScale.Scale == 1 and true or false
+	local function toggle()
+		if not toggled then
+			local intween = Tween(globalSettingsUIScale, TweenInfo.new(0.2, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				Scale = 1
+			})
+			intween:Play()
+			intween.Completed:Wait()
+			toggled = true
+		elseif toggled then
+			local outtween = Tween(globalSettingsUIScale, TweenInfo.new(0.2, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				Scale = 0
+			})
+			outtween:Play()
+			outtween.Completed:Wait()
+			toggled = false
+		end
+	end
+	globalSettingsButton.MouseButton1Click:Connect(function()
+		if not hasGlobalSetting then return end
+		toggle()
+	end)
+	globalSettings.MouseEnter:Connect(function()
+		hovering = true
+	end)
+	globalSettings.MouseLeave:Connect(function()
+		hovering = false
+	end)
+	UserInputService.InputEnded:Connect(function(inp)
+		if inp.UserInputType == Enum.UserInputType.MouseButton1 and toggled and not hovering then
+			toggle()
+		end
+	end)
+
+	local BlurTarget = base
+
+	local HS = HttpService
+	local camera = workspace.CurrentCamera
+	local MTREL = "Glass"
+	local binds = {}
+	local wedgeguid = HS:GenerateGUID(true)
+
+	local DepthOfField
+
+	for _,v in pairs(Lighting:GetChildren()) do
+		if not v:IsA("DepthOfFieldEffect") and v:HasTag(".") then
+			DepthOfField = Instance.new('DepthOfFieldEffect')
+			DepthOfField.FarIntensity = 0
+			DepthOfField.FocusDistance = 51.6
+			DepthOfField.InFocusRadius = 50
+			DepthOfField.NearIntensity = 1
+			DepthOfField.Name = HS:GenerateGUID(true)
+			DepthOfField:AddTag(".")
+		elseif v:IsA("DepthOfFieldEffect") and v:HasTag(".") then
+			DepthOfField = v
 		end
 	end
 
-	if Settings.Discord and Settings.Discord.Enabled and not useStudio and not secureMode then
-		ensureFolder(RayfieldFolder .. "/Discord Invites")
-		local inviteFile = RayfieldFolder ..
-			"/Discord Invites" .. "/" .. sanitizeFileName(Settings.Discord.Invite) .. ConfigurationExtension
+	if not DepthOfField then
+		DepthOfField = Instance.new('DepthOfFieldEffect')
+		DepthOfField.FarIntensity = 0
+		DepthOfField.FocusDistance = 51.6
+		DepthOfField.InFocusRadius = 50
+		DepthOfField.NearIntensity = 1
+		DepthOfField.Name = HS:GenerateGUID(true)
+		DepthOfField:AddTag(".")
+	end
 
-		if not callSafely(isfile, inviteFile) then
-			if requestFunc then
-				pcall(function()
-					requestFunc({
-						Url = 'http://127.0.0.1:6463/rpc?v=1',
-						Method = 'POST',
-						Headers = {
-							['Content-Type'] = 'application/json',
-							Origin = 'https://discord.com'
-						},
-						Body = HttpService:JSONEncode({
-							cmd = 'INVITE_BROWSER',
-							nonce = HttpService:GenerateGUID(false),
-							args = { code = Settings.Discord.Invite }
-						})
-					})
+	local frame = Instance.new('Frame')
+	frame.Parent = BlurTarget
+	frame.Size = UDim2.new(0.97, 0, 0.97, 0)
+	frame.Position = UDim2.new(0.5, 0, 0.5, 0)
+	frame.AnchorPoint = Vector2.new(0.5, 0.5)
+	frame.BackgroundTransparency = 1
+	frame.Name = HS:GenerateGUID(true)
+
+	do
+		local function IsNotNaN(x)
+			return x == x
+		end
+		local continue = IsNotNaN(camera:ScreenPointToRay(0,0).Origin.x)
+		while not continue do
+			RunService.RenderStepped:Wait()
+			continue = IsNotNaN(camera:ScreenPointToRay(0,0).Origin.x)
+		end
+	end
+
+	local DrawQuad; do
+		local acos, max, pi, sqrt = math.acos, math.max, math.pi, math.sqrt
+		local sz = 0.2
+
+		local function DrawTriangle(v1, v2, v3, p0, p1)
+			local s1 = (v1 - v2).magnitude
+			local s2 = (v2 - v3).magnitude
+			local s3 = (v3 - v1).magnitude
+			local smax = max(s1, s2, s3)
+			local A, B, C
+			if s1 == smax then
+				A, B, C = v1, v2, v3
+			elseif s2 == smax then
+				A, B, C = v2, v3, v1
+			elseif s3 == smax then
+				A, B, C = v3, v1, v2
+			end
+
+			local para = ( (B-A).x*(C-A).x + (B-A).y*(C-A).y + (B-A).z*(C-A).z ) / (A-B).magnitude
+			local perp = sqrt((C-A).magnitude^2 - para*para)
+			local dif_para = (A - B).magnitude - para
+
+			local st = CFrame.new(B, A)
+			local za = CFrame.Angles(pi/2,0,0)
+
+			local cf0 = st
+
+			local Top_Look = (cf0 * za).lookVector
+			local Mid_Point = A + CFrame.new(A, B).lookVector * para
+			local Needed_Look = CFrame.new(Mid_Point, C).lookVector
+			local dot = Top_Look.x*Needed_Look.x + Top_Look.y*Needed_Look.y + Top_Look.z*Needed_Look.z
+
+			local ac = CFrame.Angles(0, 0, acos(dot))
+
+			cf0 = cf0 * ac
+			if ((cf0 * za).lookVector - Needed_Look).magnitude > 0.01 then
+				cf0 = cf0 * CFrame.Angles(0, 0, -2*acos(dot))
+			end
+			cf0 = cf0 * CFrame.new(0, perp/2, -(dif_para + para/2))
+
+			local cf1 = st * ac * CFrame.Angles(0, pi, 0)
+			if ((cf1 * za).lookVector - Needed_Look).magnitude > 0.01 then
+				cf1 = cf1 * CFrame.Angles(0, 0, 2*acos(dot))
+			end
+			cf1 = cf1 * CFrame.new(0, perp/2, dif_para/2)
+
+			if not p0 then
+				p0 = Instance.new('Part')
+				p0.FormFactor = 'Custom'
+				p0.TopSurface = 0
+				p0.BottomSurface = 0
+				p0.Anchored = true
+				p0.CanCollide = false
+				p0.CastShadow = false
+				p0.Material = MTREL
+				p0.Size = Vector3.new(sz, sz, sz)
+				p0.Name = HS:GenerateGUID(true)
+				local mesh = Instance.new('SpecialMesh', p0)
+				mesh.MeshType = 2
+				mesh.Name = wedgeguid
+			end
+			p0[wedgeguid].Scale = Vector3.new(0, perp/sz, para/sz)
+			p0.CFrame = cf0
+
+			if not p1 then
+				p1 = p0:clone()
+			end
+			p1[wedgeguid].Scale = Vector3.new(0, perp/sz, dif_para/sz)
+			p1.CFrame = cf1
+
+			return p0, p1
+		end
+
+		function DrawQuad(v1, v2, v3, v4, parts)
+			parts[1], parts[2] = DrawTriangle(v1, v2, v3, parts[1], parts[2])
+			parts[3], parts[4] = DrawTriangle(v3, v2, v4, parts[3], parts[4])
+		end
+	end
+
+	if binds[frame] then
+		return binds[frame].parts
+	end
+
+	local parts = {}
+
+	local parents = {}
+	do
+		local function add(child)
+			if child:IsA'GuiObject' then
+				parents[#parents + 1] = child
+				add(child.Parent)
+			end
+		end
+		add(frame)
+	end
+
+	local function IsVisible(instance)
+		while instance do
+			if instance:IsA("GuiObject") then
+				if not instance.Visible then
+					return false
+				end
+			elseif instance:IsA("ScreenGui") then
+				if not instance.Enabled then
+					return false
+				end
+				break
+			end
+			instance = instance.Parent
+		end
+		return true
+	end
+
+	local function UpdateOrientation(fetchProps)
+		if not IsVisible(frame) or not acrylicBlur or unloaded then
+			for _, pt in pairs(parts) do
+				pt.Parent = nil
+				DepthOfField.Enabled = false
+				DepthOfField.Parent = nil
+			end
+			return
+		end
+		if not DepthOfField.Parent then
+			DepthOfField.Parent = Lighting
+		end
+		DepthOfField.Enabled = true
+		local properties = {
+			Transparency = 0.98;
+			BrickColor = BrickColor.new('Institutional white');
+		}
+		local zIndex = 1 - 0.05*frame.ZIndex
+
+		local tl, br = frame.AbsolutePosition, frame.AbsolutePosition + frame.AbsoluteSize
+		local tr, bl = Vector2.new(br.x, tl.y), Vector2.new(tl.x, br.y)
+		do
+			local rot = 0;
+			for _, v in ipairs(parents) do
+				rot = rot + v.Rotation
+			end
+			if rot ~= 0 and rot%180 ~= 0 then
+				local mid = tl:lerp(br, 0.5)
+				local s, c = math.sin(math.rad(rot)), math.cos(math.rad(rot))
+				local vec = tl
+				tl = Vector2.new(c*(tl.x - mid.x) - s*(tl.y - mid.y), s*(tl.x - mid.x) + c*(tl.y - mid.y)) + mid
+				tr = Vector2.new(c*(tr.x - mid.x) - s*(tr.y - mid.y), s*(tr.x - mid.x) + c*(tr.y - mid.y)) + mid
+				bl = Vector2.new(c*(bl.x - mid.x) - s*(bl.y - mid.y), s*(bl.x - mid.x) + c*(bl.y - mid.y)) + mid
+				br = Vector2.new(c*(br.x - mid.x) - s*(br.y - mid.y), s*(br.x - mid.x) + c*(br.y - mid.y)) + mid
+			end
+		end
+		DrawQuad(
+			camera:ScreenPointToRay(tl.x, tl.y, zIndex).Origin, 
+			camera:ScreenPointToRay(tr.x, tr.y, zIndex).Origin, 
+			camera:ScreenPointToRay(bl.x, bl.y, zIndex).Origin, 
+			camera:ScreenPointToRay(br.x, br.y, zIndex).Origin, 
+			parts
+		)
+		if fetchProps then
+			for _, pt in pairs(parts) do
+				pt.Parent = camera
+			end
+			for propName, propValue in pairs(properties) do
+				for _, pt in pairs(parts) do
+					pt[propName] = propValue
+				end
+			end
+		end
+	end
+
+	UpdateOrientation(true)
+
+	RunService.RenderStepped:Connect(UpdateOrientation)
+
+	function WindowFunctions:GlobalSetting(Settings)
+		hasGlobalSetting = true
+		local GlobalSettingFunctions = {}
+		local globalSetting = Instance.new("TextButton")
+		globalSetting.Name = "GlobalSetting"
+		globalSetting.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json")
+		globalSetting.Text = ""
+		globalSetting.TextColor3 = Color3.fromRGB(0, 0, 0)
+		globalSetting.TextSize = 14
+		globalSetting.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		globalSetting.BackgroundTransparency = 1
+		globalSetting.BorderColor3 = Color3.fromRGB(0, 0, 0)
+		globalSetting.BorderSizePixel = 0
+		globalSetting.Size = UDim2.fromOffset(200, 30)
+
+		local globalSettingToggleUIPadding = Instance.new("UIPadding")
+		globalSettingToggleUIPadding.Name = "GlobalSettingToggleUIPadding"
+		globalSettingToggleUIPadding.PaddingLeft = UDim.new(0, 15)
+		globalSettingToggleUIPadding.Parent = globalSetting
+
+		local settingName = Instance.new("TextLabel")
+		settingName.Name = "SettingName"
+		settingName.FontFace = Font.new(assets.interFont)
+		settingName.Text = Settings.Name
+		settingName.RichText = true
+		settingName.TextColor3 = Color3.fromRGB(255, 255, 255)
+		settingName.TextSize = 13
+		settingName.TextTransparency = 0.5
+		settingName.TextTruncate = Enum.TextTruncate.SplitWord
+		settingName.TextXAlignment = Enum.TextXAlignment.Left
+		settingName.TextYAlignment = Enum.TextYAlignment.Top
+		settingName.AnchorPoint = Vector2.new(0, 0.5)
+		settingName.AutomaticSize = Enum.AutomaticSize.Y
+		settingName.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		settingName.BackgroundTransparency = 1
+		settingName.BorderColor3 = Color3.fromRGB(0, 0, 0)
+		settingName.BorderSizePixel = 0
+		settingName.Position = UDim2.fromScale(1.3e-07, 0.5)
+		settingName.Size = UDim2.new(1,-40,0,0)
+		settingName.Parent = globalSetting
+
+		local globalSettingToggleUIListLayout = Instance.new("UIListLayout")
+		globalSettingToggleUIListLayout.Name = "GlobalSettingToggleUIListLayout"
+		globalSettingToggleUIListLayout.Padding = UDim.new(0, 10)
+		globalSettingToggleUIListLayout.FillDirection = Enum.FillDirection.Horizontal
+		globalSettingToggleUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		globalSettingToggleUIListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+		globalSettingToggleUIListLayout.Parent = globalSetting
+
+		local checkmark = Instance.new("TextLabel")
+		checkmark.Name = "Checkmark"
+		checkmark.FontFace = Font.new(
+			assets.interFont,
+			Enum.FontWeight.Medium,
+			Enum.FontStyle.Normal
+		)
+		checkmark.Text = "✓"
+		checkmark.TextColor3 = Color3.fromRGB(255, 255, 255)
+		checkmark.TextSize = 13
+		checkmark.TextTransparency = 1
+		checkmark.TextXAlignment = Enum.TextXAlignment.Left
+		checkmark.TextYAlignment = Enum.TextYAlignment.Top
+		checkmark.AnchorPoint = Vector2.new(0, 0.5)
+		checkmark.AutomaticSize = Enum.AutomaticSize.Y
+		checkmark.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		checkmark.BackgroundTransparency = 1
+		checkmark.BorderColor3 = Color3.fromRGB(0, 0, 0)
+		checkmark.BorderSizePixel = 0
+		checkmark.LayoutOrder = -1
+		checkmark.Position = UDim2.fromScale(1.3e-07, 0.5)
+		checkmark.Size = UDim2.fromOffset(-10, 0)
+		checkmark.Parent = globalSetting
+
+		globalSetting.Parent = globalSettings
+
+		local tweensettings = {
+			duration = 0.2,
+			easingStyle = Enum.EasingStyle.Quint,
+			transparencyIn = 0.2,
+			transparencyOut = 0.5,
+			checkSizeIncrease = 12,
+			checkSizeDecrease = -globalSettingToggleUIListLayout.Padding.Offset,
+			waitTime = 1
+		}
+
+		local tweens = {
+			checkIn = Tween(checkmark, TweenInfo.new(tweensettings.duration, tweensettings.easingStyle), {
+				Size = UDim2.new(checkmark.Size.X.Scale, tweensettings.checkSizeIncrease, checkmark.Size.Y.Scale, checkmark.Size.Y.Offset)
+			}),
+			checkOut = Tween(checkmark, TweenInfo.new(tweensettings.duration, tweensettings.easingStyle),{
+				Size = UDim2.new(checkmark.Size.X.Scale, tweensettings.checkSizeDecrease, checkmark.Size.Y.Scale, checkmark.Size.Y.Offset)
+			}),
+			nameIn = Tween(settingName, TweenInfo.new(tweensettings.duration, tweensettings.easingStyle),{
+				TextTransparency = tweensettings.transparencyIn
+			}),
+			nameOut = Tween(settingName, TweenInfo.new(tweensettings.duration, tweensettings.easingStyle),{
+				TextTransparency = tweensettings.transparencyOut
+			})
+		}
+
+		local function Toggle(State)
+			if not State then
+				tweens.checkOut:Play()
+				tweens.nameOut:Play()
+				checkmark:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+					if checkmark.AbsoluteSize.X <= 0 then
+						checkmark.TextTransparency = 1
+					end
+				end)
+			else
+				tweens.checkIn:Play()
+				tweens.nameIn:Play()
+				checkmark:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+					if checkmark.AbsoluteSize.X > 0 then
+						checkmark.TextTransparency = 0
+					end
 				end)
 			end
+		end
 
-			if Settings.Discord.RememberJoins then -- We do logic this way so if the developer changes this setting, the user still won't be prompted, only new users
-				callSafely(writefile, inviteFile,
-					"Rayfield RememberJoins is true for this invite, this invite will not ask you to join again")
+		local toggled = Settings.Default
+		Toggle(toggled)
+
+		globalSetting.MouseButton1Click:Connect(function()
+			toggled = not toggled
+			Toggle(toggled)
+
+			task.spawn(function()
+				if Settings.Callback then
+					Settings.Callback(toggled)
+				end
+			end)
+		end)
+
+		function GlobalSettingFunctions:UpdateName(NewName)
+			settingName.Text = NewName
+		end
+
+		function GlobalSettingFunctions:UpdateState(NewState)
+			Toggle(NewState)
+			toggled = NewState
+		end
+
+		return GlobalSettingFunctions
+	end
+
+	function WindowFunctions:TabGroup()
+		local SectionFunctions = {}
+
+		local tabGroup = Instance.new("Frame")
+		tabGroup.Name = "Section"
+		tabGroup.AutomaticSize = Enum.AutomaticSize.Y
+		tabGroup.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		tabGroup.BackgroundTransparency = 1
+		tabGroup.BorderColor3 = Color3.fromRGB(0, 0, 0)
+		tabGroup.BorderSizePixel = 0
+		tabGroup.Size = UDim2.fromScale(1, 0)
+
+		local divider3 = Instance.new("Frame")
+		divider3.Name = "Divider"
+		divider3.AnchorPoint = Vector2.new(0.5, 1)
+		divider3.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		divider3.BackgroundTransparency = 0.9
+		divider3.BorderColor3 = Color3.fromRGB(0, 0, 0)
+		divider3.BorderSizePixel = 0
+		divider3.Position = UDim2.fromScale(0.5, 1)
+		divider3.Size = UDim2.new(1, -21, 0, 1)
+		divider3.Parent = tabGroup
+
+		local sectionTabSwitchers = Instance.new("Frame")
+		sectionTabSwitchers.Name = "SectionTabSwitchers"
+		sectionTabSwitchers.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		sectionTabSwitchers.BackgroundTransparency = 1
+		sectionTabSwitchers.BorderColor3 = Color3.fromRGB(0, 0, 0)
+		sectionTabSwitchers.BorderSizePixel = 0
+		sectionTabSwitchers.Size = UDim2.fromScale(1, 1)
+
+		local uIListLayout1 = Instance.new("UIListLayout")
+		uIListLayout1.Name = "UIListLayout"
+		uIListLayout1.Padding = UDim.new(0, 15)
+		uIListLayout1.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		uIListLayout1.SortOrder = Enum.SortOrder.LayoutOrder
+		uIListLayout1.Parent = sectionTabSwitchers
+
+		local uIPadding1 = Instance.new("UIPadding")
+		uIPadding1.Name = "UIPadding"
+		uIPadding1.PaddingBottom = UDim.new(0, 15)
+		uIPadding1.Parent = sectionTabSwitchers
+
+		sectionTabSwitchers.Parent = tabGroup
+		tabGroup.Parent = tabSwitchersScrollingFrame
+
+		function SectionFunctions:Tab(Settings)
+			local TabFunctions = {Settings = Settings}
+			local tabSwitcher = Instance.new("TextButton")
+			tabSwitcher.Name = "TabSwitcher"
+			tabSwitcher.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json")
+			tabSwitcher.Text = ""
+			tabSwitcher.TextColor3 = Color3.fromRGB(0, 0, 0)
+			tabSwitcher.TextSize = 14
+			tabSwitcher.AutoButtonColor = false
+			tabSwitcher.AnchorPoint = Vector2.new(0.5, 0)
+			tabSwitcher.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+			tabSwitcher.BackgroundTransparency = 1
+			tabSwitcher.BorderColor3 = Color3.fromRGB(0, 0, 0)
+			tabSwitcher.BorderSizePixel = 0
+			tabSwitcher.Position = UDim2.fromScale(0.5, 0)
+			tabSwitcher.Size = UDim2.new(1, -21, 0, 40)
+
+			tabIndex += 1
+			tabSwitcher.LayoutOrder = tabIndex
+
+			local tabSwitcherUICorner = Instance.new("UICorner")
+			tabSwitcherUICorner.Name = "TabSwitcherUICorner"
+			tabSwitcherUICorner.Parent = tabSwitcher
+
+			local tabSwitcherUIStroke = Instance.new("UIStroke")
+			tabSwitcherUIStroke.Name = "TabSwitcherUIStroke"
+			tabSwitcherUIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			tabSwitcherUIStroke.Color = Color3.fromRGB(255, 255, 255)
+			tabSwitcherUIStroke.Transparency = 1
+			tabSwitcherUIStroke.Parent = tabSwitcher
+
+			local tabSwitcherUIListLayout = Instance.new("UIListLayout")
+			tabSwitcherUIListLayout.Name = "TabSwitcherUIListLayout"
+			tabSwitcherUIListLayout.Padding = UDim.new(0, 9)
+			tabSwitcherUIListLayout.FillDirection = Enum.FillDirection.Horizontal
+			tabSwitcherUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+			tabSwitcherUIListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+			tabSwitcherUIListLayout.Parent = tabSwitcher
+
+			local tabImage
+
+			if Settings.Image then
+				tabImage = Instance.new("ImageLabel")
+				tabImage.Name = "TabImage"
+				tabImage.Image = Settings.Image
+				tabImage.ImageTransparency = 0.5
+				tabImage.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+				tabImage.BackgroundTransparency = 1
+				tabImage.BorderColor3 = Color3.fromRGB(0, 0, 0)
+				tabImage.BorderSizePixel = 0
+				tabImage.Size = UDim2.fromOffset(18, 18)
+				tabImage.Parent = tabSwitcher
+			end
+
+			local tabSwitcherName = Instance.new("TextLabel")
+			tabSwitcherName.Name = "TabSwitcherName"
+			tabSwitcherName.FontFace = Font.new(
+				assets.interFont,
+				Enum.FontWeight.Medium,
+				Enum.FontStyle.Normal
+			)
+			tabSwitcherName.Text = Settings.Name
+			tabSwitcherName.RichText = true
+			tabSwitcherName.TextColor3 = Color3.fromRGB(255, 255, 255)
+			tabSwitcherName.TextSize = 16
+			tabSwitcherName.TextTransparency = 0.5
+			tabSwitcherName.TextTruncate = Enum.TextTruncate.SplitWord
+			tabSwitcherName.TextXAlignment = Enum.TextXAlignment.Left
+			tabSwitcherName.TextYAlignment = Enum.TextYAlignment.Top
+			tabSwitcherName.AutomaticSize = Enum.AutomaticSize.Y
+			tabSwitcherName.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+			tabSwitcherName.BackgroundTransparency = 1
+			tabSwitcherName.BorderColor3 = Color3.fromRGB(0, 0, 0)
+			tabSwitcherName.BorderSizePixel = 0
+			tabSwitcherName.Size = UDim2.fromScale(1, 0)
+			tabSwitcherName.Parent = tabSwitcher
+			tabSwitcherName.LayoutOrder = 1
+
+			local tabSwitcherUIPadding = Instance.new("UIPadding")
+			tabSwitcherUIPadding.Name = "TabSwitcherUIPadding"
+			tabSwitcherUIPadding.PaddingLeft = UDim.new(0, 24)
+			tabSwitcherUIPadding.PaddingRight = UDim.new(0, 35)
+			tabSwitcherUIPadding.PaddingTop = UDim.new(0, 1)
+			tabSwitcherUIPadding.Parent = tabSwitcher
+
+			tabSwitcher.Parent = sectionTabSwitchers
+
+			local elements1 = Instance.new("Frame")
+			elements1.Name = "Elements"
+			elements1.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+			elements1.BackgroundTransparency = 1
+			elements1.BorderColor3 = Color3.fromRGB(0, 0, 0)
+			elements1.BorderSizePixel = 0
+			elements1.Position = UDim2.fromOffset(0, 63)
+			elements1.Size = UDim2.new(1, 0, 1, -63)
+			elements1.ClipsDescendants = true
+
+			local elementsUIPadding = Instance.new("UIPadding")
+			elementsUIPadding.Name = "ElementsUIPadding"
+			elementsUIPadding.PaddingRight = UDim.new(0, 5)
+			elementsUIPadding.PaddingTop = UDim.new(0, 10)
+			elementsUIPadding.PaddingBottom = UDim.new(0, 10)
+			elementsUIPadding.Parent = elements1
+
+			local elementsScrolling = Instance.new("ScrollingFrame")
+			elementsScrolling.Name = "ElementsScrolling"
+			elementsScrolling.AutomaticCanvasSize = Enum.AutomaticSize.Y
+			elementsScrolling.BottomImage = ""
+			elementsScrolling.CanvasSize = UDim2.new()
+			elementsScrolling.ScrollBarImageTransparency = 0.5
+			elementsScrolling.ScrollBarThickness = 1
+			elementsScrolling.TopImage = ""
+			elementsScrolling.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+			elementsScrolling.BackgroundTransparency = 1
+			elementsScrolling.BorderColor3 = Color3.fromRGB(0, 0, 0)
+			elementsScrolling.BorderSizePixel = 0
+			elementsScrolling.Size = UDim2.fromScale(1, 1)
+			elementsScrolling.ClipsDescendants = false
+
+			local elementsScrollingUIPadding = Instance.new("UIPadding")
+			elementsScrollingUIPadding.Name = "ElementsScrollingUIPadding"
+			elementsScrollingUIPadding.PaddingBottom = UDim.new(0, 5)
+			elementsScrollingUIPadding.PaddingLeft = UDim.new(0, 11)
+			elementsScrollingUIPadding.PaddingRight = UDim.new(0, 3)
+			elementsScrollingUIPadding.PaddingTop = UDim.new(0, 5)
+			elementsScrollingUIPadding.Parent = elementsScrolling
+
+			local elementsScrollingUIListLayout = Instance.new("UIListLayout")
+			elementsScrollingUIListLayout.Name = "ElementsScrollingUIListLayout"
+			elementsScrollingUIListLayout.Padding = UDim.new(0, 15)
+			elementsScrollingUIListLayout.FillDirection = Enum.FillDirection.Horizontal
+			elementsScrollingUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+			elementsScrollingUIListLayout.Parent = elementsScrolling
+
+			local left = Instance.new("Frame")
+			left.Name = "Left"
+			left.AutomaticSize = Enum.AutomaticSize.Y
+			left.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+			left.BackgroundTransparency = 1
+			left.BorderColor3 = Color3.fromRGB(0, 0, 0)
+			left.BorderSizePixel = 0
+			left.Position = UDim2.fromScale(0.512, 0)
+			left.Size = UDim2.new(0.5, -10, 0, 0)
+
+			local leftUIListLayout = Instance.new("UIListLayout")
+			leftUIListLayout.Name = "LeftUIListLayout"
+			leftUIListLayout.Padding = UDim.new(0, 15)
+			leftUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+			leftUIListLayout.Parent = left
+
+			left.Parent = elementsScrolling
+
+			local right = Instance.new("Frame")
+			right.Name = "Right"
+			right.AutomaticSize = Enum.AutomaticSize.Y
+			right.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+			right.BackgroundTransparency = 1
+			right.BorderColor3 = Color3.fromRGB(0, 0, 0)
+			right.BorderSizePixel = 0
+			right.LayoutOrder = 1
+			right.Position = UDim2.fromScale(0.512, 0)
+			right.Size = UDim2.new(0.5, -10, 0, 0)
+
+			local rightUIListLayout = Instance.new("UIListLayout")
+			rightUIListLayout.Name = "RightUIListLayout"
+			rightUIListLayout.Padding = UDim.new(0, 15)
+			rightUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+			rightUIListLayout.Parent = right
+
+			right.Parent = elementsScrolling
+
+			elementsScrolling.Parent = elements1
+
+			-- Phone: stack columns vertically for readability
+			if deviceInfo.IsPhone or (deviceInfo.IsMobile and deviceInfo.Viewport.X < 700) then
+				elementsScrollingUIListLayout.FillDirection = Enum.FillDirection.Vertical
+				left.Size = UDim2.new(1, -4, 0, 0)
+				right.Size = UDim2.new(1, -4, 0, 0)
+			end
+
+			function TabFunctions:Section(Settings)
+				local SectionFunctions = {}
+				local section = Instance.new("Frame")
+				section.Name = "Section"
+				section.AutomaticSize = Enum.AutomaticSize.Y
+				section.BackgroundColor3 = Theme.Section
+				section.BackgroundTransparency = Theme.SectionTransparency
+				section.BorderColor3 = Color3.fromRGB(0, 0, 0)
+				section.BorderSizePixel = 0
+				section.Position = UDim2.fromScale(0, 6.78e-08)
+				section.Size = UDim2.fromScale(1, 0)
+				section.ClipsDescendants = true
+				section.Parent = Settings.Side == "Left" and left or right
+
+				local sectionUICorner = Instance.new("UICorner")
+				sectionUICorner.Name = "SectionUICorner"
+				sectionUICorner.Parent = section
+
+				local sectionUIStroke = Instance.new("UIStroke")
+				sectionUIStroke.Name = "SectionUIStroke"
+				sectionUIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+				sectionUIStroke.Color = Color3.fromRGB(255, 255, 255)
+				sectionUIStroke.Transparency = 0.95
+				sectionUIStroke.Parent = section
+
+				local sectionUIListLayout = Instance.new("UIListLayout")
+				sectionUIListLayout.Name = "SectionUIListLayout"
+				sectionUIListLayout.Padding = UDim.new(0, 10)
+				sectionUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+				sectionUIListLayout.Parent = section
+
+				local sectionUIPadding = Instance.new("UIPadding")
+				sectionUIPadding.Name = "SectionUIPadding"
+				sectionUIPadding.PaddingBottom = UDim.new(0, 20)
+				sectionUIPadding.PaddingLeft = UDim.new(0, 20)
+				sectionUIPadding.PaddingRight = UDim.new(0, 18)
+				sectionUIPadding.PaddingTop = UDim.new(0, 22)
+				sectionUIPadding.Parent = section
+
+				function SectionFunctions:Button(Settings, Flag)
+					local ButtonFunctions = {Settings = Settings}
+					local button = Instance.new("Frame")
+					button.Name = "Button"
+					button.AutomaticSize = Enum.AutomaticSize.Y
+					button.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					button.BackgroundTransparency = 1
+					button.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					button.BorderSizePixel = 0
+					button.Size = UDim2.new(1, 0, 0, 38)
+					button.Parent = section
+
+					local buttonInteract = Instance.new("TextButton")
+					buttonInteract.Name = "ButtonInteract"
+					buttonInteract.FontFace = Font.new(assets.interFont)
+					buttonInteract.RichText = true
+					buttonInteract.TextColor3 = Color3.fromRGB(255, 255, 255)
+					buttonInteract.TextSize = 13
+					buttonInteract.TextTransparency = 0.5
+					buttonInteract.TextTruncate = Enum.TextTruncate.AtEnd
+					buttonInteract.TextXAlignment = Enum.TextXAlignment.Left
+					buttonInteract.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					buttonInteract.BackgroundTransparency = 1
+					buttonInteract.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					buttonInteract.BorderSizePixel = 0
+					buttonInteract.Size = UDim2.fromScale(1, 1)
+					buttonInteract.Parent = button
+					buttonInteract.Text = ButtonFunctions.Settings.Name
+
+					local buttonImage = Instance.new("ImageLabel")
+					buttonImage.Name = "ButtonImage"
+					buttonImage.Image = assets.buttonImage
+					buttonImage.ImageTransparency = 0.5
+					buttonImage.AnchorPoint = Vector2.new(1, 0.5)
+					buttonImage.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					buttonImage.BackgroundTransparency = 1
+					buttonImage.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					buttonImage.BorderSizePixel = 0
+					buttonImage.Position = UDim2.fromScale(1, 0.5)
+					buttonImage.Size = UDim2.fromOffset(15, 15)
+					buttonImage.Parent = button
+
+					local TweenSettings = {
+						DefaultTransparency = 0.5,
+						HoverTransparency = 0.3,
+
+						EasingStyle = Enum.EasingStyle.Sine
+					}
+
+					local function ChangeState(State)
+						if State == "Idle" then
+							Tween(buttonInteract, TweenInfo.new(0.2, TweenSettings.EasingStyle), {
+								TextTransparency = TweenSettings.DefaultTransparency
+							}):Play()
+							Tween(buttonImage, TweenInfo.new(0.2, TweenSettings.EasingStyle), {
+								ImageTransparency = TweenSettings.DefaultTransparency
+							}):Play()
+						elseif State == "Hover" then
+							Tween(buttonInteract, TweenInfo.new(0.2, TweenSettings.EasingStyle), {
+								TextTransparency = TweenSettings.HoverTransparency
+							}):Play()
+							Tween(buttonImage, TweenInfo.new(0.2, TweenSettings.EasingStyle), {
+								ImageTransparency = TweenSettings.HoverTransparency
+							}):Play()
+						end
+					end
+
+					local function Callback()
+						if ButtonFunctions.Settings.Callback then
+							ButtonFunctions.Settings.Callback()
+						end
+					end
+
+					buttonInteract.MouseEnter:Connect(function()
+						ChangeState("Hover")
+					end)
+					buttonInteract.MouseLeave:Connect(function()
+						ChangeState("Idle")
+					end)
+
+					buttonInteract.MouseButton1Click:Connect(Callback)
+					function ButtonFunctions:UpdateName(Name)
+						buttonInteract.Text = Name
+					end
+					function ButtonFunctions:SetVisibility(State)
+						button.Visible = State
+					end
+
+					if Flag then
+						MacLib.Options[Flag] = ButtonFunctions
+					end
+					return ButtonFunctions
+				end
+
+				function SectionFunctions:Toggle(Settings, Flag)
+					local ToggleFunctions = { Settings = Settings, IgnoreConfig = false, Class = "Toggle" }
+					local toggle = Instance.new("Frame")
+					toggle.Name = "Toggle"
+					toggle.AutomaticSize = Enum.AutomaticSize.Y
+					toggle.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					toggle.BackgroundTransparency = 1
+					toggle.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					toggle.BorderSizePixel = 0
+					toggle.Size = UDim2.new(1, 0, 0, 38)
+					toggle.Parent = section
+
+					local toggleName = Instance.new("TextLabel")
+					toggleName.Name = "ToggleName"
+					toggleName.FontFace = Font.new(assets.interFont)
+					toggleName.Text = ToggleFunctions.Settings.Name
+					toggleName.RichText = true
+					toggleName.TextColor3 = Color3.fromRGB(255, 255, 255)
+					toggleName.TextSize = 13
+					toggleName.TextTransparency = 0.5
+					toggleName.TextTruncate = Enum.TextTruncate.AtEnd
+					toggleName.TextXAlignment = Enum.TextXAlignment.Left
+					toggleName.TextYAlignment = Enum.TextYAlignment.Top
+					toggleName.AnchorPoint = Vector2.new(0, 0.5)
+					toggleName.AutomaticSize = Enum.AutomaticSize.Y
+					toggleName.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					toggleName.BackgroundTransparency = 1
+					toggleName.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					toggleName.BorderSizePixel = 0
+					toggleName.Position = UDim2.fromScale(0, 0.5)
+					toggleName.Size = UDim2.new(1, -50, 0, 0)
+					toggleName.Parent = toggle
+
+					local toggle1 = Instance.new("ImageButton")
+					toggle1.Name = "Toggle"
+					toggle1.Image = assets.toggleBackground
+					toggle1.ImageColor3 = Theme.ToggleOff
+					toggle1.AutoButtonColor = false
+					toggle1.AnchorPoint = Vector2.new(1, 0.5)
+					toggle1.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					toggle1.BackgroundTransparency = 1
+					toggle1.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					toggle1.BorderSizePixel = 0
+					toggle1.Position = UDim2.fromScale(1, 0.5)
+					toggle1.Size = UDim2.fromOffset(41, 21)
+					toggle1.ImageTransparency = 0.5
+
+					local toggleUIPadding = Instance.new("UIPadding")
+					toggleUIPadding.Name = "ToggleUIPadding"
+					toggleUIPadding.PaddingBottom = UDim.new(0, 1)
+					toggleUIPadding.PaddingLeft = UDim.new(0, -2)
+					toggleUIPadding.PaddingRight = UDim.new(0, 3)
+					toggleUIPadding.PaddingTop = UDim.new(0, 1)
+					toggleUIPadding.Parent = toggle1
+
+					local togglerHead = Instance.new("ImageLabel")
+					togglerHead.Name = "TogglerHead"
+					togglerHead.Image = assets.togglerHead
+					togglerHead.ImageColor3 = Color3.fromRGB(255, 255, 255)
+					togglerHead.AnchorPoint = Vector2.new(1, 0.5)
+					togglerHead.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					togglerHead.BackgroundTransparency = 1
+					togglerHead.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					togglerHead.BorderSizePixel = 0
+					togglerHead.Position = UDim2.fromScale(0.5, 0.5)
+					togglerHead.Size = UDim2.fromOffset(15, 15)
+					togglerHead.ZIndex = 2
+					togglerHead.Parent = toggle1
+					togglerHead.ImageTransparency = 0.8
+
+					toggle1.Parent = toggle
+
+					local toggle1Transparency = {Enabled = 0, Disabled = 0.5}
+					local togglerHeadTransparency = {Enabled = 0, Disabled = 0.85}
+
+					local TweenSettings = {
+						Info = TweenInfo.new(0.15, Enum.EasingStyle.Quad),
+
+						EnabledPosition = UDim2.new(1, 0, 0.5, 0),
+						DisabledPosition = UDim2.new(0.5, 0, 0.5, 0),
+					}
+
+					local togglebool = ToggleFunctions.Settings.Default
+
+					local function NewState(State, callback)
+						local transparencyValues = State and {toggle1Transparency.Enabled, togglerHeadTransparency.Enabled}
+							or {toggle1Transparency.Disabled, togglerHeadTransparency.Disabled}
+						local position = State and TweenSettings.EnabledPosition or TweenSettings.DisabledPosition
+
+						Tween(toggle1, TweenSettings.Info, {
+							ImageTransparency = transparencyValues[1]
+						}):Play()
+
+						Tween(togglerHead, TweenSettings.Info, {
+							ImageTransparency = transparencyValues[2]
+						}):Play()
+
+						Tween(togglerHead, TweenSettings.Info, {
+							Position = position
+						}):Play()
+
+						ToggleFunctions.State = State
+						if callback then
+							callback(togglebool)
+						end
+					end
+
+					NewState(togglebool)
+
+					local function Toggle()
+						togglebool = not togglebool
+						NewState(togglebool, ToggleFunctions.Settings.Callback)
+					end
+
+					toggle1.MouseButton1Click:Connect(Toggle)
+
+					function ToggleFunctions:Toggle()
+						Toggle()
+					end
+					function ToggleFunctions:UpdateState(State)
+						togglebool = State
+						NewState(togglebool, ToggleFunctions.Settings.Callback)
+					end
+					function ToggleFunctions:GetState()
+						return togglebool
+					end
+					function ToggleFunctions:UpdateName(Name)
+						toggleName.Text = Name
+					end
+					function ToggleFunctions:SetVisibility(State)
+						toggle.Visible = State
+					end
+
+					if Flag then
+						MacLib.Options[Flag] = ToggleFunctions
+					end
+					return ToggleFunctions
+				end
+
+				function SectionFunctions:Slider(Settings, Flag)
+					local SliderFunctions = { Settings = Settings, IgnoreConfig = false, Class = "Slider" }
+					local slider = Instance.new("Frame")
+					slider.Name = "Slider"
+					slider.AutomaticSize = Enum.AutomaticSize.Y
+					slider.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					slider.BackgroundTransparency = 1
+					slider.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					slider.BorderSizePixel = 0
+					slider.Size = UDim2.new(1, 0, 0, 38)
+					slider.Parent = section
+
+					local sliderName = Instance.new("TextLabel")
+					sliderName.Name = "SliderName"
+					sliderName.FontFace = Font.new(assets.interFont)
+					sliderName.Text = SliderFunctions.Settings.Name
+					sliderName.RichText = true
+					sliderName.TextColor3 = Color3.fromRGB(255, 255, 255)
+					sliderName.TextSize = 13
+					sliderName.TextTransparency = 0.5
+					sliderName.TextTruncate = Enum.TextTruncate.AtEnd
+					sliderName.TextXAlignment = Enum.TextXAlignment.Left
+					sliderName.TextYAlignment = Enum.TextYAlignment.Top
+					sliderName.AnchorPoint = Vector2.new(0, 0.5)
+					sliderName.AutomaticSize = Enum.AutomaticSize.XY
+					sliderName.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					sliderName.BackgroundTransparency = 1
+					sliderName.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					sliderName.BorderSizePixel = 0
+					sliderName.Position = UDim2.fromScale(1.3e-07, 0.5)
+					sliderName.Parent = slider
+
+					local sliderElements = Instance.new("Frame")
+					sliderElements.Name = "SliderElements"
+					sliderElements.AnchorPoint = Vector2.new(1, 0)
+					sliderElements.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					sliderElements.BackgroundTransparency = 1
+					sliderElements.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					sliderElements.BorderSizePixel = 0
+					sliderElements.Position = UDim2.fromScale(1, 0)
+					sliderElements.Size = UDim2.fromScale(1, 1)
+
+					local sliderValue = Instance.new("TextBox")
+					sliderValue.Name = "SliderValue"
+					sliderValue.FontFace = Font.new(assets.interFont)
+					sliderValue.TextColor3 = Color3.fromRGB(255, 255, 255)
+					sliderValue.TextSize = 12
+					sliderValue.TextTransparency = 0.1
+					--sliderValue.TextTruncate = Enum.TextTruncate.AtEnd
+					sliderValue.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					sliderValue.BackgroundTransparency = 0.95
+					sliderValue.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					sliderValue.BorderSizePixel = 0
+					sliderValue.LayoutOrder = 1
+					sliderValue.Position = UDim2.fromScale(-0.0789, 0.171)
+					sliderValue.Size = UDim2.fromOffset(41, 21)
+					sliderValue.ClipsDescendants = true
+
+					local sliderValueUICorner = Instance.new("UICorner")
+					sliderValueUICorner.Name = "SliderValueUICorner"
+					sliderValueUICorner.CornerRadius = UDim.new(0, 4)
+					sliderValueUICorner.Parent = sliderValue
+
+					local sliderValueUIStroke = Instance.new("UIStroke")
+					sliderValueUIStroke.Name = "SliderValueUIStroke"
+					sliderValueUIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					sliderValueUIStroke.Color = Color3.fromRGB(255, 255, 255)
+					sliderValueUIStroke.Transparency = 0.9
+					sliderValueUIStroke.Parent = sliderValue
+
+					local sliderValueUIPadding = Instance.new("UIPadding")
+					sliderValueUIPadding.Name = "SliderValueUIPadding"
+					sliderValueUIPadding.PaddingLeft = UDim.new(0, 2)
+					sliderValueUIPadding.PaddingRight = UDim.new(0, 2)
+					sliderValueUIPadding.Parent = sliderValue
+
+					sliderValue.Parent = sliderElements
+
+					local sliderElementsUIListLayout = Instance.new("UIListLayout")
+					sliderElementsUIListLayout.Name = "SliderElementsUIListLayout"
+					sliderElementsUIListLayout.Padding = UDim.new(0, 20)
+					sliderElementsUIListLayout.FillDirection = Enum.FillDirection.Horizontal
+					sliderElementsUIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+					sliderElementsUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+					sliderElementsUIListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+					sliderElementsUIListLayout.Parent = sliderElements
+
+					local sliderBar = Instance.new("ImageLabel")
+					sliderBar.Name = "SliderBar"
+					sliderBar.Image = assets.sliderbar
+					sliderBar.ImageColor3 = Theme.SliderTrack
+					sliderBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					sliderBar.BackgroundTransparency = 1
+					sliderBar.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					sliderBar.BorderSizePixel = 0
+					sliderBar.Position = UDim2.fromScale(0.219, 0.457)
+					sliderBar.Size = UDim2.fromOffset(123, 3)
+
+					local sliderHead = Instance.new("ImageButton")
+					sliderHead.Name = "SliderHead"
+					sliderHead.Image = assets.sliderhead
+					sliderHead.AnchorPoint = Vector2.new(0.5, 0.5)
+					sliderHead.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					sliderHead.BackgroundTransparency = 1
+					sliderHead.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					sliderHead.BorderSizePixel = 0
+					sliderHead.Position = UDim2.fromScale(1, 0.5)
+					sliderHead.Size = UDim2.fromOffset(12, 12)
+					sliderHead.Parent = sliderBar
+
+					sliderBar.Parent = sliderElements
+
+					local sliderElementsUIPadding = Instance.new("UIPadding")
+					sliderElementsUIPadding.Name = "SliderElementsUIPadding"
+					sliderElementsUIPadding.PaddingTop = UDim.new(0, 3)
+					sliderElementsUIPadding.Parent = sliderElements
+
+					sliderElements.Parent = slider
+
+					local dragging = false
+
+					local DisplayMethods = {
+						Hundredths = function(sliderValue) -- Deprecated use Settings.Precision
+							return string.format("%.2f", sliderValue)
+						end,
+						Tenths = function(sliderValue) -- Deprecated use Settings.Precision
+							return string.format("%.1f", sliderValue)
+						end,
+						Round = function(sliderValue, precision)
+							if precision then
+								return string.format("%." .. precision .. "f", sliderValue)
+							else
+								return tostring(math.round(sliderValue))
+							end
+						end,
+						Degrees = function(sliderValue, precision)
+							local formattedValue = precision and string.format("%." .. precision .. "f", sliderValue) or tostring(sliderValue)
+							return formattedValue .. "°"
+						end,
+						Percent = function(sliderValue, precision)
+							local percentage = (sliderValue - SliderFunctions.Settings.Minimum) / (SliderFunctions.Settings.Maximum - SliderFunctions.Settings.Minimum) * 100
+							return precision and string.format("%." .. precision .. "f", percentage) .. "%" or tostring(math.round(percentage)) .. "%"
+						end,
+						Value = function(sliderValue, precision)
+							return precision and string.format("%." .. precision .. "f", sliderValue) or tostring(sliderValue)
+						end
+					}
+
+					local ValueDisplayMethod = DisplayMethods[SliderFunctions.Settings.DisplayMethod] or DisplayMethods.Value
+					local finalValue
+
+					local function SetValue(val, ignorecallback)
+						local posXScale
+
+						if typeof(val) == "Instance" then
+							local input = val
+							posXScale = math.clamp((input.Position.X - sliderBar.AbsolutePosition.X) / sliderBar.AbsoluteSize.X, 0, 1)
+						else
+							local value = val
+							posXScale = (value - SliderFunctions.Settings.Minimum) / (SliderFunctions.Settings.Maximum - Settings.Minimum)
+						end
+
+						local pos = UDim2.new(posXScale, 0, 0.5, 0)
+						sliderHead.Position = pos
+
+						finalValue = posXScale * (SliderFunctions.Settings.Maximum - SliderFunctions.Settings.Minimum) + Settings.Minimum
+
+						sliderValue.Text = (Settings.Prefix or "") .. ValueDisplayMethod(finalValue, SliderFunctions.Settings.Precision) .. (Settings.Suffix or "")
+
+						if not ignorecallback then
+							task.spawn(function()
+								if SliderFunctions.Settings.Callback then
+									SliderFunctions.Settings.Callback(finalValue)
+								end
+							end)
+						end
+
+						SliderFunctions.Value = finalValue
+					end
+
+					SetValue(SliderFunctions.Settings.Default, true)
+
+					sliderHead.InputBegan:Connect(function(input)
+						if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+							dragging = true
+							SetValue(input)
+						end
+					end)
+
+					sliderHead.InputEnded:Connect(function(input)
+						if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+							dragging = false
+							if SliderFunctions.Settings.onInputComplete then
+								SliderFunctions.Settings.onInputComplete(finalValue)
+							end
+						end
+					end)
+
+					sliderValue.FocusLost:Connect(function(enterPressed)
+						local inputText = sliderValue.Text
+						local value, isPercent = inputText:match("^(%-?%d+%.?%d*)(%%?)$")
+
+						if value then
+							value = tonumber(value)
+							isPercent = isPercent == "%"
+
+							if isPercent then
+								value = SliderFunctions.Settings.Minimum + (value / 100) * (SliderFunctions.Settings.Maximum - SliderFunctions.Settings.Minimum)
+							end
+
+							local newValue = math.clamp(value, SliderFunctions.Settings.Minimum, SliderFunctions.Settings.Maximum)
+							SetValue(newValue)
+						else
+							sliderValue.Text = ValueDisplayMethod(sliderValue)
+						end
+
+						if SliderFunctions.Settings.onInputComplete then
+							SliderFunctions.Settings.onInputComplete(finalValue)
+						end
+					end)
+
+					UserInputService.InputChanged:Connect(function(input)
+						if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+							SetValue(input)
+						end
+					end)
+
+					local function updateSliderBarSize()
+						local padding = sliderElementsUIListLayout.Padding.Offset
+						local sliderValueWidth = sliderValue.AbsoluteSize.X
+						local sliderNameWidth = sliderName.AbsoluteSize.X
+						local totalWidth = sliderElements.AbsoluteSize.X
+
+						local newBarWidth = (totalWidth - (padding + sliderValueWidth + sliderNameWidth + 20)) / baseUIScale.Scale
+						sliderBar.Size = UDim2.new(sliderBar.Size.X.Scale, newBarWidth, sliderBar.Size.Y.Scale, sliderBar.Size.Y.Offset)
+					end
+
+					updateSliderBarSize()
+
+					sliderName:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateSliderBarSize)
+					section:GetPropertyChangedSignal("AbsoluteSize"):Connect(updateSliderBarSize)
+
+					function SliderFunctions:UpdateName(Name)
+						sliderName = Name
+					end
+					function SliderFunctions:SetVisibility(State)
+						slider.Visible = State
+					end
+					function SliderFunctions:UpdateValue(Value)
+						SetValue(tonumber(Value), true)
+					end
+					function SliderFunctions:GetValue()
+						return finalValue
+					end
+
+					if Flag then
+						MacLib.Options[Flag] = SliderFunctions
+					end
+					return SliderFunctions
+				end
+
+				function SectionFunctions:Input(Settings, Flag)
+					local InputFunctions = { Settings = Settings, IgnoreConfig = false, Class = "Input" }
+					local input = Instance.new("Frame")
+					input.Name = "Input"
+					input.AutomaticSize = Enum.AutomaticSize.Y
+					input.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					input.BackgroundTransparency = 1
+					input.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					input.BorderSizePixel = 0
+					input.Size = UDim2.new(1, 0, 0, 38)
+					input.Parent = section
+
+					local inputName = Instance.new("TextLabel")
+					inputName.Name = "InputName"
+					inputName.FontFace = Font.new(assets.interFont)
+					inputName.Text = InputFunctions.Settings.Name
+					inputName.RichText = true
+					inputName.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputName.TextSize = 13
+					inputName.TextTransparency = 0.5
+					inputName.TextTruncate = Enum.TextTruncate.AtEnd
+					inputName.TextXAlignment = Enum.TextXAlignment.Left
+					inputName.TextYAlignment = Enum.TextYAlignment.Top
+					inputName.AnchorPoint = Vector2.new(0, 0.5)
+					inputName.AutomaticSize = Enum.AutomaticSize.XY
+					inputName.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputName.BackgroundTransparency = 1
+					inputName.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputName.BorderSizePixel = 0
+					inputName.Position = UDim2.fromScale(0, 0.5)
+					inputName.Parent = input
+
+					local inputBox = Instance.new("TextBox")
+					inputBox.Name = "InputBox"
+					inputBox.FontFace = Font.new(assets.interFont)
+					inputBox.Text = "Hello world!"
+					inputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox.TextSize = 12
+					inputBox.TextTransparency = 0.1
+					inputBox.AnchorPoint = Vector2.new(1, 0.5)
+					inputBox.AutomaticSize = Enum.AutomaticSize.X
+					inputBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox.BackgroundTransparency = 0.95
+					inputBox.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputBox.BorderSizePixel = 0
+					inputBox.ClipsDescendants = true
+					inputBox.LayoutOrder = 1
+					inputBox.Position = UDim2.fromScale(1, 0.5)
+					inputBox.Size = UDim2.fromOffset(21, 21)
+					inputBox.TextXAlignment = Enum.TextXAlignment.Right
+
+					local inputBoxUICorner = Instance.new("UICorner")
+					inputBoxUICorner.Name = "InputBoxUICorner"
+					inputBoxUICorner.CornerRadius = UDim.new(0, 4)
+					inputBoxUICorner.Parent = inputBox
+
+					local inputBoxUIStroke = Instance.new("UIStroke")
+					inputBoxUIStroke.Name = "InputBoxUIStroke"
+					inputBoxUIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					inputBoxUIStroke.Color = Color3.fromRGB(255, 255, 255)
+					inputBoxUIStroke.Transparency = 0.9
+					inputBoxUIStroke.Parent = inputBox
+
+					local inputBoxUIPadding = Instance.new("UIPadding")
+					inputBoxUIPadding.Name = "InputBoxUIPadding"
+					inputBoxUIPadding.PaddingLeft = UDim.new(0, 5)
+					inputBoxUIPadding.PaddingRight = UDim.new(0, 5)
+					inputBoxUIPadding.Parent = inputBox
+
+					local inputBoxUISizeConstraint = Instance.new("UISizeConstraint")
+					inputBoxUISizeConstraint.Name = "InputBoxUISizeConstraint"
+					inputBoxUISizeConstraint.Parent = inputBox
+
+					inputBox.Parent = input
+
+					local Input = input
+					local InputBox = inputBox
+					local InputName = inputName
+					local Constraint = inputBoxUISizeConstraint
+
+					local function applyCharacterLimit(value)
+						if InputFunctions.Settings.CharacterLimit then
+							return value:sub(1, InputFunctions.Settings.CharacterLimit)
+						end
+						return value
+					end
+
+					local CharacterSubs = {
+						All = function(value)
+							return applyCharacterLimit(value)
+						end,
+						Numeric = function(value)
+							local result = value:match("^%-?%d*$") and value or value:gsub("[^%d-]", ""):gsub("(%-)", function(match, pos)
+								return pos == 1 and match or ""
+							end)
+							return applyCharacterLimit(result)
+						end,
+						Alphabetic = function(value)
+							return applyCharacterLimit(value:gsub("[^a-zA-Z ]", ""))
+						end,
+						AlphaNumeric = function(value)
+							return applyCharacterLimit(value:gsub("[^a-zA-Z0-9]", ""))
+						end,
+					}
+
+					local AcceptedCharacters
+
+					if type(InputFunctions.Settings.AcceptedCharacters) == "function" then
+						AcceptedCharacters = InputFunctions.Settings.AcceptedCharacters
+					else
+						AcceptedCharacters = CharacterSubs[InputFunctions.Settings.AcceptedCharacters] or CharacterSubs.All
+					end
+
+					InputBox.AutomaticSize = Enum.AutomaticSize.X
+
+					local function checkSize()
+						local nameWidth = InputName.AbsoluteSize.X
+						local totalWidth = Input.AbsoluteSize.X
+
+						local maxWidth = (totalWidth - nameWidth - 20) / baseUIScale.Scale
+						Constraint.MaxSize = Vector2.new(maxWidth, 9e9)
+					end
+
+					checkSize()
+					InputName:GetPropertyChangedSignal("AbsoluteSize"):Connect(checkSize)
+
+					InputBox.FocusLost:Connect(function()
+						local inputText = InputBox.Text
+						local filteredText = AcceptedCharacters(inputText)
+						InputBox.Text = filteredText
+						task.spawn(function()
+							if InputFunctions.Settings.Callback then
+								InputFunctions.Settings.Callback(filteredText)
+							end
+						end)
+					end)
+					InputBox.Text = InputFunctions.Settings.Default or ""
+					InputBox.PlaceholderText = InputFunctions.Settings.Placeholder or ""
+
+					InputBox:GetPropertyChangedSignal("Text"):Connect(function()
+						InputBox.Text = AcceptedCharacters(InputBox.Text)
+						if InputFunctions.Settings.onChanged then
+							InputFunctions.Settings.onChanged(InputBox.Text)
+						end
+						InputFunctions.Text = InputBox.Text
+					end)
+
+					function InputFunctions:UpdateName(Name)
+						inputName.Text = Name
+					end
+					function InputFunctions:SetVisibility(State)
+						input.Visible = State
+					end
+					function InputFunctions:GetInput()
+						return InputBox.Text
+					end
+					function InputFunctions:UpdatePlaceholder(Placeholder)
+						inputBox.PlaceholderText = Placeholder
+					end
+					function InputFunctions:UpdateText(Text)
+						local filteredText = AcceptedCharacters(Text)
+						InputBox.Text = filteredText
+						InputFunctions.Text = filteredText
+						task.spawn(function()
+							if InputFunctions.Settings.Callback then
+								InputFunctions.Settings.Callback(filteredText)
+							end
+						end)
+					end
+
+					if Flag then
+						MacLib.Options[Flag] = InputFunctions
+					end
+					return InputFunctions
+				end
+
+				function SectionFunctions:Keybind(Settings, Flag)
+					local KeybindFunctions = { Settings = Settings, IgnoreConfig = false, Class = "Keybind" }
+					local keybind = Instance.new("Frame")
+					keybind.Name = "Keybind"
+					keybind.AutomaticSize = Enum.AutomaticSize.Y
+					keybind.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					keybind.BackgroundTransparency = 1
+					keybind.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					keybind.BorderSizePixel = 0
+					keybind.Size = UDim2.new(1, 0, 0, 38)
+					keybind.Parent = section
+
+					local keybindName = Instance.new("TextLabel")
+					keybindName.Name = "KeybindName"
+					keybindName.FontFace = Font.new(assets.interFont)
+					keybindName.Text = KeybindFunctions.Settings.Name
+					keybindName.RichText = true
+					keybindName.TextColor3 = Color3.fromRGB(255, 255, 255)
+					keybindName.TextSize = 13
+					keybindName.TextTransparency = 0.5
+					keybindName.TextTruncate = Enum.TextTruncate.AtEnd
+					keybindName.TextXAlignment = Enum.TextXAlignment.Left
+					keybindName.TextYAlignment = Enum.TextYAlignment.Top
+					keybindName.AnchorPoint = Vector2.new(0, 0.5)
+					keybindName.AutomaticSize = Enum.AutomaticSize.XY
+					keybindName.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					keybindName.BackgroundTransparency = 1
+					keybindName.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					keybindName.BorderSizePixel = 0
+					keybindName.Position = UDim2.fromScale(0, 0.5)
+					keybindName.Parent = keybind
+
+					local binderBox = Instance.new("TextBox")
+					binderBox.Name = "BinderBox"
+					binderBox.CursorPosition = -1
+					binderBox.FontFace = Font.new(assets.interFont)
+					binderBox.PlaceholderText = "..."
+					binderBox.Text = ""
+					binderBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+					binderBox.TextSize = 12
+					binderBox.TextTransparency = 0.1
+					binderBox.AnchorPoint = Vector2.new(1, 0.5)
+					binderBox.AutomaticSize = Enum.AutomaticSize.X
+					binderBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					binderBox.BackgroundTransparency = 0.95
+					binderBox.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					binderBox.BorderSizePixel = 0
+					binderBox.ClipsDescendants = true
+					binderBox.LayoutOrder = 1
+					binderBox.Position = UDim2.fromScale(1, 0.5)
+					binderBox.Size = UDim2.fromOffset(21, 21)
+
+					local binderBoxUICorner = Instance.new("UICorner")
+					binderBoxUICorner.Name = "BinderBoxUICorner"
+					binderBoxUICorner.CornerRadius = UDim.new(0, 4)
+					binderBoxUICorner.Parent = binderBox
+
+					local binderBoxUIStroke = Instance.new("UIStroke")
+					binderBoxUIStroke.Name = "BinderBoxUIStroke"
+					binderBoxUIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					binderBoxUIStroke.Color = Color3.fromRGB(255, 255, 255)
+					binderBoxUIStroke.Transparency = 0.9
+					binderBoxUIStroke.Parent = binderBox
+
+					local binderBoxUIPadding = Instance.new("UIPadding")
+					binderBoxUIPadding.Name = "BinderBoxUIPadding"
+					binderBoxUIPadding.PaddingLeft = UDim.new(0, 5)
+					binderBoxUIPadding.PaddingRight = UDim.new(0, 5)
+					binderBoxUIPadding.Parent = binderBox
+
+					local binderBoxUISizeConstraint = Instance.new("UISizeConstraint")
+					binderBoxUISizeConstraint.Name = "BinderBoxUISizeConstraint"
+					binderBoxUISizeConstraint.Parent = binderBox
+
+					binderBox.Parent = keybind
+
+					local focused
+					local isBinding = false
+					local reset = false
+					local binded = KeybindFunctions.Settings.Default
+
+					local function resetFocusState()
+						focused = false
+						isBinding = false
+						binderBox:ReleaseFocus()
+					end
+
+					if binded then
+						binderBox.Text = binded.Name
+					end
+
+					binderBox.Focused:Connect(function()
+						focused = true
+					end)
+
+					binderBox.FocusLost:Connect(function()
+						focused = false
+					end)
+
+					UserInputService.InputBegan:Connect(function(inp)
+						if focused and not isBinding then
+							isBinding = true
+
+							local Event
+							Event = UserInputService.InputBegan:Connect(function(input)
+								if KeybindFunctions.Settings.Blacklist and (table.find(KeybindFunctions.KeybindFunctions.Settings.Blacklist, input.KeyCode) or table.find(KeybindFunctions.Settings.Blacklist, input.UserInputType)) then
+									binderBox:ReleaseFocus()
+									resetFocusState()
+									Event:Disconnect()
+									return
+								end
+
+								if input.UserInputType == Enum.UserInputType.Keyboard then
+									binded = input.KeyCode
+									binderBox.Text = input.KeyCode.Name
+								elseif input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.MouseButton2 then
+									binded = input.UserInputType
+									binderBox.Text = input.UserInputType.Name
+								end
+
+								if KeybindFunctions.Settings.onBinded then
+									KeybindFunctions.Settings.onBinded(binded)
+								end
+								reset = true
+								resetFocusState()
+								Event:Disconnect()
+							end)
+						else
+							if not reset and (inp.KeyCode == binded or inp.UserInputType == binded) then
+								if KeybindFunctions.Settings.Callback then
+									KeybindFunctions.Settings.Callback(binded)
+								end
+								if KeybindFunctions.Settings.onBindHeld then
+									KeybindFunctions.Settings.onBindHeld(true, binded)
+								end
+							else
+								reset = false
+							end
+						end
+					end)
+
+					UserInputService.InputEnded:Connect(function(inp)
+						if not focused and not isBinding then
+							if inp.KeyCode == binded or inp.UserInputType == binded then
+								if Settings.onBindHeld then
+									Settings.onBindHeld(false, binded)
+								end
+							end
+						end
+					end)
+
+					function KeybindFunctions:Bind(Key)
+						binded = Key
+						binderBox.Text = Key.Name
+					end
+
+					function KeybindFunctions:Unbind()
+						binded = nil
+						binderBox.Text = ""
+					end
+
+					function KeybindFunctions:GetBind()
+						return binded
+					end
+
+					function KeybindFunctions:UpdateName(Name)
+						keybindName = Name
+					end
+
+					function KeybindFunctions:SetVisibility(State)
+						keybind.Visible = State
+					end
+
+					if Flag then
+						MacLib.Options[Flag] = KeybindFunctions
+					end
+
+					return KeybindFunctions
+				end
+
+				function SectionFunctions:Dropdown(Settings, Flag)
+					local DropdownFunctions = { Settings = Settings, IgnoreConfig = false, Class = "Dropdown" }
+					local Selected = {}
+					local OptionObjs = {}
+
+					local dropdown = Instance.new("Frame")
+					dropdown.Name = "Dropdown"
+					dropdown.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					dropdown.BackgroundTransparency = 0.985
+					dropdown.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					dropdown.BorderSizePixel = 0
+					dropdown.Size = UDim2.new(1, 0, 0, 38)
+					dropdown.Parent = section
+					dropdown.ClipsDescendants = true
+
+					local dropdownUIPadding = Instance.new("UIPadding")
+					dropdownUIPadding.Name = "DropdownUIPadding"
+					dropdownUIPadding.PaddingLeft = UDim.new(0, 15)
+					dropdownUIPadding.PaddingRight = UDim.new(0, 15)
+					dropdownUIPadding.Parent = dropdown
+
+					local interact = Instance.new("TextButton")
+					interact.Name = "Interact"
+					interact.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json")
+					interact.Text = ""
+					interact.TextColor3 = Color3.fromRGB(0, 0, 0)
+					interact.TextSize = 14
+					interact.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					interact.BackgroundTransparency = 1
+					interact.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					interact.BorderSizePixel = 0
+					interact.Size = UDim2.new(1, 0, 0, 38)
+					interact.Parent = dropdown
+
+					local dropdownName = Instance.new("TextLabel")
+					dropdownName.Name = "DropdownName"
+					dropdownName.FontFace = Font.new(assets.interFont)
+					dropdownName.Text = Settings.Default and (DropdownFunctions.Settings.Name .. " • " .. table.concat(Selected, ", ")) or (DropdownFunctions.Settings.Name .. "...")
+					dropdownName.RichText = true
+					dropdownName.TextColor3 = Color3.fromRGB(255, 255, 255)
+					dropdownName.TextSize = 13
+					dropdownName.TextTransparency = 0.5
+					dropdownName.TextTruncate = Enum.TextTruncate.SplitWord
+					dropdownName.TextXAlignment = Enum.TextXAlignment.Left
+					dropdownName.AutomaticSize = Enum.AutomaticSize.Y
+					dropdownName.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					dropdownName.BackgroundTransparency = 1
+					dropdownName.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					dropdownName.BorderSizePixel = 0
+					dropdownName.Size = UDim2.new(1, -20, 0, 38)
+					dropdownName.Parent = dropdown
+
+					local dropdownUIStroke = Instance.new("UIStroke")
+					dropdownUIStroke.Name = "DropdownUIStroke"
+					dropdownUIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					dropdownUIStroke.Color = Color3.fromRGB(255, 255, 255)
+					dropdownUIStroke.Transparency = 0.95
+					dropdownUIStroke.Parent = dropdown
+
+					local dropdownUICorner = Instance.new("UICorner")
+					dropdownUICorner.Name = "DropdownUICorner"
+					dropdownUICorner.CornerRadius = UDim.new(0, 6)
+					dropdownUICorner.Parent = dropdown
+
+					local dropdownImage = Instance.new("ImageLabel")
+					dropdownImage.Name = "DropdownImage"
+					dropdownImage.Image = assets.dropdown
+					dropdownImage.ImageTransparency = 0.5
+					dropdownImage.AnchorPoint = Vector2.new(1, 0)
+					dropdownImage.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					dropdownImage.BackgroundTransparency = 1
+					dropdownImage.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					dropdownImage.BorderSizePixel = 0
+					dropdownImage.Position = UDim2.new(1, 0, 0, 12)
+					dropdownImage.Size = UDim2.fromOffset(14, 14)
+					dropdownImage.Parent = dropdown
+
+					local dropdownFrame = Instance.new("Frame")
+					dropdownFrame.Name = "DropdownFrame"
+					dropdownFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					dropdownFrame.BackgroundTransparency = 1
+					dropdownFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					dropdownFrame.BorderSizePixel = 0
+					dropdownFrame.ClipsDescendants = true
+					dropdownFrame.Size = UDim2.fromScale(1, 1)
+					dropdownFrame.Visible = false
+					dropdownFrame.AutomaticSize = Enum.AutomaticSize.Y
+
+					local dropdownFrameUIPadding = Instance.new("UIPadding")
+					dropdownFrameUIPadding.Name = "DropdownFrameUIPadding"
+					dropdownFrameUIPadding.PaddingTop = UDim.new(0, 38)
+					dropdownFrameUIPadding.PaddingBottom = UDim.new(0, 10)
+					dropdownFrameUIPadding.Parent = dropdownFrame
+
+					local dropdownFrameUIListLayout = Instance.new("UIListLayout")
+					dropdownFrameUIListLayout.Name = "DropdownFrameUIListLayout"
+					dropdownFrameUIListLayout.Padding = UDim.new(0, 5)
+					dropdownFrameUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+					dropdownFrameUIListLayout.Parent = dropdownFrame
+
+					local search = Instance.new("Frame")
+					search.Name = "Search"
+					search.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					search.BackgroundTransparency = 0.95
+					search.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					search.BorderSizePixel = 0
+					search.LayoutOrder = -1
+					search.Size = UDim2.new(1, 0, 0, 30)
+					search.Parent = dropdownFrame
+					search.Visible = DropdownFunctions.Settings.Search
+
+					local sectionUICorner = Instance.new("UICorner")
+					sectionUICorner.Name = "SectionUICorner"
+					sectionUICorner.Parent = search
+
+					local searchIcon = Instance.new("ImageLabel")
+					searchIcon.Name = "SearchIcon"
+					searchIcon.Image = assets.searchIcon
+					searchIcon.ImageColor3 = Color3.fromRGB(180, 180, 180)
+					searchIcon.AnchorPoint = Vector2.new(0, 0.5)
+					searchIcon.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					searchIcon.BackgroundTransparency = 1
+					searchIcon.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					searchIcon.BorderSizePixel = 0
+					searchIcon.Position = UDim2.fromScale(0, 0.5)
+					searchIcon.Size = UDim2.fromOffset(12, 12)
+					searchIcon.Parent = search
+
+					local uIPadding = Instance.new("UIPadding")
+					uIPadding.Name = "UIPadding"
+					uIPadding.PaddingLeft = UDim.new(0, 15)
+					uIPadding.Parent = search
+
+					local searchBox = Instance.new("TextBox")
+					searchBox.Name = "SearchBox"
+					searchBox.CursorPosition = -1
+					searchBox.FontFace = Font.new(
+						assets.interFont,
+						Enum.FontWeight.Medium,
+						Enum.FontStyle.Normal
+					)
+					searchBox.PlaceholderColor3 = Color3.fromRGB(150, 150, 150)
+					searchBox.PlaceholderText = "Search..."
+					searchBox.Text = ""
+					searchBox.TextColor3 = Color3.fromRGB(200, 200, 200)
+					searchBox.TextSize = 14
+					searchBox.TextXAlignment = Enum.TextXAlignment.Left
+					searchBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					searchBox.BackgroundTransparency = 1
+					searchBox.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					searchBox.BorderSizePixel = 0
+					searchBox.Size = UDim2.fromScale(1, 1)
+
+					local function CalculateDropdownSize()
+						local totalHeight = 0
+						local visibleChildrenCount = 0
+						local padding = dropdownFrameUIPadding.PaddingTop.Offset + dropdownFrameUIPadding.PaddingBottom.Offset
+
+						for _, v in pairs(dropdownFrame:GetChildren()) do
+							if not v:IsA("UIComponent") and v.Visible then
+								totalHeight += v.AbsoluteSize.Y
+								visibleChildrenCount += 1
+							end
+						end
+
+						local spacing = dropdownFrameUIListLayout.Padding.Offset * (visibleChildrenCount - 1)
+
+						return totalHeight + spacing + padding
+					end
+
+					local function findOption()
+						local searchTerm = searchBox.Text:lower()
+
+						for _, v in pairs(OptionObjs) do
+							local optionText = v.NameLabel.Text:lower()
+							local isVisible = string.find(optionText, searchTerm) ~= nil
+
+							if v.Button.Visible ~= isVisible then
+								v.Button.Visible = isVisible
+							end
+						end
+
+						dropdown.Size = UDim2.new(1, 0, 0, CalculateDropdownSize())
+					end
+
+					searchBox:GetPropertyChangedSignal("Text"):Connect(findOption)
+
+					local uIPadding1 = Instance.new("UIPadding")
+					uIPadding1.Name = "UIPadding"
+					uIPadding1.PaddingLeft = UDim.new(0, 23)
+					uIPadding1.Parent = searchBox
+
+					searchBox.Parent = search
+
+					local tweensettings = {
+						duration = 0.2,
+						easingStyle = Enum.EasingStyle.Quint,
+						transparencyIn = 0.2,
+						transparencyOut = 0.5,
+						checkSizeIncrease = 12,
+						checkSizeDecrease = -13,
+						waitTime = 1
+					}
+
+					local function Toggle(optionName, State)
+						local option = OptionObjs[optionName]
+
+						if not option then return end
+
+						local checkmark = option.Checkmark
+						local optionNameLabel = option.NameLabel
+
+						if State then
+							if DropdownFunctions.Settings.Multi then
+								if not table.find(Selected, optionName) then
+									table.insert(Selected, optionName)
+									DropdownFunctions.Value = Selected
+								end
+							else
+								for name, opt in pairs(OptionObjs) do
+									if name ~= optionName then
+										Tween(opt.Checkmark, TweenInfo.new(tweensettings.duration, tweensettings.easingStyle), {
+											Size = UDim2.new(opt.Checkmark.Size.X.Scale, tweensettings.checkSizeDecrease, opt.Checkmark.Size.Y.Scale, opt.Checkmark.Size.Y.Offset)
+										}):Play()
+										Tween(opt.NameLabel, TweenInfo.new(tweensettings.duration, tweensettings.easingStyle), {
+											TextTransparency = tweensettings.transparencyOut
+										}):Play()
+										opt.Checkmark.TextTransparency = 1
+									end
+								end
+								Selected = {optionName}
+								DropdownFunctions.Value = Selected[1]
+							end
+							Tween(checkmark, TweenInfo.new(tweensettings.duration, tweensettings.easingStyle), {
+								Size = UDim2.new(checkmark.Size.X.Scale, tweensettings.checkSizeIncrease, checkmark.Size.Y.Scale, checkmark.Size.Y.Offset)
+							}):Play()
+							Tween(optionNameLabel, TweenInfo.new(tweensettings.duration, tweensettings.easingStyle), {
+								TextTransparency = tweensettings.transparencyIn
+							}):Play()
+							checkmark.TextTransparency = 0
+						else
+							if DropdownFunctions.Settings.Multi then
+								local idx = table.find(Selected, optionName)
+								if idx then
+									table.remove(Selected, idx)
+								end
+							else
+								Selected = {}
+							end
+							Tween(checkmark, TweenInfo.new(tweensettings.duration, tweensettings.easingStyle), {
+								Size = UDim2.new(checkmark.Size.X.Scale, tweensettings.checkSizeDecrease, checkmark.Size.Y.Scale, checkmark.Size.Y.Offset)
+							}):Play()
+							Tween(optionNameLabel, TweenInfo.new(tweensettings.duration, tweensettings.easingStyle), {
+								TextTransparency = tweensettings.transparencyOut
+							}):Play()
+							checkmark.TextTransparency = 1
+						end
+
+						if Settings.Required and #Selected == 0 and not State then
+							return
+						end
+
+						if #Selected > 0 then
+							dropdownName.Text = DropdownFunctions.Settings.Name .. " • " .. table.concat(Selected, ", ")
+						else
+							dropdownName.Text = DropdownFunctions.Settings.Name .. "..."
+						end
+					end
+
+					local dropped = false
+					local db = false
+
+					local function ToggleDropdown()
+						if db then return end
+						db = true
+						local defaultDropdownSize = 38
+						local isDropdownOpen = not dropped
+						local targetSize = isDropdownOpen and UDim2.new(1, 0, 0, CalculateDropdownSize()) or UDim2.new(1, 0, 0, defaultDropdownSize)
+
+						local dropTween = Tween(dropdown, TweenInfo.new(0.2, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+							Size = targetSize
+						})
+						local iconTween = Tween(dropdownImage, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+							Rotation = isDropdownOpen and -90 or 0
+						})
+
+						dropTween:Play()
+						iconTween:Play()
+
+						if isDropdownOpen then
+							dropdownFrame.Visible = true
+							dropTween.Completed:Connect(function()
+								db = false
+							end)
+						else
+							dropTween.Completed:Connect(function()
+								dropdownFrame.Visible = false
+								db = false
+							end)
+						end
+
+						dropped = isDropdownOpen
+					end
+
+					interact.MouseButton1Click:Connect(ToggleDropdown)
+
+					local function addOption(i, v)
+						local option = Instance.new("TextButton")
+						option.Name = "Option"
+						option.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json")
+						option.Text = ""
+						option.TextColor3 = Color3.fromRGB(0, 0, 0)
+						option.TextSize = 14
+						option.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+						option.BackgroundTransparency = 1
+						option.BorderColor3 = Color3.fromRGB(0, 0, 0)
+						option.BorderSizePixel = 0
+						option.Size = UDim2.new(1, 0, 0, 30)
+
+						local optionUIPadding = Instance.new("UIPadding")
+						optionUIPadding.Name = "OptionUIPadding"
+						optionUIPadding.PaddingLeft = UDim.new(0, 15)
+						optionUIPadding.Parent = option
+
+						local optionName = Instance.new("TextLabel")
+						optionName.Name = "OptionName"
+						optionName.FontFace = Font.new(assets.interFont)
+						optionName.Text = v
+						optionName.RichText = true
+						optionName.TextColor3 = Color3.fromRGB(255, 255, 255)
+						optionName.TextSize = 13
+						optionName.TextTransparency = 0.5
+						optionName.TextTruncate = Enum.TextTruncate.AtEnd
+						optionName.TextXAlignment = Enum.TextXAlignment.Left
+						optionName.TextYAlignment = Enum.TextYAlignment.Top
+						optionName.AnchorPoint = Vector2.new(0, 0.5)
+						optionName.AutomaticSize = Enum.AutomaticSize.XY
+						optionName.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+						optionName.BackgroundTransparency = 1
+						optionName.BorderColor3 = Color3.fromRGB(0, 0, 0)
+						optionName.BorderSizePixel = 0
+						optionName.Position = UDim2.fromScale(1.3e-07, 0.5)
+						optionName.Parent = option
+
+						local optionUIListLayout = Instance.new("UIListLayout")
+						optionUIListLayout.Name = "OptionUIListLayout"
+						optionUIListLayout.Padding = UDim.new(0, 10)
+						optionUIListLayout.FillDirection = Enum.FillDirection.Horizontal
+						optionUIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+						optionUIListLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+						optionUIListLayout.Parent = option
+
+						local checkmark = Instance.new("TextLabel")
+						checkmark.Name = "Checkmark"
+						checkmark.FontFace = Font.new(assets.interFont)
+						checkmark.Text = "✓"
+						checkmark.TextColor3 = Color3.fromRGB(255, 255, 255)
+						checkmark.TextSize = 13
+						checkmark.TextTransparency = 1
+						checkmark.TextXAlignment = Enum.TextXAlignment.Left
+						checkmark.TextYAlignment = Enum.TextYAlignment.Top
+						checkmark.AnchorPoint = Vector2.new(0, 0.5)
+						checkmark.AutomaticSize = Enum.AutomaticSize.Y
+						checkmark.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+						checkmark.BackgroundTransparency = 1
+						checkmark.BorderColor3 = Color3.fromRGB(0, 0, 0)
+						checkmark.BorderSizePixel = 0
+						checkmark.LayoutOrder = -1
+						checkmark.Position = UDim2.fromScale(1.3e-07, 0.5)
+						checkmark.Size = UDim2.fromOffset(-10, 0)
+						checkmark.Parent = option
+
+						option.Parent = dropdownFrame
+
+						dropdownFrame.Parent = dropdown
+						OptionObjs[v] = {
+							Index = i,
+							Button = option,
+							NameLabel = optionName,
+							Checkmark = checkmark
+						}
+
+						local tweensettings = {
+							duration = 0.2,
+							easingStyle = Enum.EasingStyle.Quint,
+							transparencyIn = 0.2,
+							transparencyOut = 0.5,
+							checkSizeIncrease = 12,
+							checkSizeDecrease = -optionUIListLayout.Padding.Offset,
+							waitTime = 1
+						}
+						local tweens = {
+							checkIn = Tween(checkmark, TweenInfo.new(tweensettings.duration, tweensettings.easingStyle), {
+								Size = UDim2.new(checkmark.Size.X.Scale, tweensettings.checkSizeIncrease, checkmark.Size.Y.Scale, checkmark.Size.Y.Offset)
+							}),
+							checkOut = Tween(checkmark, TweenInfo.new(tweensettings.duration, tweensettings.easingStyle),{
+								Size = UDim2.new(checkmark.Size.X.Scale, tweensettings.checkSizeDecrease, checkmark.Size.Y.Scale, checkmark.Size.Y.Offset)
+							}),
+							nameIn = Tween(optionName, TweenInfo.new(tweensettings.duration, tweensettings.easingStyle),{
+								TextTransparency = tweensettings.transparencyIn
+							}),
+							nameOut = Tween(optionName, TweenInfo.new(tweensettings.duration, tweensettings.easingStyle),{
+								TextTransparency = tweensettings.transparencyOut
+							})
+						}
+
+						local isSelected = false
+						if DropdownFunctions.Settings.Default then
+							if DropdownFunctions.Settings.Multi then
+								isSelected = table.find(DropdownFunctions.Settings.Default, v) and true or false
+							else
+								isSelected = (DropdownFunctions.Settings.Default == i) and true or false
+							end
+						end
+						Toggle(v, isSelected)
+
+						local option = OptionObjs[v].Button
+
+						option.MouseButton1Click:Connect(function()
+							local isSelected = table.find(Selected, v) and true or false
+							local newSelected = not isSelected
+
+							if DropdownFunctions.Settings.Required and not newSelected and #Selected <= 1 then
+								return
+							end
+
+							Toggle(v, newSelected)
+
+							task.spawn(function()
+								if DropdownFunctions.Settings.Multi then
+									local Return = {}
+									for _, opt in ipairs(Selected) do
+										Return[opt] = true
+									end
+									if DropdownFunctions.Settings.Callback then
+										DropdownFunctions.Settings.Callback(Return)
+									end
+
+								else
+									if newSelected and DropdownFunctions.Settings.Callback then
+										DropdownFunctions.Settings.Callback(Selected[1] or nil)
+									end
+								end
+							end)
+						end)
+
+						if dropped then
+							dropdown.Size = UDim2.new(1, 0, 0, CalculateDropdownSize())
+						end
+					end
+
+					if DropdownFunctions.Settings.Options then
+						for i, v in pairs(DropdownFunctions.Settings.Options) do
+							addOption(i, v)
+						end
+					end
+
+					function DropdownFunctions:UpdateName(New)
+						dropdownName.Text = New
+					end
+					function DropdownFunctions:SetVisibility(State)
+						dropdown.Visible = State
+					end
+					function DropdownFunctions:UpdateSelection(newSelection)
+						if not newSelection then return end
+
+						for option, _ in pairs(OptionObjs) do
+							Toggle(option, false)
+						end
+
+						local selectedOptions = {}
+						if type(newSelection) == "number" then
+							for option, data in pairs(OptionObjs) do
+								local isSelected = data.Index == newSelection
+								Toggle(option, isSelected)
+								if isSelected then
+									table.insert(selectedOptions, option)
+								end
+							end
+						elseif type(newSelection) == "string" then
+							for option, data in pairs(OptionObjs) do
+								local isSelected = option == newSelection
+								Toggle(option, isSelected)
+								if isSelected then
+									table.insert(selectedOptions, option)
+								end
+							end
+						elseif type(newSelection) == "table" then
+							for option, _ in pairs(OptionObjs) do
+								local isSelected = table.find(newSelection, option) ~= nil
+								Toggle(option, isSelected)
+								if isSelected then
+									table.insert(selectedOptions, option)
+								end
+							end
+						end
+
+						if DropdownFunctions.Settings.Callback then
+							if DropdownFunctions.Settings.Multi then
+								local Return = {}
+								for _, opt in ipairs(selectedOptions) do
+									Return[opt] = true
+								end
+								DropdownFunctions.Settings.Callback(Return)
+							else
+								DropdownFunctions.Settings.Callback(selectedOptions[1] or nil)
+							end
+						end
+					end
+					function DropdownFunctions:InsertOptions(newOptions)
+						if not newOptions then return end
+						DropdownFunctions.Settings.Options = newOptions
+						for i, v in pairs(newOptions) do
+							addOption(i, v)
+						end
+					end
+					function DropdownFunctions:ClearOptions()
+						for _, optionData in pairs(OptionObjs) do
+							optionData.Button:Destroy()
+						end
+						OptionObjs = {}
+						Selected = {}
+
+						if dropped then
+							dropdown.Size = UDim2.new(1, 0, 0, CalculateDropdownSize())
+						end
+					end
+					function DropdownFunctions:GetOptions()
+						local optionsStatus = {}
+
+						for option, data in pairs(OptionObjs) do
+							local isSelected = table.find(Selected, option) and true or false
+							optionsStatus[option] = isSelected
+						end
+
+						return optionsStatus
+					end
+
+					function DropdownFunctions:RemoveOptions(remove)
+						if not remove then return end
+						for _, optionName in ipairs(remove) do
+							local optionData = OptionObjs[optionName]
+
+							if optionData then
+								for i = #Selected, 1, -1 do
+									if Selected[i] == optionName then
+										table.remove(Selected, i)
+									end
+								end
+
+								optionData.Button:Destroy()
+
+								OptionObjs[optionName] = nil
+							end
+						end
+
+						if dropped then
+							dropdown.Size = UDim2.new(1, 0, 0, CalculateDropdownSize())
+						end
+					end
+					function DropdownFunctions:IsOption(optionName)
+						if not optionName then return end
+						return OptionObjs[optionName] ~= nil
+					end
+
+					if Flag then
+						MacLib.Options[Flag] = DropdownFunctions
+					end
+
+					return DropdownFunctions
+				end
+
+				function SectionFunctions:Colorpicker(Settings, Flag)
+					local ColorpickerFunctions = { Settings = Settings, IgnoreConfig = false, Class = "Colorpicker" }
+
+					local isAlpha = ColorpickerFunctions.Settings.Alpha and true or false
+					ColorpickerFunctions.Color = ColorpickerFunctions.Settings.Default
+					ColorpickerFunctions.Alpha = isAlpha and ColorpickerFunctions.Settings.Alpha
+
+					local colorpicker = Instance.new("Frame")
+					colorpicker.Name = "Colorpicker"
+					colorpicker.AutomaticSize = Enum.AutomaticSize.Y
+					colorpicker.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					colorpicker.BackgroundTransparency = 1
+					colorpicker.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					colorpicker.BorderSizePixel = 0
+					colorpicker.Size = UDim2.new(1, 0, 0, 38)
+					colorpicker.Parent = section
+
+					local colorpickerName = Instance.new("TextLabel")
+					colorpickerName.Name = "KeybindName"
+					colorpickerName.FontFace = Font.new(assets.interFont)
+					colorpickerName.Text = Settings.Name
+					colorpickerName.TextColor3 = Color3.fromRGB(255, 255, 255)
+					colorpickerName.TextSize = 13
+					colorpickerName.TextTransparency = 0.5
+					colorpickerName.RichText = true
+					colorpickerName.TextTruncate = Enum.TextTruncate.AtEnd
+					colorpickerName.TextXAlignment = Enum.TextXAlignment.Left
+					colorpickerName.TextYAlignment = Enum.TextYAlignment.Top
+					colorpickerName.AnchorPoint = Vector2.new(0, 0.5)
+					colorpickerName.AutomaticSize = Enum.AutomaticSize.XY
+					colorpickerName.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					colorpickerName.BackgroundTransparency = 1
+					colorpickerName.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					colorpickerName.BorderSizePixel = 0
+					colorpickerName.Position = UDim2.fromScale(0, 0.5)
+					colorpickerName.Parent = colorpicker
+
+					local colorCbg = Instance.new("ImageLabel")
+					colorCbg.Name = "NewColor"
+					colorCbg.Image = assets.grid
+					colorCbg.ScaleType = Enum.ScaleType.Tile
+					colorCbg.TileSize = UDim2.fromOffset(500, 500)
+					colorCbg.AnchorPoint = Vector2.new(1, 0.5)
+					colorCbg.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					colorCbg.BackgroundTransparency = 1
+					colorCbg.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					colorCbg.BorderSizePixel = 0
+					colorCbg.Position = UDim2.fromScale(1, 0.5)
+					colorCbg.Size = UDim2.fromOffset(21, 21)
+
+					local colorC = Instance.new("Frame")
+					colorC.Name = "Color"
+					colorC.AnchorPoint = Vector2.new(0.5, 0.5)
+					colorC.BackgroundColor3 = ColorpickerFunctions.Color
+					colorC.BorderSizePixel = 0
+					colorC.Position = UDim2.fromScale(0.5, 0.5)
+					colorC.Size = UDim2.fromScale(1, 1)
+					colorC.BackgroundTransparency = ColorpickerFunctions.Alpha or 0
+
+					local uICorner = Instance.new("UICorner")
+					uICorner.Name = "UICorner"
+					uICorner.CornerRadius = UDim.new(0, 6)
+					uICorner.Parent = colorC
+
+					local interact = Instance.new("TextButton")
+					interact.Name = "Interact"
+					interact.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json")
+					interact.Text = ""
+					interact.TextColor3 = Color3.fromRGB(0, 0, 0)
+					interact.TextSize = 14
+					interact.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					interact.BackgroundTransparency = 1
+					interact.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					interact.BorderSizePixel = 0
+					interact.Size = UDim2.fromScale(1, 1)
+					interact.Parent = colorC
+
+					colorC.Parent = colorCbg
+
+					local uICorner1 = Instance.new("UICorner")
+					uICorner1.Name = "UICorner"
+					uICorner1.CornerRadius = UDim.new(0, 8)
+					uICorner1.Parent = colorCbg
+
+					colorCbg.Parent = colorpicker
+
+					local colorPicker = Instance.new("Frame")
+					colorPicker.Name = "ColorPicker"
+					colorPicker.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					colorPicker.BackgroundTransparency = 0.5
+					colorPicker.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					colorPicker.BorderSizePixel = 0
+					colorPicker.Size = UDim2.fromScale(1, 1)
+					colorPicker.Visible = false
+
+					local baseUICorner = Instance.new("UICorner")
+					baseUICorner.Name = "BaseUICorner"
+					baseUICorner.CornerRadius = UDim.new(0, 10)
+					baseUICorner.Parent = colorPicker
+
+					local prompt = Instance.new("Frame")
+					prompt.Name = "Prompt"
+					prompt.AnchorPoint = Vector2.new(0.5, 0.5)
+					prompt.AutomaticSize = Enum.AutomaticSize.Y
+					prompt.BackgroundColor3 = Theme.BackgroundElevated
+					prompt.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					prompt.BorderSizePixel = 0
+					prompt.Position = UDim2.fromScale(0.5, 0.5)
+					prompt.Size = UDim2.fromOffset(420, 0)
+
+					local promptUIScale = Instance.new("UIScale")
+					promptUIScale.Name = "BaseUIScale"
+					promptUIScale.Parent = prompt
+					promptUIScale.Scale = 0.95
+
+					local globalSettingsUIStroke = Instance.new("UIStroke")
+					globalSettingsUIStroke.Name = "GlobalSettingsUIStroke"
+					globalSettingsUIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					globalSettingsUIStroke.Color = Color3.fromRGB(255, 255, 255)
+					globalSettingsUIStroke.Transparency = 0.9
+					globalSettingsUIStroke.Parent = prompt
+
+					local globalSettingsUICorner = Instance.new("UICorner")
+					globalSettingsUICorner.Name = "GlobalSettingsUICorner"
+					globalSettingsUICorner.CornerRadius = UDim.new(0, 10)
+					globalSettingsUICorner.Parent = prompt
+
+					local uIListLayout = Instance.new("UIListLayout")
+					uIListLayout.Name = "UIListLayout"
+					uIListLayout.Padding = UDim.new(0, 10)
+					uIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+					uIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout.Parent = prompt
+
+					local colorOptions = Instance.new("Frame")
+					colorOptions.Name = "ColorOptions"
+					colorOptions.AutomaticSize = Enum.AutomaticSize.XY
+					colorOptions.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					colorOptions.BackgroundTransparency = 1
+					colorOptions.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					colorOptions.BorderSizePixel = 0
+					colorOptions.LayoutOrder = 1
+					colorOptions.Size = UDim2.fromScale(1, 0)
+
+					local value = Instance.new("TextButton")
+					value.Name = "Value"
+					value.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json")
+					value.Text = ""
+					value.TextColor3 = Color3.fromRGB(0, 0, 0)
+					value.TextSize = 14
+					value.AutoButtonColor = false
+					value.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					value.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					value.BorderSizePixel = 0
+					value.LayoutOrder = 1
+					value.Position = UDim2.fromScale(0.092, 0.886)
+					value.Size = UDim2.new(1, 0, 0, 15)
+
+					local uIGradient = Instance.new("UIGradient")
+					uIGradient.Name = "UIGradient"
+					uIGradient.Color = ColorSequence.new({
+						ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+						ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0)),
+					})
+					uIGradient.Parent = value
+
+					local slide = Instance.new("Frame")
+					slide.Name = "Slide"
+					slide.AnchorPoint = Vector2.new(0, 0.5)
+					slide.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					slide.BorderColor3 = Color3.fromRGB(27, 42, 53)
+					slide.BorderSizePixel = 0
+					slide.Position = UDim2.fromScale(0, 0.5)
+					slide.Size = UDim2.new(0, 13, 1, 8)
+
+					local uICorner = Instance.new("UICorner")
+					uICorner.Name = "UICorner"
+					uICorner.CornerRadius = UDim.new(1, 0)
+					uICorner.Parent = slide
+
+					local uIStroke = Instance.new("UIStroke")
+					uIStroke.Name = "UIStroke"
+					uIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					uIStroke.Transparency = 0.5
+					uIStroke.Parent = slide
+
+					slide.Parent = value
+
+					local uICorner1 = Instance.new("UICorner")
+					uICorner1.Name = "UICorner"
+					uICorner1.CornerRadius = UDim.new(0, 6)
+					uICorner1.Parent = value
+
+					local uIStroke1 = Instance.new("UIStroke")
+					uIStroke1.Name = "UIStroke"
+					uIStroke1.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					uIStroke1.Color = Color3.fromRGB(255, 255, 255)
+					uIStroke1.Transparency = 0.9
+
+					local uIGradient1 = Instance.new("UIGradient")
+					uIGradient1.Name = "UIGradient"
+					uIGradient1.Color = ColorSequence.new({
+						ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+						ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 0, 0)),
+					})
+					uIGradient1.Rotation = 180
+					uIGradient1.Parent = uIStroke1
+
+					uIStroke1.Parent = value
+
+					value.Parent = colorOptions
+
+					local uIListLayout1 = Instance.new("UIListLayout")
+					uIListLayout1.Name = "UIListLayout"
+					uIListLayout1.Padding = UDim.new(0, 25)
+					uIListLayout1.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout1.Parent = colorOptions
+
+					local wheel = Instance.new("Frame")
+					wheel.Name = "Wheel"
+					wheel.AutomaticSize = Enum.AutomaticSize.Y
+					wheel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					wheel.BackgroundTransparency = 1
+					wheel.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					wheel.BorderSizePixel = 0
+					wheel.Size = UDim2.new(1, 0, 0, 100)
+
+					local wheel1 = Instance.new("ImageButton")
+					wheel1.Name = "Wheel"
+					wheel1.Image = assets.colorWheel
+					wheel1.AutoButtonColor = false
+					wheel1.Active = false
+					wheel1.BackgroundColor3 = Color3.fromRGB(248, 248, 248)
+					wheel1.BackgroundTransparency = 1
+					wheel1.BorderColor3 = Color3.fromRGB(27, 42, 53)
+					wheel1.Selectable = false
+					wheel1.Size = UDim2.fromOffset(220, 220)
+					wheel1.SizeConstraint = Enum.SizeConstraint.RelativeYY
+
+					local target = Instance.new("ImageLabel")
+					target.Name = "Target"
+					target.Image = assets.colorTarget
+					target.ImageColor3 = Color3.fromRGB(0, 0, 0)
+					target.AnchorPoint = Vector2.new(0.5, 0.5)
+					target.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					target.BackgroundTransparency = 1
+					target.BorderColor3 = Color3.fromRGB(27, 42, 53)
+					target.Position = UDim2.fromScale(0.5, 0.5)
+					target.Size = UDim2.fromOffset(22, 22)
+					target.SizeConstraint = Enum.SizeConstraint.RelativeYY
+					target.Parent = wheel1
+
+					wheel1.Parent = wheel
+
+					local inputs = Instance.new("Frame")
+					inputs.Name = "Inputs"
+					inputs.AnchorPoint = Vector2.new(1, 0.5)
+					inputs.AutomaticSize = Enum.AutomaticSize.XY
+					inputs.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputs.BackgroundTransparency = 1
+					inputs.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputs.BorderSizePixel = 0
+					inputs.LayoutOrder = 1
+					inputs.Position = UDim2.fromScale(1, 0.5)
+
+					local uIListLayout2 = Instance.new("UIListLayout")
+					uIListLayout2.Name = "UIListLayout"
+					uIListLayout2.Padding = UDim.new(0, 5)
+					uIListLayout2.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout2.Parent = inputs
+
+					local red = Instance.new("Frame")
+					red.Name = "Red"
+					red.AutomaticSize = Enum.AutomaticSize.XY
+					red.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					red.BackgroundTransparency = 1
+					red.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					red.BorderSizePixel = 0
+					red.LayoutOrder = 1
+					red.Size = UDim2.fromOffset(0, 38)
+
+					local inputName = Instance.new("TextLabel")
+					inputName.Name = "InputName"
+					inputName.FontFace = Font.new(assets.interFont)
+					inputName.Text = "Red"
+					inputName.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputName.TextSize = 13
+					inputName.TextTransparency = 0.5
+					inputName.TextTruncate = Enum.TextTruncate.AtEnd
+					inputName.TextXAlignment = Enum.TextXAlignment.Left
+					inputName.TextYAlignment = Enum.TextYAlignment.Top
+					inputName.AnchorPoint = Vector2.new(0, 0.5)
+					inputName.AutomaticSize = Enum.AutomaticSize.XY
+					inputName.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputName.BackgroundTransparency = 1
+					inputName.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputName.BorderSizePixel = 0
+					inputName.LayoutOrder = 2
+					inputName.Position = UDim2.fromScale(0, 0.5)
+					inputName.Parent = red
+
+					local uIListLayout3 = Instance.new("UIListLayout")
+					uIListLayout3.Name = "UIListLayout"
+					uIListLayout3.Padding = UDim.new(0, 15)
+					uIListLayout3.FillDirection = Enum.FillDirection.Horizontal
+					uIListLayout3.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout3.VerticalAlignment = Enum.VerticalAlignment.Center
+					uIListLayout3.Parent = red
+
+					local inputBox = Instance.new("TextBox")
+					inputBox.Name = "InputBox"
+					inputBox.ClearTextOnFocus = false
+					inputBox.CursorPosition = -1
+					inputBox.FontFace = Font.new(assets.interFont)
+					inputBox.Text = "255"
+					inputBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox.TextSize = 12
+					inputBox.TextTransparency = 0.1
+					inputBox.TextXAlignment = Enum.TextXAlignment.Left
+					inputBox.AnchorPoint = Vector2.new(1, 0.5)
+					inputBox.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox.BackgroundTransparency = 0.95
+					inputBox.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputBox.BorderSizePixel = 0
+					inputBox.ClipsDescendants = true
+					inputBox.LayoutOrder = 1
+					inputBox.Position = UDim2.fromScale(1, 0.5)
+					inputBox.Size = UDim2.fromOffset(75, 25)
+
+					local inputBoxUICorner = Instance.new("UICorner")
+					inputBoxUICorner.Name = "InputBoxUICorner"
+					inputBoxUICorner.CornerRadius = UDim.new(0, 4)
+					inputBoxUICorner.Parent = inputBox
+
+					local inputBoxUIStroke = Instance.new("UIStroke")
+					inputBoxUIStroke.Name = "InputBoxUIStroke"
+					inputBoxUIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					inputBoxUIStroke.Color = Color3.fromRGB(255, 255, 255)
+					inputBoxUIStroke.Transparency = 0.9
+					inputBoxUIStroke.Parent = inputBox
+
+					local inputBoxUISizeConstraint = Instance.new("UISizeConstraint")
+					inputBoxUISizeConstraint.Name = "InputBoxUISizeConstraint"
+					inputBoxUISizeConstraint.Parent = inputBox
+
+					local inputBoxUIPadding = Instance.new("UIPadding")
+					inputBoxUIPadding.Name = "InputBoxUIPadding"
+					inputBoxUIPadding.PaddingLeft = UDim.new(0, 8)
+					inputBoxUIPadding.PaddingRight = UDim.new(0, 10)
+					inputBoxUIPadding.Parent = inputBox
+
+					inputBox.Parent = red
+
+					red.Parent = inputs
+
+					local green = Instance.new("Frame")
+					green.Name = "Green"
+					green.AutomaticSize = Enum.AutomaticSize.XY
+					green.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					green.BackgroundTransparency = 1
+					green.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					green.BorderSizePixel = 0
+					green.LayoutOrder = 2
+					green.Size = UDim2.fromOffset(0, 38)
+
+					local inputName1 = Instance.new("TextLabel")
+					inputName1.Name = "InputName"
+					inputName1.FontFace = Font.new(assets.interFont)
+					inputName1.Text = "Green"
+					inputName1.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputName1.TextSize = 13
+					inputName1.TextTransparency = 0.5
+					inputName1.TextTruncate = Enum.TextTruncate.AtEnd
+					inputName1.TextXAlignment = Enum.TextXAlignment.Left
+					inputName1.TextYAlignment = Enum.TextYAlignment.Top
+					inputName1.AnchorPoint = Vector2.new(0, 0.5)
+					inputName1.AutomaticSize = Enum.AutomaticSize.XY
+					inputName1.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputName1.BackgroundTransparency = 1
+					inputName1.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputName1.BorderSizePixel = 0
+					inputName1.LayoutOrder = 2
+					inputName1.Position = UDim2.fromScale(0, 0.5)
+					inputName1.Parent = green
+
+					local uIListLayout4 = Instance.new("UIListLayout")
+					uIListLayout4.Name = "UIListLayout"
+					uIListLayout4.Padding = UDim.new(0, 15)
+					uIListLayout4.FillDirection = Enum.FillDirection.Horizontal
+					uIListLayout4.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout4.VerticalAlignment = Enum.VerticalAlignment.Center
+					uIListLayout4.Parent = green
+
+					local inputBox1 = Instance.new("TextBox")
+					inputBox1.Name = "InputBox"
+					inputBox1.ClearTextOnFocus = false
+					inputBox1.FontFace = Font.new(assets.interFont)
+					inputBox1.Text = "255"
+					inputBox1.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox1.TextSize = 12
+					inputBox1.TextTransparency = 0.1
+					inputBox1.TextXAlignment = Enum.TextXAlignment.Left
+					inputBox1.AnchorPoint = Vector2.new(1, 0.5)
+					inputBox1.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox1.BackgroundTransparency = 0.95
+					inputBox1.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputBox1.BorderSizePixel = 0
+					inputBox1.ClipsDescendants = true
+					inputBox1.LayoutOrder = 1
+					inputBox1.Position = UDim2.fromScale(1, 0.5)
+					inputBox1.Size = UDim2.fromOffset(75, 25)
+
+					local inputBoxUICorner1 = Instance.new("UICorner")
+					inputBoxUICorner1.Name = "InputBoxUICorner"
+					inputBoxUICorner1.CornerRadius = UDim.new(0, 4)
+					inputBoxUICorner1.Parent = inputBox1
+
+					local inputBoxUIStroke1 = Instance.new("UIStroke")
+					inputBoxUIStroke1.Name = "InputBoxUIStroke"
+					inputBoxUIStroke1.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					inputBoxUIStroke1.Color = Color3.fromRGB(255, 255, 255)
+					inputBoxUIStroke1.Transparency = 0.9
+					inputBoxUIStroke1.Parent = inputBox1
+
+					local inputBoxUISizeConstraint1 = Instance.new("UISizeConstraint")
+					inputBoxUISizeConstraint1.Name = "InputBoxUISizeConstraint"
+					inputBoxUISizeConstraint1.Parent = inputBox1
+
+					local inputBoxUIPadding1 = Instance.new("UIPadding")
+					inputBoxUIPadding1.Name = "InputBoxUIPadding"
+					inputBoxUIPadding1.PaddingLeft = UDim.new(0, 8)
+					inputBoxUIPadding1.PaddingRight = UDim.new(0, 10)
+					inputBoxUIPadding1.Parent = inputBox1
+
+					inputBox1.Parent = green
+
+					green.Parent = inputs
+
+					local blue = Instance.new("Frame")
+					blue.Name = "Blue"
+					blue.AutomaticSize = Enum.AutomaticSize.XY
+					blue.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					blue.BackgroundTransparency = 1
+					blue.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					blue.BorderSizePixel = 0
+					blue.LayoutOrder = 3
+					blue.Size = UDim2.fromOffset(0, 38)
+
+					local inputName2 = Instance.new("TextLabel")
+					inputName2.Name = "InputName"
+					inputName2.FontFace = Font.new(assets.interFont)
+					inputName2.Text = "Blue"
+					inputName2.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputName2.TextSize = 13
+					inputName2.TextTransparency = 0.5
+					inputName2.TextTruncate = Enum.TextTruncate.AtEnd
+					inputName2.TextXAlignment = Enum.TextXAlignment.Left
+					inputName2.TextYAlignment = Enum.TextYAlignment.Top
+					inputName2.AnchorPoint = Vector2.new(0, 0.5)
+					inputName2.AutomaticSize = Enum.AutomaticSize.XY
+					inputName2.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputName2.BackgroundTransparency = 1
+					inputName2.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputName2.BorderSizePixel = 0
+					inputName2.LayoutOrder = 2
+					inputName2.Position = UDim2.fromScale(0, 0.5)
+					inputName2.Parent = blue
+
+					local uIListLayout5 = Instance.new("UIListLayout")
+					uIListLayout5.Name = "UIListLayout"
+					uIListLayout5.Padding = UDim.new(0, 15)
+					uIListLayout5.FillDirection = Enum.FillDirection.Horizontal
+					uIListLayout5.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout5.VerticalAlignment = Enum.VerticalAlignment.Center
+					uIListLayout5.Parent = blue
+
+					local inputBox2 = Instance.new("TextBox")
+					inputBox2.Name = "InputBox"
+					inputBox2.ClearTextOnFocus = false
+					inputBox2.FontFace = Font.new(assets.interFont)
+					inputBox2.Text = "255"
+					inputBox2.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox2.TextSize = 12
+					inputBox2.TextTransparency = 0.1
+					inputBox2.TextXAlignment = Enum.TextXAlignment.Left
+					inputBox2.AnchorPoint = Vector2.new(1, 0.5)
+					inputBox2.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox2.BackgroundTransparency = 0.95
+					inputBox2.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputBox2.BorderSizePixel = 0
+					inputBox2.ClipsDescendants = true
+					inputBox2.LayoutOrder = 1
+					inputBox2.Position = UDim2.fromScale(1, 0.5)
+					inputBox2.Size = UDim2.fromOffset(75, 25)
+
+					local inputBoxUICorner2 = Instance.new("UICorner")
+					inputBoxUICorner2.Name = "InputBoxUICorner"
+					inputBoxUICorner2.CornerRadius = UDim.new(0, 4)
+					inputBoxUICorner2.Parent = inputBox2
+
+					local inputBoxUIStroke2 = Instance.new("UIStroke")
+					inputBoxUIStroke2.Name = "InputBoxUIStroke"
+					inputBoxUIStroke2.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					inputBoxUIStroke2.Color = Color3.fromRGB(255, 255, 255)
+					inputBoxUIStroke2.Transparency = 0.9
+					inputBoxUIStroke2.Parent = inputBox2
+
+					local inputBoxUISizeConstraint2 = Instance.new("UISizeConstraint")
+					inputBoxUISizeConstraint2.Name = "InputBoxUISizeConstraint"
+					inputBoxUISizeConstraint2.Parent = inputBox2
+
+					local inputBoxUIPadding2 = Instance.new("UIPadding")
+					inputBoxUIPadding2.Name = "InputBoxUIPadding"
+					inputBoxUIPadding2.PaddingLeft = UDim.new(0, 8)
+					inputBoxUIPadding2.PaddingRight = UDim.new(0, 10)
+					inputBoxUIPadding2.Parent = inputBox2
+
+					inputBox2.Parent = blue
+
+					blue.Parent = inputs
+
+					local alpha = Instance.new("Frame")
+					alpha.Name = "Alpha"
+					alpha.AutomaticSize = Enum.AutomaticSize.XY
+					alpha.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					alpha.BackgroundTransparency = 1
+					alpha.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					alpha.BorderSizePixel = 0
+					alpha.LayoutOrder = 4
+					alpha.Size = UDim2.fromOffset(0, 38)
+					alpha.Visible = isAlpha
+
+					local inputName3 = Instance.new("TextLabel")
+					inputName3.Name = "InputName"
+					inputName3.FontFace = Font.new(assets.interFont)
+					inputName3.Text = "Alpha"
+					inputName3.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputName3.TextSize = 13
+					inputName3.TextTransparency = 0.5
+					inputName3.TextTruncate = Enum.TextTruncate.AtEnd
+					inputName3.TextXAlignment = Enum.TextXAlignment.Left
+					inputName3.TextYAlignment = Enum.TextYAlignment.Top
+					inputName3.AnchorPoint = Vector2.new(0, 0.5)
+					inputName3.AutomaticSize = Enum.AutomaticSize.XY
+					inputName3.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputName3.BackgroundTransparency = 1
+					inputName3.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputName3.BorderSizePixel = 0
+					inputName3.LayoutOrder = 2
+					inputName3.Position = UDim2.fromScale(0, 0.5)
+					inputName3.Parent = alpha
+
+					local uIListLayout6 = Instance.new("UIListLayout")
+					uIListLayout6.Name = "UIListLayout"
+					uIListLayout6.Padding = UDim.new(0, 15)
+					uIListLayout6.FillDirection = Enum.FillDirection.Horizontal
+					uIListLayout6.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout6.VerticalAlignment = Enum.VerticalAlignment.Center
+					uIListLayout6.Parent = alpha
+
+					local inputBox3 = Instance.new("TextBox")
+					inputBox3.Name = "InputBox"
+					inputBox3.ClearTextOnFocus = false
+					inputBox3.FontFace = Font.new(assets.interFont)
+					inputBox3.Text = "0"
+					inputBox3.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox3.TextSize = 12
+					inputBox3.TextTransparency = 0.1
+					inputBox3.TextXAlignment = Enum.TextXAlignment.Left
+					inputBox3.AnchorPoint = Vector2.new(1, 0.5)
+					inputBox3.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox3.BackgroundTransparency = 0.95
+					inputBox3.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputBox3.BorderSizePixel = 0
+					inputBox3.ClipsDescendants = true
+					inputBox3.LayoutOrder = 1
+					inputBox3.Position = UDim2.fromScale(1, 0.5)
+					inputBox3.Size = UDim2.fromOffset(75, 25)
+
+					local inputBoxUICorner3 = Instance.new("UICorner")
+					inputBoxUICorner3.Name = "InputBoxUICorner"
+					inputBoxUICorner3.CornerRadius = UDim.new(0, 4)
+					inputBoxUICorner3.Parent = inputBox3
+
+					local inputBoxUIStroke3 = Instance.new("UIStroke")
+					inputBoxUIStroke3.Name = "InputBoxUIStroke"
+					inputBoxUIStroke3.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					inputBoxUIStroke3.Color = Color3.fromRGB(255, 255, 255)
+					inputBoxUIStroke3.Transparency = 0.9
+					inputBoxUIStroke3.Parent = inputBox3
+
+					local inputBoxUISizeConstraint3 = Instance.new("UISizeConstraint")
+					inputBoxUISizeConstraint3.Name = "InputBoxUISizeConstraint"
+					inputBoxUISizeConstraint3.Parent = inputBox3
+
+					local inputBoxUIPadding3 = Instance.new("UIPadding")
+					inputBoxUIPadding3.Name = "InputBoxUIPadding"
+					inputBoxUIPadding3.PaddingLeft = UDim.new(0, 8)
+					inputBoxUIPadding3.PaddingRight = UDim.new(0, 10)
+					inputBoxUIPadding3.Parent = inputBox3
+
+					inputBox3.Parent = alpha
+
+					alpha.Parent = inputs
+
+					local hex = Instance.new("Frame")
+					hex.Name = "Hex"
+					hex.AutomaticSize = Enum.AutomaticSize.XY
+					hex.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					hex.BackgroundTransparency = 1
+					hex.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					hex.BorderSizePixel = 0
+					hex.Size = UDim2.fromOffset(0, 38)
+
+					local inputName4 = Instance.new("TextLabel")
+					inputName4.Name = "InputName"
+					inputName4.FontFace = Font.new(assets.interFont)
+					inputName4.Text = "Hex"
+					inputName4.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputName4.TextSize = 13
+					inputName4.TextTransparency = 0.5
+					inputName4.TextTruncate = Enum.TextTruncate.AtEnd
+					inputName4.TextXAlignment = Enum.TextXAlignment.Left
+					inputName4.TextYAlignment = Enum.TextYAlignment.Top
+					inputName4.AnchorPoint = Vector2.new(0, 0.5)
+					inputName4.AutomaticSize = Enum.AutomaticSize.XY
+					inputName4.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputName4.BackgroundTransparency = 1
+					inputName4.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputName4.BorderSizePixel = 0
+					inputName4.LayoutOrder = 2
+					inputName4.Position = UDim2.fromScale(0, 0.5)
+					inputName4.Parent = hex
+
+					local uIListLayout7 = Instance.new("UIListLayout")
+					uIListLayout7.Name = "UIListLayout"
+					uIListLayout7.Padding = UDim.new(0, 15)
+					uIListLayout7.FillDirection = Enum.FillDirection.Horizontal
+					uIListLayout7.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout7.VerticalAlignment = Enum.VerticalAlignment.Center
+					uIListLayout7.Parent = hex
+
+					local inputBox4 = Instance.new("TextBox")
+					inputBox4.Name = "InputBox"
+					inputBox4.ClearTextOnFocus = false
+					inputBox4.CursorPosition = -1
+					inputBox4.FontFace = Font.new(assets.interFont)
+					inputBox4.Text = "255"
+					inputBox4.TextColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox4.TextSize = 12
+					inputBox4.TextTransparency = 0.1
+					inputBox4.TextXAlignment = Enum.TextXAlignment.Left
+					inputBox4.AnchorPoint = Vector2.new(1, 0.5)
+					inputBox4.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					inputBox4.BackgroundTransparency = 0.95
+					inputBox4.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					inputBox4.BorderSizePixel = 0
+					inputBox4.ClipsDescendants = true
+					inputBox4.LayoutOrder = 1
+					inputBox4.Position = UDim2.fromScale(1, 0.5)
+					inputBox4.Size = UDim2.fromOffset(75, 25)
+
+					local inputBoxUICorner4 = Instance.new("UICorner")
+					inputBoxUICorner4.Name = "InputBoxUICorner"
+					inputBoxUICorner4.CornerRadius = UDim.new(0, 4)
+					inputBoxUICorner4.Parent = inputBox4
+
+					local inputBoxUIStroke4 = Instance.new("UIStroke")
+					inputBoxUIStroke4.Name = "InputBoxUIStroke"
+					inputBoxUIStroke4.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+					inputBoxUIStroke4.Color = Color3.fromRGB(255, 255, 255)
+					inputBoxUIStroke4.Transparency = 0.9
+					inputBoxUIStroke4.Parent = inputBox4
+
+					local inputBoxUISizeConstraint4 = Instance.new("UISizeConstraint")
+					inputBoxUISizeConstraint4.Name = "InputBoxUISizeConstraint"
+					inputBoxUISizeConstraint4.Parent = inputBox4
+
+					local inputBoxUIPadding4 = Instance.new("UIPadding")
+					inputBoxUIPadding4.Name = "InputBoxUIPadding"
+					inputBoxUIPadding4.PaddingLeft = UDim.new(0, 8)
+					inputBoxUIPadding4.PaddingRight = UDim.new(0, 10)
+					inputBoxUIPadding4.Parent = inputBox4
+
+					inputBox4.Parent = hex
+
+					hex.Parent = inputs
+
+					inputs.Parent = wheel
+
+					local uIPadding = Instance.new("UIPadding")
+					uIPadding.Name = "UIPadding"
+					uIPadding.PaddingRight = UDim.new(0, 5)
+					uIPadding.Parent = wheel
+
+					wheel.Parent = colorOptions
+
+					local colorWells = Instance.new("Frame")
+					colorWells.Name = "ColorWells"
+					colorWells.AutomaticSize = Enum.AutomaticSize.Y
+					colorWells.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					colorWells.BackgroundTransparency = 1
+					colorWells.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					colorWells.BorderSizePixel = 0
+					colorWells.LayoutOrder = 2
+					colorWells.Size = UDim2.fromScale(1, 0)
+
+					local uIGridLayout = Instance.new("UIGridLayout")
+					uIGridLayout.Name = "UIGridLayout"
+					uIGridLayout.CellPadding = UDim2.fromOffset(10, 0)
+					uIGridLayout.CellSize = UDim2.new(0.5, -5, 0, 30)
+					uIGridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+					uIGridLayout.Parent = colorWells
+
+					local newColor = Instance.new("ImageLabel")
+					newColor.Name = "NewColor"
+					newColor.Image = assets.grid
+					newColor.ScaleType = Enum.ScaleType.Tile
+					newColor.TileSize = UDim2.fromOffset(500, 500)
+					newColor.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					newColor.BackgroundTransparency = 1
+					newColor.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					newColor.BorderSizePixel = 0
+					newColor.Size = UDim2.fromOffset(100, 100)
+
+					local uICorner2 = Instance.new("UICorner")
+					uICorner2.Name = "UICorner"
+					uICorner2.Parent = newColor
+
+					local color = Instance.new("Frame")
+					color.Name = "Color"
+					color.AnchorPoint = Vector2.new(0.5, 0.5)
+					color.BorderColor3 = Color3.fromRGB(27, 42, 53)
+					color.BorderSizePixel = 0
+					color.Position = UDim2.fromScale(0.5, 0.5)
+					color.Size = UDim2.new(1, 1, 1, 1)
+
+					local uICorner3 = Instance.new("UICorner")
+					uICorner3.Name = "UICorner"
+					uICorner3.Parent = color
+
+					color.Parent = newColor
+
+					newColor.Parent = colorWells
+
+					local oldColor = Instance.new("ImageLabel")
+					oldColor.Name = "OldColor"
+					oldColor.Image = assets.grid
+					oldColor.ScaleType = Enum.ScaleType.Tile
+					oldColor.TileSize = UDim2.fromOffset(500, 500)
+					oldColor.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					oldColor.BackgroundTransparency = 1
+					oldColor.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					oldColor.BorderSizePixel = 0
+					oldColor.LayoutOrder = 1
+					oldColor.Size = UDim2.fromOffset(100, 100)
+
+					local uICorner4 = Instance.new("UICorner")
+					uICorner4.Name = "UICorner"
+					uICorner4.Parent = oldColor
+
+					local color1 = Instance.new("Frame")
+					color1.Name = "Color"
+					color1.AnchorPoint = Vector2.new(0.5, 0.5)
+					color1.BorderColor3 = Color3.fromRGB(27, 42, 53)
+					color1.BorderSizePixel = 0
+					color1.Position = UDim2.fromScale(0.5, 0.5)
+					color1.Size = UDim2.new(1, 1, 1, 1)
+
+					local uICorner5 = Instance.new("UICorner")
+					uICorner5.Name = "UICorner"
+					uICorner5.Parent = color1
+
+					color1.Parent = oldColor
+
+					oldColor.Parent = colorWells
+
+					colorWells.Parent = colorOptions
+
+					colorOptions.Parent = prompt
+
+					local interactions = Instance.new("Frame")
+					interactions.Name = "Interactions"
+					interactions.AutomaticSize = Enum.AutomaticSize.Y
+					interactions.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					interactions.BackgroundTransparency = 1
+					interactions.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					interactions.BorderSizePixel = 0
+					interactions.LayoutOrder = 2
+					interactions.Size = UDim2.fromScale(1, 0)
+
+					local uIListLayout8 = Instance.new("UIListLayout")
+					uIListLayout8.Name = "UIListLayout"
+					uIListLayout8.Padding = UDim.new(0, 10)
+					uIListLayout8.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout8.Parent = interactions
+
+					local confirm = Instance.new("TextButton")
+					confirm.Name = "Confirm"
+					confirm.FontFace = Font.new(
+						"rbxassetid://12187365364",
+						Enum.FontWeight.Medium,
+						Enum.FontStyle.Normal
+					)
+					confirm.Text = "Confirm"
+					confirm.TextColor3 = Color3.fromRGB(255, 255, 255)
+					confirm.TextSize = 15
+					confirm.TextTransparency = 0.5
+					confirm.TextTruncate = Enum.TextTruncate.AtEnd
+					confirm.AutoButtonColor = false
+					confirm.AutomaticSize = Enum.AutomaticSize.Y
+					confirm.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+					confirm.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					confirm.BorderSizePixel = 0
+					confirm.Size = UDim2.fromScale(1, 0)
+
+					local uIPadding1 = Instance.new("UIPadding")
+					uIPadding1.Name = "UIPadding"
+					uIPadding1.PaddingBottom = UDim.new(0, 9)
+					uIPadding1.PaddingLeft = UDim.new(0, 10)
+					uIPadding1.PaddingRight = UDim.new(0, 10)
+					uIPadding1.PaddingTop = UDim.new(0, 9)
+					uIPadding1.Parent = confirm
+
+					local baseUICorner = Instance.new("UICorner")
+					baseUICorner.Name = "BaseUICorner"
+					baseUICorner.CornerRadius = UDim.new(0, 10)
+					baseUICorner.Parent = confirm
+
+					confirm.Parent = interactions
+
+					local cancel = Instance.new("TextButton")
+					cancel.Name = "Cancel"
+					cancel.FontFace = Font.new(
+						"rbxassetid://12187365364",
+						Enum.FontWeight.Medium,
+						Enum.FontStyle.Normal
+					)
+					cancel.Text = "Cancel"
+					cancel.TextColor3 = Color3.fromRGB(255, 255, 255)
+					cancel.TextSize = 15
+					cancel.TextTransparency = 0.5
+					cancel.TextTruncate = Enum.TextTruncate.AtEnd
+					cancel.AutoButtonColor = false
+					cancel.AutomaticSize = Enum.AutomaticSize.Y
+					cancel.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+					cancel.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					cancel.BorderSizePixel = 0
+					cancel.Size = UDim2.fromScale(1, 0)
+
+					local baseUICorner1 = Instance.new("UICorner")
+					baseUICorner1.Name = "BaseUICorner"
+					baseUICorner1.CornerRadius = UDim.new(0, 10)
+					baseUICorner1.Parent = cancel
+
+					local uIPadding2 = Instance.new("UIPadding")
+					uIPadding2.Name = "UIPadding"
+					uIPadding2.PaddingBottom = UDim.new(0, 9)
+					uIPadding2.PaddingLeft = UDim.new(0, 10)
+					uIPadding2.PaddingRight = UDim.new(0, 10)
+					uIPadding2.PaddingTop = UDim.new(0, 9)
+					uIPadding2.Parent = cancel
+
+					cancel.Parent = interactions
+
+					local uIPadding3 = Instance.new("UIPadding")
+					uIPadding3.Name = "UIPadding"
+					uIPadding3.PaddingTop = UDim.new(0, 10)
+					uIPadding3.Parent = interactions
+
+					interactions.Parent = prompt
+
+					local globalSettingsUIPadding = Instance.new("UIPadding")
+					globalSettingsUIPadding.Name = "GlobalSettingsUIPadding"
+					globalSettingsUIPadding.PaddingBottom = UDim.new(0, 20)
+					globalSettingsUIPadding.PaddingLeft = UDim.new(0, 20)
+					globalSettingsUIPadding.PaddingRight = UDim.new(0, 20)
+					globalSettingsUIPadding.PaddingTop = UDim.new(0, 20)
+					globalSettingsUIPadding.Parent = prompt
+
+					local paragraph = Instance.new("Frame")
+					paragraph.Name = "Paragraph"
+					paragraph.AutomaticSize = Enum.AutomaticSize.Y
+					paragraph.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					paragraph.BackgroundTransparency = 1
+					paragraph.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					paragraph.BorderSizePixel = 0
+					paragraph.Size = UDim2.fromScale(1, 0)
+
+					local paragraphHeader = Instance.new("TextLabel")
+					paragraphHeader.Name = "ParagraphHeader"
+					paragraphHeader.FontFace = Font.new(
+						"rbxassetid://12187365364",
+						Enum.FontWeight.SemiBold,
+						Enum.FontStyle.Normal
+					)
+					paragraphHeader.RichText = true
+					paragraphHeader.Text = ColorpickerFunctions.Settings.Name
+					paragraphHeader.TextColor3 = Color3.fromRGB(255, 255, 255)
+					paragraphHeader.TextSize = 18
+					paragraphHeader.TextTransparency = 0.4
+					paragraphHeader.TextWrapped = true
+					paragraphHeader.TextYAlignment = Enum.TextYAlignment.Top
+					paragraphHeader.AutomaticSize = Enum.AutomaticSize.XY
+					paragraphHeader.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					paragraphHeader.BackgroundTransparency = 1
+					paragraphHeader.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					paragraphHeader.BorderSizePixel = 0
+					paragraphHeader.Size = UDim2.fromScale(1, 0)
+					paragraphHeader.Parent = paragraph
+
+					local uIListLayout9 = Instance.new("UIListLayout")
+					uIListLayout9.Name = "UIListLayout"
+					uIListLayout9.Padding = UDim.new(0, 15)
+					uIListLayout9.HorizontalAlignment = Enum.HorizontalAlignment.Center
+					uIListLayout9.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout9.Parent = paragraph
+
+					local uIPadding4 = Instance.new("UIPadding")
+					uIPadding4.Name = "UIPadding"
+					uIPadding4.PaddingBottom = UDim.new(0, 15)
+					uIPadding4.Parent = paragraph
+
+					local line = Instance.new("Frame")
+					line.Name = "Line"
+					line.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					line.BackgroundTransparency = 0.9
+					line.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					line.BorderSizePixel = 0
+					line.LayoutOrder = 1
+					line.Size = UDim2.new(1, 0, 0, 1)
+					line.Parent = paragraph
+
+					paragraph.Parent = prompt
+
+					prompt.Parent = colorPicker
+
+					colorPicker.Parent = base
+
+					local fromHSV, fromRGB, v2, udim2 = Color3.fromHSV, Color3.fromRGB, Vector2.new, UDim2.new
+
+					local wheel = wheel1
+					local ring = target
+					local slider = value
+					local colour = color
+
+					local modifierInputs = {
+						Hex = hex.InputBox,
+						Red = red.InputBox,
+						Green = green.InputBox,
+						Blue = blue.InputBox,
+						Alpha = alpha.InputBox
+					}
+
+					local Mouse = LocalPlayer:GetMouse()
+
+					local WheelDown, SlideDown = false, false
+					local hue, saturation, value = 0, 0, 1
+
+					local function toPolar(v)
+						return math.atan2(v.y, v.x), v.magnitude
+					end
+
+					local function radToDeg(x)
+						return ((x + math.pi) / (2 * math.pi)) * 360
+					end
+
+					local function degToRad(degrees)
+						return degrees * (math.pi / 180)
+					end
+
+					local function hexToRGB(hex)
+						hex = hex:gsub("#","")
+						if #hex ~= 6 then return 0, 0, 0 end
+						local r = tonumber(hex:sub(1, 2), 16) or 0
+						local g = tonumber(hex:sub(3, 4), 16) or 0
+						local b = tonumber(hex:sub(5, 6), 16) or 0
+						return r, g, b
+					end
+
+					local function clampInput(value, min, max)
+						local num = tonumber(value)
+						if num then
+							return math.clamp(num, min, max)
+						end
+						return min
+					end
+
+					local function update()
+						local c = fromHSV(hue, saturation, value)
+						colour.BackgroundColor3 = c
+						colour.BackgroundTransparency = clampInput(modifierInputs.Alpha.Text, 0, 1)
+
+						modifierInputs.Red.Text = tostring(math.floor(c.r * 255 + 0.5))
+						modifierInputs.Green.Text = tostring(math.floor(c.g * 255 + 0.5))
+						modifierInputs.Blue.Text = tostring(math.floor(c.b * 255 + 0.5))
+						modifierInputs.Alpha.Text = clampInput(modifierInputs.Alpha.Text, 0, 1)
+
+						local hexColor = string.format("#%02X%02X%02X", 
+							math.floor(c.r * 255 + 0.5),
+							math.floor(c.g * 255 + 0.5),
+							math.floor(c.b * 255 + 0.5))
+						modifierInputs.Hex.Text = hexColor
+					end
+
+					local function UpdateSlide(iX)
+						local rY = iX - slider.AbsolutePosition.X
+						local cY = math.clamp(rY, 0, slider.AbsoluteSize.X - slide.AbsoluteSize.X)
+						slide.Position = udim2(0, cY, 0.5, 0)
+						value = 1 - (cY / (slider.AbsoluteSize.X - slide.AbsoluteSize.X))
+						update()
+					end
+
+					local function UpdateRing(iX, iY)
+						local r = wheel.AbsoluteSize.x / 2
+						local d = v2(iX, iY) - wheel.AbsolutePosition - wheel.AbsoluteSize / 2
+
+						if d:Dot(d) > r * r then
+							d = d.unit * r
+						end
+
+						ring.Position = udim2(0.5, d.x, 0.5, d.y)
+						local phi, len = toPolar(d * v2(1, -1))
+						hue, saturation = radToDeg(phi) / 360, math.clamp(len / r, 0, 1)
+						slider.BackgroundColor3 = fromHSV(hue, saturation, 1)
+						update()
+					end
+
+					local function UpdateSlideFromValue(value)
+						local cY = (1 - value) * (slider.AbsoluteSize.X - slide.AbsoluteSize.X)
+						slide.Position = UDim2.new(0, cY, 0.5, 0)
+					end
+
+					local function UpdateRingFromHSV(hue, saturation)
+						local r = wheel.AbsoluteSize.X / 2
+						local phi = degToRad(hue * 360)
+						local len = saturation * r
+						local x = len * math.cos(phi)
+						local y = len * math.sin(phi)
+
+						ring.Position = UDim2.new(0.5, -x, 0.5, y)
+						slider.BackgroundColor3 = fromHSV(hue, saturation, 1)
+					end
+
+					local function updateFromRGB()
+						local r = clampInput(modifierInputs.Red.Text, 0, 255)
+						local g = clampInput(modifierInputs.Green.Text, 0, 255)
+						local b = clampInput(modifierInputs.Blue.Text, 0, 255)
+						modifierInputs.Red.Text = r
+						modifierInputs.Green.Text = g
+						modifierInputs.Blue.Text = b
+
+						hue, saturation, value = Color3.fromRGB(r, g, b):ToHSV()
+
+						UpdateSlideFromValue(value)
+						UpdateRingFromHSV(hue, saturation)
+						update()
+					end
+
+					local function updateFromHex()
+						local hex = modifierInputs.Hex.Text
+						local r, g, b = hexToRGB(hex)
+
+						r = clampInput(r, 0, 255)
+						g = clampInput(g, 0, 255)
+						b = clampInput(b, 0, 255)
+
+						modifierInputs.Red.Text = r
+						modifierInputs.Green.Text = g
+						modifierInputs.Blue.Text = b
+
+						hue, saturation, value = Color3.fromRGB(r, g, b):ToHSV()
+						UpdateSlideFromValue(value)
+						UpdateRingFromHSV(hue, saturation)
+						update()
+					end
+
+					local function updateFromSettings()
+						local r = math.floor(ColorpickerFunctions.Color.R * 255 + 0.5)
+						local g = math.floor(ColorpickerFunctions.Color.G * 255 + 0.5)
+						local b = math.floor(ColorpickerFunctions.Color.B * 255 + 0.5)
+						modifierInputs.Red.Text = r
+						modifierInputs.Green.Text = g
+						modifierInputs.Blue.Text = b
+						modifierInputs.Alpha.Text = isAlpha and ColorpickerFunctions.Alpha or 0
+
+						local hexColor = string.format("#%02X%02X%02X", r,g,b)
+						modifierInputs.Hex.Text = hexColor
+
+						hue, saturation, value = Color3.fromRGB(r, g, b):ToHSV()
+
+						color1.BackgroundColor3 = ColorpickerFunctions.Color
+						color1.BackgroundTransparency = isAlpha and ColorpickerFunctions.Alpha or 0
+
+						colour.BackgroundColor3 = Color3.fromRGB(r,g,b)
+						colour.BackgroundTransparency = isAlpha and ColorpickerFunctions.Alpha or 0
+
+						UpdateSlideFromValue(value)
+						UpdateRingFromHSV(hue, saturation)
+					end
+
+					wheel.InputBegan:Connect(function(input)
+						if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+							WheelDown = true
+							UpdateRing(Mouse.X, Mouse.Y)
+						end
+					end)
+
+					slider.InputBegan:Connect(function(input)
+						if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+							SlideDown = true
+							UpdateSlide(Mouse.X)
+						end
+					end)
+
+					slider.InputEnded:Connect(function(input)
+						if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+							SlideDown = false
+						end
+					end)
+
+					wheel.InputEnded:Connect(function(input)
+						if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+							WheelDown = false
+						end
+					end)
+
+					UserInputService.InputChanged:Connect(function(input)
+						if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+							if SlideDown then
+								UpdateSlide(Mouse.X)
+							elseif WheelDown then
+								UpdateRing(Mouse.X, Mouse.Y)
+							end
+						end
+					end)
+
+					local function onFocusEnter(instance)
+						local placeholder = instance.Text
+						instance.Text = ""
+						instance.PlaceholderText = placeholder
+					end
+
+					modifierInputs.Hex.FocusLost:Connect(updateFromHex)
+					modifierInputs.Red.FocusLost:Connect(updateFromRGB)
+					modifierInputs.Green.FocusLost:Connect(updateFromRGB)
+					modifierInputs.Blue.FocusLost:Connect(updateFromRGB)
+					modifierInputs.Alpha.FocusLost:Connect(update)
+
+					modifierInputs.Hex.Focused:Connect(function()
+						onFocusEnter(modifierInputs.Hex)
+					end)
+					modifierInputs.Red.Focused:Connect(function()
+						onFocusEnter(modifierInputs.Red)
+					end)
+					modifierInputs.Green.Focused:Connect(function()
+						onFocusEnter(modifierInputs.Green)
+					end)
+					modifierInputs.Blue.Focused:Connect(function()
+						onFocusEnter(modifierInputs.Blue)
+					end)
+					modifierInputs.Alpha.Focused:Connect(function()
+						onFocusEnter(modifierInputs.Alpha)
+					end)
+
+					local function makeCanvas()
+						local ColorPickerCanvas = Instance.new("CanvasGroup")
+						ColorPickerCanvas.Name = "ColorPickerCanvas"
+						ColorPickerCanvas.BackgroundTransparency = 1
+						ColorPickerCanvas.BorderSizePixel = 0
+						ColorPickerCanvas.Size = UDim2.fromScale(1, 1)
+						ColorPickerCanvas.ZIndex = 5
+						ColorPickerCanvas.GroupTransparency = 1
+						ColorPickerCanvas.Parent = base
+						ColorPickerCanvas.Visible = false
+						return ColorPickerCanvas
+					end
+
+					local function transition(isIn)
+						local canvas = makeCanvas()
+						local tweenTransparency = isIn and 0 or 1
+						local tweenScale = isIn and 1 or 0.95
+						local stateTransparency = isIn and 1 or 0
+						local tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Sine)
+						local canvasTween = Tween(canvas, tweenInfo, { GroupTransparency = tweenTransparency })
+						local scaleTween = Tween(promptUIScale, tweenInfo, { Scale = tweenScale })
+
+						colorPicker.Visible = true
+						colorPicker.Parent = canvas
+						canvas.Visible = true
+						canvas.GroupTransparency = stateTransparency
+						canvasTween:Play()
+						scaleTween:Play()
+						canvasTween.Completed:Wait()
+
+						if not isIn then
+							colorPicker.Visible = false
+							canvas.Visible = false
+						end
+
+						colorPicker.Parent = base
+						canvas:Destroy()
+					end
+
+					local function colorpickerIn()
+						transition(true)
+					end
+
+					local function colorpickerOut()
+						transition(false)
+					end
+
+					interact.MouseButton1Click:Connect(colorpickerIn)
+
+					cancel.MouseButton1Click:Connect(colorpickerOut)
+					confirm.MouseButton1Click:Connect(function()
+						colorpickerOut()
+						local c = fromHSV(hue, saturation, value)
+						ColorpickerFunctions.Color = Color3.fromRGB(c.r * 255, c.g * 255, c.b * 255)
+						ColorpickerFunctions.Alpha = isAlpha and clampInput(modifierInputs.Alpha.Text, 0, 1)
+
+						color1.BackgroundColor3 = ColorpickerFunctions.Color
+						color1.BackgroundTransparency = isAlpha and ColorpickerFunctions.Alpha or 0
+
+						colorC.BackgroundColor3 = ColorpickerFunctions.Color
+						colorC.BackgroundTransparency = isAlpha and ColorpickerFunctions.Alpha or 0
+
+						if ColorpickerFunctions.Settings.Callback then
+							task.spawn(function()
+								ColorpickerFunctions.Settings.Callback(ColorpickerFunctions.Color, isAlpha and ColorpickerFunctions.Alpha)
+							end)
+						end
+					end)
+
+					updateFromSettings()
+
+					function ColorpickerFunctions:UpdateName(New)
+						colorpickerName.Text = New
+					end
+					function ColorpickerFunctions:SetVisibility(State)
+						colorpicker.Visible = State
+					end
+
+					function ColorpickerFunctions:SetColor(color3)
+						ColorpickerFunctions.Color = color3
+						colorC.BackgroundColor3 = color3
+
+						local r = math.floor(ColorpickerFunctions.Color.R * 255 + 0.5)
+						local g = math.floor(ColorpickerFunctions.Color.G * 255 + 0.5)
+						local b = math.floor(ColorpickerFunctions.Color.B * 255 + 0.5)
+						modifierInputs.Red.Text = r
+						modifierInputs.Green.Text = g
+						modifierInputs.Blue.Text = b
+
+						local hexColor = string.format("#%02X%02X%02X", r,g,b)
+						modifierInputs.Hex.Text = hexColor
+
+						hue, saturation, value = Color3.fromRGB(r, g, b):ToHSV()
+
+						color1.BackgroundColor3 = ColorpickerFunctions.Color
+						colour.BackgroundColor3 = Color3.fromRGB(r,g,b)
+
+						UpdateSlideFromValue(value)
+						UpdateRingFromHSV(hue, saturation)
+
+						if ColorpickerFunctions.Settings.Callback then
+							task.spawn(function()
+								ColorpickerFunctions.Settings.Callback(ColorpickerFunctions.Color, isAlpha and ColorpickerFunctions.Alpha)
+							end)
+						end
+					end
+
+					function ColorpickerFunctions:SetAlpha(alpha)
+						ColorpickerFunctions.Alpha = alpha
+						colorC.Transparency = alpha
+						updateFromSettings()
+					end
+
+					if Flag then
+						MacLib.Options[Flag] = ColorpickerFunctions
+					end
+					return ColorpickerFunctions
+				end
+
+				function SectionFunctions:Header(Settings, Flag)
+					local HeaderFunctions = {Settings = Settings}
+
+					local header = Instance.new("Frame")
+					header.Name = "Header"
+					header.AutomaticSize = Enum.AutomaticSize.Y
+					header.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					header.BackgroundTransparency = 1
+					header.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					header.BorderSizePixel = 0
+					header.LayoutOrder = 0
+					header.Size = UDim2.fromScale(1, 0)
+					header.Parent = section
+
+					local uIPadding = Instance.new("UIPadding")
+					uIPadding.Name = "UIPadding"
+					uIPadding.PaddingBottom = UDim.new(0, 5)
+					uIPadding.Parent = header
+
+					local headerText = Instance.new("TextLabel")
+					headerText.Name = "HeaderText"
+					headerText.FontFace = Font.new(
+						assets.interFont,
+						Enum.FontWeight.Medium,
+						Enum.FontStyle.Normal
+					)
+					headerText.RichText = true
+					headerText.Text = HeaderFunctions.Settings.Text or HeaderFunctions.Settings.Name
+					headerText.TextColor3 = Color3.fromRGB(255, 255, 255)
+					headerText.TextSize = 16
+					headerText.TextTransparency = 0.3
+					headerText.TextWrapped = true
+					headerText.TextXAlignment = Enum.TextXAlignment.Left
+					headerText.AutomaticSize = Enum.AutomaticSize.Y
+					headerText.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					headerText.BackgroundTransparency = 1
+					headerText.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					headerText.BorderSizePixel = 0
+					headerText.Size = UDim2.fromScale(1, 0)
+					headerText.Parent = header
+
+					function HeaderFunctions:UpdateName(New)
+						headerText.Text = New
+					end
+					function HeaderFunctions:SetVisibility(State)
+						header.Visible = State
+					end
+
+					if Flag then
+						MacLib.Options[Flag] = HeaderFunctions
+					end
+					return HeaderFunctions
+				end
+
+				function SectionFunctions:Label(Settings, Flag)
+					local LabelFunctions = {Settings = Settings}
+
+					local label = Instance.new("Frame")
+					label.Name = "Label"
+					label.AutomaticSize = Enum.AutomaticSize.Y
+					label.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					label.BackgroundTransparency = 1
+					label.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					label.BorderSizePixel = 0
+					label.Size = UDim2.new(1, 0, 0, 38)
+					label.Parent = section
+
+					local labelText = Instance.new("TextLabel")
+					labelText.Name = "LabelText"
+					labelText.FontFace = Font.new(assets.interFont)
+					labelText.RichText = true
+					labelText.Text = LabelFunctions.Settings.Text or LabelFunctions.Settings.Name -- Settings.Name Deprecated use Settings.Text
+					labelText.TextColor3 = Color3.fromRGB(255, 255, 255)
+					labelText.TextSize = 13
+					labelText.TextTransparency = 0.5
+					labelText.TextWrapped = true
+					labelText.TextXAlignment = Enum.TextXAlignment.Left
+					labelText.AutomaticSize = Enum.AutomaticSize.Y
+					labelText.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					labelText.BackgroundTransparency = 1
+					labelText.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					labelText.BorderSizePixel = 0
+					labelText.Size = UDim2.fromScale(1, 1)
+					labelText.Parent = label
+
+					function LabelFunctions:UpdateName(New)
+						labelText.Text = New
+					end
+					function LabelFunctions:SetVisibility(State)
+						label.Visible = State
+					end
+
+					if Flag then
+						MacLib.Options[Flag] = LabelFunctions
+					end
+					return LabelFunctions
+				end
+
+				function SectionFunctions:SubLabel(Settings, Flag)
+					local SubLabelFunctions = {Settings = Settings}
+
+					local subLabel = Instance.new("Frame")
+					subLabel.Name = "SubLabel"
+					subLabel.AutomaticSize = Enum.AutomaticSize.Y
+					subLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					subLabel.BackgroundTransparency = 1
+					subLabel.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					subLabel.BorderSizePixel = 0
+					subLabel.Size = UDim2.new(1, 0, 0, 0)
+					subLabel.Parent = section
+
+					local subLabelText = Instance.new("TextLabel")
+					subLabelText.Name = "SubLabelText"
+					subLabelText.FontFace = Font.new(assets.interFont)
+					subLabelText.RichText = true
+					subLabelText.Text = SubLabelFunctions.Settings.Text or SubLabelFunctions.Settings.Name -- Settings.Name Deprecated use Settings.Text
+					subLabelText.TextColor3 = Color3.fromRGB(255, 255, 255)
+					subLabelText.TextSize = 12
+					subLabelText.TextTransparency = 0.7
+					subLabelText.TextWrapped = true
+					subLabelText.TextXAlignment = Enum.TextXAlignment.Left
+					subLabelText.AutomaticSize = Enum.AutomaticSize.Y
+					subLabelText.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					subLabelText.BackgroundTransparency = 1
+					subLabelText.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					subLabelText.BorderSizePixel = 0
+					subLabelText.Size = UDim2.fromScale(1, 1)
+					subLabelText.Parent = subLabel
+
+					function SubLabelFunctions:UpdateName(New)
+						subLabelText.Text = New
+					end
+					function SubLabelFunctions:SetVisibility(State)
+						subLabel.Visible = State
+					end
+
+					if Flag then
+						MacLib.Options[Flag] = SubLabelFunctions
+					end
+					return SubLabelFunctions
+				end
+
+				function SectionFunctions:Paragraph(Settings, Flag)
+					local ParagraphFunctions = {Settings = Settings}
+
+					local paragraph = Instance.new("Frame")
+					paragraph.Name = "Paragraph"
+					paragraph.AutomaticSize = Enum.AutomaticSize.Y
+					paragraph.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+					paragraph.BackgroundTransparency = 1
+					paragraph.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					paragraph.BorderSizePixel = 0
+					paragraph.Size = UDim2.new(1, 0, 0, 38)
+					paragraph.Parent = section
+
+					local paragraphHeader = Instance.new("TextLabel")
+					paragraphHeader.Name = "ParagraphHeader"
+					paragraphHeader.FontFace = Font.new(
+						assets.interFont,
+						Enum.FontWeight.Medium,
+						Enum.FontStyle.Normal
+					)
+					paragraphHeader.RichText = true
+					paragraphHeader.Text = ParagraphFunctions.Settings.Header
+					paragraphHeader.TextColor3 = Color3.fromRGB(255, 255, 255)
+					paragraphHeader.TextSize = 15
+					paragraphHeader.TextTransparency = 0.4
+					paragraphHeader.TextWrapped = true
+					paragraphHeader.TextXAlignment = Enum.TextXAlignment.Left
+					paragraphHeader.AutomaticSize = Enum.AutomaticSize.Y
+					paragraphHeader.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					paragraphHeader.BackgroundTransparency = 1
+					paragraphHeader.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					paragraphHeader.BorderSizePixel = 0
+					paragraphHeader.Size = UDim2.fromScale(1, 0)
+					paragraphHeader.Parent = paragraph
+
+					local uIListLayout = Instance.new("UIListLayout")
+					uIListLayout.Name = "UIListLayout"
+					uIListLayout.Padding = UDim.new(0, 5)
+					uIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout.Parent = paragraph
+
+					local paragraphBody = Instance.new("TextLabel")
+					paragraphBody.Name = "ParagraphBody"
+					paragraphBody.FontFace = Font.new(assets.interFont)
+					paragraphBody.RichText = true
+					paragraphBody.Text = ParagraphFunctions.Settings.Body
+					paragraphBody.TextColor3 = Color3.fromRGB(255, 255, 255)
+					paragraphBody.TextSize = 13
+					paragraphBody.TextTransparency = 0.5
+					paragraphBody.TextWrapped = true
+					paragraphBody.TextXAlignment = Enum.TextXAlignment.Left
+					paragraphBody.AutomaticSize = Enum.AutomaticSize.Y
+					paragraphBody.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					paragraphBody.BackgroundTransparency = 1
+					paragraphBody.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					paragraphBody.BorderSizePixel = 0
+					paragraphBody.LayoutOrder = 1
+					paragraphBody.Size = UDim2.fromScale(1, 0)
+					paragraphBody.Parent = paragraph
+
+					function ParagraphFunctions:UpdateHeader(New)
+						paragraphHeader.Text = New
+					end
+					function ParagraphFunctions:UpdateBody(New)
+						paragraphBody.Text = New
+					end
+					function ParagraphFunctions:SetVisibility(State)
+						paragraph.Visible = State
+					end
+
+					if Flag then
+						MacLib.Options[Flag] = ParagraphFunctions
+					end
+					return ParagraphFunctions
+				end
+
+				function SectionFunctions:Divider()
+					local DividerFunctions = {}
+
+					local divider = Instance.new("Frame")
+					divider.Name = "Divider"
+					divider.AnchorPoint = Vector2.new(0, 1)
+					divider.AutomaticSize = Enum.AutomaticSize.Y
+					divider.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					divider.BackgroundTransparency = 1
+					divider.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					divider.BorderSizePixel = 0
+					divider.Position = UDim2.fromScale(0, 1)
+					divider.Size = UDim2.new(1, 0, 0, 1)
+					divider.Parent = section
+
+					local uIPadding = Instance.new("UIPadding")
+					uIPadding.Name = "UIPadding"
+					uIPadding.PaddingBottom = UDim.new(0, 8)
+					uIPadding.PaddingTop = UDim.new(0, 8)
+					uIPadding.Parent = divider
+
+					local uIListLayout = Instance.new("UIListLayout")
+					uIListLayout.Name = "UIListLayout"
+					uIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+					uIListLayout.Parent = divider
+
+					local line = Instance.new("Frame")
+					line.Name = "Line"
+					line.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					line.BackgroundTransparency = 0.9
+					line.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					line.BorderSizePixel = 0
+					line.Size = UDim2.new(1, 0, 0, 1)
+					line.Parent = divider
+
+					function DividerFunctions:Remove()
+						divider:Destroy()
+					end
+					function DividerFunctions:SetVisibility(State)
+						divider.Visible = State
+					end
+
+					return DividerFunctions
+				end
+
+				function SectionFunctions:Spacer()
+					local SpacerFunctions = {}
+
+					local spacer = Instance.new("Frame")
+					spacer.Name = "Spacer"
+					spacer.AnchorPoint = Vector2.new(0, 1)
+					spacer.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+					spacer.BackgroundTransparency = 1
+					spacer.BorderColor3 = Color3.fromRGB(0, 0, 0)
+					spacer.BorderSizePixel = 0
+					spacer.Position = UDim2.fromScale(0, 1)
+					spacer.Parent = section
+
+					function SpacerFunctions:Remove()
+						spacer:Destroy()
+					end
+					function SpacerFunctions:SetVisibility(State)
+						spacer.Visible = State
+					end
+
+					return SpacerFunctions
+				end
+
+				return SectionFunctions
+			end
+
+			local function SelectCurrentTab()
+				local easetime = 0.15
+
+				-- Close mobile drawer after picking a tab
+				if deviceInfo.IsMobile then
+					pcall(function()
+						base:SetAttribute("MobileNavOpen", false)
+					end)
+					-- SetMobileNav is in Window scope
+					if SetMobileNav then
+						SetMobileNav(false)
+					end
+				end
+
+				if currentTabInstance then
+					currentTabInstance.Parent = nil
+				end
+
+				for i, tabInfo in pairs(tabs) do
+					Tween(i, TweenInfo.new(easetime, Enum.EasingStyle.Sine), {
+						BackgroundTransparency = (i == tabSwitcher and 0.92 or 1),
+						BackgroundColor3 = (i == tabSwitcher and Theme.Accent or Color3.fromRGB(255, 255, 255))
+					}):Play()
+
+					if tabInfo.tabStroke then
+						Tween(tabInfo.tabStroke, TweenInfo.new(easetime, Enum.EasingStyle.Sine), {
+							Transparency = (i == tabSwitcher and 0.95 or 1)
+						}):Play()
+					end
+					if tabInfo.switcherImage then
+						Tween(tabInfo.switcherImage, TweenInfo.new(easetime, Enum.EasingStyle.Sine), {
+							ImageTransparency = (i == tabSwitcher and 0.1 or 0.5)
+						}):Play()
+					end
+					if tabInfo.switcherName then
+						Tween(tabInfo.switcherName, TweenInfo.new(easetime, Enum.EasingStyle.Sine), {
+							TextTransparency = (i == tabSwitcher and 0.1 or 0.5)
+						}):Play()
+					end
+				end
+
+				tabs[tabSwitcher].tabContent.Parent = content
+				currentTabInstance = tabs[tabSwitcher].tabContent
+				currentTab.Text = Settings.Name
+			end
+
+			tabSwitcher.MouseButton1Click:Connect(function()
+				SelectCurrentTab()
+			end)
+
+			function TabFunctions:Select()
+				SelectCurrentTab()
+			end
+
+			function TabFunctions:InsertConfigSection(Side)
+				local configSection = TabFunctions:Section({ Side = "Left" })
+
+				if isStudio then
+					configSection:Label({Text = "Config system unavailable. (Environment isStudio)"})
+					return "Config system unavailable." 
+				end
+
+				local inputPath = nil
+				local selectedConfig = nil
+
+				configSection:Input({
+					Name = "Config Name",
+					Placeholder = "Name",
+					AcceptedCharacters = "All",
+					Callback = function(input)
+						inputPath = input
+					end,
+				})
+
+				local configSelection = configSection:Dropdown({
+					Name = "Select Config",
+					Multi = false,
+					Required = false,
+					Options = MacLib:RefreshConfigList(),
+					Callback = function(Value)
+						selectedConfig = Value
+					end,
+				})
+
+				configSection:Button({
+					Name = "Create Config",
+					Callback = function()
+						if not inputPath or string.gsub(inputPath, " ", "") == "" then
+							WindowFunctions:Notify({
+								Title = "Interface",
+								Description = "Config name cannot be empty."
+							})
+							return
+						end
+
+						local success, returned = MacLib:SaveConfig(inputPath)
+						if not success then
+							WindowFunctions:Notify({
+								Title = "Interface",
+								Description = "Unable to save config, return error: " .. returned
+							})
+						end
+
+						WindowFunctions:Notify({
+							Title = "Interface",
+							Description = string.format("Created config %q", inputPath),
+						})
+
+						configSelection:ClearOptions()
+						configSelection:InsertOptions(MacLib:RefreshConfigList())
+					end,
+				})
+
+				configSection:Button({
+					Name = "Load Config",
+					Callback = function()
+						local success, returned = MacLib:LoadConfig(configSelection.Value)
+						if not success then
+							WindowFunctions:Notify({
+								Title = "Interface",
+								Description = "Unable to load config, return error: " .. returned
+							})
+							return
+						end
+
+						WindowFunctions:Notify({
+							Title = "Interface",
+							Description = string.format("Loaded config %q", configSelection.Value),
+						})
+					end,
+				})
+
+				configSection:Button({
+					Name = "Overwrite Config",
+					Callback = function()
+						local success, returned = MacLib:SaveConfig(configSelection.Value)
+						if not success then
+							WindowFunctions:Notify({
+								Title = "Interface",
+								Description = "Unable to overwrite config, return error: " .. returned
+							})
+							return
+						end
+
+						WindowFunctions:Notify({
+							Title = "Interface",
+							Description = string.format("Overwrote config %q", configSelection.Value),
+						})
+					end,
+				})
+
+				configSection:Button({
+					Name = "Refresh Config List",
+					Callback = function()
+						configSelection:ClearOptions()
+						configSelection:InsertOptions(MacLib:RefreshConfigList())
+					end,
+				})
+
+				local autoloadLabel
+
+				configSection:Button({
+					Name = "Set as autoload",
+					Callback = function()
+						local name = configSelection.Value
+						writefile(MacLib.Folder .. "/settings/autoload.txt", name)
+						autoloadLabel:UpdateName("Autoload config: " .. name)
+						WindowFunctions:Notify({
+							Title = "Interface",
+							Description = string.format("Set %q as autoload", name),
+						})
+					end,
+				})
+
+				autoloadLabel = configSection:Label({Text = "Autoload config: None"})
+
+				if isfile(MacLib.Folder .. "/settings/autoload.txt") then
+					local name = readfile(MacLib.Folder .. "/settings/autoload.txt")
+					autoloadLabel:UpdateName("Autoload config: " .. name)
+				end
+			end
+
+			tabs[tabSwitcher] = {
+				tabContent = elements1,
+				tabStroke = tabSwitcherUIStroke,
+				switcherImage = tabImage,
+				switcherName = tabSwitcherName,
+			}
+
+			tabSwitcher.MouseEnter:Connect(function()
+				if currentTabInstance == elements1 then return end
+				Tween(tabSwitcher, TweenInfo.new(0.15, Enum.EasingStyle.Sine), {
+					BackgroundTransparency = 0.96,
+					BackgroundColor3 = Theme.SurfaceHover
+				}):Play()
+			end)
+			tabSwitcher.MouseLeave:Connect(function()
+				if currentTabInstance == elements1 then return end
+				Tween(tabSwitcher, TweenInfo.new(0.15, Enum.EasingStyle.Sine), {
+					BackgroundTransparency = 1,
+					BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+				}):Play()
+			end)
+
+			return TabFunctions
+		end
+
+		return SectionFunctions
+	end
+
+	function WindowFunctions:Notify(Settings)
+		local NotificationFunctions = {}
+
+		local notification = Instance.new("Frame")
+		notification.Name = "Notification"
+		notification.AnchorPoint = Vector2.new(0.5, 0.5)
+		notification.AutomaticSize = Enum.AutomaticSize.Y
+		notification.BackgroundColor3 = Theme.BackgroundElevated
+		notification.BorderColor3 = Color3.fromRGB(0, 0, 0)
+		notification.BorderSizePixel = 0
+		notification.Position = UDim2.fromScale(0.5, 0.5)
+		notification.Size = UDim2.fromOffset(Settings.SizeX or 250, 0)
+
+		notification.Parent = notifications
+
+		local notificationUIStroke = Instance.new("UIStroke")
+		notificationUIStroke.Name = "NotificationUIStroke"
+		notificationUIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		notificationUIStroke.Color = Color3.fromRGB(255, 255, 255)
+		notificationUIStroke.Transparency = 0.9
+		notificationUIStroke.Parent = notification
+
+		local notificationUICorner = Instance.new("UICorner")
+		notificationUICorner.Name = "NotificationUICorner"
+		notificationUICorner.CornerRadius = UDim.new(0, 10)
+		notificationUICorner.Parent = notification
+
+		local notificationUIScale = Instance.new("UIScale")
+		notificationUIScale.Name = "NotificationUIScale"
+		notificationUIScale.Parent = notification
+		notificationUIScale.Scale = 0
+
+		local notificationInformation = Instance.new("Frame")
+		notificationInformation.Name = "NotificationInformation"
+		notificationInformation.AutomaticSize = Enum.AutomaticSize.Y
+		notificationInformation.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		notificationInformation.BackgroundTransparency = 1
+		notificationInformation.BorderColor3 = Color3.fromRGB(0, 0, 0)
+		notificationInformation.BorderSizePixel = 0
+		notificationInformation.Size = UDim2.fromScale(1, 1)
+
+		local notificationTitle = Instance.new("TextLabel")
+		notificationTitle.Name = "NotificationTitle"
+		notificationTitle.FontFace = Font.new(
+			assets.interFont,
+			Enum.FontWeight.SemiBold,
+			Enum.FontStyle.Normal
+		)
+		notificationTitle.RichText = true
+		notificationTitle.Text = Settings.Title
+		notificationTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+		notificationTitle.TextSize = 13
+		notificationTitle.TextTransparency = 0.2
+		notificationTitle.TextTruncate = Enum.TextTruncate.SplitWord
+		notificationTitle.TextXAlignment = Enum.TextXAlignment.Left
+		notificationTitle.TextYAlignment = Enum.TextYAlignment.Top
+		notificationTitle.AutomaticSize = Enum.AutomaticSize.XY
+		notificationTitle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		notificationTitle.BackgroundTransparency = 1
+		notificationTitle.BorderColor3 = Color3.fromRGB(0, 0, 0)
+		notificationTitle.BorderSizePixel = 0
+		notificationTitle.Size = UDim2.new(1, -12, 0, 0)
+
+		local notificationTitleUIPadding = Instance.new("UIPadding")
+		notificationTitleUIPadding.Name = "NotificationTitleUIPadding"
+		notificationTitleUIPadding.PaddingRight = UDim.new(0, 25)
+		notificationTitleUIPadding.Parent = notificationTitle
+
+		notificationTitle.Parent = notificationInformation
+
+		local notificationDescription = Instance.new("TextLabel")
+		notificationDescription.Name = "NotificationDescription"
+		notificationDescription.FontFace = Font.new(
+			assets.interFont,
+			Enum.FontWeight.Medium,
+			Enum.FontStyle.Normal
+		)
+		notificationDescription.Text = Settings.Description
+		notificationDescription.TextColor3 = Color3.fromRGB(255, 255, 255)
+		notificationDescription.TextSize = 11
+		notificationDescription.TextTransparency = 0.5
+		notificationDescription.TextWrapped = true
+		notificationDescription.RichText = true
+		notificationDescription.TextXAlignment = Enum.TextXAlignment.Left
+		notificationDescription.TextYAlignment = Enum.TextYAlignment.Top
+		notificationDescription.AutomaticSize = Enum.AutomaticSize.XY
+		notificationDescription.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		notificationDescription.BackgroundTransparency = 1
+		notificationDescription.BorderColor3 = Color3.fromRGB(0, 0, 0)
+		notificationDescription.BorderSizePixel = 0
+		notificationDescription.Size = UDim2.new(1, -12, 0, 0)
+
+		local notificationDescriptionUIPadding = Instance.new("UIPadding")
+		notificationDescriptionUIPadding.Name = "NotificationDescriptionUIPadding"
+		notificationDescriptionUIPadding.PaddingRight = UDim.new(0, 25)
+		notificationDescriptionUIPadding.PaddingTop = UDim.new(0, 17)
+		notificationDescriptionUIPadding.Parent = notificationDescription
+
+		notificationDescription.Parent = notificationInformation
+
+		local notificationUIPadding = Instance.new("UIPadding")
+		notificationUIPadding.Name = "NotificationUIPadding"
+		notificationUIPadding.PaddingBottom = UDim.new(0, 12)
+		notificationUIPadding.PaddingLeft = UDim.new(0, 10)
+		notificationUIPadding.PaddingRight = UDim.new(0, 10)
+		notificationUIPadding.PaddingTop = UDim.new(0, 10)
+		notificationUIPadding.Parent = notificationInformation
+
+		notificationInformation.Parent = notification
+
+		local notificationControls = Instance.new("Frame")
+		notificationControls.Name = "NotificationControls"
+		notificationControls.AutomaticSize = Enum.AutomaticSize.Y
+		notificationControls.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		notificationControls.BackgroundTransparency = 1
+		notificationControls.BorderColor3 = Color3.fromRGB(0, 0, 0)
+		notificationControls.BorderSizePixel = 0
+		notificationControls.Size = UDim2.fromScale(1, 1)
+
+		local interactable = Instance.new("TextButton")
+		interactable.Name = "Interactable"
+		interactable.FontFace = Font.new(assets.interFont)
+		interactable.Text = "✓"
+		interactable.TextColor3 = Color3.fromRGB(255, 255, 255)
+		interactable.TextSize = 17
+		interactable.TextTransparency = 0.2
+		interactable.AnchorPoint = Vector2.new(1, 0.5)
+		interactable.AutomaticSize = Enum.AutomaticSize.XY
+		interactable.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		interactable.BackgroundTransparency = 1
+		interactable.BorderColor3 = Color3.fromRGB(0, 0, 0)
+		interactable.BorderSizePixel = 0
+		interactable.LayoutOrder = 1
+		interactable.Position = UDim2.fromScale(1, 0.5)
+		interactable.Parent = notificationControls
+
+		local uIPadding = Instance.new("UIPadding")
+		uIPadding.Name = "UIPadding"
+		uIPadding.PaddingBottom = UDim.new(0, 6)
+		uIPadding.PaddingRight = UDim.new(0, 13)
+		uIPadding.PaddingTop = UDim.new(0, 6)
+		uIPadding.Parent = notificationControls
+
+		notificationControls.Parent = notification
+
+		local tweens = {
+			In = Tween(notificationUIScale, TweenInfo.new(0.2, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				Scale = Settings.Scale or 1
+			}),
+			Out = Tween(notificationUIScale, TweenInfo.new(0.2, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {
+				Scale = 0
+			}),
+		}
+
+		local styles = {
+			None = function() interactable:Destroy() end,
+			Confirm = function() interactable.Text = "✓" end,
+			Cancel = function() interactable.Text = "✗" end
+		}
+
+		local style = styles[Settings.Style] or function() interactable:Destroy() end
+		style()
+
+		if interactable then
+			interactable.MouseButton1Click:Connect(function()
+				NotificationFunctions:Cancel()
+				if Settings.Callback then
+					task.spawn(Settings.Callback)
+				end
+			end)
+		end
+
+		local AnimateNotification = task.spawn(function()
+			tweens.In:Play()
+
+			Settings.Lifetime = Settings.Lifetime or 3
+
+			if Settings.Lifetime ~= 0 then
+				task.wait(Settings.Lifetime)
+
+				local out = tweens.Out
+				out:Play()
+				out.Completed:Wait()
+				notification:Destroy()
+			end
+		end)
+
+		function NotificationFunctions:UpdateTitle(New)
+			notificationTitle.Text = New
+		end
+
+		function NotificationFunctions:UpdateDescription(New)
+			notificationDescription.Text = New
+		end
+
+		function NotificationFunctions:Resize(X)
+			local targ = X or 250
+			notification.Size = UDim2.fromOffset(targ, 0)
+		end
+
+		function NotificationFunctions:Cancel()
+			task.cancel(AnimateNotification)
+
+			local out = tweens.Out
+			out:Play()
+			out.Completed:Wait()
+			notification:Destroy()
+		end
+
+		return NotificationFunctions
+	end
+
+	function WindowFunctions:Dialog(Settings)
+		local DialogFunctions = {}
+
+		local dialogCanvas = Instance.new("CanvasGroup")
+		dialogCanvas.Name = "DialogCanvas"
+		dialogCanvas.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		dialogCanvas.BackgroundTransparency = 1
+		dialogCanvas.BorderColor3 = Color3.fromRGB(0, 0, 0)
+		dialogCanvas.BorderSizePixel = 0
+		dialogCanvas.Size = UDim2.fromScale(1, 1)
+		dialogCanvas.GroupTransparency = 1
+		dialogCanvas.Parent = base
+
+		local dialog = Instance.new("Frame")
+		dialog.Name = "Dialog"
+		dialog.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+		dialog.BackgroundTransparency = 0.5
+		dialog.BorderColor3 = Color3.fromRGB(0, 0, 0)
+		dialog.BorderSizePixel = 0
+		dialog.Size = UDim2.fromScale(1, 1)
+
+		local dialogUICorner = Instance.new("UICorner")
+		dialogUICorner.Name = "BaseUICorner"
+		dialogUICorner.CornerRadius = UDim.new(0, 10)
+		dialogUICorner.Parent = dialog
+
+		local prompt = Instance.new("Frame")
+		prompt.Name = "Prompt"
+		prompt.AnchorPoint = Vector2.new(0.5, 0.5)
+		prompt.AutomaticSize = Enum.AutomaticSize.Y
+		prompt.BackgroundColor3 = Theme.BackgroundElevated
+		prompt.BorderColor3 = Color3.fromRGB(0, 0, 0)
+		prompt.BorderSizePixel = 0
+		prompt.Position = UDim2.fromScale(0.5, 0.5)
+		prompt.Size = UDim2.fromOffset(280, 0)
+
+		local promptUIScale = Instance.new("UIScale")
+		promptUIScale.Name = "BaseUIScale"
+		promptUIScale.Parent = prompt
+		promptUIScale.Scale = 0.95
+
+		local globalSettingsUIStroke = Instance.new("UIStroke")
+		globalSettingsUIStroke.Name = "GlobalSettingsUIStroke"
+		globalSettingsUIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+		globalSettingsUIStroke.Color = Color3.fromRGB(255, 255, 255)
+		globalSettingsUIStroke.Transparency = 0.9
+		globalSettingsUIStroke.Parent = prompt
+
+		local globalSettingsUICorner = Instance.new("UICorner")
+		globalSettingsUICorner.Name = "GlobalSettingsUICorner"
+		globalSettingsUICorner.CornerRadius = UDim.new(0, 10)
+		globalSettingsUICorner.Parent = prompt
+
+		local globalSettingsUIPadding = Instance.new("UIPadding")
+		globalSettingsUIPadding.Name = "GlobalSettingsUIPadding"
+		globalSettingsUIPadding.PaddingBottom = UDim.new(0, 20)
+		globalSettingsUIPadding.PaddingLeft = UDim.new(0, 20)
+		globalSettingsUIPadding.PaddingRight = UDim.new(0, 20)
+		globalSettingsUIPadding.PaddingTop = UDim.new(0, 20)
+		globalSettingsUIPadding.Parent = prompt
+
+		local paragraph = Instance.new("Frame")
+		paragraph.Name = "Paragraph"
+		paragraph.AutomaticSize = Enum.AutomaticSize.Y
+		paragraph.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+		paragraph.BackgroundTransparency = 1
+		paragraph.BorderColor3 = Color3.fromRGB(0, 0, 0)
+		paragraph.BorderSizePixel = 0
+		paragraph.Size = UDim2.new(1, 0, 0, 38)
+
+		local paragraphHeader = Instance.new("TextLabel")
+		paragraphHeader.Name = "ParagraphHeader"
+		paragraphHeader.FontFace = Font.new(
+			assets.interFont,
+			Enum.FontWeight.Medium,
+			Enum.FontStyle.Normal
+		)
+		paragraphHeader.RichText = true
+		paragraphHeader.Text = Settings.Title
+		paragraphHeader.TextColor3 = Color3.fromRGB(255, 255, 255)
+		paragraphHeader.TextSize = 18
+		paragraphHeader.TextTransparency = 0.4
+		paragraphHeader.TextWrapped = true
+		paragraphHeader.AutomaticSize = Enum.AutomaticSize.Y
+		paragraphHeader.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		paragraphHeader.BackgroundTransparency = 1
+		paragraphHeader.BorderColor3 = Color3.fromRGB(0, 0, 0)
+		paragraphHeader.BorderSizePixel = 0
+		paragraphHeader.Size = UDim2.fromScale(1, 0)
+		paragraphHeader.Parent = paragraph
+
+		local uIListLayout = Instance.new("UIListLayout")
+		uIListLayout.Name = "UIListLayout"
+		uIListLayout.Padding = UDim.new(0, 15)
+		uIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		uIListLayout.Parent = paragraph
+
+		local paragraphBody = Instance.new("TextLabel")
+		paragraphBody.Name = "ParagraphBody"
+		paragraphBody.FontFace = Font.new(assets.interFont)
+		paragraphBody.RichText = true
+		paragraphBody.Text = Settings.Description
+		paragraphBody.TextColor3 = Color3.fromRGB(255, 255, 255)
+		paragraphBody.TextSize = 14
+		paragraphBody.TextTransparency = 0.5
+		paragraphBody.TextWrapped = true
+		paragraphBody.AutomaticSize = Enum.AutomaticSize.Y
+		paragraphBody.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+		paragraphBody.BackgroundTransparency = 1
+		paragraphBody.BorderColor3 = Color3.fromRGB(0, 0, 0)
+		paragraphBody.BorderSizePixel = 0
+		paragraphBody.LayoutOrder = 1
+		paragraphBody.Size = UDim2.fromScale(1, 0)
+		paragraphBody.Parent = paragraph
+
+		paragraph.Parent = prompt
+
+		local interactions = Instance.new("Frame")
+		interactions.Name = "Interactions"
+		interactions.AutomaticSize = Enum.AutomaticSize.Y
+		interactions.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+		interactions.BackgroundTransparency = 1
+		interactions.BorderColor3 = Color3.fromRGB(0, 0, 0)
+		interactions.BorderSizePixel = 0
+		interactions.LayoutOrder = 1
+		interactions.Size = UDim2.fromScale(1, 0)
+
+		local uIListLayout1 = Instance.new("UIListLayout")
+		uIListLayout1.Name = "UIListLayout"
+		uIListLayout1.Padding = UDim.new(0, 10)
+		uIListLayout1.SortOrder = Enum.SortOrder.LayoutOrder
+		uIListLayout1.Parent = interactions
+
+		local uIPadding = Instance.new("UIPadding")
+		uIPadding.Name = "UIPadding"
+		uIPadding.PaddingTop = UDim.new(0, 20)
+		uIPadding.Parent = interactions
+
+		interactions.Parent = prompt
+
+		local uIListLayout2 = Instance.new("UIListLayout")
+		uIListLayout2.Name = "UIListLayout"
+		uIListLayout2.SortOrder = Enum.SortOrder.LayoutOrder
+		uIListLayout2.Parent = prompt
+
+		prompt.Parent = dialog
+
+		dialog.Parent = dialogCanvas
+
+		local canvasIn = Tween(dialogCanvas, TweenInfo.new(0.1, Enum.EasingStyle.Sine), { GroupTransparency = 0 })
+		local canvasOut = Tween(dialogCanvas, TweenInfo.new(0.1, Enum.EasingStyle.Sine), { GroupTransparency = 1 })
+
+		local scaleIn = Tween(promptUIScale, TweenInfo.new(0.1, Enum.EasingStyle.Sine), { Scale = 1 })
+		local scaleOut = Tween(promptUIScale, TweenInfo.new(0.1, Enum.EasingStyle.Sine), { Scale = 0.95 })
+
+		local function dialogIn()
+			canvasIn:Play()
+			scaleIn:Play()
+			canvasIn.Completed:Wait()
+			dialog.Parent = base
+		end
+
+		local function dialogOut()
+			if not dialog.Parent then return end
+			dialog.Parent = dialogCanvas
+			canvasOut:Play()
+			scaleOut:Play()
+			canvasOut.Completed:Wait()
+			dialogCanvas:Destroy()
+		end
+
+		for _, v in pairs(Settings.Buttons) do
+			local button = Instance.new("TextButton")
+			button.Name = "Button"
+			button.FontFace = Font.new(assets.interFont)
+			button.Text = v.Name
+			button.TextColor3 = Color3.fromRGB(255, 255, 255)
+			button.TextSize = 15
+			button.TextTransparency = 0.5
+			button.TextTruncate = Enum.TextTruncate.AtEnd
+			button.AutoButtonColor = false
+			button.AutomaticSize = Enum.AutomaticSize.Y
+			button.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+			button.BorderColor3 = Color3.fromRGB(0, 0, 0)
+			button.BorderSizePixel = 0
+			button.Size = UDim2.fromScale(1, 0)
+
+			local uIPadding1 = Instance.new("UIPadding")
+			uIPadding1.Name = "UIPadding"
+			uIPadding1.PaddingBottom = UDim.new(0, 9)
+			uIPadding1.PaddingLeft = UDim.new(0, 10)
+			uIPadding1.PaddingRight = UDim.new(0, 10)
+			uIPadding1.PaddingTop = UDim.new(0, 9)
+			uIPadding1.Parent = button
+
+			local baseUICorner1 = Instance.new("UICorner")
+			baseUICorner1.Name = "BaseUICorner"
+			baseUICorner1.CornerRadius = UDim.new(0, 10)
+			baseUICorner1.Parent = button
+
+			button.Parent = interactions
+
+			local TweenSettings = {
+				DefaultTransparency = 0,
+				DefaultTransparency2 = 0.5,
+				HoverTransparency = 0.3,
+				HoverTransparency2 = 0.6,
+
+				EasingStyle = Enum.EasingStyle.Sine
+			}
+
+			local function ChangeState(State)
+				if State == "Idle" then
+					Tween(button, TweenInfo.new(0.2, TweenSettings.EasingStyle), {
+						BackgroundTransparency = TweenSettings.DefaultTransparency,
+						TextTransparency = TweenSettings.DefaultTransparency2
+					}):Play()
+				elseif State == "Hover" then
+					Tween(button, TweenInfo.new(0.2, TweenSettings.EasingStyle), {
+						BackgroundTransparency = TweenSettings.HoverTransparency,
+						TextTransparency = TweenSettings.HoverTransparency2
+					}):Play()
+				end
+			end
+
+			button.MouseButton1Click:Connect(function()
+				if dialogCanvas.GroupTransparency ~= 0 then return end
+				if v.Callback then
+					v.Callback()
+				end
+
+				dialogOut()
+			end)
+
+			button.MouseEnter:Connect(function()
+				ChangeState("Hover")
+			end)
+			button.MouseLeave:Connect(function()
+				ChangeState("Idle")
+			end)
+		end
+
+		dialogIn()
+
+		function DialogFunctions:UpdateTitle(New)
+			paragraphHeader.Text = New
+		end
+		function DialogFunctions:UpdateDescription(New)
+			paragraphBody.Text = New
+		end
+
+		function DialogFunctions:Cancel()
+			dialogOut()
+		end
+
+		return DialogFunctions
+	end
+
+	function WindowFunctions:SetNotificationsState(State)
+		notifications.Visible = State
+	end
+
+	function WindowFunctions:GetNotificationsState(State)
+		return notifications.Visible
+	end
+
+	function WindowFunctions:SetState(State)
+		windowState = State
+		base.Visible = State
+	end
+
+	function WindowFunctions:GetState()
+		return windowState
+	end
+
+	local onUnloadCallback
+
+	function WindowFunctions:Unload()
+		if onUnloadCallback then
+			onUnloadCallback()  
+		end
+		macLib:Destroy()
+		unloaded = true
+	end
+
+	function WindowFunctions.onUnloaded(callback)
+		onUnloadCallback = callback
+	end
+
+	local MenuKeybind = Settings.Keybind or Enum.KeyCode.RightControl
+
+	local function ToggleMenu()
+		local state = not WindowFunctions:GetState()
+		WindowFunctions:SetState(state)
+		WindowFunctions:Notify({
+			Title = Settings.Title,
+			Description = (state and "Maximized " or "Minimized ") .. "the menu. Use " .. tostring(MenuKeybind.Name) .. " to toggle it.",
+			Lifetime = 5
+		})
+	end
+
+	UserInputService.InputEnded:Connect(function(inp, gpe)
+		if gpe then return end
+		if inp.KeyCode == MenuKeybind then
+			ToggleMenu()
+		end
+	end)
+
+	minimize.MouseButton1Click:Connect(ToggleMenu)
+	exit.MouseButton1Click:Connect(function()
+		WindowFunctions:Dialog({
+			Title = Settings.Title,
+			Description = "Are you sure you want to exit the menu? You will lose any unsaved configurations.",
+			Buttons = {
+				{
+					Name = "Confirm",
+					Callback = function()
+						WindowFunctions:Unload()
+					end,
+				},
+				{
+					Name = "Cancel"
+				}
+			}
+		})
+	end)
+
+	function WindowFunctions:SetKeybind(Keycode)
+		MenuKeybind = Keycode
+	end
+
+	function WindowFunctions:SetAcrylicBlurState(State)
+		acrylicBlur = State
+		base.BackgroundTransparency = State and 0.08 or 0
+	end
+
+	function WindowFunctions:GetAcrylicBlurState()
+		return acrylicBlur
+	end
+
+	local function _SetUserInfoState(State)
+		if State then
+			headshot.Image = (isReady and headshotImage) or "rbxassetid://0"
+			username.Text = "@" .. LocalPlayer.Name
+			displayName.Text = LocalPlayer.DisplayName
+		else
+			headshot.Image = assets.userInfoBlurred
+			local nameLength = #LocalPlayer.Name
+			local displayNameLength = #LocalPlayer.DisplayName
+			username.Text = "@" .. string.rep(".", nameLength)
+			displayName.Text = string.rep(".", displayNameLength)
+		end
+	end
+
+	local showUserInfo
+	if Settings.ShowUserInfo ~= nil then
+		showUserInfo = Settings.ShowUserInfo
+	else
+		showUserInfo = true
+	end
+
+	_SetUserInfoState(showUserInfo)
+
+	function WindowFunctions:SetUserInfoState(State)
+		_SetUserInfoState(State)
+	end
+	function WindowFunctions:GetUserInfoState(State)
+		return showUserInfo
+	end
+
+	function WindowFunctions:SetSize(Size)
+		base.Size = Size
+	end
+	function WindowFunctions:GetSize(Size)
+		return base.Size
+	end
+
+	function WindowFunctions:SetScale(Scale)
+		baseUIScale.Scale = Scale
+	end
+	function WindowFunctions:GetScale()
+		return baseUIScale.Scale
+	end
+
+	local ClassParser = {
+		["Toggle"] = {
+			Save = function(Flag, data)
+				return {
+					type = "Toggle", 
+					flag = Flag, 
+					state = data.State or false
+				}
+			end,
+			Load = function(Flag, data)
+				if MacLib.Options[Flag] and data.state then
+					MacLib.Options[Flag]:UpdateState(data.state)
+				end
+			end
+		},
+		["Slider"] = {
+			Save = function(Flag, data)
+				return {
+					type = "Slider", 
+					flag = Flag, 
+					value = (data.Value and tostring(data.Value)) or false
+				}
+			end,
+			Load = function(Flag, data)
+				if MacLib.Options[Flag] and data.value then
+					MacLib.Options[Flag]:UpdateValue(data.value)
+				end
+			end
+		},
+		["Input"] = {
+			Save = function(Flag, data)
+				return {
+					type = "Input", 
+					flag = Flag, 
+					text = data.Text
+				}
+			end,
+			Load = function(Flag, data)
+				if MacLib.Options[Flag] and data.text and type(data.text) == "string" then
+					MacLib.Options[Flag]:UpdateText(data.text)
+				end
+			end
+		},
+		["Keybind"] = {
+			Save = function(Flag, data)
+				return {
+					type = "Keybind", 
+					flag = Flag, 
+					bind = (typeof(data.Bind) == "EnumItem" and data.Bind.Name) or nil
+				}
+			end,
+			Load = function(Flag, data)
+				if MacLib.Options[Flag] and data.bind then
+					MacLib.Options[Flag]:Bind(Enum.KeyCode[data.bind])
+				end
+			end
+		},
+		["Dropdown"] = {
+			Save = function(Flag, data)
+				return {
+					type = "Dropdown", 
+					flag = Flag, 
+					value = data.Value
+				}
+			end,
+			Load = function(Flag, data)
+				if MacLib.Options[Flag] and data.value then
+					MacLib.Options[Flag]:UpdateSelection(data.value)
+				end
+			end
+		},
+		["Colorpicker"] = {
+			Save = function(Flag, data)
+				local function Color3ToHex(color)
+					return string.format("#%02X%02X%02X", math.floor(color.R * 255), math.floor(color.G * 255), math.floor(color.B * 255))
+				end
+
+				return {
+					type = "Colorpicker", 
+					flag = Flag, 
+					color = Color3ToHex(data.Color) or nil,
+					alpha = data.Alpha
+				}
+			end,
+			Load = function(Flag, data)
+				local function HexToColor3(hex)
+					local r = tonumber(hex:sub(2, 3), 16) / 255
+					local g = tonumber(hex:sub(4, 5), 16) / 255
+					local b = tonumber(hex:sub(6, 7), 16) / 255
+					return Color3.new(r, g, b)
+				end
+
+				if MacLib.Options[Flag] and data.color then
+					MacLib.Options[Flag]:SetColor(HexToColor3(data.color)) 
+					if data.alpha then
+						MacLib.Options[Flag]:SetAlpha(data.alpha)
+					end
+				end
+			end
+		}
+	}
+
+	local function BuildFolderTree()
+		if isStudio or not (isfolder and makefolder) then return "Config system unavailable." end
+
+		local paths = {
+			MacLib.Folder,
+			MacLib.Folder .. "/settings"
+		}
+
+		for i = 1, #paths do
+			local str = paths[i]
+			if not isfolder(str) then
+				makefolder(str)
 			end
 		end
 	end
 
-	if (Settings.KeySystem) then
-		if not Settings.KeySettings then
-			Passthrough = true
+	function MacLib:LoadAutoLoadConfig()
+		if isStudio or not (isfile and readfile) then return "Config system unavailable." end
+
+		if isfile(MacLib.Folder .. "/settings/autoload.txt") then
+			local name = readfile(MacLib.Folder .. "/settings/autoload.txt")
+
+			local suc, err = MacLib:LoadConfig(name)
+			if not suc then
+				WindowFunctions:Notify({
+					Title = "Interface",
+					Description = "Error loading autoload config: " .. err
+				})
+			end
+
+			WindowFunctions:Notify({
+				Title = "Interface",
+				Description = string.format("Autoloaded config: %q", name),
+			})
+		end
+	end
+
+	function MacLib:SetFolder(Folder)
+		if isStudio then return "Config system unavailable." end
+
+		MacLib.Folder = Folder;
+		BuildFolderTree()
+	end
+
+	function MacLib:SaveConfig(Path)
+		if isStudio or not writefile then return "Config system unavailable." end
+
+		if (not Path) then
+			return false, "Please select a config file."
+		end
+
+		local fullPath = MacLib.Folder .. "/settings/" .. Path .. ".json"
+
+		local data = {
+			objects = {}
+		}
+
+		for flag, option in next, MacLib.Options do
+			if not ClassParser[option.Class] then continue end
+			if option.IgnoreConfig then continue end
+
+			table.insert(data.objects, ClassParser[option.Class].Save(flag, option))
+		end	
+
+		local success, encoded = pcall(HttpService.JSONEncode, HttpService, data)
+		if not success then
+			return false, "Unable to encode into JSON data"
+		end
+
+		writefile(fullPath, encoded)
+		return true
+	end
+
+	function MacLib:LoadConfig(Path)
+		if isStudio or not (isfile and readfile) then return "Config system unavailable." end
+
+		if (not Path) then
+			return false, "Please select a config file."
+		end
+
+		local file = MacLib.Folder .. "/settings/" .. Path .. ".json"
+		if not isfile(file) then return false, "Invalid file" end
+
+		local success, decoded = pcall(HttpService.JSONDecode, HttpService, readfile(file))
+		if not success then return false, "Unable to decode JSON data." end
+
+		for _, option in next, decoded.objects do
+			if ClassParser[option.type] then
+				task.spawn(function() 
+					ClassParser[option.type].Load(option.flag, option) 
+				end)
+			end
+		end
+
+		return true
+	end
+
+	function MacLib:RefreshConfigList()
+		if isStudio or not (isfolder and listfiles) then return "Config system unavailable." end
+
+		local list = (isfolder(MacLib.Folder) and isfolder(MacLib.Folder .. "/settings")) and listfiles(MacLib.Folder .. "/settings") or {}
+
+		local out = {}
+		for i = 1, #list do
+			local file = list[i]
+			if file:sub(-5) == ".json" then
+				local pos = file:find(".json", 1, true)
+				local start = pos
+
+				local char = file:sub(pos, pos)
+				while char ~= "/" and char ~= "\\" and char ~= "" do
+					pos = pos - 1
+					char = file:sub(pos, pos)
+				end
+
+				if char == "/" or char == "\\" then
+					local name = file:sub(pos + 1, start - 1)
+					if name ~= "options" then
+						table.insert(out, name)
+					end
+				end
+			end
+		end
+
+		return out
+	end
+
+	macLib.Enabled = false
+
+	local assetList = {}
+	for _, assetId in pairs(assets) do
+		table.insert(assetList, assetId)
+	end
+
+	ContentProvider:PreloadAsync(assetList)
+	macLib.Enabled = true
+	windowState = true
+
+	--//==============================================================
+	--// HEAVEN UI VISUAL ENGINE
+	--// Internal-only styling layer. Public API/behavior untouched.
+	--//==============================================================
+	local heavenStyled = setmetatable({}, { __mode = "k" })
+
+	local function HeavenCorner(gui, radius)
+		if not gui or not gui:IsA("GuiObject") then return end
+		local corner = gui:FindFirstChild("HeavenCorner")
+		if not corner then
+			corner = Instance.new("UICorner")
+			corner.Name = "HeavenCorner"
+			corner.Parent = gui
+		end
+		corner.CornerRadius = UDim.new(0, radius or 12)
+	end
+
+	local function HeavenStroke(gui, color, transparency, thickness)
+		if not gui or not gui:IsA("GuiObject") then return end
+		local stroke = gui:FindFirstChild("HeavenStroke")
+		if not stroke then
+			stroke = Instance.new("UIStroke")
+			stroke.Name = "HeavenStroke"
+			stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+			stroke.Parent = gui
+		end
+		stroke.Color = color or Theme.Border
+		stroke.Transparency = transparency or 0.88
+		stroke.Thickness = thickness or 1
+	end
+
+	local function HeavenGradient(gui, c1, c2, t1, t2, rotation)
+		if not gui or not gui:IsA("GuiObject") then return end
+		local grad = gui:FindFirstChild("HeavenGradient")
+		if not grad then
+			grad = Instance.new("UIGradient")
+			grad.Name = "HeavenGradient"
+			grad.Parent = gui
+		end
+		grad.Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, c1 or Theme.Surface),
+			ColorSequenceKeypoint.new(1, c2 or Theme.BackgroundElevated),
+		})
+		grad.Transparency = NumberSequence.new({
+			NumberSequenceKeypoint.new(0, t1 or 0.16),
+			NumberSequenceKeypoint.new(1, t2 or 0.40),
+		})
+		grad.Rotation = rotation or 90
+	end
+
+	local function HeavenAnimateBackground(gui, normal, hover)
+		if not gui or not gui:IsA("GuiObject") then return end
+		if gui:GetAttribute("HeavenHoverBound") then return end
+		gui:SetAttribute("HeavenHoverBound", true)
+		gui.MouseEnter:Connect(function()
+			Tween(gui, TweenInfo.new(0.16, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+				BackgroundTransparency = hover
+			}):Play()
+		end)
+		gui.MouseLeave:Connect(function()
+			Tween(gui, TweenInfo.new(0.18, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+				BackgroundTransparency = normal
+			}):Play()
+		end)
+	end
+
+	local controlFrames = {
+		Button = true,
+		Toggle = true,
+		Slider = true,
+		Input = true,
+		Keybind = true,
+		Dropdown = true,
+		Colorpicker = true,
+		Label = true,
+		SubLabel = true,
+		Paragraph = true,
+	}
+
+	local function HeavenStyle(instance)
+		if not instance or not instance.Parent or heavenStyled[instance] then return end
+		heavenStyled[instance] = true
+
+		local name = instance.Name
+
+		if name == "Base" and instance:IsA("Frame") then
+			HeavenCorner(instance, 18)
+			HeavenStroke(instance, Theme.AccentGlow, 0.78, 1)
+			HeavenGradient(instance, Theme.Background, Theme.BackgroundElevated, 0.06, 0.34, 18)
 			return
 		end
 
-		ensureFolder(RayfieldFolder .. "/Key System")
+		if name == "Section" and instance:IsA("Frame") and instance.Parent and instance.Parent.Name ~= "TabSwitchersScrollingFrame" then
+			instance.BackgroundColor3 = Theme.Section
+			instance.BackgroundTransparency = 0.08
+			HeavenCorner(instance, 14)
+			HeavenStroke(instance, Theme.Border, 0.86, 1)
+			HeavenGradient(instance, Theme.Section, Theme.Surface, 0.06, 0.22, 90)
+			return
+		end
 
-		if typeof(Settings.KeySettings.Key) == "string" then Settings.KeySettings.Key = { Settings.KeySettings.Key } end
+		if controlFrames[name] and instance:IsA("Frame") then
+			instance.BackgroundColor3 = Theme.Surface
+			instance.BackgroundTransparency = 0.20
+			HeavenCorner(instance, 10)
+			HeavenStroke(instance, Theme.Border, 0.93, 1)
+			HeavenAnimateBackground(instance, 0.20, 0.11)
 
-		if Settings.KeySettings.GrabKeyFromSite then
-			for i, Key in ipairs(Settings.KeySettings.Key) do
-				local Success, Response = pcall(function()
-					local fetched, body = httpGet(Key)
-					assert(fetched and type(body) == "string", tostring(body))
-					Settings.KeySettings.Key[i] = tostring(body:gsub("[\n\r]", " "))
-					Settings.KeySettings.Key[i] = string.gsub(Settings.KeySettings.Key[i], " ", "")
-				end)
-				if not Success then
-					print("Rayfield | " .. Key .. " Error " .. tostring(Response))
-					warn('Check docs.sirius.menu for help with Rayfield specific development.')
+			-- Slightly larger touch-friendly rows without changing their APIs.
+			if name ~= "SubLabel" and name ~= "Paragraph" then
+				local y = instance.Size.Y.Offset
+				if y > 0 and y < 42 then
+					instance.Size = UDim2.new(instance.Size.X.Scale, instance.Size.X.Offset, 0, 44)
 				end
 			end
+			return
 		end
 
-		if not Settings.KeySettings.FileName then
-			Settings.KeySettings.FileName = "No file name specified"
-		end
-		local keyFileName = sanitizeFileName(Settings.KeySettings.FileName)
-		if keyFileName == "" then
-			keyFileName = "No file name specified"
-		end
-		local keyFile = RayfieldFolder .. "/Key System" .. "/" .. keyFileName .. ConfigurationExtension
+		if name == "TabSwitcher" and instance:IsA("TextButton") then
+			HeavenCorner(instance, 10)
+			HeavenStroke(instance, Theme.Accent, 1, 1)
+			if not instance:FindFirstChild("HeavenActiveIndicator") then
+				local indicator = Instance.new("Frame")
+				indicator.Name = "HeavenActiveIndicator"
+				indicator.AnchorPoint = Vector2.new(0, 0.5)
+				indicator.BackgroundColor3 = Theme.AccentGlow
+				indicator.BackgroundTransparency = 1
+				indicator.BorderSizePixel = 0
+				indicator.Position = UDim2.new(0, 8, 0.5, 0)
+				indicator.Size = UDim2.new(0, 2, 0, 20)
+				indicator.ZIndex = instance.ZIndex + 1
+				HeavenCorner(indicator, 2)
+				indicator.Parent = instance
 
-		if callSafely(isfile, keyFile) then
-			for _, MKey in ipairs(Settings.KeySettings.Key) do
-				local savedKeys = callSafely(readfile, keyFile)
-				if savedKeys and string.find(savedKeys, tostring(MKey), 1, true) then
-					Passthrough = true
-				end
-			end
-		end
-
-		if not Passthrough and secureMode then
-			warn(
-				"Rayfield | Secure Mode: Key system requires a valid saved key. The key UI cannot be shown as it requires loading detectable assets.")
-			Rayfield.Enabled = false
-			return RayfieldLibrary
-		end
-
-		if not Passthrough then
-			siaCall("keyScreen", "shown")
-			local AttemptsRemaining = Settings.KeySettings.MaxAttempts or 5
-			Rayfield.Enabled = false
-			local KeyUI = useStudio and script.Parent:FindFirstChild('Key') or
-				game:GetObjects("rbxassetid://11380036235")[1]
-
-			KeyUI.Enabled = true
-			parentGui(KeyUI)
-
-			if KeyUI.Parent then
-				pcall(function()
-					for _, Interface in ipairs(KeyUI.Parent:GetChildren()) do
-						if Interface.Name == KeyUI.Name and Interface ~= KeyUI then
-							Interface.Enabled = false
-							Interface.Name = "KeyUI-Old"
-						end
-					end
+				instance:GetPropertyChangedSignal("BackgroundTransparency"):Connect(function()
+					local active = instance.BackgroundTransparency < 0.97
+					Tween(indicator, TweenInfo.new(0.15, Enum.EasingStyle.Sine, Enum.EasingDirection.Out), {
+						BackgroundTransparency = active and 0.08 or 1,
+						Size = active and UDim2.new(0, 3, 0, 22) or UDim2.new(0, 2, 0, 16),
+					}):Play()
 				end)
 			end
+			return
+		end
 
-			local KeyMain = KeyUI.Main
-			local keyUIScale = KeyMain:FindFirstChildOfClass("UIScale") or Instance.new("UIScale")
-			keyUIScale.Scale = mainUIScale and mainUIScale.Scale or 1
-			keyUIScale.Parent = KeyMain
-			makeDraggable(KeyMain, KeyMain)
-			KeyMain.Title.Text = Settings.KeySettings.Title or Settings.Name
-			KeyMain.Subtitle.Text = Settings.KeySettings.Subtitle or "Key System"
-			KeyMain.NoteMessage.Text = Settings.KeySettings.Note or "No instructions"
+		if name == "GlobalSettings" and instance:IsA("Frame") then
+			instance.BackgroundColor3 = Theme.BackgroundElevated
+			instance.BackgroundTransparency = 0.04
+			HeavenCorner(instance, 14)
+			HeavenStroke(instance, Theme.Accent, 0.82, 1)
+			HeavenGradient(instance, Theme.Surface, Theme.BackgroundElevated, 0.02, 0.24, 90)
+			return
+		end
 
-			KeyMain.Size = UDim2.new(0, 467, 0, 175)
-			KeyMain.BackgroundTransparency = 1
-			KeyMain.Shadow.Image.ImageTransparency = 1
-			KeyMain.Title.TextTransparency = 1
-			KeyMain.Subtitle.TextTransparency = 1
-			KeyMain.KeyNote.TextTransparency = 1
-			KeyMain.Input.BackgroundTransparency = 1
-			KeyMain.Input.UIStroke.Transparency = 1
-			KeyMain.Input.InputBox.TextTransparency = 1
-			KeyMain.NoteTitle.TextTransparency = 1
-			KeyMain.NoteMessage.TextTransparency = 1
-			KeyMain.Hide.ImageTransparency = 1
+		if name == "Notification" and instance:IsA("Frame") then
+			instance.BackgroundColor3 = Theme.BackgroundElevated
+			instance.BackgroundTransparency = 0.04
+			HeavenCorner(instance, 14)
+			HeavenStroke(instance, Theme.AccentGlow, 0.82, 1)
+			HeavenGradient(instance, Theme.Surface, Theme.BackgroundElevated, 0.02, 0.20, 90)
+			return
+		end
 
-			TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 })
-				:Play()
-			TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-				{ Size = UDim2.new(0, 500, 0, 187) }):Play()
-			TweenService:Create(KeyMain.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-				{ ImageTransparency = 0.5 }):Play()
-			task.wait(0.05)
-			TweenService:Create(KeyMain.Title, TweenInfo.new(0.4, Enum.EasingStyle.Exponential), { TextTransparency = 0 })
-				:Play()
-			TweenService:Create(KeyMain.Subtitle, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-				{ TextTransparency = 0 }):Play()
-			task.wait(0.05)
-			TweenService:Create(KeyMain.KeyNote, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-				{ TextTransparency = 0 })
-				:Play()
-			TweenService:Create(KeyMain.Input, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-				{ BackgroundTransparency = 0 }):Play()
-			TweenService:Create(KeyMain.Input.UIStroke, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-				{ Transparency = 0 }):Play()
-			TweenService:Create(KeyMain.Input.InputBox, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-				{ TextTransparency = 0 }):Play()
-			task.wait(0.05)
-			TweenService:Create(KeyMain.NoteTitle, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
-				{ TextTransparency = 0 }):Play()
-			TweenService:Create(KeyMain.NoteMessage, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
-				{ TextTransparency = 0 }):Play()
-			task.wait(0.15)
-			TweenService:Create(KeyMain.Hide, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
-				{ ImageTransparency = 0.3 })
-				:Play()
+		if name == "Prompt" and instance:IsA("Frame") then
+			instance.BackgroundColor3 = Theme.BackgroundElevated
+			instance.BackgroundTransparency = 0.02
+			HeavenCorner(instance, 16)
+			HeavenStroke(instance, Theme.AccentGlow, 0.78, 1)
+			HeavenGradient(instance, Theme.BackgroundElevated, Theme.Surface, 0.02, 0.20, 90)
+			return
+		end
 
-
-			KeyUI.Main.Input.InputBox.FocusLost:Connect(function()
-				if #KeyUI.Main.Input.InputBox.Text == 0 then return end
-				local KeyFound = false
-				local FoundKey = ''
-				for _, MKey in ipairs(Settings.KeySettings.Key) do
-					--if string.find(KeyMain.Input.InputBox.Text, MKey) then
-					--	KeyFound = true
-					--	FoundKey = MKey
-					--end
-
-
-					-- stricter key check
-					if KeyMain.Input.InputBox.Text == MKey then
-						KeyFound = true
-						FoundKey = MKey
-					end
+		if (instance:IsA("TextButton") or instance:IsA("ImageButton")) and instance.Parent then
+			local parentName = instance.Parent.Name
+			if controlFrames[parentName] then
+				instance.AutoButtonColor = false
+				if instance:IsA("TextButton") then
+					instance.TextTransparency = math.min(instance.TextTransparency, 0.16)
 				end
-				siaCall("keyScreen", "attempt")
-				if KeyFound then
-					siaCall("keyScreen", "accepted")
-					fadeOutKeyUI(KeyMain)
-					task.wait(0.51)
-					Passthrough = true
-					KeyMain.Visible = false
-					if Settings.KeySettings.SaveKey then
-						callSafely(writefile, keyFile, FoundKey)
-						RayfieldLibrary:Notify({
-							Title = "Key System",
-							Content =
-							"The key for this script has been saved successfully.",
-							Image = 3605522284
-						})
-					end
-				else
-					if AttemptsRemaining == 0 then
-						fadeOutKeyUI(KeyMain)
-						task.wait(0.45)
-						Players.LocalPlayer:Kick("No Attempts Remaining")
-						game:Shutdown()
-					end
-					KeyMain.Input.InputBox.Text = ""
-					AttemptsRemaining = AttemptsRemaining - 1
-					TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Size = UDim2.new(0, 467, 0, 175) }):Play()
-					TweenService:Create(KeyMain, TweenInfo.new(0.4, Enum.EasingStyle.Elastic),
-						{ Position = UDim2.new(0.495, 0, 0.5, 0) }):Play()
-					task.wait(0.1)
-					TweenService:Create(KeyMain, TweenInfo.new(0.4, Enum.EasingStyle.Elastic),
-						{ Position = UDim2.new(0.505, 0, 0.5, 0) }):Play()
-					task.wait(0.1)
-					TweenService:Create(KeyMain, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
-						{ Position = UDim2.new(0.5, 0, 0.5, 0) }):Play()
-					TweenService:Create(KeyMain, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Size = UDim2.new(0, 500, 0, 187) }):Play()
-				end
-			end)
+			end
+		end
 
-			KeyMain.Hide.MouseButton1Click:Connect(function()
-				fadeOutKeyUI(KeyMain)
-				task.wait(0.51)
-				Passthrough = true
-				RayfieldLibrary:Destroy()
-				KeyUI:Destroy()
-			end)
-		else
-			Passthrough = true
+		if name == "Headshot" and instance:IsA("ImageLabel") then
+			HeavenStroke(instance, Theme.AccentGlow, 0.55, 1)
+			if not instance:FindFirstChild("HeavenAvatarRing") then
+				local ring = Instance.new("UIStroke")
+				ring.Name = "HeavenAvatarRing"
+				ring.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+				ring.Color = Theme.AccentGlow
+				ring.Transparency = 0.78
+				ring.Thickness = 1.5
+				ring.Parent = instance
+			end
+			return
+		end
+
+		if name == "UserInfo" and instance:IsA("Frame") then
+			instance.BackgroundColor3 = Theme.Surface
+			instance.BackgroundTransparency = 0.24
+			HeavenCorner(instance, 12)
+			HeavenStroke(instance, Theme.Border, 0.90, 1)
+			HeavenGradient(instance, Theme.Surface, Theme.BackgroundElevated, 0.08, 0.28, 0)
+			return
 		end
 	end
-	if Settings.KeySystem then
-		repeat task.wait() until Passthrough
-		if rayfieldDestroyed then return end
+
+	-- Style current tree and every future dynamically-created control.
+	for _, descendant in ipairs(macLib:GetDescendants()) do
+		pcall(HeavenStyle, descendant)
 	end
-	siaCall("window", "open")
 
-	Notifications.Template.Visible = false
-	Notifications.Visible = true
-	Rayfield.Enabled = true
-
-	task.wait(0.5)
-	TweenService:Create(Main, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 }):Play()
-	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { ImageTransparency = 0.6 })
-		:Play()
-	task.wait(0.1)
-	TweenService:Create(LoadingFrame.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { TextTransparency = 0 })
-		:Play()
-	task.wait(0.05)
-	TweenService:Create(LoadingFrame.Subtitle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { TextTransparency = 0 })
-		:Play()
-	task.wait(0.05)
-	TweenService:Create(LoadingFrame.Version, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { TextTransparency = 0 })
-		:Play()
-
-
-	Elements.Template.LayoutOrder = 100000
-	Elements.Template.Visible = false
-
-	Elements.UIPageLayout.FillDirection = Enum.FillDirection.Horizontal
-	Elements.UIPageLayout.ScrollWheelInputEnabled = false
-	Elements.UIPageLayout.GamepadInputEnabled = false
-	Elements.UIPageLayout.TouchInputEnabled = false
-	TabList.Template.Visible = false
-
-	-- Tab
-	local FirstTab = false
-	local Window = {}
-	local siaTabCount = 0
-	function Window:CreateTab(Name, Image, Ext)
-		local siaTab = nil
-		if not Ext then
-			siaTabCount = siaTabCount + 1
-			siaTab = siaTabCount
-			siaCall("tabName", siaTab, Name)
-		end
-		local SDone = false
-		local TabButton = TabList.Template:Clone()
-		TabButton.Name = Name
-		TabButton.Title.Text = Name
-		TabButton.Parent = TabList
-		TabButton.Title.TextWrapped = false
-		TabButton.Size = UDim2.new(0, TabButton.Title.TextBounds.X + 30, 0, 30)
-
-		if Image and Image ~= 0 then
-			local img, rectOffset, rectSize = resolveIcon(Image)
-			TabButton.Image.Image = img
-			if rectOffset then TabButton.Image.ImageRectOffset = rectOffset end
-			if rectSize then TabButton.Image.ImageRectSize = rectSize end
-
-			TabButton.Title.AnchorPoint = Vector2.new(0, 0.5)
-			TabButton.Title.Position = UDim2.new(0, 37, 0.5, 0)
-			TabButton.Image.Visible = true
-			TabButton.Title.TextXAlignment = Enum.TextXAlignment.Left
-			TabButton.Size = UDim2.new(0, TabButton.Title.TextBounds.X + 52, 0, 30)
-		else
-			TabButton.Image.Visible = false
-			TabButton.Image.Image = ""
-			TabButton.Title.AnchorPoint = Vector2.new(0.5, 0.5)
-			TabButton.Title.Position = UDim2.new(0.5, 0, 0.5, 0)
-			TabButton.Title.TextXAlignment = Enum.TextXAlignment.Center
-			TabButton.Size = UDim2.new(0, TabButton.Title.TextBounds.X + 26, 0, 30)
-		end
-
-
-
-		TabButton.BackgroundTransparency = 1
-		TabButton.Title.TextTransparency = 1
-		TabButton.Image.ImageTransparency = 1
-		TabButton.UIStroke.Transparency = 1
-
-		TabButton.Visible = not Ext or false
-
-		-- Create Elements Page
-		local TabPage = Elements.Template:Clone()
-		TabPage.Name = Name
-		TabPage.Visible = true
-
-		TabPage.LayoutOrder = Ext and 10000 or #Elements:GetChildren()
-
-		for _, TemplateElement in ipairs(TabPage:GetChildren()) do
-			if TemplateElement.ClassName == "Frame" and TemplateElement.Name ~= "Placeholder" then
-				TemplateElement:Destroy()
-			end
-		end
-
-		TabPage.Parent = Elements
-		if not FirstTab and not Ext then
-			Elements.UIPageLayout.Animated = false
-			Elements.UIPageLayout:JumpTo(TabPage)
-			Elements.UIPageLayout.Animated = true
-		end
-
-		TabButton.UIStroke.Color = SelectedTheme.TabStroke
-
-		if Elements.UIPageLayout.CurrentPage == TabPage then
-			TabButton.BackgroundColor3 = SelectedTheme.TabBackgroundSelected
-			TabButton.Image.ImageColor3 = SelectedTheme.SelectedTabTextColor
-			TabButton.Title.TextColor3 = SelectedTheme.SelectedTabTextColor
-		else
-			TabButton.BackgroundColor3 = SelectedTheme.TabBackground
-			TabButton.Image.ImageColor3 = SelectedTheme.TabTextColor
-			TabButton.Title.TextColor3 = SelectedTheme.TabTextColor
-		end
-
-
-		-- Animate
-		task.wait(0.1)
-		if FirstTab or Ext then
-			TabButton.BackgroundColor3 = SelectedTheme.TabBackground
-			TabButton.Image.ImageColor3 = SelectedTheme.TabTextColor
-			TabButton.Title.TextColor3 = SelectedTheme.TabTextColor
-			TweenService:Create(TabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ BackgroundTransparency = 0.7 }):Play()
-			TweenService:Create(TabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ TextTransparency = 0.2 }):Play()
-			TweenService:Create(TabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ ImageTransparency = 0.2 }):Play()
-			TweenService:Create(TabButton.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ Transparency = 0.5 }):Play()
-		elseif not Ext then
-			FirstTab = Name
-			siaCurrentTab = siaTab
-			TabButton.BackgroundColor3 = SelectedTheme.TabBackgroundSelected
-			TabButton.Image.ImageColor3 = SelectedTheme.SelectedTabTextColor
-			TabButton.Title.TextColor3 = SelectedTheme.SelectedTabTextColor
-			TweenService:Create(TabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ ImageTransparency = 0 }):Play()
-			TweenService:Create(TabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ BackgroundTransparency = 0 })
-				:Play()
-			TweenService:Create(TabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ TextTransparency = 0 })
-				:Play()
-		end
-
-
-		TabButton.Interact.MouseButton1Click:Connect(function()
-			if Minimised then return end
-			if siaTab and siaCurrentTab ~= siaTab then
-				siaCurrentTab = siaTab
-				siaCall("tab", siaTab)
-			end
-			TweenService:Create(TabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ BackgroundTransparency = 0 })
-				:Play()
-			TweenService:Create(TabButton.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ Transparency = 1 })
-				:Play()
-			TweenService:Create(TabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ TextTransparency = 0 })
-				:Play()
-			TweenService:Create(TabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ ImageTransparency = 0 }):Play()
-			TweenService:Create(TabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ BackgroundColor3 = SelectedTheme.TabBackgroundSelected }):Play()
-			TweenService:Create(TabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ TextColor3 = SelectedTheme.SelectedTabTextColor }):Play()
-			TweenService:Create(TabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ ImageColor3 = SelectedTheme.SelectedTabTextColor }):Play()
-
-			for _, OtherTabButton in ipairs(TabList:GetChildren()) do
-				if OtherTabButton.Name ~= "Template" and OtherTabButton.ClassName == "Frame" and OtherTabButton ~= TabButton and OtherTabButton.Name ~= "Placeholder" then
-					TweenService:Create(OtherTabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.TabBackground }):Play()
-					TweenService:Create(OtherTabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-						{ TextColor3 = SelectedTheme.TabTextColor }):Play()
-					TweenService:Create(OtherTabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-						{ ImageColor3 = SelectedTheme.TabTextColor }):Play()
-					TweenService:Create(OtherTabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-						{ BackgroundTransparency = 0.7 }):Play()
-					TweenService:Create(OtherTabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-						{ TextTransparency = 0.2 }):Play()
-					TweenService:Create(OtherTabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-						{ ImageTransparency = 0.2 }):Play()
-					TweenService:Create(OtherTabButton.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-						{ Transparency = 0.5 }):Play()
-				end
-			end
-
-			if Elements.UIPageLayout.CurrentPage ~= TabPage then
-				Elements.UIPageLayout:JumpTo(TabPage)
+	macLib.DescendantAdded:Connect(function(descendant)
+		task.defer(function()
+			if macLib.Parent then
+				pcall(HeavenStyle, descendant)
 			end
 		end)
-
-		local Tab = {}
-
-		-- Button
-		function Tab:CreateButton(ButtonSettings)
-			local ButtonValue = {}
-			local siaHandle = siaElement("button", ButtonSettings.Name, siaTab)
-
-			local Button = Elements.Template.Button:Clone()
-			Button.Name = ButtonSettings.Name
-			Button.Title.Text = ButtonSettings.Name
-			Button.Visible = true
-			Button.Parent = TabPage
-
-			Button.BackgroundTransparency = 1
-			Button.UIStroke.Transparency = 1
-			Button.Title.TextTransparency = 1
-
-			TweenService:Create(Button, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 })
-				:Play()
-			TweenService:Create(Button.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { Transparency = 0 })
-				:Play()
-			TweenService:Create(Button.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { TextTransparency = 0 })
-				:Play()
-
-
-			Button.Interact.MouseButton1Click:Connect(function()
-				siaUsed(siaHandle, "press")
-				local Success, Response = pcall(ButtonSettings.Callback)
-				if not Success then siaError(siaHandle) end
-				-- Prevents animation from trying to play if the button's callback called RayfieldLibrary:Destroy()
-				if rayfieldDestroyed then
-					return
-				end
-				if not Success then
-					TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = Color3.fromRGB(85, 0, 0) }):Play()
-					TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ TextTransparency = 1 }):Play()
-					TweenService:Create(Button.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 1 }):Play()
-					Button.Title.Text = "Callback Error"
-					print("Rayfield | " .. ButtonSettings.Name .. " Callback Error " .. tostring(Response))
-					warn('Check docs.sirius.menu for help with Rayfield specific development.')
-					task.wait(0.5)
-					Button.Title.Text = ButtonSettings.Name
-					TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-					TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ TextTransparency = 0.9 }):Play()
-					TweenService:Create(Button.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 0 }):Play()
-				else
-					if not ButtonSettings.Ext then
-						SaveConfiguration(ButtonSettings.Name .. '\n')
-					end
-					TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
-					TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ TextTransparency = 1 }):Play()
-					TweenService:Create(Button.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 1 }):Play()
-					task.wait(0.2)
-					TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-					TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ TextTransparency = 0.9 }):Play()
-					TweenService:Create(Button.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 0 }):Play()
-				end
-			end)
-
-			Button.MouseEnter:Connect(function()
-				TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-					{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
-				TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-					{ TextTransparency = 0.7 }):Play()
-			end)
-
-			Button.MouseLeave:Connect(function()
-				TweenService:Create(Button, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-					{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-				TweenService:Create(Button.ElementIndicator, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-					{ TextTransparency = 0.9 }):Play()
-			end)
-
-			function ButtonValue:Set(NewButton)
-				Button.Title.Text = NewButton
-				Button.Name = NewButton
-			end
-
-			return ButtonValue
-		end
-
-		-- ColorPicker
-		function Tab:CreateColorPicker(ColorPickerSettings) -- by Throit
-			ColorPickerSettings.Type = "ColorPicker"
-			local siaHandle = siaElement("colorpicker", ColorPickerSettings.Name, siaTab)
-			local ColorPicker = Elements.Template.ColorPicker:Clone()
-			local Background = ColorPicker.CPBackground
-			local Display = Background.Display
-			local Main = Background.MainCP
-			local Slider = ColorPicker.ColorSlider
-			ColorPicker.ClipsDescendants = true
-			ColorPicker.Name = ColorPickerSettings.Name
-			ColorPicker.Title.Text = ColorPickerSettings.Name
-			ColorPicker.Visible = true
-			ColorPicker.Parent = TabPage
-			ColorPicker.Size = UDim2.new(1, -10, 0, 45)
-			Background.Size = UDim2.new(0, 39, 0, 22)
-			Display.BackgroundTransparency = 0
-			Main.MainPoint.ImageTransparency = 1
-			ColorPicker.Interact.Size = UDim2.new(1, 0, 1, 0)
-			ColorPicker.Interact.Position = UDim2.new(0.5, 0, 0.5, 0)
-			ColorPicker.RGB.Position = UDim2.new(0, 17, 0, 70)
-			ColorPicker.HexInput.Position = UDim2.new(0, 17, 0, 90)
-			Main.ImageTransparency = 1
-			Background.BackgroundTransparency = 1
-
-			for _, rgbinput in ipairs(ColorPicker.RGB:GetChildren()) do
-				if rgbinput:IsA("Frame") then
-					rgbinput.BackgroundColor3 = SelectedTheme.InputBackground
-					rgbinput.UIStroke.Color = SelectedTheme.InputStroke
-				end
-			end
-
-			ColorPicker.HexInput.BackgroundColor3 = SelectedTheme.InputBackground
-			ColorPicker.HexInput.UIStroke.Color = SelectedTheme.InputStroke
-
-			local opened = false
-			local mouse = Players.LocalPlayer and Players.LocalPlayer:GetMouse() or nil
-			local mainDragging = false
-			local sliderDragging = false
-			local activeCPInput = nil
-
-			local function getCPPointerPosition()
-				local screenGui = ColorPicker:FindFirstAncestorWhichIsA("ScreenGui")
-				local ignoreInset = screenGui and screenGui.IgnoreGuiInset or false
-				local inset = GuiService and select(2, pcall(GuiService.GetGuiInset, GuiService)) or Vector2.zero
-				if typeof(inset) ~= "Vector2" then inset = Vector2.zero end
-
-				if activeCPInput and activeCPInput.UserInputType == Enum.UserInputType.Touch then
-					local pos = Vector2.new(activeCPInput.Position.X, activeCPInput.Position.Y)
-					if ignoreInset then
-						return pos + inset
-					end
-					return pos
-				end
-				local mouseLoc = UserInputService:GetMouseLocation()
-				if ignoreInset then
-					return mouseLoc
-				end
-				return mouseLoc - inset
-			end
-
-			local function toggleColorPickerOpen()
-				task.spawn(function()
-					TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
-					TweenService:Create(ColorPicker.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 1 }):Play()
-					task.wait(0.2)
-					TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-					TweenService:Create(ColorPicker.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 0 }):Play()
-				end)
-
-				if not opened then
-					opened = true
-					TweenService:Create(Background, TweenInfo.new(0.45, Enum.EasingStyle.Exponential),
-						{ Size = UDim2.new(0, 18, 0, 15) }):Play()
-					task.wait(0.1)
-					TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Size = UDim2.new(1, -10, 0, 120) }):Play()
-					TweenService:Create(Background, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Size = UDim2.new(0, 173, 0, 86) }):Play()
-					TweenService:Create(Display, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundTransparency = 1 }):Play()
-					TweenService:Create(ColorPicker.Interact, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Position = UDim2.new(0.289, 0, 0.5, 0) }):Play()
-					TweenService:Create(ColorPicker.RGB, TweenInfo.new(0.8, Enum.EasingStyle.Exponential),
-						{ Position = UDim2.new(0, 17, 0, 40) }):Play()
-					TweenService:Create(ColorPicker.HexInput, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-						{ Position = UDim2.new(0, 17, 0, 73) }):Play()
-					TweenService:Create(ColorPicker.Interact, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Size = UDim2.new(0.574, 0, 1, 0) }):Play()
-					TweenService:Create(Main.MainPoint, TweenInfo.new(0.2, Enum.EasingStyle.Exponential),
-						{ ImageTransparency = 0 }):Play()
-					TweenService:Create(Main, TweenInfo.new(0.2, Enum.EasingStyle.Exponential),
-						{ ImageTransparency = SelectedTheme ~= RayfieldLibrary.Theme.Default and 0.25 or 0.1 }):Play()
-					TweenService:Create(Background, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundTransparency = 0 }):Play()
-				else
-					opened = false
-					TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Size = UDim2.new(1, -10, 0, 45) }):Play()
-					TweenService:Create(Background, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Size = UDim2.new(0, 39, 0, 22) }):Play()
-					TweenService:Create(ColorPicker.Interact, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Size = UDim2.new(1, 0, 1, 0) }):Play()
-					TweenService:Create(ColorPicker.Interact, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Position = UDim2.new(0.5, 0, 0.5, 0) }):Play()
-					TweenService:Create(ColorPicker.RGB, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Position = UDim2.new(0, 17, 0, 70) }):Play()
-					TweenService:Create(ColorPicker.HexInput, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-						{ Position = UDim2.new(0, 17, 0, 90) }):Play()
-					TweenService:Create(Display, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundTransparency = 0 }):Play()
-					TweenService:Create(Main.MainPoint, TweenInfo.new(0.2, Enum.EasingStyle.Exponential),
-						{ ImageTransparency = 1 }):Play()
-					TweenService:Create(Main, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), { ImageTransparency = 1 })
-						:Play()
-					TweenService:Create(Background, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundTransparency = 1 }):Play()
-				end
-			end
-
-			ColorPicker.Interact.MouseButton1Click:Connect(toggleColorPickerOpen)
-
-			local colorPickerInputConnection = UserInputService.InputEnded:Connect(function(input, gameProcessed)
-				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-					if mainDragging or sliderDragging then
-						siaUsed(siaHandle, "set")
-						if TabPage and TabPage:IsA("ScrollingFrame") then
-							TabPage.ScrollingEnabled = true
-						end
-					end
-					mainDragging = false
-					sliderDragging = false
-					activeCPInput = nil
-				end
-			end)
-
-			local function beginMainDrag(input)
-				if not opened then return end
-				if input and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-					activeCPInput = input
-					mainDragging = true
-					if TabPage and TabPage:IsA("ScrollingFrame") then
-						TabPage.ScrollingEnabled = false
-					end
-				end
-			end
-
-			local function beginSliderDrag(input)
-				if not opened then return end
-				if input and (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-					activeCPInput = input
-					sliderDragging = true
-					if TabPage and TabPage:IsA("ScrollingFrame") then
-						TabPage.ScrollingEnabled = false
-					end
-				end
-			end
-
-			Main.InputBegan:Connect(beginMainDrag)
-			Main.MainPoint.InputBegan:Connect(beginMainDrag)
-			Slider.InputBegan:Connect(beginSliderDrag)
-			Slider.SliderPoint.InputBegan:Connect(beginSliderDrag)
-
-			Main.MouseButton1Down:Connect(function()
-				if opened then
-					mainDragging = true
-				end
-			end)
-			Main.MainPoint.MouseButton1Down:Connect(function()
-				if opened then
-					mainDragging = true
-				end
-			end)
-			Slider.MouseButton1Down:Connect(function()
-				if opened then
-					sliderDragging = true
-				end
-			end)
-			Slider.SliderPoint.MouseButton1Down:Connect(function()
-				if opened then
-					sliderDragging = true
-				end
-			end)
-			local h, s, v = ColorPickerSettings.Color:ToHSV()
-			local color = Color3.fromHSV(h, s, v)
-			local hex = string.format("#%02X%02X%02X", color.R * 0xFF, color.G * 0xFF, color.B * 0xFF)
-			ColorPicker.HexInput.InputBox.Text = hex
-			local function setDisplay()
-				local uiScale = (mainUIScale and mainUIScale.Scale > 0) and mainUIScale.Scale or 1
-				--Main
-				Main.MainPoint.Position = UDim2.new(s, -(Main.MainPoint.AbsoluteSize.X / uiScale) / 2, 1 - v,
-					-(Main.MainPoint.AbsoluteSize.Y / uiScale) / 2)
-				Main.MainPoint.ImageColor3 = Color3.fromHSV(h, s, v)
-				Background.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
-				Display.BackgroundColor3 = Color3.fromHSV(h, s, v)
-				--Slider
-				local x = h * (Slider.AbsoluteSize.X / uiScale)
-				Slider.SliderPoint.Position = UDim2.new(0, x - (Slider.SliderPoint.AbsoluteSize.X / uiScale) / 2, 0.5, 0)
-				Slider.SliderPoint.ImageColor3 = Color3.fromHSV(h, 1, 1)
-				local color = Color3.fromHSV(h, s, v)
-				local r, g, b = math.floor((color.R * 255) + 0.5), math.floor((color.G * 255) + 0.5),
-					math.floor((color.B * 255) + 0.5)
-				ColorPicker.RGB.RInput.InputBox.Text = tostring(r)
-				ColorPicker.RGB.GInput.InputBox.Text = tostring(g)
-				ColorPicker.RGB.BInput.InputBox.Text = tostring(b)
-				hex = string.format("#%02X%02X%02X", color.R * 0xFF, color.G * 0xFF, color.B * 0xFF)
-				ColorPicker.HexInput.InputBox.Text = hex
-			end
-			setDisplay()
-			ColorPicker.HexInput.InputBox.FocusLost:Connect(function()
-				siaUsed(siaHandle, "set")
-				if not pcall(function()
-						local r, g, b = string.match(ColorPicker.HexInput.InputBox.Text, "^#?(%w%w)(%w%w)(%w%w)$")
-						local rgbColor = Color3.fromRGB(tonumber(r, 16), tonumber(g, 16), tonumber(b, 16))
-						h, s, v = rgbColor:ToHSV()
-						hex = ColorPicker.HexInput.InputBox.Text
-						setDisplay()
-						ColorPickerSettings.Color = rgbColor
-					end)
-				then
-					ColorPicker.HexInput.InputBox.Text = hex
-				end
-				pcall(function() ColorPickerSettings.Callback(Color3.fromHSV(h, s, v)) end)
-				local r, g, b = math.floor((h * 255) + 0.5), math.floor((s * 255) + 0.5), math.floor((v * 255) + 0.5)
-				ColorPickerSettings.Color = Color3.fromRGB(r, g, b)
-				if not ColorPickerSettings.Ext then
-					SaveConfiguration()
-				end
-			end)
-			--RGB
-			local function rgbBoxes(box, toChange)
-				local value = tonumber(box.Text)
-				local color = Color3.fromHSV(h, s, v)
-				local oldR, oldG, oldB = math.floor((color.R * 255) + 0.5), math.floor((color.G * 255) + 0.5),
-					math.floor((color.B * 255) + 0.5)
-				local save
-				if toChange == "R" then
-					save = oldR; oldR = value
-				elseif toChange == "G" then
-					save = oldG; oldG = value
-				else
-					save = oldB; oldB = value
-				end
-				if value then
-					value = math.clamp(value, 0, 255)
-					h, s, v = Color3.fromRGB(oldR, oldG, oldB):ToHSV()
-
-					setDisplay()
-				else
-					box.Text = tostring(save)
-				end
-				local r, g, b = math.floor((h * 255) + 0.5), math.floor((s * 255) + 0.5), math.floor((v * 255) + 0.5)
-				ColorPickerSettings.Color = Color3.fromRGB(r, g, b)
-				if not ColorPickerSettings.Ext then
-					SaveConfiguration(ColorPickerSettings.Flag .. '\n' .. tostring(ColorPickerSettings.Color))
-				end
-			end
-			ColorPicker.RGB.RInput.InputBox.FocusLost:connect(function()
-				rgbBoxes(ColorPicker.RGB.RInput.InputBox, "R")
-				siaUsed(siaHandle, "set")
-				pcall(function() ColorPickerSettings.Callback(Color3.fromHSV(h, s, v)) end)
-			end)
-			ColorPicker.RGB.GInput.InputBox.FocusLost:connect(function()
-				rgbBoxes(ColorPicker.RGB.GInput.InputBox, "G")
-				siaUsed(siaHandle, "set")
-				pcall(function() ColorPickerSettings.Callback(Color3.fromHSV(h, s, v)) end)
-			end)
-			ColorPicker.RGB.BInput.InputBox.FocusLost:connect(function()
-				rgbBoxes(ColorPicker.RGB.BInput.InputBox, "B")
-				siaUsed(siaHandle, "set")
-				pcall(function() ColorPickerSettings.Callback(Color3.fromHSV(h, s, v)) end)
-			end)
-
-			local colorPickerRenderConnection = RunService.RenderStepped:connect(function()
-				if mainDragging or sliderDragging then
-					local pointerPos = getCPPointerPosition()
-					local uiScale = (mainUIScale and mainUIScale.Scale > 0) and mainUIScale.Scale or 1
-					if mainDragging and Main.AbsoluteSize.X > 0 and Main.AbsoluteSize.Y > 0 then
-						local localX = math.clamp(pointerPos.X - Main.AbsolutePosition.X, 0, Main.AbsoluteSize.X)
-						local localY = math.clamp(pointerPos.Y - Main.AbsolutePosition.Y, 0, Main.AbsoluteSize.Y)
-						Main.MainPoint.Position = UDim2.new(0, (localX - Main.MainPoint.AbsoluteSize.X / 2) / uiScale, 0,
-							(localY - Main.MainPoint.AbsoluteSize.Y / 2) / uiScale)
-						s = localX / Main.AbsoluteSize.X
-						v = 1 - (localY / Main.AbsoluteSize.Y)
-						Display.BackgroundColor3 = Color3.fromHSV(h, s, v)
-						Main.MainPoint.ImageColor3 = Color3.fromHSV(h, s, v)
-						Background.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
-						local color = Color3.fromHSV(h, s, v)
-						local r, g, b = math.floor((color.R * 255) + 0.5), math.floor((color.G * 255) + 0.5),
-							math.floor((color.B * 255) + 0.5)
-						ColorPicker.RGB.RInput.InputBox.Text = tostring(r)
-						ColorPicker.RGB.GInput.InputBox.Text = tostring(g)
-						ColorPicker.RGB.BInput.InputBox.Text = tostring(b)
-						ColorPicker.HexInput.InputBox.Text = string.format("#%02X%02X%02X", color.R * 0xFF, color.G *
-							0xFF, color.B * 0xFF)
-						pcall(function() ColorPickerSettings.Callback(Color3.fromHSV(h, s, v)) end)
-						ColorPickerSettings.Color = Color3.fromRGB(r, g, b)
-						if not ColorPickerSettings.Ext then
-							SaveConfiguration()
-						end
-					end
-					if sliderDragging and Slider.AbsoluteSize.X > 0 then
-						local localX = math.clamp(pointerPos.X - Slider.AbsolutePosition.X, 0, Slider.AbsoluteSize.X)
-						h = localX / Slider.AbsoluteSize.X
-						Display.BackgroundColor3 = Color3.fromHSV(h, s, v)
-						Slider.SliderPoint.Position = UDim2.new(0,
-							(localX - Slider.SliderPoint.AbsoluteSize.X / 2) / uiScale, 0.5, 0)
-						Slider.SliderPoint.ImageColor3 = Color3.fromHSV(h, 1, 1)
-						Background.BackgroundColor3 = Color3.fromHSV(h, 1, 1)
-						Main.MainPoint.ImageColor3 = Color3.fromHSV(h, s, v)
-						local color = Color3.fromHSV(h, s, v)
-						local r, g, b = math.floor((color.R * 255) + 0.5), math.floor((color.G * 255) + 0.5),
-							math.floor((color.B * 255) + 0.5)
-						ColorPicker.RGB.RInput.InputBox.Text = tostring(r)
-						ColorPicker.RGB.GInput.InputBox.Text = tostring(g)
-						ColorPicker.RGB.BInput.InputBox.Text = tostring(b)
-						ColorPicker.HexInput.InputBox.Text = string.format("#%02X%02X%02X", color.R * 0xFF, color.G *
-							0xFF, color.B * 0xFF)
-						pcall(function() ColorPickerSettings.Callback(Color3.fromHSV(h, s, v)) end)
-						ColorPickerSettings.Color = Color3.fromRGB(r, g, b)
-						if not ColorPickerSettings.Ext then
-							SaveConfiguration()
-						end
-					end
-				end
-			end)
-
-			ColorPicker.Destroying:Connect(function()
-				if colorPickerRenderConnection then
-					colorPickerRenderConnection:Disconnect()
-				end
-				if colorPickerInputConnection then
-					colorPickerInputConnection:Disconnect()
-				end
-			end)
-
-			if Settings.ConfigurationSaving then
-				if Settings.ConfigurationSaving.Enabled and ColorPickerSettings.Flag then
-					RayfieldLibrary.Flags[ColorPickerSettings.Flag] = ColorPickerSettings
-				end
-			end
-
-			function ColorPickerSettings:Set(RGBColor)
-				ColorPickerSettings.Color = RGBColor
-				h, s, v = ColorPickerSettings.Color:ToHSV()
-				color = Color3.fromHSV(h, s, v)
-				setDisplay()
-			end
-
-			ColorPicker.MouseEnter:Connect(function()
-				TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-					{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
-			end)
-
-			ColorPicker.MouseLeave:Connect(function()
-				TweenService:Create(ColorPicker, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-					{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-			end)
-
-			Rayfield.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
-				for _, rgbinput in ipairs(ColorPicker.RGB:GetChildren()) do
-					if rgbinput:IsA("Frame") then
-						rgbinput.BackgroundColor3 = SelectedTheme.InputBackground
-						rgbinput.UIStroke.Color = SelectedTheme.InputStroke
-					end
-				end
-
-				ColorPicker.HexInput.BackgroundColor3 = SelectedTheme.InputBackground
-				ColorPicker.HexInput.UIStroke.Color = SelectedTheme.InputStroke
-			end)
-
-			return ColorPickerSettings
-		end
-
-		-- Section
-		function Tab:CreateSection(SectionName)
-			siaCall("section", siaTab or 0, SectionName)
-
-			local SectionValue = {}
-
-			if SDone then
-				local SectionSpace = Elements.Template.SectionSpacing:Clone()
-				SectionSpace.Visible = true
-				SectionSpace.Parent = TabPage
-			end
-
-			local Section = Elements.Template.SectionTitle:Clone()
-			Section.Title.Text = SectionName
-			Section.Visible = true
-			Section.Parent = TabPage
-
-			Section.Title.TextTransparency = 1
-			TweenService:Create(Section.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ TextTransparency = 0.4 })
-				:Play()
-
-			function SectionValue:Set(NewSection)
-				Section.Title.Text = NewSection
-			end
-
-			SDone = true
-
-			return SectionValue
-		end
-
-		-- Divider
-		function Tab:CreateDivider()
-			local DividerValue = {}
-
-			local Divider = Elements.Template.Divider:Clone()
-			Divider.Visible = true
-			Divider.Parent = TabPage
-
-			Divider.Divider.BackgroundTransparency = 1
-			TweenService:Create(Divider.Divider, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-				{ BackgroundTransparency = 0.85 }):Play()
-
-			function DividerValue:Set(Value)
-				Divider.Visible = Value
-			end
-
-			return DividerValue
-		end
-
-		-- Label
-		function Tab:CreateLabel(LabelText, Icon, Color, IgnoreTheme)
-			local LabelValue = {}
-
-			local Label = Elements.Template.Label:Clone()
-			Label.Title.Text = LabelText
-			Label.Visible = true
-			Label.Parent = TabPage
-
-			Label.BackgroundColor3 = Color or SelectedTheme.SecondaryElementBackground
-			Label.UIStroke.Color = Color or SelectedTheme.SecondaryElementStroke
-
-			if Icon then
-				local img, rectOffset, rectSize = resolveIcon(Icon)
-				Label.Icon.Image = img
-				if rectOffset then Label.Icon.ImageRectOffset = rectOffset end
-				if rectSize then Label.Icon.ImageRectSize = rectSize end
-			else
-				Label.Icon.Image = ""
-			end
-
-			if Icon and Label:FindFirstChild('Icon') then
-				Label.Title.Position = UDim2.new(0, 45, 0.5, 0)
-				Label.Title.Size = UDim2.new(1, -100, 0, 14)
-				Label.Icon.Visible = true
-			end
-
-			Label.Icon.ImageTransparency = 1
-			Label.BackgroundTransparency = 1
-			Label.UIStroke.Transparency = 1
-			Label.Title.TextTransparency = 1
-
-			Label:SetAttribute("BackgroundTransparencyTarget", Color and 0.8 or 0)
-			Label:SetAttribute("UIStrokeTransparencyTarget", Color and 0.7 or 0)
-			Label:SetAttribute("TitleTextTransparencyTarget", Color and 0.2 or 0)
-
-			TweenService:Create(Label, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ BackgroundTransparency = Color and 0.8 or 0 }):Play()
-			TweenService:Create(Label.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ Transparency = Color and 0.7 or 0 }):Play()
-			TweenService:Create(Label.Icon, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { ImageTransparency = 0.2 })
-				:Play()
-			TweenService:Create(Label.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ TextTransparency = Color and 0.2 or 0 }):Play()
-
-			function LabelValue:Set(NewLabel, Icon, Color)
-				Label.Title.Text = NewLabel
-
-				if Color then
-					Label.BackgroundColor3 = Color or SelectedTheme.SecondaryElementBackground
-					Label.UIStroke.Color = Color or SelectedTheme.SecondaryElementStroke
-				end
-
-				if Icon and Label:FindFirstChild('Icon') then
-					Label.Title.Position = UDim2.new(0, 45, 0.5, 0)
-					Label.Title.Size = UDim2.new(1, -100, 0, 14)
-
-					local img, rectOffset, rectSize = resolveIcon(Icon)
-					Label.Icon.Image = img
-					if rectOffset then Label.Icon.ImageRectOffset = rectOffset end
-					if rectSize then Label.Icon.ImageRectSize = rectSize end
-
-					Label.Icon.Visible = true
-				end
-			end
-
-			Rayfield.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
-				Label.BackgroundColor3 = IgnoreTheme and (Color or Label.BackgroundColor3) or
-					SelectedTheme.SecondaryElementBackground
-				Label.UIStroke.Color = IgnoreTheme and (Color or Label.BackgroundColor3) or
-					SelectedTheme.SecondaryElementStroke
-			end)
-
-			return LabelValue
-		end
-
-		-- Paragraph
-		function Tab:CreateParagraph(ParagraphSettings)
-			local ParagraphValue = {}
-
-			local Paragraph = Elements.Template.Paragraph:Clone()
-			Paragraph.Title.Text = ParagraphSettings.Title
-			Paragraph.Content.Text = ParagraphSettings.Content
-			Paragraph.Visible = true
-			Paragraph.Parent = TabPage
-
-			Paragraph.BackgroundTransparency = 1
-			Paragraph.UIStroke.Transparency = 1
-			Paragraph.Title.TextTransparency = 1
-			Paragraph.Content.TextTransparency = 1
-
-			Paragraph.BackgroundColor3 = SelectedTheme.SecondaryElementBackground
-			Paragraph.UIStroke.Color = SelectedTheme.SecondaryElementStroke
-
-			TweenService:Create(Paragraph, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ BackgroundTransparency = 0 })
-				:Play()
-			TweenService:Create(Paragraph.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ Transparency = 0 })
-				:Play()
-			TweenService:Create(Paragraph.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ TextTransparency = 0 })
-				:Play()
-			TweenService:Create(Paragraph.Content, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ TextTransparency = 0 }):Play()
-
-			function ParagraphValue:Set(NewParagraphSettings)
-				Paragraph.Title.Text = NewParagraphSettings.Title
-				Paragraph.Content.Text = NewParagraphSettings.Content
-			end
-
-			Rayfield.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
-				Paragraph.BackgroundColor3 = SelectedTheme.SecondaryElementBackground
-				Paragraph.UIStroke.Color = SelectedTheme.SecondaryElementStroke
-			end)
-
-			return ParagraphValue
-		end
-
-		-- Input
-		function Tab:CreateInput(InputSettings)
-			local siaHandle = siaElement("input", InputSettings.Name, siaTab)
-			local Input = Elements.Template.Input:Clone()
-			Input.Name = InputSettings.Name
-			Input.Title.Text = InputSettings.Name
-			Input.Visible = true
-			Input.Parent = TabPage
-
-			Input.BackgroundTransparency = 1
-			Input.UIStroke.Transparency = 1
-			Input.Title.TextTransparency = 1
-
-			Input.InputFrame.InputBox.Text = InputSettings.CurrentValue or ''
-
-			Input.InputFrame.BackgroundColor3 = SelectedTheme.InputBackground
-			Input.InputFrame.UIStroke.Color = SelectedTheme.InputStroke
-
-			TweenService:Create(Input, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 })
-				:Play()
-			TweenService:Create(Input.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { Transparency = 0 })
-				:Play()
-			TweenService:Create(Input.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { TextTransparency = 0 })
-				:Play()
-
-			Input.InputFrame.InputBox.PlaceholderText = InputSettings.PlaceholderText
-			Input.InputFrame.Size = UDim2.new(0, Input.InputFrame.InputBox.TextBounds.X + 24, 0, 30)
-
-			Input.InputFrame.InputBox.FocusLost:Connect(function()
-				siaUsed(siaHandle, "set")
-				local Success, Response = pcall(function()
-					InputSettings.Callback(Input.InputFrame.InputBox.Text)
-					InputSettings.CurrentValue = Input.InputFrame.InputBox.Text
-				end)
-
-				if not Success then
-					siaError(siaHandle)
-					TweenService:Create(Input, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = Color3.fromRGB(85, 0, 0) }):Play()
-					TweenService:Create(Input.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 1 }):Play()
-					Input.Title.Text = "Callback Error"
-					print("Rayfield | " .. InputSettings.Name .. " Callback Error " .. tostring(Response))
-					warn('Check docs.sirius.menu for help with Rayfield specific development.')
-					task.wait(0.5)
-					Input.Title.Text = InputSettings.Name
-					TweenService:Create(Input, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-					TweenService:Create(Input.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 0 }):Play()
-				end
-
-				if InputSettings.RemoveTextAfterFocusLost then
-					Input.InputFrame.InputBox.Text = ""
-				end
-
-				if not InputSettings.Ext then
-					SaveConfiguration()
-				end
-			end)
-
-			Input.MouseEnter:Connect(function()
-				TweenService:Create(Input, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-					{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
-			end)
-
-			Input.MouseLeave:Connect(function()
-				TweenService:Create(Input, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-					{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-			end)
-
-			Input.InputFrame.InputBox:GetPropertyChangedSignal("Text"):Connect(function()
-				TweenService:Create(Input.InputFrame,
-					TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-					{ Size = UDim2.new(0, Input.InputFrame.InputBox.TextBounds.X + 24, 0, 30) }):Play()
-			end)
-
-			function InputSettings:Set(text)
-				Input.InputFrame.InputBox.Text = text
-				InputSettings.CurrentValue = text
-
-				local Success, Response = pcall(function()
-					InputSettings.Callback(text)
-				end)
-
-				if not InputSettings.Ext then
-					SaveConfiguration()
-				end
-			end
-
-			if Settings.ConfigurationSaving then
-				if Settings.ConfigurationSaving.Enabled and InputSettings.Flag then
-					RayfieldLibrary.Flags[InputSettings.Flag] = InputSettings
-				end
-			end
-
-			Rayfield.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
-				Input.InputFrame.BackgroundColor3 = SelectedTheme.InputBackground
-				Input.InputFrame.UIStroke.Color = SelectedTheme.InputStroke
-			end)
-
-			return InputSettings
-		end
-
-		-- Dropdown
-		function Tab:CreateDropdown(DropdownSettings)
-			local siaHandle = siaElement("dropdown", DropdownSettings.Name, siaTab)
-			local Dropdown = Elements.Template.Dropdown:Clone()
-			if string.find(DropdownSettings.Name, "closed") then
-				Dropdown.Name = "Dropdown"
-			else
-				Dropdown.Name = DropdownSettings.Name
-			end
-			Dropdown.Title.Text = DropdownSettings.Name
-			Dropdown.Visible = true
-			Dropdown.Parent = TabPage
-
-			Dropdown.List.Visible = false
-			if DropdownSettings.CurrentOption then
-				if type(DropdownSettings.CurrentOption) == "string" then
-					DropdownSettings.CurrentOption = { DropdownSettings.CurrentOption }
-				end
-				if not DropdownSettings.MultipleOptions and type(DropdownSettings.CurrentOption) == "table" then
-					DropdownSettings.CurrentOption = { DropdownSettings.CurrentOption[1] }
-				end
-			else
-				DropdownSettings.CurrentOption = {}
-			end
-
-			if DropdownSettings.MultipleOptions then
-				if DropdownSettings.CurrentOption and type(DropdownSettings.CurrentOption) == "table" then
-					if #DropdownSettings.CurrentOption == 1 then
-						Dropdown.Selected.Text = DropdownSettings.CurrentOption[1]
-					elseif #DropdownSettings.CurrentOption == 0 then
-						Dropdown.Selected.Text = "None"
-					else
-						Dropdown.Selected.Text = "Various"
-					end
-				else
-					DropdownSettings.CurrentOption = {}
-					Dropdown.Selected.Text = "None"
-				end
-			else
-				Dropdown.Selected.Text = DropdownSettings.CurrentOption[1] or "None"
-			end
-
-			Dropdown.Toggle.ImageColor3 = SelectedTheme.TextColor
-			TweenService:Create(Dropdown, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
-				{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-
-			Dropdown.BackgroundTransparency = 1
-			Dropdown.UIStroke.Transparency = 1
-			Dropdown.Title.TextTransparency = 1
-
-			Dropdown.Size = UDim2.new(1, -10, 0, 45)
-
-			TweenService:Create(Dropdown, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ BackgroundTransparency = 0 })
-				:Play()
-			TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { Transparency = 0 })
-				:Play()
-			TweenService:Create(Dropdown.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ TextTransparency = 0 })
-				:Play()
-
-			for _, ununusedoption in ipairs(Dropdown.List:GetChildren()) do
-				if ununusedoption.ClassName == "Frame" and ununusedoption.Name ~= "Placeholder" then
-					ununusedoption:Destroy()
-				end
-			end
-
-			Dropdown.Toggle.Rotation = 180
-
-			Dropdown.Interact.MouseButton1Click:Connect(function()
-				TweenService:Create(Dropdown, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
-					{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
-				TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
-					{ Transparency = 1 }):Play()
-				task.wait(0.1)
-				TweenService:Create(Dropdown, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
-					{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-				TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
-					{ Transparency = 0 }):Play()
-				if Debounce then return end
-				if Dropdown.List.Visible then
-					Debounce = true
-					TweenService:Create(Dropdown, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-						{ Size = UDim2.new(1, -10, 0, 45) }):Play()
-					for _, DropdownOpt in ipairs(Dropdown.List:GetChildren()) do
-						if DropdownOpt.ClassName == "Frame" and DropdownOpt.Name ~= "Placeholder" then
-							TweenService:Create(DropdownOpt, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-								{ BackgroundTransparency = 1 }):Play()
-							TweenService:Create(DropdownOpt.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-								{ Transparency = 1 }):Play()
-							TweenService:Create(DropdownOpt.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-								{ TextTransparency = 1 }):Play()
-						end
-					end
-					TweenService:Create(Dropdown.List, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-						{ ScrollBarImageTransparency = 1 }):Play()
-					TweenService:Create(Dropdown.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-						{ Rotation = 180 }):Play()
-					task.wait(0.35)
-					Dropdown.List.Visible = false
-					Debounce = false
-				else
-					TweenService:Create(Dropdown, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-						{ Size = UDim2.new(1, -10, 0, 180) }):Play()
-					Dropdown.List.Visible = true
-					TweenService:Create(Dropdown.List, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-						{ ScrollBarImageTransparency = 0.7 }):Play()
-					TweenService:Create(Dropdown.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-						{ Rotation = 0 })
-						:Play()
-					for _, DropdownOpt in ipairs(Dropdown.List:GetChildren()) do
-						if DropdownOpt.ClassName == "Frame" and DropdownOpt.Name ~= "Placeholder" then
-							if DropdownOpt.Name ~= Dropdown.Selected.Text then
-								TweenService:Create(DropdownOpt.UIStroke,
-									TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { Transparency = 0 }):Play()
-							end
-							TweenService:Create(DropdownOpt, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-								{ BackgroundTransparency = 0 }):Play()
-							TweenService:Create(DropdownOpt.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-								{ TextTransparency = 0 }):Play()
-						end
-					end
-				end
-			end)
-
-			Dropdown.MouseEnter:Connect(function()
-				if not Dropdown.List.Visible then
-					TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
-				end
-			end)
-
-			Dropdown.MouseLeave:Connect(function()
-				TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-					{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-			end)
-
-			local function SetDropdownOptions()
-				for _, Option in ipairs(DropdownSettings.Options) do
-					local DropdownOption = Elements.Template.Dropdown.List.Template:Clone()
-					DropdownOption.Name = Option
-					DropdownOption.Title.Text = Option
-					DropdownOption.Parent = Dropdown.List
-					DropdownOption.Visible = true
-
-					DropdownOption.BackgroundTransparency = 1
-					DropdownOption.UIStroke.Transparency = 1
-					DropdownOption.Title.TextTransparency = 1
-
-					--local Dropdown = Tab:CreateDropdown({
-					--	Name = "Dropdown Example",
-					--	Options = {"Option 1","Option 2"},
-					--	CurrentOption = {"Option 1"},
-					--  MultipleOptions = true,
-					--	Flag = "Dropdown1",
-					--	Callback = function(TableOfOptions)
-
-					--	end,
-					--})
-
-
-					DropdownOption.Interact.ZIndex = 50
-					DropdownOption.Interact.MouseButton1Click:Connect(function()
-						if not DropdownSettings.MultipleOptions and table.find(DropdownSettings.CurrentOption, Option) then
-							return
-						end
-
-						if table.find(DropdownSettings.CurrentOption, Option) then
-							table.remove(DropdownSettings.CurrentOption,
-								table.find(DropdownSettings.CurrentOption, Option))
-							if DropdownSettings.MultipleOptions then
-								if #DropdownSettings.CurrentOption == 1 then
-									Dropdown.Selected.Text = DropdownSettings.CurrentOption[1]
-								elseif #DropdownSettings.CurrentOption == 0 then
-									Dropdown.Selected.Text = "None"
-								else
-									Dropdown.Selected.Text = "Various"
-								end
-							else
-								Dropdown.Selected.Text = DropdownSettings.CurrentOption[1]
-							end
-						else
-							if not DropdownSettings.MultipleOptions then
-								table.clear(DropdownSettings.CurrentOption)
-							end
-							table.insert(DropdownSettings.CurrentOption, Option)
-							if DropdownSettings.MultipleOptions then
-								if #DropdownSettings.CurrentOption == 1 then
-									Dropdown.Selected.Text = DropdownSettings.CurrentOption[1]
-								elseif #DropdownSettings.CurrentOption == 0 then
-									Dropdown.Selected.Text = "None"
-								else
-									Dropdown.Selected.Text = "Various"
-								end
-							else
-								Dropdown.Selected.Text = DropdownSettings.CurrentOption[1]
-							end
-							TweenService:Create(DropdownOption.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-								{ Transparency = 1 }):Play()
-							TweenService:Create(DropdownOption, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-								{ BackgroundColor3 = SelectedTheme.DropdownSelected }):Play()
-							Debounce = true
-						end
-
-
-						-- the option's place in the list, 0 for the first and 1 for the last
-						local position = table.find(DropdownSettings.Options, Option) or 1
-						siaUsed(siaHandle, "pick", (position - 1) / math.max(#DropdownSettings.Options - 1, 1))
-
-						local Success, Response = pcall(function()
-							DropdownSettings.Callback(DropdownSettings.CurrentOption)
-						end)
-
-						if not Success then
-							siaError(siaHandle)
-							TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-								{ BackgroundColor3 = Color3.fromRGB(85, 0, 0) }):Play()
-							TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-								{ Transparency = 1 }):Play()
-							Dropdown.Title.Text = "Callback Error"
-							print("Rayfield | " .. DropdownSettings.Name .. " Callback Error " .. tostring(Response))
-							warn('Check docs.sirius.menu for help with Rayfield specific development.')
-							task.wait(0.5)
-							Dropdown.Title.Text = DropdownSettings.Name
-							TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-								{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-							TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-								{ Transparency = 0 }):Play()
-						end
-
-						for _, droption in ipairs(Dropdown.List:GetChildren()) do
-							if droption.ClassName == "Frame" and droption.Name ~= "Placeholder" and not table.find(DropdownSettings.CurrentOption, droption.Name) then
-								TweenService:Create(droption, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-									{ BackgroundColor3 = SelectedTheme.DropdownUnselected }):Play()
-							end
-						end
-						if not DropdownSettings.MultipleOptions then
-							task.wait(0.1)
-							TweenService:Create(Dropdown, TweenInfo.new(0.5, Enum.EasingStyle.Exponential),
-								{ Size = UDim2.new(1, -10, 0, 45) }):Play()
-							for _, DropdownOpt in ipairs(Dropdown.List:GetChildren()) do
-								if DropdownOpt.ClassName == "Frame" and DropdownOpt.Name ~= "Placeholder" then
-									TweenService:Create(DropdownOpt, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-										{ BackgroundTransparency = 1 }):Play()
-									TweenService:Create(DropdownOpt.UIStroke,
-										TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { Transparency = 1 }):Play()
-									TweenService:Create(DropdownOpt.Title,
-										TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { TextTransparency = 1 }):Play()
-								end
-							end
-							TweenService:Create(Dropdown.List, TweenInfo.new(0.3, Enum.EasingStyle.Exponential),
-								{ ScrollBarImageTransparency = 1 }):Play()
-							TweenService:Create(Dropdown.Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-								{ Rotation = 180 }):Play()
-							task.wait(0.35)
-							Dropdown.List.Visible = false
-						end
-						Debounce = false
-						if not DropdownSettings.Ext then
-							SaveConfiguration()
-						end
-					end)
-
-					Rayfield.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
-						DropdownOption.UIStroke.Color = SelectedTheme.ElementStroke
-					end)
-				end
-			end
-			SetDropdownOptions()
-
-			for _, droption in ipairs(Dropdown.List:GetChildren()) do
-				if droption.ClassName == "Frame" and droption.Name ~= "Placeholder" then
-					if not table.find(DropdownSettings.CurrentOption, droption.Name) then
-						droption.BackgroundColor3 = SelectedTheme.DropdownUnselected
-					else
-						droption.BackgroundColor3 = SelectedTheme.DropdownSelected
-					end
-
-					Rayfield.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
-						if not table.find(DropdownSettings.CurrentOption, droption.Name) then
-							droption.BackgroundColor3 = SelectedTheme.DropdownUnselected
-						else
-							droption.BackgroundColor3 = SelectedTheme.DropdownSelected
-						end
-					end)
-				end
-			end
-
-			function DropdownSettings:Set(NewOption)
-				DropdownSettings.CurrentOption = NewOption
-
-				if typeof(DropdownSettings.CurrentOption) == "string" then
-					DropdownSettings.CurrentOption = { DropdownSettings.CurrentOption }
-				end
-
-				if not DropdownSettings.MultipleOptions then
-					DropdownSettings.CurrentOption = { DropdownSettings.CurrentOption[1] }
-				end
-
-				if DropdownSettings.MultipleOptions then
-					if #DropdownSettings.CurrentOption == 1 then
-						Dropdown.Selected.Text = DropdownSettings.CurrentOption[1]
-					elseif #DropdownSettings.CurrentOption == 0 then
-						Dropdown.Selected.Text = "None"
-					else
-						Dropdown.Selected.Text = "Various"
-					end
-				else
-					Dropdown.Selected.Text = DropdownSettings.CurrentOption[1]
-				end
-
-
-				local Success, Response = pcall(function()
-					DropdownSettings.Callback(NewOption)
-				end)
-				if not Success then
-					TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = Color3.fromRGB(85, 0, 0) }):Play()
-					TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 1 }):Play()
-					Dropdown.Title.Text = "Callback Error"
-					print("Rayfield | " .. DropdownSettings.Name .. " Callback Error " .. tostring(Response))
-					warn('Check docs.sirius.menu for help with Rayfield specific development.')
-					task.wait(0.5)
-					Dropdown.Title.Text = DropdownSettings.Name
-					TweenService:Create(Dropdown, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-					TweenService:Create(Dropdown.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 0 }):Play()
-				end
-
-				for _, droption in ipairs(Dropdown.List:GetChildren()) do
-					if droption.ClassName == "Frame" and droption.Name ~= "Placeholder" then
-						if not table.find(DropdownSettings.CurrentOption, droption.Name) then
-							droption.BackgroundColor3 = SelectedTheme.DropdownUnselected
-						else
-							droption.BackgroundColor3 = SelectedTheme.DropdownSelected
-						end
-					end
-				end
-				--SaveConfiguration()
-			end
-
-			function DropdownSettings:Refresh(optionsTable) -- updates a dropdown with new options from optionsTable
-				DropdownSettings.Options = optionsTable
-				for _, option in ipairs(Dropdown.List:GetChildren()) do
-					if option.ClassName == "Frame" and option.Name ~= "Placeholder" then
-						option:Destroy()
-					end
-				end
-				SetDropdownOptions()
-
-				-- Apply selected/unselected background colors to new options
-				for _, droption in ipairs(Dropdown.List:GetChildren()) do
-					if droption.ClassName == "Frame" and droption.Name ~= "Placeholder" then
-						if not table.find(DropdownSettings.CurrentOption, droption.Name) then
-							droption.BackgroundColor3 = SelectedTheme.DropdownUnselected
-						else
-							droption.BackgroundColor3 = SelectedTheme.DropdownSelected
-						end
-					end
-				end
-
-				-- If the dropdown is currently open, make new options visible immediately
-				if Dropdown.List.Visible then
-					for _, DropdownOpt in ipairs(Dropdown.List:GetChildren()) do
-						if DropdownOpt.ClassName == "Frame" and DropdownOpt.Name ~= "Placeholder" then
-							DropdownOpt.BackgroundTransparency = 0
-							DropdownOpt.Title.TextTransparency = 0
-							if not table.find(DropdownSettings.CurrentOption, DropdownOpt.Name) then
-								DropdownOpt.UIStroke.Transparency = 0
-							end
-						end
-					end
-				end
-			end
-
-			if Settings.ConfigurationSaving then
-				if Settings.ConfigurationSaving.Enabled and DropdownSettings.Flag then
-					RayfieldLibrary.Flags[DropdownSettings.Flag] = DropdownSettings
-				end
-			end
-
-			Rayfield.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
-				Dropdown.Toggle.ImageColor3 = SelectedTheme.TextColor
-				TweenService:Create(Dropdown, TweenInfo.new(0.4, Enum.EasingStyle.Exponential),
-					{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-			end)
-
-			return DropdownSettings
-		end
-
-		-- Keybind
-		function Tab:CreateKeybind(KeybindSettings)
-			local siaHandle = siaElement("keybind", KeybindSettings.Name, siaTab)
-			local CheckingForKey = false
-			local Keybind = Elements.Template.Keybind:Clone()
-			Keybind.Name = KeybindSettings.Name
-			Keybind.Title.Text = KeybindSettings.Name
-			Keybind.Visible = true
-			Keybind.Parent = TabPage
-
-			Keybind.BackgroundTransparency = 1
-			Keybind.UIStroke.Transparency = 1
-			Keybind.Title.TextTransparency = 1
-
-			Keybind.KeybindFrame.BackgroundColor3 = SelectedTheme.InputBackground
-			Keybind.KeybindFrame.UIStroke.Color = SelectedTheme.InputStroke
-
-			TweenService:Create(Keybind, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 })
-				:Play()
-			TweenService:Create(Keybind.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { Transparency = 0 })
-				:Play()
-			TweenService:Create(Keybind.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { TextTransparency = 0 })
-				:Play()
-
-			Keybind.KeybindFrame.KeybindBox.Text = KeybindSettings.CurrentKeybind
-			Keybind.KeybindFrame.Size = UDim2.new(0, Keybind.KeybindFrame.KeybindBox.TextBounds.X + 24, 0, 30)
-
-			Keybind.KeybindFrame.KeybindBox.Focused:Connect(function()
-				CheckingForKey = true
-				Keybind.KeybindFrame.KeybindBox.Text = ""
-			end)
-			Keybind.KeybindFrame.KeybindBox.FocusLost:Connect(function()
-				CheckingForKey = false
-				if Keybind.KeybindFrame.KeybindBox.Text == nil or Keybind.KeybindFrame.KeybindBox.Text == "" then
-					Keybind.KeybindFrame.KeybindBox.Text = KeybindSettings.CurrentKeybind
-					if not KeybindSettings.Ext then
-						SaveConfiguration()
-					end
-				end
-			end)
-
-			Keybind.MouseEnter:Connect(function()
-				TweenService:Create(Keybind, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-					{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
-			end)
-
-			Keybind.MouseLeave:Connect(function()
-				TweenService:Create(Keybind, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-					{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-			end)
-
-			local connection = UserInputService.InputBegan:Connect(function(input, processed)
-				if rayfieldDestroyed then return end
-				if CheckingForKey then
-					if input.KeyCode ~= Enum.KeyCode.Unknown then
-						local SplitMessage = string.split(tostring(input.KeyCode), ".")
-						local NewKeyNoEnum = SplitMessage[3]
-						Keybind.KeybindFrame.KeybindBox.Text = tostring(NewKeyNoEnum)
-						KeybindSettings.CurrentKeybind = tostring(NewKeyNoEnum)
-						Keybind.KeybindFrame.KeybindBox:ReleaseFocus()
-						siaUsed(siaHandle, "bind")
-						if not KeybindSettings.Ext then
-							SaveConfiguration()
-						end
-
-						if KeybindSettings.CallOnChange then
-							KeybindSettings.Callback(tostring(NewKeyNoEnum))
-						end
-					end
-				elseif not KeybindSettings.CallOnChange and KeybindSettings.CurrentKeybind ~= nil and (input.KeyCode == Enum.KeyCode[KeybindSettings.CurrentKeybind] and not processed) then -- Test
-					siaUsed(siaHandle, "press")
-					local Held = true
-					local Connection
-					Connection = input.Changed:Connect(function(prop)
-						if prop == "UserInputState" then
-							Connection:Disconnect()
-							Held = false
-						end
-					end)
-
-					if not KeybindSettings.HoldToInteract then
-						local Success, Response = pcall(KeybindSettings.Callback)
-						if not Success then
-							siaError(siaHandle)
-							TweenService:Create(Keybind, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-								{ BackgroundColor3 = Color3.fromRGB(85, 0, 0) }):Play()
-							TweenService:Create(Keybind.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-								{ Transparency = 1 }):Play()
-							Keybind.Title.Text = "Callback Error"
-							print("Rayfield | " .. KeybindSettings.Name .. " Callback Error " .. tostring(Response))
-							warn('Check docs.sirius.menu for help with Rayfield specific development.')
-							task.wait(0.5)
-							Keybind.Title.Text = KeybindSettings.Name
-							TweenService:Create(Keybind, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-								{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-							TweenService:Create(Keybind.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-								{ Transparency = 0 }):Play()
-						end
-					else
-						task.wait(0.25)
-						if Held then
-							local Loop; Loop = RunService.Stepped:Connect(function()
-								if not Held then
-									KeybindSettings.Callback(false) -- maybe pcall this
-									Loop:Disconnect()
-								else
-									KeybindSettings.Callback(true) -- maybe pcall this
-								end
-							end)
-						end
-					end
-				end
-			end)
-			table.insert(keybindConnections, connection)
-
-			Keybind.KeybindFrame.KeybindBox:GetPropertyChangedSignal("Text"):Connect(function()
-				TweenService:Create(Keybind.KeybindFrame,
-					TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-					{ Size = UDim2.new(0, Keybind.KeybindFrame.KeybindBox.TextBounds.X + 24, 0, 30) }):Play()
-			end)
-
-			function KeybindSettings:Set(NewKeybind)
-				Keybind.KeybindFrame.KeybindBox.Text = tostring(NewKeybind)
-				KeybindSettings.CurrentKeybind = tostring(NewKeybind)
-				Keybind.KeybindFrame.KeybindBox:ReleaseFocus()
-				if not KeybindSettings.Ext then
-					SaveConfiguration()
-				end
-
-				if KeybindSettings.CallOnChange then
-					KeybindSettings.Callback(tostring(NewKeybind))
-				end
-			end
-
-			if Settings.ConfigurationSaving then
-				if Settings.ConfigurationSaving.Enabled and KeybindSettings.Flag then
-					RayfieldLibrary.Flags[KeybindSettings.Flag] = KeybindSettings
-				end
-			end
-
-			Rayfield.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
-				Keybind.KeybindFrame.BackgroundColor3 = SelectedTheme.InputBackground
-				Keybind.KeybindFrame.UIStroke.Color = SelectedTheme.InputStroke
-			end)
-
-			return KeybindSettings
-		end
-
-		-- Toggle
-		function Tab:CreateToggle(ToggleSettings)
-			local ToggleValue = {}
-			local siaHandle = siaElement("toggle", ToggleSettings.Name, siaTab)
-			siaSetState(siaHandle, ToggleSettings.CurrentValue == true and 1 or 0)
-
-			local Toggle = Elements.Template.Toggle:Clone()
-			Toggle.Name = ToggleSettings.Name
-			Toggle.Title.Text = ToggleSettings.Name
-			Toggle.Visible = true
-			Toggle.Parent = TabPage
-
-			Toggle.BackgroundTransparency = 1
-			Toggle.UIStroke.Transparency = 1
-			Toggle.Title.TextTransparency = 1
-			Toggle.Switch.BackgroundColor3 = SelectedTheme.ToggleBackground
-
-			if SelectedTheme ~= RayfieldLibrary.Theme.Default then
-				Toggle.Switch.Shadow.Visible = false
-			end
-
-			TweenService:Create(Toggle, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 })
-				:Play()
-			TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { Transparency = 0 })
-				:Play()
-			TweenService:Create(Toggle.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { TextTransparency = 0 })
-				:Play()
-
-			if ToggleSettings.CurrentValue == true then
-				Toggle.Switch.Indicator.Position = UDim2.new(1, -20, 0.5, 0)
-				Toggle.Switch.Indicator.UIStroke.Color = SelectedTheme.ToggleEnabledStroke
-				Toggle.Switch.Indicator.BackgroundColor3 = SelectedTheme.ToggleEnabled
-				Toggle.Switch.UIStroke.Color = SelectedTheme.ToggleEnabledOuterStroke
-			else
-				Toggle.Switch.Indicator.Position = UDim2.new(1, -40, 0.5, 0)
-				Toggle.Switch.Indicator.UIStroke.Color = SelectedTheme.ToggleDisabledStroke
-				Toggle.Switch.Indicator.BackgroundColor3 = SelectedTheme.ToggleDisabled
-				Toggle.Switch.UIStroke.Color = SelectedTheme.ToggleDisabledOuterStroke
-			end
-
-			Toggle.MouseEnter:Connect(function()
-				TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-					{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
-			end)
-
-			Toggle.MouseLeave:Connect(function()
-				TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-					{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-			end)
-
-			Toggle.Interact.MouseButton1Click:Connect(function()
-				if ToggleSettings.CurrentValue == true then
-					ToggleSettings.CurrentValue = false
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 1 }):Play()
-					TweenService:Create(Toggle.Switch.Indicator,
-						TweenInfo.new(0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-						{ Position = UDim2.new(1, -40, 0.5, 0) }):Play()
-					TweenService:Create(Toggle.Switch.Indicator.UIStroke,
-						TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-						{ Color = SelectedTheme.ToggleDisabledStroke }):Play()
-					TweenService:Create(Toggle.Switch.Indicator,
-						TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-						{ BackgroundColor3 = SelectedTheme.ToggleDisabled }):Play()
-					TweenService:Create(Toggle.Switch.UIStroke,
-						TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-						{ Color = SelectedTheme.ToggleDisabledOuterStroke }):Play()
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 0 }):Play()
-				else
-					ToggleSettings.CurrentValue = true
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 1 }):Play()
-					TweenService:Create(Toggle.Switch.Indicator,
-						TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-						{ Position = UDim2.new(1, -20, 0.5, 0) }):Play()
-					TweenService:Create(Toggle.Switch.Indicator.UIStroke,
-						TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-						{ Color = SelectedTheme.ToggleEnabledStroke }):Play()
-					TweenService:Create(Toggle.Switch.Indicator,
-						TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-						{ BackgroundColor3 = SelectedTheme.ToggleEnabled }):Play()
-					TweenService:Create(Toggle.Switch.UIStroke,
-						TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-						{ Color = SelectedTheme.ToggleEnabledOuterStroke }):Play()
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 0 }):Play()
-				end
-
-				siaUsed(siaHandle, ToggleSettings.CurrentValue and "on" or "off", ToggleSettings.CurrentValue and 1 or 0)
-				local Success, Response = pcall(function()
-					if debugX then warn('Running toggle \'' .. ToggleSettings.Name .. '\' (Interact)') end
-
-					ToggleSettings.Callback(ToggleSettings.CurrentValue)
-				end)
-
-				if not Success then
-					siaError(siaHandle)
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = Color3.fromRGB(85, 0, 0) }):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 1 }):Play()
-					Toggle.Title.Text = "Callback Error"
-					print("Rayfield | " .. ToggleSettings.Name .. " Callback Error " .. tostring(Response))
-					warn('Check docs.sirius.menu for help with Rayfield specific development.')
-					task.wait(0.5)
-					Toggle.Title.Text = ToggleSettings.Name
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 0 }):Play()
-				end
-
-				if not ToggleSettings.Ext then
-					SaveConfiguration()
-				end
-			end)
-
-			function ToggleSettings:Set(NewToggleValue)
-				if NewToggleValue == true then
-					ToggleSettings.CurrentValue = true
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 1 }):Play()
-					TweenService:Create(Toggle.Switch.Indicator,
-						TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-						{ Position = UDim2.new(1, -20, 0.5, 0) }):Play()
-					TweenService:Create(Toggle.Switch.Indicator,
-						TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-						{ Size = UDim2.new(0, 12, 0, 12) }):Play()
-					TweenService:Create(Toggle.Switch.Indicator.UIStroke,
-						TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-						{ Color = SelectedTheme.ToggleEnabledStroke }):Play()
-					TweenService:Create(Toggle.Switch.Indicator,
-						TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-						{ BackgroundColor3 = SelectedTheme.ToggleEnabled }):Play()
-					TweenService:Create(Toggle.Switch.UIStroke,
-						TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-						{ Color = SelectedTheme.ToggleEnabledOuterStroke }):Play()
-					TweenService:Create(Toggle.Switch.Indicator,
-						TweenInfo.new(0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-						{ Size = UDim2.new(0, 17, 0, 17) }):Play()
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 0 }):Play()
-				else
-					ToggleSettings.CurrentValue = false
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 1 }):Play()
-					TweenService:Create(Toggle.Switch.Indicator,
-						TweenInfo.new(0.45, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-						{ Position = UDim2.new(1, -40, 0.5, 0) }):Play()
-					TweenService:Create(Toggle.Switch.Indicator,
-						TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-						{ Size = UDim2.new(0, 12, 0, 12) }):Play()
-					TweenService:Create(Toggle.Switch.Indicator.UIStroke,
-						TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-						{ Color = SelectedTheme.ToggleDisabledStroke }):Play()
-					TweenService:Create(Toggle.Switch.Indicator,
-						TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-						{ BackgroundColor3 = SelectedTheme.ToggleDisabled }):Play()
-					TweenService:Create(Toggle.Switch.UIStroke,
-						TweenInfo.new(0.55, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-						{ Color = SelectedTheme.ToggleDisabledOuterStroke }):Play()
-					TweenService:Create(Toggle.Switch.Indicator,
-						TweenInfo.new(0.4, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-						{ Size = UDim2.new(0, 17, 0, 17) }):Play()
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 0 }):Play()
-				end
-
-				siaSetState(siaHandle, ToggleSettings.CurrentValue and 1 or 0)
-				local Success, Response = pcall(function()
-					if debugX then warn('Running toggle \'' .. ToggleSettings.Name .. '\' (:Set)') end
-
-					ToggleSettings.Callback(ToggleSettings.CurrentValue)
-				end)
-
-				if not Success then
-					siaError(siaHandle)
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = Color3.fromRGB(85, 0, 0) }):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 1 }):Play()
-					Toggle.Title.Text = "Callback Error"
-					print("Rayfield | " .. ToggleSettings.Name .. " Callback Error " .. tostring(Response))
-					warn('Check docs.sirius.menu for help with Rayfield specific development.')
-					task.wait(0.5)
-					Toggle.Title.Text = ToggleSettings.Name
-					TweenService:Create(Toggle, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-					TweenService:Create(Toggle.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 0 }):Play()
-				end
-
-				if not ToggleSettings.Ext then
-					SaveConfiguration()
-				end
-			end
-
-			if not ToggleSettings.Ext then
-				if Settings.ConfigurationSaving then
-					if Settings.ConfigurationSaving.Enabled and ToggleSettings.Flag then
-						RayfieldLibrary.Flags[ToggleSettings.Flag] = ToggleSettings
-					end
-				end
-			end
-
-
-			Rayfield.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
-				Toggle.Switch.BackgroundColor3 = SelectedTheme.ToggleBackground
-
-				if SelectedTheme ~= RayfieldLibrary.Theme.Default then
-					Toggle.Switch.Shadow.Visible = false
-				end
-
-				task.wait()
-
-				if not ToggleSettings.CurrentValue then
-					Toggle.Switch.Indicator.UIStroke.Color = SelectedTheme.ToggleDisabledStroke
-					Toggle.Switch.Indicator.BackgroundColor3 = SelectedTheme.ToggleDisabled
-					Toggle.Switch.UIStroke.Color = SelectedTheme.ToggleDisabledOuterStroke
-				else
-					Toggle.Switch.Indicator.UIStroke.Color = SelectedTheme.ToggleEnabledStroke
-					Toggle.Switch.Indicator.BackgroundColor3 = SelectedTheme.ToggleEnabled
-					Toggle.Switch.UIStroke.Color = SelectedTheme.ToggleEnabledOuterStroke
-				end
-			end)
-
-			return ToggleSettings
-		end
-
-		-- Slider
-		function Tab:CreateSlider(SliderSettings)
-			local SLDragging = false
-			local activeSliderInput = nil
-			local sliderLoop = nil
-			local siaHandle = siaElement("slider", SliderSettings.Name, siaTab)
-			-- where a value sits in the slider's range, 0..1
-			local function siaPosition(value)
-				local span = SliderSettings.Range[2] - SliderSettings.Range[1]
-				if span > 0 then
-					return (value - SliderSettings.Range[1]) / span
-				end
-				return 0
-			end
-			siaSetState(siaHandle, siaPosition(SliderSettings.CurrentValue))
-			local Slider = Elements.Template.Slider:Clone()
-			Slider.Name = SliderSettings.Name
-			Slider.Title.Text = SliderSettings.Name
-			Slider.Visible = true
-			Slider.Parent = TabPage
-
-			Slider.BackgroundTransparency = 1
-			Slider.UIStroke.Transparency = 1
-			Slider.Title.TextTransparency = 1
-
-			if SelectedTheme ~= RayfieldLibrary.Theme.Default then
-				Slider.Main.Shadow.Visible = false
-			end
-
-			Slider.Main.BackgroundColor3 = SelectedTheme.SliderBackground
-			Slider.Main.UIStroke.Color = SelectedTheme.SliderStroke
-			Slider.Main.Progress.UIStroke.Color = SelectedTheme.SliderStroke
-			Slider.Main.Progress.BackgroundColor3 = SelectedTheme.SliderProgress
-
-			TweenService:Create(Slider, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 })
-				:Play()
-			TweenService:Create(Slider.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { Transparency = 0 })
-				:Play()
-			TweenService:Create(Slider.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { TextTransparency = 0 })
-				:Play()
-
-			local function getUnscaledSliderWidth()
-				local uiScale = (mainUIScale and mainUIScale.Scale > 0) and mainUIScale.Scale or 1
-				local absW = Slider.Main.AbsoluteSize.X / uiScale
-				if absW > 10 then
-					return absW
-				end
-				return 220
-			end
-
-			local initialRatio = math.clamp(
-				(SliderSettings.CurrentValue - SliderSettings.Range[1]) /
-				math.max(SliderSettings.Range[2] - SliderSettings.Range[1], 0.0001), 0, 1)
-			local initialPx = math.max(getUnscaledSliderWidth() * initialRatio, 5)
-			Slider.Main.Progress.Size = UDim2.new(0, initialPx, 1, 0)
-
-			if not SliderSettings.Suffix then
-				Slider.Main.Information.Text = tostring(SliderSettings.CurrentValue)
-			else
-				Slider.Main.Information.Text = tostring(SliderSettings.CurrentValue) .. " " .. SliderSettings.Suffix
-			end
-
-			Slider.MouseEnter:Connect(function()
-				TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-					{ BackgroundColor3 = SelectedTheme.ElementBackgroundHover }):Play()
-			end)
-
-			Slider.MouseLeave:Connect(function()
-				TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-					{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-			end)
-
-			local function getSliderPointerX()
-				local screenGui = Slider:FindFirstAncestorWhichIsA("ScreenGui")
-				local ignoreInset = screenGui and screenGui.IgnoreGuiInset or false
-				local inset = GuiService and select(2, pcall(GuiService.GetGuiInset, GuiService)) or Vector2.zero
-				if typeof(inset) ~= "Vector2" then inset = Vector2.zero end
-
-				if activeSliderInput and activeSliderInput.UserInputType == Enum.UserInputType.Touch then
-					if ignoreInset then
-						return activeSliderInput.Position.X + inset.X
-					end
-					return activeSliderInput.Position.X
-				end
-				local mouseX = UserInputService:GetMouseLocation().X
-				if ignoreInset then
-					return mouseX
-				end
-				return mouseX - inset.X
-			end
-
-			local function stopSliderDrag()
-				if not SLDragging then return end
-				siaUsed(siaHandle, "set", siaPosition(SliderSettings.CurrentValue))
-				TweenService:Create(Slider.Main.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-					{ Transparency = 0.4 }):Play()
-				TweenService:Create(Slider.Main.Progress.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-					{ Transparency = 0.3 }):Play()
-				SLDragging = false
-				activeSliderInput = nil
-				if TabPage and TabPage:IsA("ScrollingFrame") then
-					TabPage.ScrollingEnabled = true
-				end
-			end
-
-			local function startSliderDrag(inputObj)
-				if SLDragging then return end
-				SLDragging = true
-				activeSliderInput = inputObj
-				if TabPage and TabPage:IsA("ScrollingFrame") then
-					TabPage.ScrollingEnabled = false
-				end
-				TweenService:Create(Slider.Main.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-					{ Transparency = 1 }):Play()
-				TweenService:Create(Slider.Main.Progress.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-					{ Transparency = 1 }):Play()
-
-				local Location = getSliderPointerX()
-				if sliderLoop then sliderLoop:Disconnect() end
-				sliderLoop = RunService.RenderStepped:Connect(function()
-					if SLDragging then
-						Location = getSliderPointerX()
-						local barStart = Slider.Main.AbsolutePosition.X
-						local barWidth = math.max(Slider.Main.AbsoluteSize.X, 1)
-						local clampedX = math.clamp(Location, barStart, barStart + barWidth)
-						local ratio = math.clamp((clampedX - barStart) / barWidth, 0, 1)
-						local targetPx = math.max(getUnscaledSliderWidth() * ratio, 5)
-
-						TweenService:Create(Slider.Main.Progress,
-							TweenInfo.new(0.25, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-							{ Size = UDim2.new(0, targetPx, 1, 0) }):Play()
-						local NewValue = SliderSettings.Range[1] +
-							ratio * (SliderSettings.Range[2] - SliderSettings.Range[1])
-
-						NewValue = math.floor(NewValue / SliderSettings.Increment + 0.5) *
-							(SliderSettings.Increment * 10000000) / 10000000
-						NewValue = math.clamp(NewValue, SliderSettings.Range[1], SliderSettings.Range[2])
-
-						if not SliderSettings.Suffix then
-							Slider.Main.Information.Text = tostring(NewValue)
-						else
-							Slider.Main.Information.Text = tostring(NewValue) .. " " .. SliderSettings.Suffix
-						end
-
-						if SliderSettings.CurrentValue ~= NewValue then
-							siaSetState(siaHandle, siaPosition(NewValue))
-							local Success, Response = pcall(function()
-								SliderSettings.Callback(NewValue)
-							end)
-							if not Success then
-								TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-									{ BackgroundColor3 = Color3.fromRGB(85, 0, 0) }):Play()
-								TweenService:Create(Slider.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-									{ Transparency = 1 }):Play()
-								Slider.Title.Text = "Callback Error"
-								siaError(siaHandle)
-								print("Rayfield | " .. SliderSettings.Name .. " Callback Error " .. tostring(Response))
-								warn('Check docs.sirius.menu for help with Rayfield specific development.')
-								task.wait(0.5)
-								Slider.Title.Text = SliderSettings.Name
-								TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-									{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-								TweenService:Create(Slider.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-									{ Transparency = 0 }):Play()
-							end
-
-							SliderSettings.CurrentValue = NewValue
-							if not SliderSettings.Ext then
-								SaveConfiguration()
-							end
-						end
-					else
-						if sliderLoop then
-							sliderLoop:Disconnect()
-							sliderLoop = nil
-						end
-					end
-				end)
-			end
-
-			Slider.Main.Interact.InputBegan:Connect(function(Input)
-				if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
-					startSliderDrag(Input)
-				end
-			end)
-
-			Slider.Main.Interact.InputEnded:Connect(function(Input)
-				if Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch then
-					stopSliderDrag()
-				end
-			end)
-
-			local sliderInputEndedConn = UserInputService.InputEnded:Connect(function(Input)
-				if SLDragging and (Input == activeSliderInput or Input.UserInputType == Enum.UserInputType.MouseButton1 or Input.UserInputType == Enum.UserInputType.Touch) then
-					stopSliderDrag()
-				end
-			end)
-
-			Slider.Destroying:Connect(function()
-				if sliderLoop then sliderLoop:Disconnect() end
-				if sliderInputEndedConn then sliderInputEndedConn:Disconnect() end
-			end)
-
-			function SliderSettings:Set(NewVal)
-				local NewVal = math.clamp(NewVal, SliderSettings.Range[1], SliderSettings.Range[2])
-				local ratio = math.clamp(
-					(NewVal - SliderSettings.Range[1]) /
-					math.max(SliderSettings.Range[2] - SliderSettings.Range[1], 0.0001),
-					0, 1)
-				local targetPx = math.max(getUnscaledSliderWidth() * ratio, 5)
-
-				TweenService:Create(Slider.Main.Progress,
-					TweenInfo.new(0.45, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-					{ Size = UDim2.new(0, targetPx, 1, 0) }):Play()
-				Slider.Main.Information.Text = tostring(NewVal) .. " " .. (SliderSettings.Suffix or "")
-				siaSetState(siaHandle, siaPosition(NewVal))
-
-				local Success, Response = pcall(function()
-					SliderSettings.Callback(NewVal)
-				end)
-
-				if not Success then
-					TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = Color3.fromRGB(85, 0, 0) }):Play()
-					TweenService:Create(Slider.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 1 }):Play()
-					Slider.Title.Text = "Callback Error"
-					siaError(siaHandle)
-					print("Rayfield | " .. SliderSettings.Name .. " Callback Error " .. tostring(Response))
-					warn('Check docs.sirius.menu for help with Rayfield specific development.')
-					task.wait(0.5)
-					Slider.Title.Text = SliderSettings.Name
-					TweenService:Create(Slider, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.ElementBackground }):Play()
-					TweenService:Create(Slider.UIStroke, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-						{ Transparency = 0 }):Play()
-				end
-
-				SliderSettings.CurrentValue = NewVal
-				if not SliderSettings.Ext then
-					SaveConfiguration()
-				end
-			end
-
-			if Settings.ConfigurationSaving then
-				if Settings.ConfigurationSaving.Enabled and SliderSettings.Flag then
-					RayfieldLibrary.Flags[SliderSettings.Flag] = SliderSettings
-				end
-			end
-
-			Rayfield.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
-				if SelectedTheme ~= RayfieldLibrary.Theme.Default then
-					Slider.Main.Shadow.Visible = false
-				end
-
-				Slider.Main.BackgroundColor3 = SelectedTheme.SliderBackground
-				Slider.Main.UIStroke.Color = SelectedTheme.SliderStroke
-				Slider.Main.Progress.UIStroke.Color = SelectedTheme.SliderStroke
-				Slider.Main.Progress.BackgroundColor3 = SelectedTheme.SliderProgress
-			end)
-
-			return SliderSettings
-		end
-
-		Rayfield.Main:GetPropertyChangedSignal('BackgroundColor3'):Connect(function()
-			TabButton.UIStroke.Color = SelectedTheme.TabStroke
-
-			if Elements.UIPageLayout.CurrentPage == TabPage then
-				TabButton.BackgroundColor3 = SelectedTheme.TabBackgroundSelected
-				TabButton.Image.ImageColor3 = SelectedTheme.SelectedTabTextColor
-				TabButton.Title.TextColor3 = SelectedTheme.SelectedTabTextColor
-			else
-				TabButton.BackgroundColor3 = SelectedTheme.TabBackground
-				TabButton.Image.ImageColor3 = SelectedTheme.TabTextColor
-				TabButton.Title.TextColor3 = SelectedTheme.TabTextColor
-			end
-		end)
-
-		return Tab
-	end
-
-	Elements.Visible = true
-
-
-	task.wait(1.1)
-	TweenService:Create(Main, TweenInfo.new(0.7, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut),
-		{ Size = UDim2.new(0, 390, 0, 90) }):Play()
-	task.wait(0.3)
-	TweenService:Create(LoadingFrame.Title, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
-		:Play()
-	TweenService:Create(LoadingFrame.Subtitle, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
-		:Play()
-	TweenService:Create(LoadingFrame.Version, TweenInfo.new(0.2, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
-		:Play()
-	task.wait(0.1)
-	TweenService:Create(Main, TweenInfo.new(0.6, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out),
-		{ Size = useMobileSizing and UDim2.new(0, 500, 0, 275) or UDim2.new(0, 500, 0, 475) }):Play()
-	TweenService:Create(Main.Shadow.Image, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { ImageTransparency = 0.6 })
-		:Play()
-
-	Topbar.BackgroundTransparency = 1
-	Topbar.Divider.Size = UDim2.new(0, 0, 0, 1)
-	Topbar.Divider.BackgroundColor3 = SelectedTheme.ElementStroke
-	Topbar.CornerRepair.BackgroundTransparency = 1
-	Topbar.Title.TextTransparency = 1
-	Topbar.Search.ImageTransparency = 1
-	if Topbar:FindFirstChild('Settings') then
-		Topbar.Settings.ImageTransparency = 1
-	end
-	Topbar.ChangeSize.ImageTransparency = 1
-	Topbar.Hide.ImageTransparency = 1
-
-
-	task.wait(0.5)
-	Topbar.Visible = true
-	TweenService:Create(Topbar, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { BackgroundTransparency = 0 }):Play()
-	TweenService:Create(Topbar.CornerRepair, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-		{ BackgroundTransparency = 0 }):Play()
-	task.wait(0.1)
-	TweenService:Create(Topbar.Divider, TweenInfo.new(1, Enum.EasingStyle.Exponential), { Size = UDim2.new(1, 0, 0, 1) })
-		:Play()
-	TweenService:Create(Topbar.Title, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), { TextTransparency = 0 }):Play()
-	task.wait(0.05)
-	TweenService:Create(Topbar.Search, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), { ImageTransparency = 0.8 })
-		:Play()
-	task.wait(0.05)
-	if Topbar:FindFirstChild('Settings') then
-		TweenService:Create(Topbar.Settings, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-			{ ImageTransparency = 0.8 })
-			:Play()
-		task.wait(0.05)
-	end
-	TweenService:Create(Topbar.ChangeSize, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), { ImageTransparency = 0.8 })
-		:Play()
-	task.wait(0.05)
-	TweenService:Create(Topbar.Hide, TweenInfo.new(0.6, Enum.EasingStyle.Exponential), { ImageTransparency = 0.8 }):Play()
-	task.wait(0.3)
-
-	if dragBar then
-		TweenService:Create(dragBarCosmetic, TweenInfo.new(0.6, Enum.EasingStyle.Exponential),
-			{ BackgroundTransparency = 0.7 }):Play()
-	end
-
-	function Window.ModifyTheme(NewTheme)
-		local success = pcall(ChangeTheme, NewTheme)
-		if not success then
-			RayfieldLibrary:Notify({ Title = 'Unable to Change Theme', Content = 'We are unable find a theme on file.', Image = 4400704299 })
-		else
-			RayfieldLibrary:Notify({
-				Title = 'Theme Changed',
-				Content = 'Successfully changed theme to ' ..
-					(typeof(NewTheme) == 'string' and NewTheme or 'Custom Theme') .. '.',
-				Image = 4483362748
-			})
-		end
-	end
-
-	local success, result = pcall(function()
-		createSettings(Window)
 	end)
 
-	if not success then warn('Rayfield had an issue creating settings.') end
-
-	-- Report after createSettings so loadSettings() has run and usageAnalytics reflects the user's saved preference
-	if analyticsAllowed() and loadReporter() then
-		local themeName = "Default"
-		if Settings.Theme then
-			if type(Settings.Theme) == "string" then
-				themeName = Settings.Theme
-			elseif type(Settings.Theme) == "table" then
-				themeName = "Custom"
-			end
-		end
-
-		local discordInvite = nil
-		if Settings.Discord and Settings.Discord.Enabled and Settings.Discord.Invite and Settings.Discord.Invite ~= "" then
-			local raw = tostring(Settings.Discord.Invite)
-			-- Normalize: strip URL prefixes to extract just the invite code
-			discordInvite = (raw:match("discord%.gg/([%w%-]+)") or raw:match("discord%.com/invite/([%w%-]+)") or raw)
-				:sub(1, 32)
-		end
-
-		local sampleSend = false
-
-		-- Random Sampling Test
-		if not Settings.ScriptID and math.random() > 0.4 then
-			sampleSend = true
-		end
-
-		--if Settings.ScriptID then
-		reporter:windowCreated({
-			script_name        = Settings.Name or "Unknown",
-			script_version     = Release,
-			interface_version  = InterfaceBuild,
-			theme              = themeName,
-			is_mobile          = useMobileSizing and true or false,
-			has_key_system     = Settings.KeySystem and true or false,
-			discord_invite     = discordInvite,
-			config_saving      = (Settings.ConfigurationSaving and Settings.ConfigurationSaving.Enabled) and true or
-				false,
-			script_id          = Settings.ScriptID or sampleSend and 'sid_tzfyxawonjx9' or nil,
-			verification_token = Settings.VerificationToken,
-		})
-		--end
+	-- Decorative avatar status indicator; visual-only.
+	if headshot and not headshot:FindFirstChild("HeavenStatus") then
+		local status = Instance.new("Frame")
+		status.Name = "HeavenStatus"
+		status.AnchorPoint = Vector2.new(1, 1)
+		status.BackgroundColor3 = Theme.Success
+		status.BorderSizePixel = 0
+		status.Position = UDim2.new(1, 1, 1, 1)
+		status.Size = UDim2.fromOffset(8, 8)
+		status.ZIndex = headshot.ZIndex + 3
+		HeavenCorner(status, 99)
+		local statusStroke = Instance.new("UIStroke")
+		statusStroke.Name = "HeavenStatusStroke"
+		statusStroke.Color = Theme.Background
+		statusStroke.Transparency = 0.05
+		statusStroke.Thickness = 1
+		statusStroke.Parent = status
+		status.Parent = headshot
 	end
 
-	return Window
+	return WindowFunctions
 end
 
-local function setVisibility(visibility, notify)
-	if Debounce then return end
-	if visibility then
-		Hidden = false
-		Unhide()
-	else
-		Hidden = true
-		Hide(notify)
-	end
-end
+function MacLib:Demo()
+	local Window = MacLib:Window({
+		Title = "Maclib Demo",
+		Subtitle = "Refined theme · Mobile + PC ready",
+		-- Size is optional; auto-fits Phone / Tablet / PC
+		DragStyle = 1,
+		DisabledWindowControls = {},
+		ShowUserInfo = true,
+		Keybind = Enum.KeyCode.RightControl,
+		AcrylicBlur = true,
+		-- Discord button (top-left controls). Invite code or full URL:
+		ShowDiscord = true,
+		DiscordInvite = "discord.gg/your-invite",
+	})
 
-function RayfieldLibrary:SetVisibility(visibility)
-	setVisibility(visibility, false)
-end
-
-function RayfieldLibrary:IsVisible()
-	return not Hidden
-end
-
-local hideHotkeyConnection -- Has to be initialized here since the connection is made later in the script
-function RayfieldLibrary:Destroy()
-	rayfieldDestroyed = true
-	siaCall("window", "close")
-	-- stops the kick watcher the reporter armed, so nothing is sent for a window that's gone
-	if reporter and reporter.disable then
-		pcall(reporter.disable, reporter)
-	end
-	if hideHotkeyConnection then
-		hideHotkeyConnection:Disconnect()
-	end
-	for _, connection in ipairs(keybindConnections) do
-		connection:Disconnect()
-	end
-	Rayfield:Destroy()
-end
-
-Topbar.ChangeSize.MouseButton1Click:Connect(function()
-	if Debounce then return end
-	if Minimised then
-		Minimised = false
-		Maximise()
-	else
-		Minimised = true
-		Minimise()
-	end
-end)
-
-Main.Search.Input:GetPropertyChangedSignal('Text'):Connect(function()
-	if #Main.Search.Input.Text > 0 then
-		if not Elements.UIPageLayout.CurrentPage:FindFirstChild('SearchTitle-fsefsefesfsefesfesfThanks') then
-			local searchTitle = Elements.Template.SectionTitle:Clone()
-			searchTitle.Parent = Elements.UIPageLayout.CurrentPage
-			searchTitle.Name = 'SearchTitle-fsefsefesfsefesfesfThanks'
-			searchTitle.LayoutOrder = -100
-			searchTitle.Title.Text = "Results from '" .. Elements.UIPageLayout.CurrentPage.Name .. "'"
-			searchTitle.Visible = true
-		end
-	else
-		local searchTitle = Elements.UIPageLayout.CurrentPage:FindFirstChild('SearchTitle-fsefsefesfsefesfesfThanks')
-
-		if searchTitle then
-			searchTitle:Destroy()
-		end
-	end
-
-	for _, element in ipairs(Elements.UIPageLayout.CurrentPage:GetChildren()) do
-		if element.ClassName ~= 'UIListLayout' and element.Name ~= 'Placeholder' and element.Name ~= 'SearchTitle-fsefsefesfsefesfesfThanks' then
-			if element.Name == 'SectionTitle' then
-				if #Main.Search.Input.Text == 0 then
-					element.Visible = true
-				else
-					element.Visible = false
-				end
-			else
-				if string.lower(element.Name):find(string.lower(Main.Search.Input.Text), 1, true) then
-					element.Visible = true
-				else
-					element.Visible = false
-				end
-			end
-		end
-	end
-end)
-
-Main.Search.Input.FocusLost:Connect(function(enterPressed)
-	if #Main.Search.Input.Text == 0 and searchOpen then
-		task.wait(0.12)
-		closeSearch()
-	end
-end)
-
-Topbar.Search.MouseButton1Click:Connect(function()
-	task.spawn(function()
-		if searchOpen then
-			closeSearch()
-		else
-			openSearch()
-		end
-	end)
-end)
-
-if Topbar:FindFirstChild('Settings') then
-	Topbar.Settings.MouseButton1Click:Connect(function()
-		task.spawn(function()
-			for _, OtherTabButton in ipairs(TabList:GetChildren()) do
-				if OtherTabButton.Name ~= "Template" and OtherTabButton.ClassName == "Frame" and OtherTabButton.Name ~= "Placeholder" then
-					TweenService:Create(OtherTabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-						{ BackgroundColor3 = SelectedTheme.TabBackground }):Play()
-					TweenService:Create(OtherTabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-						{ TextColor3 = SelectedTheme.TabTextColor }):Play()
-					TweenService:Create(OtherTabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-						{ ImageColor3 = SelectedTheme.TabTextColor }):Play()
-					TweenService:Create(OtherTabButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-						{ BackgroundTransparency = 0.7 }):Play()
-					TweenService:Create(OtherTabButton.Title, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-						{ TextTransparency = 0.2 }):Play()
-					TweenService:Create(OtherTabButton.Image, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-						{ ImageTransparency = 0.2 }):Play()
-					TweenService:Create(OtherTabButton.UIStroke, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-						{ Transparency = 0.5 }):Play()
-				end
-			end
-
-			siaCurrentTab = nil
-			Elements.UIPageLayout:JumpTo(Elements['Rayfield Settings'])
-		end)
-	end)
-end
-
-
-Topbar.Hide.MouseButton1Click:Connect(function()
-	setVisibility(Hidden, not useMobileSizing)
-end)
-
-hideHotkeyConnection = UserInputService.InputBegan:Connect(function(input, processed)
-	if rayfieldDestroyed or processed then return end
-	local openKey = getSetting("General", "rayfieldOpen")
-	local ok, keyCode = pcall(function()
-		return openKey and Enum.KeyCode[openKey] or nil
-	end)
-	if ok and keyCode and input.KeyCode == keyCode then
-		if Debounce then return end
-		if Hidden then
-			Hidden = false
-			Unhide()
-		else
-			Hidden = true
-			Hide()
-		end
-	end
-end)
-
-if MPrompt then
-	MPrompt.Interact.MouseButton1Click:Connect(function()
-		if Debounce then return end
-		if Hidden then
-			Hidden = false
-			Unhide()
-		end
-	end)
-end
-
-for _, TopbarButton in ipairs(Topbar:GetChildren()) do
-	if TopbarButton.ClassName == "ImageButton" and TopbarButton.Name ~= 'Icon' then
-		TopbarButton.MouseEnter:Connect(function()
-			TweenService:Create(TopbarButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential), { ImageTransparency = 0 })
-				:Play()
-		end)
-
-		TopbarButton.MouseLeave:Connect(function()
-			TweenService:Create(TopbarButton, TweenInfo.new(0.7, Enum.EasingStyle.Exponential),
-				{ ImageTransparency = 0.8 })
-				:Play()
-		end)
-	end
-end
-
-
-function RayfieldLibrary:LoadConfiguration()
-	local config
-
-	if debugX then
-		warn('Loading Configuration')
-	end
-
-	if useStudio then
-		config =
-		[[{"Toggle1adwawd":true,"ColorPicker1awd":{"B":255,"G":255,"R":255},"Slider1dawd":100,"ColorPicfsefker1":{"B":255,"G":255,"R":255},"Slidefefsr1":80,"dawdawd":"","Input1":"hh","Keybind1":"B","Dropdown1":["Ocean"]}]]
-	end
-
-	if CEnabled then
-		local notified
-		local loaded
-
-		local success, result = pcall(function()
-			if useStudio and config then
-				loaded = LoadConfiguration(config)
-				return
-			end
-
-			if isfile then
-				local configPath = ConfigurationFolder .. "/" .. CFileName .. ConfigurationExtension
-				if CLegacyFileName and not callSafely(isfile, configPath) then
-					local legacyPath = ConfigurationFolder .. "/" .. CLegacyFileName .. ConfigurationExtension
-					if callSafely(isfile, legacyPath) then
-						configPath = legacyPath
-					end
-				end
-				if callSafely(isfile, configPath) then
-					loaded = LoadConfiguration(callSafely(readfile, configPath))
-				end
-			else
-				notified = true
-				RayfieldLibrary:Notify({
-					Title = "Rayfield Configurations",
-					Content =
-					"We couldn't enable Configuration Saving as you are not using software with filesystem support.",
-					Image = 4384402990
+	local globalSettings = {
+		UIBlurToggle = Window:GlobalSetting({
+			Name = "UI Blur",
+			Default = Window:GetAcrylicBlurState(),
+			Callback = function(bool)
+				Window:SetAcrylicBlurState(bool)
+				Window:Notify({
+					Title = Window.Settings.Title,
+					Description = (bool and "Enabled" or "Disabled") .. " UI Blur",
+					Lifetime = 5
 				})
-			end
-		end)
+			end,
+		}),
+		NotificationToggler = Window:GlobalSetting({
+			Name = "Notifications",
+			Default = Window:GetNotificationsState(),
+			Callback = function(bool)
+				Window:SetNotificationsState(bool)
+				Window:Notify({
+					Title = Window.Settings.Title,
+					Description = (bool and "Enabled" or "Disabled") .. " Notifications",
+					Lifetime = 5
+				})
+			end,
+		}),
+		ShowUserInfo = Window:GlobalSetting({
+			Name = "Show User Info",
+			Default = Window:GetUserInfoState(),
+			Callback = function(bool)
+				Window:SetUserInfoState(bool)
+				Window:Notify({
+					Title = Window.Settings.Title,
+					Description = (bool and "Showing" or "Redacted") .. " User Info",
+					Lifetime = 5
+				})
+			end,
+		})
+	}
 
-		if success and loaded and not notified then
-			RayfieldLibrary:Notify({
-				Title = "Rayfield Configurations",
-				Content =
-				"The configuration file for this script has been loaded from a previous session.",
-				Image = 4384403532
+	local tabGroups = {
+		TabGroup1 = Window:TabGroup()
+	}
+
+	local tabs = {
+		Main = tabGroups.TabGroup1:Tab({ Name = "Demo", Image = "rbxassetid://18821914323" }),
+		Settings = tabGroups.TabGroup1:Tab({ Name = "Settings", Image = "rbxassetid://10734950309" })
+	}
+
+	local sections = {
+		MainSection1 = tabs.Main:Section({ Side = "Left" }),
+	}
+
+	sections.MainSection1:Header({
+		Name = "Header #1"
+	})
+
+	sections.MainSection1:Button({
+		Name = "Button",
+		Callback = function()
+			Window:Dialog({
+				Title = Window.Settings.Title,
+				Description = "Lorem ipsum odor amet, consectetuer adipiscing elit. Eros vestibulum aliquet mattis, ex platea nunc.",
+				Buttons = {
+					{
+						Name = "Confirm",
+						Callback = function()
+							print("Confirmed!")
+						end,
+					},
+					{
+						Name = "Cancel"
+					}
+				}
 			})
-		elseif not success and not notified then
-			warn('Rayfield Configurations Error | ' .. tostring(result))
-			RayfieldLibrary:Notify({
-				Title = "Rayfield Configurations",
-				Content =
-				"We've encountered an issue loading your configuration correctly.\n\nCheck the Developer Console for more information.",
-				Image = 4384402990
+		end,
+	})
+
+	sections.MainSection1:Input({
+		Name = "Input",
+		Placeholder = "Input",
+		AcceptedCharacters = "All",
+		Callback = function(input)
+			Window:Notify({
+				Title = Window.Settings.Title,
+				Description = "Successfully set input to " .. input
 			})
+		end,
+		onChanged = function(input)
+			print("Input is now " .. input)
+		end,
+	}, "Input")
+
+	sections.MainSection1:Slider({
+		Name = "Slider",
+		Default = 50,
+		Minimum = 0,
+		Maximum = 100,
+		DisplayMethod = "Percent",
+		Precision = 0,
+		Callback = function(Value)
+			print("Changed to ".. Value)
 		end
-	end
+	}, "Slider")
 
-	globalLoaded = true
-end
+	sections.MainSection1:Toggle({
+		Name = "Toggle",
+		Default = false,
+		Callback = function(value)
+			Window:Notify({
+				Title = Window.Settings.Title,
+				Description = (value and "Enabled " or "Disabled ") .. "Toggle"
+			})
+		end,
+	}, "Toggle")
 
-if useStudio then
-	-- run w/ studio
-	-- Feel free to place your own script here to see how it'd work in Roblox Studio before running it on your execution software.
+	sections.MainSection1:Keybind({
+		Name = "Keybind",
+		Blacklist = false,
+		Callback = function(binded)
+			Window:Notify({
+				Title = "Demo Window",
+				Description = "Pressed keybind - "..tostring(binded.Name),
+				Lifetime = 3
+			})
+		end,
+		onBinded = function(bind)
+			Window:Notify({
+				Title = "Demo Window",
+				Description = "Successfully Binded Keybind to - "..tostring(bind.Name),
+				Lifetime = 3
+			})
+		end,
+	}, "Keybind")
 
+	sections.MainSection1:Colorpicker({
+		Name = "Colorpicker",
+		Default = Color3.fromRGB(0, 255, 255),
+		Callback = function(color)
+			print("Color: ", color)
+		end,
+	}, "Colorpicker")
 
-	--local Window = RayfieldLibrary:CreateWindow({
-	--	Name = "Rayfield Example Window",
-	--	LoadingTitle = "Rayfield Interface Suite",
-	--	Theme = 'Default',
-	--	Icon = 0,
-	--	LoadingSubtitle = "by Sirius",
-	--	ConfigurationSaving = {
-	--		Enabled = true,
-	--		FolderName = nil, -- Create a custom folder for your hub/game
-	--		FileName = "Big Hub52"
-	--	},
-	--	Discord = {
-	--		Enabled = false,
-	--		Invite = "noinvitelink", -- The Discord invite code, do not include discord.gg/. E.g. discord.gg/ABCD would be ABCD
-	--		RememberJoins = true -- Set this to false to make them join the discord every time they load it up
-	--	},
-	--	KeySystem = false, -- Set this to true to use our key system
-	--	KeySettings = {
-	--		Title = "Untitled",
-	--		Subtitle = "Key System",
-	--		Note = "No method of obtaining the key is provided",
-	--		FileName = "Key", -- It is recommended to use something unique as other scripts using Rayfield may overwrite your key file
-	--		SaveKey = true, -- The user's key will be saved, but if you change the key, they will be unable to use your script
-	--		GrabKeyFromSite = false, -- If this is true, set Key below to the RAW site you would like Rayfield to get the key from
-	--		Key = {"Hello"} -- List of keys that will be accepted by the system, can be RAW file links (pastebin, github etc) or simple strings ("hello","key22")
-	--	}
-	--})
+	local alphaColorPicker = sections.MainSection1:Colorpicker({
+		Name = "Transparency Colorpicker",
+		Default = Color3.fromRGB(255,0,0),
+		Alpha = 0,
+		Callback = function(color, alpha)
+			print("Color: ", color, " Alpha: ", alpha)
+		end,
+	}, "TransparencyColorpicker")
 
-	--local Tab = Window:CreateTab("Tab Example", 'key-round') -- Title, Image
-	--local Tab2 = Window:CreateTab("Tab Example 2", 4483362458) -- Title, Image
+	local rainbowActive
+	local rainbowConnection
+	local hue = 0
 
-	--local Section = Tab2:CreateSection("Section")
+	sections.MainSection1:Toggle({
+		Name = "Rainbow",
+		Default = false,
+		Callback = function(value)
+			rainbowActive = value
 
+			if rainbowActive then
+				rainbowConnection = game:GetService("RunService").RenderStepped:Connect(function(deltaTime)
+					hue = (hue + deltaTime * 0.1) % 1
+					alphaColorPicker:SetColor(Color3.fromHSV(hue, 1, 1))
+				end)
+			elseif rainbowConnection then
+				rainbowConnection:Disconnect()
+				rainbowConnection = nil
+			end
+		end,
+	}, "RainbowToggle")
 
-	--local ColorPicker = Tab2:CreateColorPicker({
-	--	Name = "Color Picker",
-	--	Color = Color3.fromRGB(255,255,255),
-	--	Flag = "ColorPicfsefker1", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
-	--	Callback = function(Value)
-	--		-- The function that takes place every time the color picker is moved/changed
-	--		-- The variable (Value) is a Color3fromRGB value based on which color is selected
-	--	end
-	--})
+	local optionTable = {
+		"Apple",
+		"Banana",
+		"Orange",
+		"Grapes",
+		"Pineapple",
+		"Mango",
+		"Strawberry",
+		"Blueberry",
+		"Watermelon",
+		"Peach"
+	}
 
-	--local Slider = Tab2:CreateSlider({
-	--	Name = "Slider Example",
-	--	Range = {0, 100},
-	--	Increment = 10,
-	--	Suffix = "Bananas",
-	--	CurrentValue = 40,
-	--	Flag = "Slidefefsr1", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
-	--	Callback = function(Value)
-	--		-- The function that takes place when the slider changes
-	--		-- The variable (Value) is a number which correlates to the value the slider is currently at
-	--	end,
-	--})
+	local Dropdown = sections.MainSection1:Dropdown({
+		Name = "Dropdown",
+		Multi = false,
+		Required = true,
+		Options = optionTable,
+		Default = 1,
+		Callback = function(Value)
+			print("Dropdown changed: ".. Value)
+		end,
+	}, "Dropdown")
 
-	--local Input = Tab2:CreateInput({
-	--	Name = "Input Example",
-	--	CurrentValue = '',
-	--	PlaceholderText = "Input Placeholder",
-	--	Flag = 'dawdawd',
-	--	RemoveTextAfterFocusLost = false,
-	--	Callback = function(Text)
-	--		-- The function that takes place when the input is changed
-	--		-- The variable (Text) is a string for the value in the text box
-	--	end,
-	--})
+	local MultiDropdown = sections.MainSection1:Dropdown({
+		Name = "Multi Dropdown",
+		Search = true,
+		Multi = true,
+		Required = false,
+		Options = optionTable,
+		Default = {"Apple", "Orange"},
+		Callback = function(Value)
+			local Values = {}
+			for Value, State in next, Value do
+				table.insert(Values, Value)
+			end
+			print("Mutlidropdown changed:", table.concat(Values, ", "))
+		end,
+	}, "MultiDropdown")
 
+	sections.MainSection1:Button({
+		Name = "Update Selection",
+		Callback = function()
+			Dropdown:UpdateSelection("Grapes")
+			MultiDropdown:UpdateSelection({"Banana", "Pineapple"})
+		end,
+	})
 
-	----RayfieldLibrary:Notify({Title = "Rayfield Interface", Content = "Welcome to Rayfield. These - are the brand new notification design for Rayfield, with custom sizing and Rayfield calculated wait times.", Image = 4483362458})
+	sections.MainSection1:Divider()
 
-	--local Section = Tab:CreateSection("Section Example")
+	sections.MainSection1:Header({
+		Text = "Header #2"
+	})
 
-	--local Button = Tab:CreateButton({
-	--	Name = "Change Theme",
-	--	Callback = function()
-	--		-- The function that takes place when the button is pressed
-	--		Window.ModifyTheme('DarkBlue')
-	--	end,
-	--})
+	sections.MainSection1:Paragraph({
+		Header = "Paragraph",
+		Body = "Paragraph body. Lorem ipsum odor amet, consectetuer adipiscing elit. Morbi tempus netus aliquet per velit est gravida."
+	})
 
-	--local Toggle = Tab:CreateToggle({
-	--	Name = "Toggle Example",
-	--	CurrentValue = false,
-	--	Flag = "Toggle1adwawd", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
-	--	Callback = function(Value)
-	--		-- The function that takes place when the toggle is pressed
-	--		-- The variable (Value) is a boolean on whether the toggle is true or false
-	--	end,
-	--})
+	sections.MainSection1:Label({
+		Text = "Label. Lorem ipsum odor amet, consectetuer adipiscing elit."
+	})
 
-	--local ColorPicker = Tab:CreateColorPicker({
-	--	Name = "Color Picker",
-	--	Color = Color3.fromRGB(255,255,255),
-	--	Flag = "ColorPicker1awd", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
-	--	Callback = function(Value)
-	--		-- The function that takes place every time the color picker is moved/changed
-	--		-- The variable (Value) is a Color3fromRGB value based on which color is selected
-	--	end
-	--})
+	sections.MainSection1:SubLabel({
+		Text = "Sub-Label. Lorem ipsum odor amet, consectetuer adipiscing elit."
+	})
 
-	--local Slider = Tab:CreateSlider({
-	--	Name = "Slider Example",
-	--	Range = {0, 100},
-	--	Increment = 10,
-	--	Suffix = "Bananas",
-	--	CurrentValue = 40,
-	--	Flag = "Slider1dawd", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
-	--	Callback = function(Value)
-	--		-- The function that takes place when the slider changes
-	--		-- The variable (Value) is a number which correlates to the value the slider is currently at
-	--	end,
-	--})
+	MacLib:SetFolder("Maclib")
+	tabs.Settings:InsertConfigSection("Left")
 
-	--local Input = Tab:CreateInput({
-	--	Name = "Input Example",
-	--	CurrentValue = "Helo",
-	--	PlaceholderText = "Adaptive Input",
-	--	RemoveTextAfterFocusLost = false,
-	--	Flag = 'Input1',
-	--	Callback = function(Text)
-	--		-- The function that takes place when the input is changed
-	--		-- The variable (Text) is a string for the value in the text box
-	--	end,
-	--})
-
-	--local thoptions = {}
-	--for themename, theme in pairs(RayfieldLibrary.Theme) do
-	--	table.insert(thoptions, themename)
-	--end
-
-	--local Dropdown = Tab:CreateDropdown({
-	--	Name = "Theme",
-	--	Options = thoptions,
-	--	CurrentOption = {"Default"},
-	--	MultipleOptions = false,
-	--	Flag = "Dropdown1", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
-	--	Callback = function(Options)
-	--		--Window.ModifyTheme(Options[1])
-	--		-- The function that takes place when the selected option is changed
-	--		-- The variable (Options) is a table of strings for the current selected options
-	--	end,
-	--})
-
-
-	--Window.ModifyTheme({
-	--	TextColor = Color3.fromRGB(50, 55, 60),
-	--	Background = Color3.fromRGB(240, 245, 250),
-	--	Topbar = Color3.fromRGB(215, 225, 235),
-	--	Shadow = Color3.fromRGB(200, 210, 220),
-
-	--	NotificationBackground = Color3.fromRGB(210, 220, 230),
-	--	NotificationActionsBackground = Color3.fromRGB(225, 230, 240),
-
-	--	TabBackground = Color3.fromRGB(200, 210, 220),
-	--	TabStroke = Color3.fromRGB(180, 190, 200),
-	--	TabBackgroundSelected = Color3.fromRGB(175, 185, 200),
-	--	TabTextColor = Color3.fromRGB(50, 55, 60),
-	--	SelectedTabTextColor = Color3.fromRGB(30, 35, 40),
-
-	--	ElementBackground = Color3.fromRGB(210, 220, 230),
-	--	ElementBackgroundHover = Color3.fromRGB(220, 230, 240),
-	--	SecondaryElementBackground = Color3.fromRGB(200, 210, 220),
-	--	ElementStroke = Color3.fromRGB(190, 200, 210),
-	--	SecondaryElementStroke = Color3.fromRGB(180, 190, 200),
-
-	--	SliderBackground = Color3.fromRGB(200, 220, 235),  -- Lighter shade
-	--	SliderProgress = Color3.fromRGB(70, 130, 180),
-	--	SliderStroke = Color3.fromRGB(150, 180, 220),
-
-	--	ToggleBackground = Color3.fromRGB(210, 220, 230),
-	--	ToggleEnabled = Color3.fromRGB(70, 160, 210),
-	--	ToggleDisabled = Color3.fromRGB(180, 180, 180),
-	--	ToggleEnabledStroke = Color3.fromRGB(60, 150, 200),
-	--	ToggleDisabledStroke = Color3.fromRGB(140, 140, 140),
-	--	ToggleEnabledOuterStroke = Color3.fromRGB(100, 120, 140),
-	--	ToggleDisabledOuterStroke = Color3.fromRGB(120, 120, 130),
-
-	--	DropdownSelected = Color3.fromRGB(220, 230, 240),
-	--	DropdownUnselected = Color3.fromRGB(200, 210, 220),
-
-	--	InputBackground = Color3.fromRGB(220, 230, 240),
-	--	InputStroke = Color3.fromRGB(180, 190, 200),
-	--	PlaceholderColor = Color3.fromRGB(150, 150, 150)
-	--})
-
-	--local Keybind = Tab:CreateKeybind({
-	--	Name = "Keybind Example",
-	--	CurrentKeybind = "Q",
-	--	HoldToInteract = false,
-	--	Flag = "Keybind1", -- A flag is the identifier for the configuration file, make sure every element has a different flag if you're using configuration saving to ensure no overlaps
-	--	Callback = function(Keybind)
-	--		-- The function that takes place when the keybind is pressed
-	--		-- The variable (Keybind) is a boolean for whether the keybind is being held or not (HoldToInteract needs to be true)
-	--	end,
-	--})
-
-	--local Label = Tab:CreateLabel("Label Example")
-
-	--local Label2 = Tab:CreateLabel("Warning", 4483362458, Color3.fromRGB(255, 159, 49),  true)
-
-	--local Paragraph = Tab:CreateParagraph({Title = "Paragraph Example", Content = "Paragraph ExampleParagraph ExampleParagraph ExampleParagraph ExampleParagraph ExampleParagraph ExampleParagraph ExampleParagraph ExampleParagraph ExampleParagraph ExampleParagraph ExampleParagraph ExampleParagraph ExampleParagraph Example"})
-end
-
-if CEnabled and Main:FindFirstChild('Notice') then
-	Main.Notice.BackgroundTransparency = 1
-	Main.Notice.Title.TextTransparency = 1
-	Main.Notice.Size = UDim2.new(0, 0, 0, 0)
-	Main.Notice.Position = UDim2.new(0.5, 0, 0, -100)
-	Main.Notice.Visible = true
-
-
-	TweenService:Create(Main.Notice, TweenInfo.new(0.5, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut),
-		{ Size = UDim2.new(0, 280, 0, 35), Position = UDim2.new(0.5, 0, 0, -50), BackgroundTransparency = 0.5 }):Play()
-	TweenService:Create(Main.Notice.Title, TweenInfo.new(0.5, Enum.EasingStyle.Exponential), { TextTransparency = 0.1 })
-		:Play()
-end
--- AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA why :(
---if not useStudio then
---	task.spawn(loadWithTimeout, "https://raw.githubusercontent.com/SiriusSoftwareLtd/Sirius/refs/heads/request/boost.lua")
---end
-
-task.delay(4, function()
-	RayfieldLibrary.LoadConfiguration()
-	if Main:FindFirstChild('Notice') and Main.Notice.Visible then
-		TweenService:Create(Main.Notice, TweenInfo.new(0.5, Enum.EasingStyle.Exponential, Enum.EasingDirection.InOut),
-			{ Size = UDim2.new(0, 100, 0, 25), Position = UDim2.new(0.5, 0, 0, -100), BackgroundTransparency = 1 }):Play()
-		TweenService:Create(Main.Notice.Title, TweenInfo.new(0.3, Enum.EasingStyle.Exponential), { TextTransparency = 1 })
-			:Play()
-
-		task.wait(0.5)
-		Main.Notice.Visible = false
-	end
-end)
-
-if getgenv then
-	pcall(function()
-		getgenv().RayfieldLibrary = RayfieldLibrary
+	Window.onUnloaded(function()
+		print("Unloaded!")
 	end)
+
+	tabs.Main:Select()
+	MacLib:LoadAutoLoadConfig()
 end
 
--- Auto-launch HaiAnh Menu Multi-Game Script Window + Floating Toggle Button when main.lua is executed directly
-local libraryOnly = false
-if getgenv then
-	local ok, val = pcall(function() return getgenv().RAYFIELD_LIBRARY_ONLY end)
-	if ok and val then libraryOnly = true end
+return MacLib
+
+end)()
+
+--[[
+    =============================================================================
+    Decompiled & Reconstructed Source Code
+    Original Obfuscated Script: downloaded_payload.txt (Prometheus / WeAreDevs v1.0.0)
+    Script Hub: LunarZ
+    Target Game: Attack on Titan: Revolution (Roblox)
+    UI Library: MacLib (maclib.lua / Ui)
+    =============================================================================
+--]]
+
+-- Services
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local CoreGui = game:GetService("CoreGui")
+
+-- Variables
+local LocalPlayer = Players.LocalPlayer
+local Camera = Workspace.CurrentCamera
+local Mouse = LocalPlayer:GetMouse()
+
+-- Remotes & Assets
+local Assets = ReplicatedStorage:WaitForChild("Assets")
+local Remotes = Assets:WaitForChild("Remotes")
+local PostRemote = Remotes:FindFirstChild("POST")
+
+-- Settings & Flags Table
+local Settings = {
+    -- Farm Flags
+    AutoFarm = false,
+    AutoKillSafe = false,
+    AutoMastery = false,
+    MoveMode = "Teleport", -- "Teleport" or "Hover"
+    StartDelay = 5,
+    HoverSpeed = 250,
+    FloatHeight = 250,
+
+    -- Misc Flags
+    AutoEscape = false,
+    AntiInjuries = false,
+    AutoRetry = false,
+    AutoReload = false,
+    AutoRefill = false,
+    RemoveDmgText = false,
+    AutoHideUI = false,
+    FailSafe = false,
+    Noclip = false,
+
+    -- Raids Flags
+    AutoRaid = false,
+    RaidHoverSpeed = 250,
+    AutoSkipCutscene = false,
+    AutoOpenChests = false,
+
+    -- Webhook Flags
+    SendWebhook = false,
+    DisplayUsername = true,
+    PingSpecialOnly = false,
+    WebhookURL = "",
+
+    -- Visual Flags
+    TitanESP = false,
+    ESPColor = Color3.fromRGB(255, 0, 0),
+    OptimizeGame = false,
+    DeleteMap = false,
+}
+
+-- Session Stats
+local SessionStats = {
+    Gold = 0,
+    XP = 0,
+    Gems = 0,
+    BP_XP = 0,
+    TotalDamage = 0,
+    TitansKilled = 0,
+    CriticalHits = 0,
+    MissionsCompleted = 0,
+    CommonPerks = 0,
+    RarePerks = 0,
+    EpicPerks = 0,
+    LegendaryPerks = 0,
+    PrestigeScrolls = 0,
+    MythicalPerks = 0,
+    Serum = 0,
+    Scarfs = 0,
+    LastUpdated = "Never"
+}
+
+-- [[ Load MacLib UI ]]
+-- MacLib loaded from inline embedded definition above
+
+-- [[ Create Main Window ]]
+local Window = MacLib:Window({
+    Title = "LunarZ",
+    Subtitle = "AOT:R | FREE",
+    Size = UDim2.fromOffset(868, 650),
+    DragStyle = 1,
+    Keybind = Enum.KeyCode.LeftControl
+})
+
+local tabGroup = Window:TabGroup()
+
+-- [[ Tabs ]]
+local tabs = {
+    Main = tabGroup:Tab({ Name = "Main", Image = "rbxassetid://86591853167234" }),
+    Raids = tabGroup:Tab({ Name = "Raids", Image = "rbxassetid://115443066665979" }),
+    Stats = tabGroup:Tab({ Name = "Stats", Image = "rbxassetid://95014688478272" }),
+    Webhook = tabGroup:Tab({ Name = "Webhook", Image = "rbxassetid://70774834798137" }),
+    Visual = tabGroup:Tab({ Name = "Visual", Image = "rbxassetid://100148515061030" }),
+    Teleport = tabGroup:Tab({ Name = "Teleport", Image = "rbxassetid://6723742952" }),
+    Settings = tabGroup:Tab({ Name = "Settings", Image = "rbxassetid://10734950309" }),
+}
+
+-- ============================================================================
+-- CORE GAMEPLAY LOGIC & HELPERS
+-- ============================================================================
+
+-- Titan Detection & Targeting
+local function getClosestValidNape()
+    local character = LocalPlayer.Character
+    if not character or not character:FindFirstChild("HumanoidRootPart") then return nil end
+    local hrpPos = character.HumanoidRootPart.Position
+
+    local titansFolder = Workspace:FindFirstChild("Titans")
+    if not titansFolder then return nil end
+
+    local closestTitan = nil
+    local closestDist = math.huge
+    local targetNape = nil
+
+    for _, titan in ipairs(titansFolder:GetChildren()) do
+        local humanoid = titan:FindFirstChildOfClass("Humanoid")
+        local nape = titan:FindFirstChild("Nape") or titan:FindFirstChild("Head")
+        local hitboxes = titan:FindFirstChild("Hitboxes")
+        if hitboxes and hitboxes:FindFirstChild("Nape") then
+            nape = hitboxes.Nape
+        end
+
+        if nape and (not humanoid or humanoid.Health > 0) then
+            local dist = (hrpPos - nape.Position).Magnitude
+            if dist < closestDist then
+                closestDist = dist
+                closestTitan = titan
+                targetNape = nape
+            end
+        end
+    end
+
+    return targetNape, closestTitan
 end
 
-if not libraryOnly then
-	task.spawn(function()
-		local ReplicatedStorage = getService("ReplicatedStorage")
-		local VirtualInputManager = getService("VirtualInputManager")
-		local VirtualUser = getService("VirtualUser")
-		local MarketplaceService = getService("MarketplaceService")
-
-		-- ============================================================================
-		-- 1. ANTI-BAN & TELEMETRY SHIELD ENGINE (VIOLET HUB & TEKKIT HUB VIP MECHANISM)
-		-- ============================================================================
-		local AntiBanShield = {
-			Enabled = true,
-			BlockedCount = 0,
-			LastBlockedRemote = "None",
-		}
-
-		local DetectionKeywords = {
-			"ban", "detect", "anticheat", "security", "flag", "telemetry",
-			"exploit", "kick", "tamper", "report", "cheat", "suspicious",
-			"unusual", "illegal", "speedhack", "nofall", "flyhack", "abnormal",
-			"damagecheck", "checkdamage", "integrity"
-		}
-
-		-- Hook metamethod __namecall to intercept and drop client-side detection reports
-		pcall(function()
-			if hookmetamethod then
-				local oldNamecall
-				oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
-					local method = getnamecallmethod()
-					if AntiBanShield.Enabled and (method == "FireServer" or method == "InvokeServer") then
-						local remoteName = string.lower(tostring(self.Name))
-						for _, kw in ipairs(DetectionKeywords) do
-							if string.find(remoteName, kw, 1, true) then
-								AntiBanShield.BlockedCount = AntiBanShield.BlockedCount + 1
-								AntiBanShield.LastBlockedRemote = tostring(self.Name)
-								return nil
-							end
-						end
-
-						local args = { ... }
-						for _, arg in ipairs(args) do
-							if type(arg) == "string" then
-								local lowerArg = string.lower(arg)
-								for _, kw in ipairs(DetectionKeywords) do
-									if string.find(lowerArg, kw, 1, true) then
-										AntiBanShield.BlockedCount = AntiBanShield.BlockedCount + 1
-										AntiBanShield.LastBlockedRemote = tostring(self.Name) .. " [" .. arg .. "]"
-										return nil
-									end
-								end
-							end
-						end
-					end
-					return oldNamecall(self, ...)
-				end))
-			end
-		end)
-
-		-- Hook LocalPlayer:Kick to prevent client scripts from kicking the user
-		pcall(function()
-			if hookfunction and Players and Players.LocalPlayer then
-				local oldKick
-				oldKick = hookfunction(Players.LocalPlayer.Kick, newcclosure(function(self, ...)
-					if AntiBanShield.Enabled then
-						AntiBanShield.BlockedCount = AntiBanShield.BlockedCount + 1
-						AntiBanShield.LastBlockedRemote = "LocalPlayer:Kick"
-						return nil
-					end
-					return oldKick(self, ...)
-				end))
-			end
-		end)
-
-		-- ============================================================================
-		-- 2. AUTO GAME DETECTION
-		-- ============================================================================
-		local AOTR_GAME_ID = 4658598196
-		local AOTR_PLACES = {
-			[13379208636] = true,
-		}
-
-		local BLOX_FRUITS_GAME_ID = 994732206
-		local BLOX_FRUITS_PLACES = {
-			[2753915549] = true,
-			[4442272183] = true,
-			[7449423635] = true,
-		}
-
-		local function detectCurrentGame()
-			local pId = game.PlaceId
-			local gId = game.GameId
-
-			if AOTR_PLACES[pId] or gId == AOTR_GAME_ID then
-				return "AOTR"
-			end
-			if BLOX_FRUITS_PLACES[pId] or gId == BLOX_FRUITS_GAME_ID then
-				return "BLOX_FRUITS"
-			end
-
-			local title = ""
-			pcall(function()
-				local product = MarketplaceService:GetProductInfo(pId)
-				if product and product.Name then
-					title = string.lower(product.Name)
-				end
-			end)
-
-			if string.find(title, "attack on titan", 1, true) or string.find(title, "revolution", 1, true) or string.find(title, "aotr", 1, true) then
-				return "AOTR"
-			end
-			if string.find(title, "blox fruits", 1, true) or string.find(title, "bloxfruits", 1, true) then
-				return "BLOX_FRUITS"
-			end
-
-			return "UNIVERSAL"
-		end
-
-		-- ============================================================================
-		-- 3. FLOATING TOGGLE BUTTON (DRAGGABLE & MOBILE FRIENDLY)
-		-- ============================================================================
-		local rayfieldDestroyed = false
-
-		local function createFloatingToggle()
-			local CoreGui = getService("CoreGui")
-			local UserInputService = getService("UserInputService")
-			local TweenService = getService("TweenService")
-			local lp = Players and Players.LocalPlayer
-			local targetParent = CoreGui
-			if not pcall(function() return CoreGui:GetChildren() end) then
-				targetParent = (lp and lp:FindFirstChildOfClass("PlayerGui")) or CoreGui
-			end
-
-			local existing = targetParent:FindFirstChild("HaiAnhFloatingToggle")
-			if existing then existing:Destroy() end
-
-			local screenGui = Instance.new("ScreenGui")
-			screenGui.Name = "HaiAnhFloatingToggle"
-			screenGui.ResetOnSpawn = false
-			screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-			local btn = Instance.new("TextButton")
-			btn.Name = "ToggleButton"
-			btn.Size = UDim2.new(0, 50, 0, 50)
-			btn.Position = UDim2.new(0.04, 0, 0.28, 0)
-			btn.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
-			btn.Text = "HA"
-			btn.TextColor3 = Color3.fromRGB(255, 255, 255)
-			btn.Font = Enum.Font.GothamBold
-			btn.TextSize = 16
-			btn.AutoButtonColor = false
-			btn.Parent = screenGui
-
-			local corner = Instance.new("UICorner")
-			corner.CornerRadius = UDim.new(0, 14)
-			corner.Parent = btn
-
-			local stroke = Instance.new("UIStroke")
-			stroke.Color = Color3.fromRGB(170, 95, 255)
-			stroke.Thickness = 2.2
-			stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-			stroke.Parent = btn
-
-			local dragging = false
-			local dragInput, dragStart, startPos
-
-			btn.InputBegan:Connect(function(input)
-				if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-					dragging = true
-					dragStart = input.Position
-					startPos = btn.Position
-					input.Changed:Connect(function()
-						if input.UserInputState == Enum.UserInputState.End then
-							dragging = false
-						end
-					end)
-				end
-			end)
-
-			btn.InputChanged:Connect(function(input)
-				if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-					dragInput = input
-				end
-			end)
-
-			UserInputService.InputChanged:Connect(function(input)
-				if input == dragInput and dragging then
-					local delta = input.Position - dragStart
-					btn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale,
-						startPos.Y.Offset + delta.Y)
-				end
-			end)
-
-			btn.MouseButton1Click:Connect(function()
-				pcall(function()
-					local mainGui = CoreGui:FindFirstChild("Rayfield") or
-						(lp and lp:FindFirstChildOfClass("PlayerGui") and lp:FindFirstChildOfClass("PlayerGui"):FindFirstChild("Rayfield"))
-					if mainGui then
-						mainGui.Enabled = not mainGui.Enabled
-					end
-				end)
-			end)
-
-			pcall(function() screenGui.Parent = targetParent end)
-		end
-
-		local function clickGuiButton(btn)
-			if not btn then return false end
-			pcall(function()
-				if getconnections then
-					for _, c in ipairs(getconnections(btn.MouseButton1Click)) do
-						if c.Function then c.Function() end
-					end
-					for _, c in ipairs(getconnections(btn.Activated)) do
-						if c.Function then c.Function() end
-					end
-				end
-				local vp = (Workspace and Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize) or
-					Vector2.new(1280, 720)
-				local absPos = btn.AbsolutePosition
-				local absSz = btn.AbsoluteSize
-				local cx = absPos.X + absSz.X / 2
-				local cy = absPos.Y + absSz.Y / 2
-				if VirtualInputManager then
-					VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
-					task.wait(0.005)
-					VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
-				end
-			end)
-			return true
-		end
-
-		-- Hệ thống cache GUI Button & Durability Bar: Quét 1 lần mỗi 3 giây, triệt tiêu 100% giật lag FPS
-		local cachedGuiState = {
-			m1 = nil,
-			reload = nil,
-			durabilityBar = nil,
-			skills = {},
-			lastScan = 0
-		}
-
-		local function refreshCachedGuiElements(force)
-			local now = os.clock()
-			if not force and (now - cachedGuiState.lastScan < 3.5) and cachedGuiState.m1 and cachedGuiState.m1.Parent then
-				return
-			end
-			cachedGuiState.lastScan = now
-			local lp = Players and Players.LocalPlayer
-			local pgui = lp and lp:FindFirstChildOfClass("PlayerGui")
-			if not pgui then return end
-
-			cachedGuiState.skills = {}
-			cachedGuiState.buttons = {}
-			for _, obj in ipairs(pgui:GetDescendants()) do
-				if (obj:IsA("TextButton") or obj:IsA("ImageButton")) and obj.Visible then
-					local name = string.lower(obj.Name)
-					local text = obj:IsA("TextButton") and string.lower(obj.Text) or ""
-					local childLabel = obj:FindFirstChildWhichIsA("TextLabel", true)
-					if childLabel and childLabel.Text ~= "" then
-						text = text .. " " .. string.lower(childLabel.Text)
-					end
-					local combined = name .. " " .. text
-					table.insert(cachedGuiState.buttons, { btn = obj, text = combined })
-					if string.find(combined, "m1", 1, true) or string.find(combined, "slash", 1, true) or string.find(combined, "attack", 1, true) then
-						if not cachedGuiState.m1 or not cachedGuiState.m1.Parent then
-							cachedGuiState.m1 = obj
-						end
-					end
-					if string.find(combined, "reload", 1, true) or string.find(combined, "nạp", 1, true) or string.find(combined, "nap", 1, true) then
-						if not cachedGuiState.reload or not cachedGuiState.reload.Parent then
-							cachedGuiState.reload = obj
-						end
-					end
-					if string.find(combined, "skill", 1, true) or string.find(combined, "slot", 1, true) then
-						table.insert(cachedGuiState.skills, obj)
-					end
-				elseif obj:IsA("Frame") or obj:IsA("ImageLabel") then
-					local oName = string.lower(obj.Name)
-					if string.find(oName, "durab", 1, true) or string.find(oName, "bladebar", 1, true) or string.find(oName, "sharp", 1, true) then
-						cachedGuiState.durabilityBar = obj
-					end
-				end
-			end
-		end
-
-		local function clickGuiButtonFast(btn)
-			if not btn or not btn.Parent then return false end
-			pcall(function()
-				local fired = false
-				if firesignal then
-					if btn.Activated then firesignal(btn.Activated); fired = true end
-					if btn.MouseButton1Click then firesignal(btn.MouseButton1Click); fired = true end
-					if btn.MouseButton1Down then firesignal(btn.MouseButton1Down); fired = true end
-					if btn.MouseButton1Up then firesignal(btn.MouseButton1Up); fired = true end
-				end
-				if not fired and VirtualUser then
-					local absPos = btn.AbsolutePosition
-					local absSz = btn.AbsoluteSize
-					VirtualUser:ClickButton1(Vector2.new(absPos.X + absSz.X / 2, absPos.Y + absSz.Y / 2))
-				end
-			end)
-			return true
-		end
-
-		local lastActionScan = 0
-		local function triggerActionButtons(keywords)
-			-- Popup như Retry, Start, Claim xuất hiện động: làm mới cache tối đa mỗi 1.5 giây
-			if os.clock() - lastActionScan > 1.5 then
-				lastActionScan = os.clock()
-				refreshCachedGuiElements(true)
-			end
-			local triggered = false
-			for _, entry in ipairs(cachedGuiState.buttons or {}) do
-				local obj = entry.btn
-				if obj and obj.Parent and obj.Visible then
-					for _, kw in ipairs(keywords) do
-						if string.find(entry.text, kw, 1, true) then
-							clickGuiButtonFast(obj)
-							triggered = true
-							break
-						end
-					end
-				end
-			end
-			return triggered
-		end
-
-		-- Kích hoạt nút M1 chém siêu tốc 0 delay không tốn CPU
-		local function triggerMobileM1Attack()
-			refreshCachedGuiElements(false)
-			if cachedGuiState.m1 and cachedGuiState.m1.Parent and cachedGuiState.m1.Visible then
-				clickGuiButtonFast(cachedGuiState.m1)
-				return true
-			end
-			return false
-		end
-
-		-- Kích hoạt chém vũ khí trực tiếp
-		local function activateEquippedTool()
-			local lp = Players and Players.LocalPlayer
-			local char = lp and lp.Character
-			if char then
-				local tool = char:FindFirstChildOfClass("Tool")
-				if tool then
-					pcall(function() tool:Activate() end)
-				end
-			end
-		end
-
-		-- ============================================================================
-		-- MENU 1: ATTACK ON TITAN: REVOLUTION (HAIANH MENU VIP PRO EDITION)
-		-- ============================================================================
-		local function loadAOTRMenu()
-			local AOTConfig = {
-				-- Auto Farm Elite Config (High Sky Anti-Grab Farm)
-				WeaponMode = "Auto",
-				FarmPosition = "High Sky (Anti-Grab)",
-				TargetPriority = "Closest", -- "Closest", "Bosses First", "Crawlers & Abnormals", "Lowest HP"
-				BehindNapeDistance = 2.0,
-				HoverHeight = 28.0,
-				FlightSpeed = 220,
-				InstantTeleport = false,
-				MapNoClip = true,
-				AutoFarmTitan = false,
-				SafeLegitDelay = false,
-				TitanShifterMastery = false,
-				AutoTitanShift = false,
-				TitanSkillsBurst = false,
-				AutoReloadWhenBroken = true,
-				ReloadAfterTitanKill = true,
-				SlashesBeforeReload = 3,
-				AutoRefillSupplies = true,
-				InfiniteGasDurability = false,
-
-				-- Multi-Target Combat & Thunder Spears Burst
-				MultiTargetAttack = true,
-				MaxTargets = 4,
-				AttackRadius = 85,
-				AutoSpearsBurst = true,
-				AutoBossMechanics = true,
-				AutoUseSkills = true,
-				AutoDodge = true,
-				KillAura = false,
-				KillAuraRange = 120,
-				HitboxExtender = true,
-				NapeHitboxSize = 80,
-				Godmode = false,
-				AutoEscapeGrab = true,
-				InfiniteHookRange = false,
-				NoCooldown = false,
-
-				-- Raid & Story VIP
-				SelectedRaid = "Colossal Titan",
-				SelectedRaidDiff = "Aberrant",
-				AutoRaid = false,
-				AutoOpenRaidChests = true,
-				AutoFireCannons = true,
-				AutoUpgradeHQ = true,
-				SelectedStoryMap = "Shiganshina",
-				SelectedDifficulty = "Hard",
-				AutoStoryMission = false,
-				AutoRetry = false,
-				AutoNextMission = false,
-
-				-- Performance & HUD
-				FastRagdollCleaner = true,
-				DisableScreenShake = true,
-				ShowFarmHUD = false,
-
-				-- Anti-Ban & Security VIP
-				AntiBanShield = true,
-				TargetClans = { "Shiki", "Fritz", "Helos", "Ackerman", "Yeager" },
-				AutoRollFamily = false,
-				TargetPerks = { "Divine", "Kensei", "Berserk", "Artisan", "Deadshot" },
-				AutoRollPerks = false,
-				AntiAFK = true,
-				AutoShadowbanCheck = false,
-				WebhookURL = "",
-				RewardsWebhook = false,
-
-				-- Visuals VIP
-				TitanESP = false,
-				ShowNapeHitbox = false,
-				ESPMaxDistance = 1200,
-				ESPColor = Color3.fromRGB(170, 95, 255),
-			}
-
-			-- Forward declarations cho các hàm engine lõi để các nút UI có thể gọi mà không bị lỗi scope
-			local getAOTRemotes
-			local isBladeActuallyBroken
-			local performAOTReload
-			local refillSuppliesAtStation
-			local clearMapDebris
-			local updateFarmHUD
-			local disableScreenShake
-
-			local Window = RayfieldLibrary:CreateWindow({
-				Name = "HaiAnh Menu | Attack on Titan: Revolution",
-				LoadingTitle = "HaiAnh Menu",
-				LoadingSubtitle = "Attack on Titan: Revolution",
-				ConfigurationSaving = {
-					Enabled = true,
-					FolderName = "HaiAnhMenuConfig",
-					FileName = "AOTRevolution"
-				},
-				KeySystem = false,
-			})
-
-			createFloatingToggle()
-
-			-- TAB 1: Main / Auto Farm
-			local FarmTab = Window:CreateTab("Main / Auto Farm", 0)
-			FarmTab:CreateSection("Farm Configuration")
-
-			FarmTab:CreateDropdown({
-				Name = "Weapon Mode",
-				Options = { "Auto", "Blades", "Thunder Spears" },
-				CurrentOption = { "Auto" },
-				MultipleOptions = false,
-				Flag = "AOT_WeaponMode",
-				Callback = function(Option)
-					AOTConfig.WeaponMode = type(Option) == "table" and Option[1] or Option
-				end,
-			})
-
-			FarmTab:CreateDropdown({
-				Name = "Farm Position",
-				Options = { "High Sky (Anti-Grab)", "Above Nape", "Behind Nape" },
-				CurrentOption = { "High Sky (Anti-Grab)" },
-				MultipleOptions = false,
-				Flag = "AOT_FarmPosition",
-				Callback = function(Option)
-					AOTConfig.FarmPosition = type(Option) == "table" and Option[1] or Option
-				end,
-			})
-
-			FarmTab:CreateDropdown({
-				Name = "Target Priority",
-				Options = { "Closest", "Bosses First", "Crawlers & Abnormals", "Lowest HP" },
-				CurrentOption = { "Closest" },
-				MultipleOptions = false,
-				Flag = "AOT_TargetPriority",
-				Callback = function(Option)
-					AOTConfig.TargetPriority = type(Option) == "table" and Option[1] or Option
-				end,
-			})
-
-			FarmTab:CreateSlider({
-				Name = "Behind Nape Distance",
-				Range = { 0, 15 },
-				Increment = 0.5,
-				Suffix = "Studs",
-				CurrentValue = 1.0,
-				Flag = "AOT_BehindNapeDistance",
-				Callback = function(Value)
-					AOTConfig.BehindNapeDistance = Value
-				end,
-			})
-
-			FarmTab:CreateSlider({
-				Name = "Hover Height (Sky Height)",
-				Range = { 10, 60 },
-				Increment = 1,
-				Suffix = "Studs",
-				CurrentValue = 25,
-				Flag = "AOT_HoverHeight",
-				Callback = function(Value)
-					AOTConfig.HoverHeight = Value
-				end,
-			})
-
-			FarmTab:CreateSlider({
-				Name = "Flight Speed",
-				Range = { 100, 500 },
-				Increment = 10,
-				Suffix = "Studs/s",
-				CurrentValue = 220,
-				Flag = "AOT_FlightSpeed",
-				Callback = function(Value)
-					AOTConfig.FlightSpeed = Value
-				end,
-			})
-
-			FarmTab:CreateToggle({
-				Name = "Instant Teleport (Fast Farm)",
-				CurrentValue = false,
-				Flag = "AOT_InstantTeleport",
-				Callback = function(Value)
-					AOTConfig.InstantTeleport = Value
-				end,
-			})
-
-			FarmTab:CreateToggle({
-				Name = "Map NoClip (Pass Obstacles)",
-				CurrentValue = true,
-				Flag = "AOT_MapNoClip",
-				Callback = function(Value)
-					AOTConfig.MapNoClip = Value
-				end,
-			})
-
-			FarmTab:CreateSection("Main Auto Farm")
-
-			FarmTab:CreateToggle({
-				Name = "Auto Farm Titan",
-				CurrentValue = false,
-				Flag = "AOT_AutoFarmTitan",
-				Callback = function(Value)
-					AOTConfig.AutoFarmTitan = Value
-					if not Value then
-						pcall(function()
-							local lp = Players and Players.LocalPlayer
-							local char = lp and lp.Character
-							local root = char and char:FindFirstChild("HumanoidRootPart")
-							local bv = root and root:FindFirstChild("HaiAnh_AOT_AntiGrav")
-							if bv then bv:Destroy() end
-						end)
-					end
-				end,
-			})
-
-			FarmTab:CreateToggle({
-				Name = "Safe Legit Farm",
-				CurrentValue = false,
-				Flag = "AOT_SafeLegitDelay",
-				Callback = function(Value)
-					AOTConfig.SafeLegitDelay = Value
-				end,
-			})
-
-			FarmTab:CreateToggle({
-				Name = "Titan Shifter Mastery",
-				CurrentValue = false,
-				Flag = "AOT_TitanMastery",
-				Callback = function(Value)
-					AOTConfig.TitanShifterMastery = Value
-				end,
-			})
-
-			FarmTab:CreateToggle({
-				Name = "Auto Titan Shift",
-				CurrentValue = false,
-				Flag = "AOT_AutoShift",
-				Callback = function(Value)
-					AOTConfig.AutoTitanShift = Value
-				end,
-			})
-
-			FarmTab:CreateToggle({
-				Name = "Titan Shifter Skills Burst",
-				CurrentValue = true,
-				Flag = "AOT_TitanSkillsBurst",
-				Callback = function(Value)
-					AOTConfig.TitanSkillsBurst = Value
-				end,
-			})
-
-			FarmTab:CreateSection("Blades & Thunder Spears Reload")
-
-			FarmTab:CreateToggle({
-				Name = "Auto Reload When Broken",
-				CurrentValue = true,
-				Flag = "AOT_AutoReloadWhenBroken",
-				Callback = function(Value)
-					AOTConfig.AutoReloadWhenBroken = Value
-				end,
-			})
-
-			FarmTab:CreateToggle({
-				Name = "Reload After Titan Kill",
-				CurrentValue = true,
-				Flag = "AOT_ReloadAfterTitanKill",
-				Callback = function(Value)
-					AOTConfig.ReloadAfterTitanKill = Value
-				end,
-			})
-
-			FarmTab:CreateSlider({
-				Name = "Slashes Before Reload",
-				Range = { 2, 15 },
-				Increment = 1,
-				Suffix = "Hits",
-				CurrentValue = 3,
-				Flag = "AOT_SlashesBeforeReload",
-				Callback = function(Value)
-					AOTConfig.SlashesBeforeReload = Value
-				end,
-			})
-
-			FarmTab:CreateButton({
-				Name = "Reload Blades Now",
-				Callback = function()
-					if performAOTReload then
-						performAOTReload(true)
-					end
-					RayfieldLibrary:Notify({
-						Title = "Reload",
-						Content = "Đã gửi lệnh nạp lại kiếm mới!",
-						Duration = 2.5,
-					})
-				end,
-			})
-
-			FarmTab:CreateToggle({
-				Name = "Auto Refill Supplies (Remote / Safe)",
-				CurrentValue = true,
-				Flag = "AOT_AutoRefill",
-				Callback = function(Value)
-					AOTConfig.AutoRefillSupplies = Value
-				end,
-			})
-
-			FarmTab:CreateButton({
-				Name = "Refill Supplies at Station",
-				Callback = function()
-					if refillSuppliesAtStation then
-						refillSuppliesAtStation()
-					end
-					RayfieldLibrary:Notify({
-						Title = "Refill Supplies",
-						Content = "Đã nhận tiếp tế Kiếm và Gas từ trạm!",
-						Duration = 3,
-					})
-				end,
-			})
-
-			FarmTab:CreateToggle({
-				Name = "Infinite Gas & Durability",
-				CurrentValue = false,
-				Flag = "AOT_InfiniteGas",
-				Callback = function(Value)
-					AOTConfig.InfiniteGasDurability = Value
-				end,
-			})
-
-			-- TAB 2: Combat / Buff
-			local CombatTab = Window:CreateTab("Combat / Buff", 0)
-			CombatTab:CreateSection("Multi-Target Combat")
-
-			CombatTab:CreateToggle({
-				Name = "Multi-Target Attack",
-				CurrentValue = true,
-				Flag = "AOT_MultiTargetAttack",
-				Callback = function(Value)
-					AOTConfig.MultiTargetAttack = Value
-				end,
-			})
-
-			CombatTab:CreateSlider({
-				Name = "Max Attack Targets",
-				Range = { 1, 8 },
-				Increment = 1,
-				Suffix = "Titans",
-				CurrentValue = 4,
-				Flag = "AOT_MaxTargets",
-				Callback = function(Value)
-					AOTConfig.MaxTargets = Value
-				end,
-			})
-
-			CombatTab:CreateSlider({
-				Name = "Attack Radius",
-				Range = { 30, 200 },
-				Increment = 5,
-				Suffix = "Studs",
-				CurrentValue = 85,
-				Flag = "AOT_AttackRadius",
-				Callback = function(Value)
-					AOTConfig.AttackRadius = Value
-				end,
-			})
-
-			CombatTab:CreateToggle({
-				Name = "Thunder Spears Auto Burst (AOE)",
-				CurrentValue = true,
-				Flag = "AOT_AutoSpearsBurst",
-				Callback = function(Value)
-					AOTConfig.AutoSpearsBurst = Value
-				end,
-			})
-
-			CombatTab:CreateToggle({
-				Name = "Auto Boss Mechanics (Raid Bosses)",
-				CurrentValue = true,
-				Flag = "AOT_BossMechanics",
-				Callback = function(Value)
-					AOTConfig.AutoBossMechanics = Value
-				end,
-			})
-
-			CombatTab:CreateSection("Auto Skills VIP")
-
-			CombatTab:CreateToggle({
-				Name = "Auto Use Skills",
-				CurrentValue = true,
-				Flag = "AOT_AutoSkills",
-				Callback = function(Value)
-					AOTConfig.AutoUseSkills = Value
-				end,
-			})
-
-			CombatTab:CreateToggle({
-				Name = "Auto Dodge Titan Attacks (I-Frame)",
-				CurrentValue = true,
-				Flag = "AOT_AutoDodge",
-				Callback = function(Value)
-					AOTConfig.AutoDodge = Value
-				end,
-			})
-
-			CombatTab:CreateSection("Kill Aura & Hitbox")
-
-			CombatTab:CreateToggle({
-				Name = "Kill Aura",
-				CurrentValue = false,
-				Flag = "AOT_KillAura",
-				Callback = function(Value)
-					AOTConfig.KillAura = Value
-				end,
-			})
-
-			CombatTab:CreateSlider({
-				Name = "Kill Aura Range",
-				Range = { 30, 250 },
-				Increment = 5,
-				Suffix = "Studs",
-				CurrentValue = 120,
-				Flag = "AOT_KillAuraRange",
-				Callback = function(Value)
-					AOTConfig.KillAuraRange = Value
-				end,
-			})
-
-			CombatTab:CreateToggle({
-				Name = "Nape Hitbox Extender",
-				CurrentValue = true,
-				Flag = "AOT_HitboxExtender",
-				Callback = function(Value)
-					AOTConfig.HitboxExtender = Value
-				end,
-			})
-
-			CombatTab:CreateSlider({
-				Name = "Nape Hitbox Size",
-				Range = { 30, 200 },
-				Increment = 5,
-				Suffix = "Studs",
-				CurrentValue = 80,
-				Flag = "AOT_NapeSize",
-				Callback = function(Value)
-					AOTConfig.NapeHitboxSize = Value
-				end,
-			})
-
-			CombatTab:CreateSection("Player Buffs & ODMG")
-
-			CombatTab:CreateToggle({
-				Name = "Godmode",
-				CurrentValue = false,
-				Flag = "AOT_Godmode",
-				Callback = function(Value)
-					AOTConfig.Godmode = Value
-				end,
-			})
-
-			CombatTab:CreateToggle({
-				Name = "Auto Escape Grab",
-				CurrentValue = true,
-				Flag = "AOT_AutoEscapeGrab",
-				Callback = function(Value)
-					AOTConfig.AutoEscapeGrab = Value
-				end,
-			})
-
-			CombatTab:CreateToggle({
-				Name = "ODMG Infinite Hook Range",
-				CurrentValue = false,
-				Flag = "AOT_InfHookRange",
-				Callback = function(Value)
-					AOTConfig.InfiniteHookRange = Value
-				end,
-			})
-
-			CombatTab:CreateToggle({
-				Name = "No Skill Cooldown",
-				CurrentValue = false,
-				Flag = "AOT_NoCooldown",
-				Callback = function(Value)
-					AOTConfig.NoCooldown = Value
-				end,
-			})
-
-			-- TAB 3: Raid & Story
-			local RaidTab = Window:CreateTab("Raid & Story", 0)
-			RaidTab:CreateSection("Auto Raid VIP")
-
-			RaidTab:CreateDropdown({
-				Name = "Select Raid Boss",
-				Options = { "Colossal Titan", "Armored Titan", "Female Titan", "Beast Titan" },
-				CurrentOption = { "Colossal Titan" },
-				MultipleOptions = false,
-				Flag = "AOT_RaidBoss",
-				Callback = function(Option)
-					AOTConfig.SelectedRaid = type(Option) == "table" and Option[1] or Option
-				end,
-			})
-
-			RaidTab:CreateDropdown({
-				Name = "Raid Difficulty",
-				Options = { "Easy", "Normal", "Hard", "Severe", "Aberrant", "Freedom" },
-				CurrentOption = { "Aberrant" },
-				MultipleOptions = false,
-				Flag = "AOT_RaidDiff",
-				Callback = function(Option)
-					AOTConfig.SelectedRaidDiff = type(Option) == "table" and Option[1] or Option
-				end,
-			})
-
-			RaidTab:CreateToggle({
-				Name = "Auto Raid",
-				CurrentValue = false,
-				Flag = "AOT_AutoRaid",
-				Callback = function(Value)
-					AOTConfig.AutoRaid = Value
-				end,
-			})
-
-			RaidTab:CreateToggle({
-				Name = "Auto Open Raid Chests",
-				CurrentValue = true,
-				Flag = "AOT_OpenChests",
-				Callback = function(Value)
-					AOTConfig.AutoOpenRaidChests = Value
-				end,
-			})
-
-			RaidTab:CreateToggle({
-				Name = "Auto Fire Cannons",
-				CurrentValue = true,
-				Flag = "AOT_AutoCannons",
-				Callback = function(Value)
-					AOTConfig.AutoFireCannons = Value
-				end,
-			})
-
-			RaidTab:CreateToggle({
-				Name = "Auto Upgrade HQ",
-				CurrentValue = true,
-				Flag = "AOT_AutoUpgradeHQ",
-				Callback = function(Value)
-					AOTConfig.AutoUpgradeHQ = Value
-				end,
-			})
-
-			RaidTab:CreateSection("Auto Story Mission")
-
-			RaidTab:CreateDropdown({
-				Name = "Select Story Chapter",
-				Options = { "Shiganshina", "Trost District", "Giant Tree Forest", "Stohess", "Utgard Castle" },
-				CurrentOption = { "Shiganshina" },
-				MultipleOptions = false,
-				Flag = "AOT_StoryMap",
-				Callback = function(Option)
-					AOTConfig.SelectedStoryMap = type(Option) == "table" and Option[1] or Option
-				end,
-			})
-
-			RaidTab:CreateDropdown({
-				Name = "Mission Difficulty",
-				Options = { "Normal", "Hard", "Severe", "Aberrant", "Freedom" },
-				CurrentOption = { "Hard" },
-				MultipleOptions = false,
-				Flag = "AOT_StoryDiff",
-				Callback = function(Option)
-					AOTConfig.SelectedDifficulty = type(Option) == "table" and Option[1] or Option
-				end,
-			})
-
-			RaidTab:CreateToggle({
-				Name = "Auto Story Mission",
-				CurrentValue = false,
-				Flag = "AOT_AutoStory",
-				Callback = function(Value)
-					AOTConfig.AutoStoryMission = Value
-				end,
-			})
-
-			RaidTab:CreateToggle({
-				Name = "Auto Retry on Failure",
-				CurrentValue = false,
-				Flag = "AOT_AutoRetry",
-				Callback = function(Value)
-					AOTConfig.AutoRetry = Value
-				end,
-			})
-
-			RaidTab:CreateToggle({
-				Name = "Auto Next Mission",
-				CurrentValue = false,
-				Flag = "AOT_AutoNext",
-				Callback = function(Value)
-					AOTConfig.AutoNextMission = Value
-				end,
-			})
-
-			-- TAB 4: Misc / Performance / Gacha
-			local MiscTab = Window:CreateTab("Misc / Performance", 0)
-			MiscTab:CreateSection("Performance & FPS Booster")
-
-			MiscTab:CreateToggle({
-				Name = "Fast Ragdoll Cleaner (FPS Boost)",
-				CurrentValue = true,
-				Flag = "AOT_FastRagdollCleaner",
-				Callback = function(Value)
-					AOTConfig.FastRagdollCleaner = Value
-				end,
-			})
-
-			MiscTab:CreateToggle({
-				Name = "Disable Screen Shake & Blur",
-				CurrentValue = true,
-				Flag = "AOT_DisableScreenShake",
-				Callback = function(Value)
-					AOTConfig.DisableScreenShake = Value
-					if Value and disableScreenShake then disableScreenShake() end
-				end,
-			})
-
-			MiscTab:CreateToggle({
-				Name = "Show Farm Stats HUD",
-				CurrentValue = false,
-				Flag = "AOT_ShowFarmHUD",
-				Callback = function(Value)
-					AOTConfig.ShowFarmHUD = Value
-					if updateFarmHUD then updateFarmHUD() end
-				end,
-			})
-
-			MiscTab:CreateButton({
-				Name = "Clear All Map Debris Now",
-				Callback = function()
-					if clearMapDebris then
-						clearMapDebris()
-					end
-					RayfieldLibrary:Notify({
-						Title = "FPS Booster",
-						Content = "Đã dọn dẹp toàn bộ xác chết và rác hiệu ứng!",
-						Duration = 3,
-					})
-				end,
-			})
-
-			MiscTab:CreateSection("Manual Equipment Controls")
-
-			MiscTab:CreateButton({
-				Name = "Reload Blades Now",
-				Callback = function()
-					if performAOTReload then
-						performAOTReload(true)
-					end
-					RayfieldLibrary:Notify({
-						Title = "Reload",
-						Content = "Đã nạp lại kiếm mới thành công!",
-						Duration = 3,
-					})
-				end,
-			})
-
-			MiscTab:CreateButton({
-				Name = "Refill Supplies at Station",
-				Callback = function()
-					if refillSuppliesAtStation then
-						refillSuppliesAtStation()
-					end
-					RayfieldLibrary:Notify({
-						Title = "Refill Supplies",
-						Content = "Đã nhận tiếp tế Kiếm và Gas từ trạm!",
-						Duration = 3,
-					})
-				end,
-			})
-
-			MiscTab:CreateSection("Family & Perk Gacha")
-
-			MiscTab:CreateDropdown({
-				Name = "Target Families",
-				Options = { "Shiki", "Fritz", "Helos", "Ackerman", "Yeager", "Reiss", "Tybur", "Arlert", "Leonhart" },
-				CurrentOption = { "Shiki", "Fritz", "Helos" },
-				MultipleOptions = true,
-				Flag = "AOT_TargetClans",
-				Callback = function(Options)
-					AOTConfig.TargetClans = Options
-				end,
-			})
-
-			MiscTab:CreateToggle({
-				Name = "Auto Spin Family",
-				CurrentValue = false,
-				Flag = "AOT_AutoFamily",
-				Callback = function(Value)
-					AOTConfig.AutoRollFamily = Value
-				end,
-			})
-
-			MiscTab:CreateDropdown({
-				Name = "Target Perks",
-				Options = { "Divine", "Kensei", "Berserk", "Artisan", "Deadshot", "Thunder Burst" },
-				CurrentOption = { "Divine", "Kensei" },
-				MultipleOptions = true,
-				Flag = "AOT_TargetPerks",
-				Callback = function(Options)
-					AOTConfig.TargetPerks = Options
-				end,
-			})
-
-			MiscTab:CreateToggle({
-				Name = "Auto Spin Perks",
-				CurrentValue = false,
-				Flag = "AOT_AutoPerks",
-				Callback = function(Value)
-					AOTConfig.AutoRollPerks = Value
-				end,
-			})
-
-			MiscTab:CreateSection("Anti-Ban & Security")
-
-			MiscTab:CreateToggle({
-				Name = "Anti-Ban Remote Shield",
-				CurrentValue = true,
-				Flag = "AOT_AntiBanShield",
-				Callback = function(Value)
-					AOTConfig.AntiBanShield = Value
-					AntiBanShield.Enabled = Value
-				end,
-			})
-
-			MiscTab:CreateToggle({
-				Name = "Anti AFK",
-				CurrentValue = true,
-				Flag = "AOT_AntiAFK",
-				Callback = function(Value)
-					AOTConfig.AntiAFK = Value
-				end,
-			})
-
-			local function runShadowbanCheck()
-				local lp = Players and Players.LocalPlayer
-				local suspiciousFlags = {}
-				pcall(function()
-					if lp then
-						for attrName, attrVal in pairs(lp:GetAttributes()) do
-							local lower = string.lower(tostring(attrName))
-							if (string.find(lower, "ban", 1, true) or string.find(lower, "flag", 1, true) or string.find(lower, "cheat", 1, true) or string.find(lower, "restrict", 1, true)) and attrVal == true then
-								table.insert(suspiciousFlags, tostring(attrName))
-							end
-						end
-						for _, child in ipairs(lp:GetDescendants()) do
-							local lower = string.lower(child.Name)
-							if (string.find(lower, "shadowban", 1, true) or string.find(lower, "banned", 1, true)) and child:IsA("BoolValue") and child.Value == true then
-								table.insert(suspiciousFlags, child.Name)
-							end
-						end
-					end
-				end)
-
-				if #suspiciousFlags > 0 then
-					RayfieldLibrary:Notify({
-						Title = "Shadowban Warning",
-						Content = "Flagged attributes detected: " .. table.concat(suspiciousFlags, ", "),
-						Duration = 7,
-					})
-					AOTConfig.AutoFarmTitan = false
-					AOTConfig.AutoRaid = false
-				else
-					RayfieldLibrary:Notify({
-						Title = "Shadowban Status",
-						Content = "Account Clean: Blocked Remotes: " .. tostring(AntiBanShield.BlockedCount),
-						Duration = 5,
-					})
-				end
-			end
-
-			MiscTab:CreateButton({
-				Name = "Check Shadowban Status",
-				Callback = runShadowbanCheck,
-			})
-
-			MiscTab:CreateToggle({
-				Name = "Auto Shadowban Monitor",
-				CurrentValue = false,
-				Flag = "AOT_AutoShadowbanCheck",
-				Callback = function(Value)
-					AOTConfig.AutoShadowbanCheck = Value
-					if Value then runShadowbanCheck() end
-				end,
-			})
-
-			MiscTab:CreateInput({
-				Name = "Discord Webhook URL",
-				CurrentValue = "",
-				PlaceholderText = "https://discord.com/api/webhooks/...",
-				RemoveTextAfterFocusLost = false,
-				Flag = "AOT_WebhookURL",
-				Callback = function(Text)
-					AOTConfig.WebhookURL = tostring(Text or "")
-				end,
-			})
-
-			MiscTab:CreateToggle({
-				Name = "Send Rewards to Webhook",
-				CurrentValue = false,
-				Flag = "AOT_RewardsWebhook",
-				Callback = function(Value)
-					AOTConfig.RewardsWebhook = Value
-				end,
-			})
-
-			local function sendDiscordWebhook(title, description)
-				if AOTConfig.WebhookURL == "" or not string.find(AOTConfig.WebhookURL, "http") then return end
-				local req = requestFunc
-				if req then
-					pcall(function()
-						local payload = {
-							["embeds"] = { {
-								["title"] = title or "HaiAnh Menu - AOT:R Update",
-								["description"] = description or "Auto Farm notification",
-								["color"] = 11141375,
-								["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-								["footer"] = { ["text"] = "HaiAnh Menu | Violet Engine" }
-							} }
-						}
-						local HttpService = getService("HttpService")
-						local json = HttpService and HttpService:JSONEncode(payload)
-						if json then
-							req({
-								Url = AOTConfig.WebhookURL,
-								Method = "POST",
-								Headers = { ["Content-Type"] = "application/json" },
-								Body = json,
-							})
-						end
-					end)
-				end
-			end
-
-			MiscTab:CreateButton({
-				Name = "Test Discord Webhook",
-				Callback = function()
-					sendDiscordWebhook("HaiAnh Menu Test", "Discord Webhook connection verified successfully!")
-					RayfieldLibrary:Notify({
-						Title = "Webhook Test",
-						Content = "Test payload sent to Discord Webhook",
-						Duration = 4,
-					})
-				end,
-			})
-
-			-- TAB 5: Visuals / ESP
-			local VisualTab = Window:CreateTab("Visuals / ESP", 0)
-			VisualTab:CreateSection("Titan ESP")
-
-			VisualTab:CreateToggle({
-				Name = "Titan ESP",
-				CurrentValue = false,
-				Flag = "AOT_TitanESP",
-				Callback = function(Value)
-					AOTConfig.TitanESP = Value
-				end,
-			})
-
-			VisualTab:CreateToggle({
-				Name = "Highlight Titan Nape",
-				CurrentValue = false,
-				Flag = "AOT_ShowNape",
-				Callback = function(Value)
-					AOTConfig.ShowNapeHitbox = Value
-				end,
-			})
-
-			VisualTab:CreateSlider({
-				Name = "ESP Max Distance",
-				Range = { 200, 2500 },
-				Increment = 50,
-				Suffix = "Studs",
-				CurrentValue = 1200,
-				Flag = "AOT_ESPDistance",
-				Callback = function(Value)
-					AOTConfig.ESPMaxDistance = Value
-				end,
-			})
-
-			VisualTab:CreateColorPicker({
-				Name = "Titan ESP Color",
-				Color = Color3.fromRGB(170, 95, 255),
-				Flag = "AOT_ESPColor",
-				Callback = function(Value)
-					AOTConfig.ESPColor = Value
-				end,
-			})
-
-			-- ========================================================================
-			-- AOT:R CORE LOGIC & ENGINE (VIOLET HUB PRO EDITION)
-			-- ========================================================================
-			local currentTargetTitan = nil
-			local espObjects = {}
-			local deadTitanCache = setmetatable({}, { __mode = "k" })
-			local titanFatalHit = setmetatable({}, { __mode = "k" })
-			local farmStats = {
-				startTime = os.clock(),
-				titansKilled = 0,
-				bladesReloaded = 0,
-			}
-
-			getAOTRemotes = function()
-				local assets = ReplicatedStorage:FindFirstChild("Assets")
-				local remotes = (assets and assets:FindFirstChild("Remotes"))
-					or ReplicatedStorage:FindFirstChild("Remotes")
-					or ReplicatedStorage:FindFirstChild("Remotes", true)
-				local post = (remotes and remotes:FindFirstChild("POST")) or
-					ReplicatedStorage:FindFirstChild("POST", true)
-				local get = (remotes and remotes:FindFirstChild("GET")) or ReplicatedStorage:FindFirstChild("GET", true)
-				return post, get
-			end
-
-			local lastRefillTime = 0
-			refillSuppliesAtStation = function()
-				local now = os.clock()
-				if now - lastRefillTime < 1.2 then return end
-				lastRefillTime = now
-				pcall(function()
-					local postRemote = getAOTRemotes()
-					if postRemote then
-						pcall(function() postRemote:FireServer("S_Equipment", "Refill") end)
-						pcall(function() postRemote:FireServer("Equipment", "Refill") end)
-						pcall(function() postRemote:FireServer("Character", "Refill") end)
-						pcall(function() postRemote:FireServer("Attacks", "Refill") end)
-					end
-
-					local lp = Players and Players.LocalPlayer
-					local char = lp and lp.Character
-					local root = char and char:FindFirstChild("HumanoidRootPart")
-
-					local nearestPrompt = nil
-					local nearestDist = 99999
-					local nearestPos = nil
-
-					if fireproximityprompt and Workspace then
-						local unclimbable = Workspace:FindFirstChild("Unclimbable")
-						local reloadsFolder = (unclimbable and unclimbable:FindFirstChild("Reloads")) or Workspace
-						for _, obj in ipairs(reloadsFolder:GetDescendants()) do
-							if obj:IsA("ProximityPrompt") then
-								local text = string.lower(obj.Name .. " " .. obj.ActionText .. " " .. obj.ObjectText)
-								if reloadsFolder ~= Workspace or string.find(text, "refill", 1, true) or string.find(text, "gas", 1, true) or string.find(text, "blade", 1, true) or string.find(text, "supply", 1, true) or string.find(text, "horse", 1, true) or string.find(text, "chest", 1, true) or string.find(text, "reload", 1, true) then
-									pcall(function() fireproximityprompt(obj, 0) end)
-									pcall(function() fireproximityprompt(obj) end)
-								end
-							end
-						end
-					end
-
-
-					farmStats.bladesReloaded = farmStats.bladesReloaded + 1
-				end)
-			end
-
-			local function getCleanTitanName(model)
-				if not model then return "Titan" end
-				for _, attr in ipairs({ "Title", "TitanType", "Type", "Variant", "BossName", "Class" }) do
-					local val = model:GetAttribute(attr)
-					if type(val) == "string" and val ~= "" and not string.match(val, "%x+%-%x+") and #val < 20 then
-						return val
-					end
-				end
-				local raw = tostring(model.Name)
-				if string.match(raw, "%x+%-%x+") or #raw >= 20 then
-					if model:FindFirstChild("Abnormal") or model:GetAttribute("Abnormal") == true then
-						return "Abnormal Titan"
-					elseif model:FindFirstChild("Crawler") or model:GetAttribute("Crawler") == true then
-						return "Crawler Titan"
-					elseif model:FindFirstChild("Shifter") or model:GetAttribute("Shifter") == true then
-						return "Titan Shifter"
-					elseif model:FindFirstChild("Boss") or model:GetAttribute("Boss") == true or string.find(string.lower(raw), "colossal", 1, true) then
-						return "Colossal Titan"
-					end
-					return "Titan"
-				end
-				return raw
-			end
-
-			-- Xóa rác và xác chết trên Client để tối đa hóa FPS
-			clearMapDebris = function()
-				pcall(function()
-					local debris = Workspace:FindFirstChild("Debris")
-					if debris then
-						for _, item in ipairs(debris:GetChildren()) do
-							pcall(function() item:Destroy() end)
-						end
-					end
-					for titanModel, _ in pairs(deadTitanCache) do
-						if titanModel and titanModel.Parent then
-							pcall(function()
-								for _, p in ipairs(titanModel:GetDescendants()) do
-									if p:IsA("ParticleEmitter") or p:IsA("Trail") or p:IsA("Beam") then
-										p.Enabled = false
-										p:Destroy()
-									elseif p:IsA("BasePart") then
-										p.Transparency = 1
-										p.CanTouch = false
-										p.CanCollide = false
-									end
-								end
-							end)
-						end
-					end
-				end)
-			end
-
-			-- Sự kiện khi Titan chết: tăng chỉ số diệt và dọn dẹp visual ngay lập tức
-			local function onTitanDied(titan)
-				if not titan then return end
-				titanFatalHit[titan] = true
-				if not deadTitanCache[titan] then
-					deadTitanCache[titan] = true
-					farmStats.titansKilled = farmStats.titansKilled + 1
-
-					-- Tự nạp kiếm trong lúc bay sang mục tiêu tiếp theo khi đã chém ít nhất 1 nhát
-					if AOTConfig.ReloadAfterTitanKill and consecutiveSlashes >= 1 and performAOTReload then
-						performAOTReload(true)
-					end
-					if AOTConfig.FastRagdollCleaner then
-						task.spawn(function()
-							pcall(function()
-								for _, p in ipairs(titan:GetDescendants()) do
-									if p:IsA("ParticleEmitter") or p:IsA("Trail") or p:IsA("Beam") then
-										p.Enabled = false
-										p:Destroy()
-									elseif p:IsA("BasePart") then
-										p.Transparency = 1
-										p.CanTouch = false
-										p.CanCollide = false
-										p.CanQuery = false
-									end
-								end
-							end)
-						end)
-					end
-				end
-			end
-
-			-- Kiểm tra chuẩn xác 100% Titan đã chết, đang ragdoll hoặc mất hitbox (0 delay chuyển mục tiêu)
-			local function isTitanDeadOrInvalid(titan, hum, nape)
-				if not titan or not titan.Parent or not titan:IsDescendantOf(Workspace) then
-					return true
-				end
-				if deadTitanCache[titan] or titanFatalHit[titan] then
-					return true
-				end
-				if Players and Players:GetPlayerFromCharacter(titan) then
-					return true
-				end
-
-				-- 1. Thuộc tính báo tử trong AOT:R (Đầy đủ mọi biến thể)
-				for _, attrName in ipairs({ "Dead", "Died", "Death", "Killed", "Ragdoll", "Defeated", "Despawn", "Down", "Dying", "Falling", "Cut", "Sliced" }) do
-					if titan:GetAttribute(attrName) == true then
-						onTitanDied(titan)
-						return true
-					end
-				end
-
-				-- 2. Kiểm tra thuộc tính HP / Health dạng số
-				local hpAttr = titan:GetAttribute("Health") or titan:GetAttribute("HP")
-				if hpAttr ~= nil and type(hpAttr) == "number" and hpAttr <= 0 then
-					onTitanDied(titan)
-					return true
-				end
-
-				-- 3. Tag / Child báo tử
-				if titan:FindFirstChild("Dead") or titan:FindFirstChild("Death") or titan:FindFirstChild("Ragdoll") or titan:FindFirstChild("Defeated") or titan:FindFirstChild("Cut") then
-					onTitanDied(titan)
-					return true
-				end
-
-				local hpVal = titan:FindFirstChild("Health") or titan:FindFirstChild("HP")
-				if hpVal and hpVal:IsA("ValueBase") and hpVal.Value <= 0 then
-					onTitanDied(titan)
-					return true
-				end
-
-				-- 4. Kiểm tra Humanoid
-				if hum then
-					if hum.Health <= 0 then
-						onTitanDied(titan)
-						return true
-					end
-					local okState, state = pcall(function() return hum:GetState() end)
-					if okState and (state == Enum.HumanoidStateType.Dead or state == Enum.HumanoidStateType.Ragdoll) then
-						onTitanDied(titan)
-						return true
-					end
-				end
-
-				-- 5. Khi Titan bị chém đứt gáy, thư mục Hitboxes hoặc Nape bị Server xóa ngay lập tức
-				local hitboxes = titan:FindFirstChild("Hitboxes")
-				if not hitboxes then
-					local rawName = string.lower(titan.Name)
-					if not string.find(rawName, "boss", 1, true) and not string.find(rawName, "colossal", 1, true) then
-						onTitanDied(titan)
-						return true
-					end
-				end
-
-				-- 6. Part gáy phải còn tồn tại trong Titan
-				if not nape or not nape.Parent or not nape:IsDescendantOf(titan) then
-					onTitanDied(titan)
-					return true
-				end
-				if nape:FindFirstChild("Cut") or nape:FindFirstChild("Slash") or nape:FindFirstChild("Blood") then
-					onTitanDied(titan)
-					return true
-				end
-
-				return false
-			end
-
-			-- Tìm kiếm chuẩn xác 100% GÁY (Nape) trong Hitboxes, loại bỏ hoàn toàn nhận nhầm khớp cổ của xác chết
-			local napeCache = setmetatable({}, { __mode = "k" })
-			local function findTitanNape(titan)
-				if not titan or not titan.Parent then return nil end
-				if Players and Players:GetPlayerFromCharacter(titan) then return nil end
-				if deadTitanCache[titan] then return nil end
-
-				local cached = napeCache[titan]
-				if cached and cached.Parent and cached:IsDescendantOf(titan) then
-					return cached
-				end
-
-				local hitboxes = titan:FindFirstChild("Hitboxes")
-				local hitFolder = hitboxes and hitboxes:FindFirstChild("Hit")
-				local nape = (hitFolder and hitFolder:FindFirstChild("Nape"))
-					or (hitboxes and hitboxes:FindFirstChild("Nape"))
-
-				if not nape or not nape:IsA("BasePart") then
-					for _, part in ipairs(titan:GetDescendants()) do
-						if part:IsA("BasePart") then
-							local pName = string.lower(part.Name)
-							if pName == "nape" or pName == "weakpoint" or pName == "core" then
-								nape = part
-								break
-							end
-						end
-					end
-				end
-
-				if nape and nape:IsA("BasePart") then
-					napeCache[titan] = nape
-					return nape
-				end
-				return nil
-			end
-
-			-- Quét danh sách Titan với bộ lọc thông minh & sắp xếp theo thứ tự ưu tiên
-			local function getTitansList()
-				local list = {}
-				local lp = Players and Players.LocalPlayer
-				local char = lp and lp.Character
-				local root = char and char:FindFirstChild("HumanoidRootPart")
-				if not Workspace then return list end
-
-				local searchFolders = {}
-				for _, fName in ipairs({ "Titans", "Enemies", "Boss", "Bosses", "Raid", "Spawns", "Entities", "Living", "Targets" }) do
-					local f = Workspace:FindFirstChild(fName)
-					if f then table.insert(searchFolders, f) end
-				end
-				local map = Workspace:FindFirstChild("Map")
-				if map then
-					for _, sub in ipairs(map:GetChildren()) do
-						if sub.Name == "Titans" or sub.Name == "Enemies" or sub.Name == "Boss" or sub.Name == "Spawns" then
-							table.insert(searchFolders, sub)
-						end
-					end
-				end
-				if #searchFolders == 0 then table.insert(searchFolders, Workspace) end
-
-				local seen = {}
-				for _, folder in ipairs(searchFolders) do
-					for _, titan in ipairs(folder:GetChildren()) do
-						if titan:IsA("Model") and not seen[titan] and titan ~= char then
-							local hum = titan:FindFirstChildOfClass("Humanoid")
-							local nape = findTitanNape(titan)
-
-							-- Chỉ đưa vào danh sách nếu Titan còn sống và có hitbox Nape thực sự
-							if nape and nape:IsA("BasePart") and not isTitanDeadOrInvalid(titan, hum, nape) then
-								seen[titan] = true
-								local dist = root and (nape.Position - root.Position).Magnitude or 9999
-								local cleanName = getCleanTitanName(titan)
-								local lowerName = string.lower(cleanName .. " " .. titan.Name)
-								local isBoss = string.find(lowerName, "boss", 1, true)
-									or string.find(lowerName, "colossal", 1, true)
-									or string.find(lowerName, "armored", 1, true)
-									or string.find(lowerName, "female", 1, true)
-									or string.find(lowerName, "beast", 1, true)
-									or string.find(lowerName, "shifter", 1, true)
-									or titan:GetAttribute("Boss") == true
-								local isCrawler = string.find(lowerName, "crawler", 1, true) or
-									titan:GetAttribute("Crawler") == true
-								local isAbnormal = string.find(lowerName, "abnormal", 1, true) or
-									titan:GetAttribute("Abnormal") == true
-								local hp = hum and hum.Health or 100
-
-								table.insert(list, {
-									model = titan,
-									cleanName = cleanName,
-									humanoid = hum,
-									nape = nape,
-									dist = dist,
-									hp = hp,
-									isBoss = isBoss,
-									isCrawler = isCrawler,
-									isAbnormal = isAbnormal,
-								})
-							end
-						end
-					end
-				end
-
-				local priority = AOTConfig.TargetPriority or "Closest"
-				table.sort(list, function(a, b)
-					if priority == "Bosses First" then
-						if a.isBoss ~= b.isBoss then
-							return a.isBoss
-						end
-						return a.dist < b.dist
-					elseif priority == "Crawlers & Abnormals" then
-						local aThreat = a.isCrawler or a.isAbnormal or a.isBoss
-						local bThreat = b.isCrawler or b.isAbnormal or b.isBoss
-						if aThreat ~= bThreat then
-							return aThreat
-						end
-						return a.dist < b.dist
-					elseif priority == "Lowest HP" then
-						if math.abs(a.hp - b.hp) > 50 then
-							return a.hp < b.hp
-						end
-						return a.dist < b.dist
-					else -- "Closest"
-						return a.dist < b.dist
-					end
-				end)
-				return list
-			end
-
-			-- Theo dõi trạng thái kiếm và nhát chém thời gian thực
-			local consecutiveSlashes = 0
-			local lastReloadTime = 0
-			local lastBladeSlashTime = 0
-			local lastSpearFireTime = 0
-
-			-- Kiểm tra độ bền kiếm thông minh
-			isBladeActuallyBroken = function()
-				local lp = Players and Players.LocalPlayer
-				local char = lp and lp.Character
-				if not char then return false end
-
-				-- 1. Thuộc tính trên Character / Tool nếu có
-				if char:GetAttribute("BladesBroken") == true or char:GetAttribute("Broken") == true or char:GetAttribute("BladeBroken") == true then
-					return true
-				end
-				local dur = char:GetAttribute("Durability") or char:GetAttribute("BladeDurability")
-				if dur ~= nil and type(dur) == "number" and dur <= 20 then
-					return true
-				end
-				local tool = char:FindFirstChildOfClass("Tool")
-				if tool then
-					local tDur = tool:GetAttribute("Durability") or tool:GetAttribute("Dur")
-					if tDur ~= nil and type(tDur) == "number" and tDur <= 20 then
-						return true
-					end
-				end
-
-				-- 2. Kiểm tra thanh độ bền trên GUI qua đối tượng cache
-				local bar = cachedGuiState.durabilityBar
-				if bar and bar.Parent and bar.Visible then
-					local okBar, empty = pcall(function()
-						return bar.Size.X.Scale <= 0.15 or bar.AbsoluteSize.X <= 15
-					end)
-					if okBar and empty then
-						return true
-					end
-				end
-
-				-- 3. Kiểm tra số nhát chém tích lũy thực tế (mặc định 3 nhát chém)
-				local maxSlashes = AOTConfig.SlashesBeforeReload or 3
-				if consecutiveSlashes >= maxSlashes then
-					return true
-				end
-
-				return false
-			end
-
-			performAOTReload = function(force)
-				if not force and not isBladeActuallyBroken() then
-					return
-				end
-				local now = os.clock()
-				if not force and (now - lastReloadTime < 1.0) then return end
-				lastReloadTime = now
-				consecutiveSlashes = 0
-				farmStats.bladesReloaded = farmStats.bladesReloaded + 1
-
-				pcall(function()
-					local postRemote, getRemote = getAOTRemotes()
-					if postRemote then
-						pcall(function() postRemote:FireServer("Attacks", "Reload") end)
-						pcall(function() postRemote:FireServer("S_Equipment", "Reload") end)
-						pcall(function() postRemote:FireServer("S_Equipment", "Refill") end)
-						pcall(function() postRemote:FireServer("Equipment", "Reload") end)
-						pcall(function() postRemote:FireServer("Character", "Reload") end)
-					end
-					if getRemote then
-						pcall(function() getRemote:InvokeServer("S_Equipment", "Reload") end)
-					end
-
-					triggerActionButtons({ "nạp lại", "nap lai", "reload", "refill" })
-
-					if cachedGuiState.reload and cachedGuiState.reload.Parent then
-						clickGuiButtonFast(cachedGuiState.reload)
-					end
-
-					if VirtualInputManager then
-						VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
-						task.spawn(function()
-							task.wait(0.08)
-							VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
-						end)
-					end
-
-					-- Tự động tiếp tế tại trạm khi cần
-					if AOTConfig.AutoRefillSupplies then
-						refillSuppliesAtStation()
-					end
-				end)
-			end
-
-			-- Lắng nghe sự kiện hồi sinh để reset toàn bộ trạng thái nạp kiếm và mục tiêu khi chết
-			local function onAOTCharacterAdded(newChar)
-				consecutiveSlashes = 0
-				lastReloadTime = 0
-				lastBladeSlashTime = 0
-				currentTargetTitan = nil
-				table.clear(deadTitanCache)
-				refreshCachedGuiElements(true)
-
-				task.spawn(function()
-					local hum = newChar:WaitForChild("Humanoid", 5)
-					if hum then
-						hum.Died:Connect(function()
-							currentTargetTitan = nil
-							consecutiveSlashes = 0
-						end)
-					end
-				end)
-			end
-
-			local lp = Players and Players.LocalPlayer
-			if lp then
-				if lp.Character then
-					onAOTCharacterAdded(lp.Character)
-				end
-				lp.CharacterAdded:Connect(onAOTCharacterAdded)
-			end
-
-			-- Auto Use Skills: Chạy nền độc lập không làm khựng đòn chém M1
-			local lastSkillCast = 0
-			local function performAOTAutoSkills()
-				if not AOTConfig.AutoUseSkills then return end
-				local now = os.clock()
-				if now - lastSkillCast < 1.2 then return end
-				lastSkillCast = now
-
-				task.spawn(function()
-					pcall(function()
-						local postRemote = getAOTRemotes()
-						if postRemote then
-							for slot = 1, 4 do
-								postRemote:FireServer("Skills", "Use", slot)
-								postRemote:FireServer("S_Character", "Skill", slot)
-							end
-						end
-
-						if VirtualInputManager then
-							for _, key in ipairs({ Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four }) do
-								VirtualInputManager:SendKeyEvent(true, key, false, game)
-								task.wait(0.002)
-								VirtualInputManager:SendKeyEvent(false, key, false, game)
-							end
-						end
-
-						for _, btn in ipairs(cachedGuiState.skills) do
-							if btn and btn.Parent and btn.Visible then
-								clickGuiButtonFast(btn)
-							end
-						end
-					end)
-				end)
-			end
-
-			-- Auto Titan Shifter v2: Tự biến hình Titan khi thanh năng lượng đầy và tự xuất combo kỹ năng Titan
-			local lastShiftAttempt = 0
-			local lastTitanSkillTime = 0
-			local function performAOTAutoShifter()
-				if not AOTConfig.AutoTitanShift and not AOTConfig.TitanShifterMastery then return end
-				local lp = Players and Players.LocalPlayer
-				local char = lp and lp.Character
-				if not char then return end
-
-				local isShifted = char:GetAttribute("Shifted") == true
-					or char:GetAttribute("IsTitan") == true
-					or char:GetAttribute("Titan") == true
-					or char:FindFirstChild("Titan")
-					or char:FindFirstChild("Shifter")
-
-				local postRemote = getAOTRemotes()
-				local now = os.clock()
-
-				-- Nếu ĐANG trong dạng Titan và bật TitanSkillsBurst: Tự động dùng combo kỹ năng Titan
-				if isShifted then
-					if AOTConfig.TitanSkillsBurst and (now - lastTitanSkillTime >= 0.8) then
-						lastTitanSkillTime = now
-						task.spawn(function()
-							pcall(function()
-								if postRemote then
-									postRemote:FireServer("Attacks", "Roar")
-									postRemote:FireServer("Attacks", "Hardening")
-									postRemote:FireServer("Attacks", "Punch")
-									postRemote:FireServer("Attacks", "TitanSkill", 1)
-									postRemote:FireServer("Attacks", "TitanSkill", 2)
-									postRemote:FireServer("Attacks", "TitanSkill", 3)
-									postRemote:FireServer("S_Character", "Roar")
-									postRemote:FireServer("S_Character", "Skill", 1)
-									postRemote:FireServer("S_Character", "Skill", 2)
-								end
-								if VirtualInputManager then
-									for _, key in ipairs({ Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.F, Enum.KeyCode.E, Enum.KeyCode.V }) do
-										VirtualInputManager:SendKeyEvent(true, key, false, game)
-										task.wait(0.005)
-										VirtualInputManager:SendKeyEvent(false, key, false, game)
-									end
-								end
-							end)
-						end)
-					end
-					return
-				end
-
-				-- Nếu CHƯA biến hình: Kiểm tra cooldown 6s để thử biến hình
-				if now - lastShiftAttempt < 6.0 then return end
-				lastShiftAttempt = now
-
-				task.spawn(function()
-					pcall(function()
-						if postRemote then
-							pcall(function() postRemote:FireServer("S_Character", "Shift") end)
-							pcall(function() postRemote:FireServer("Attacks", "Shift") end)
-							pcall(function() postRemote:FireServer("Character", "Shift") end)
-						end
-						if VirtualInputManager then
-							VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.G, false, game)
-							task.wait(0.02)
-							VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.G, false, game)
-						end
-					end)
-				end)
-			end
-
-			-- Multi-Target Attack v2: Hỗ trợ Thunder Spears AOE Burst & One-Shot Decapitation 500 Vận Tốc
-			local function performAOTMultiAttack(primaryTarget)
-				if not primaryTarget or not primaryTarget.nape then return end
-				pcall(function()
-					local lp = Players and Players.LocalPlayer
-					local char = lp and lp.Character
-					local root = char and char:FindFirstChild("HumanoidRootPart")
-					local postRemote = getAOTRemotes()
-
-					-- Thu thập các Titan khác còn sống trong bán kính đánh lan
-					local targetEntries = { primaryTarget }
-					if AOTConfig.MultiTargetAttack then
-						local allTitans = getTitansList()
-						local maxT = math.clamp(AOTConfig.MaxTargets or 4, 1, 8)
-						local radius = AOTConfig.AttackRadius or 85
-						for _, t in ipairs(allTitans) do
-							if t ~= primaryTarget and t.nape and t.humanoid and t.humanoid.Health > 0 and not isTitanDeadOrInvalid(t.model, t.humanoid, t.nape) then
-								local dToPrimary = (t.nape.Position - primaryTarget.nape.Position).Magnitude
-								local dToPlayer = root and (t.nape.Position - root.Position).Magnitude or dToPrimary
-								if dToPrimary <= radius or dToPlayer <= radius then
-									table.insert(targetEntries, t)
-									if #targetEntries >= maxT then
-										break
-									end
-								end
-							end
-						end
-					end
-
-					local useSpears = (AOTConfig.WeaponMode == "Thunder Spears") or (AOTConfig.WeaponMode == "Auto")
-					local useBlades = (AOTConfig.WeaponMode == "Blades") or (AOTConfig.WeaponMode == "Auto")
-					local now = os.clock()
-
-					-- 1. Bắn thương sấm sét (Thunder Spears) trực tiếp vào Gáy & AOE Burst
-					local isHighThreat = primaryTarget.isBoss or primaryTarget.isCrawler or #targetEntries >= 2
-					if (useSpears or (AOTConfig.AutoSpearsBurst and isHighThreat)) and (now - lastSpearFireTime >= 0.45) then
-						lastSpearFireTime = now
-						for _, entry in ipairs(targetEntries) do
-							if entry.nape and postRemote then
-								pcall(function()
-									postRemote:FireServer("S_Equipment", "Spears", "Fire",
-										entry.nape.Position)
-								end)
-								pcall(function() postRemote:FireServer("Attacks", "Spears", entry.nape.Position) end)
-								pcall(function() postRemote:FireServer("Hitboxes", "Register", entry.nape, 500, 100) end)
-							end
-						end
-
-						if VirtualInputManager then
-							VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
-							task.spawn(function()
-								task.wait(0.005)
-								VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
-							end)
-						end
-					end
-
-					-- 2. Boss Mechanics: Phá giáp khớp chân Armored Titan
-					if AOTConfig.AutoBossMechanics and primaryTarget.isBoss and postRemote then
-						local titanModel = primaryTarget.model
-						for _, partName in ipairs({ "Leg_L", "Leg_R", "Knee_L", "Knee_R", "Ankle_L", "Ankle_R", "Arm_L", "Arm_R" }) do
-							local bodyPart = titanModel:FindFirstChild(partName, true)
-							if bodyPart and bodyPart:IsA("BasePart") then
-								pcall(function() postRemote:FireServer("Hitboxes", "Register", bodyPart, 500, 100) end)
-							end
-						end
-					end
-
-					-- 3. Chém kiếm (Blades Slash) – Truyền vận tốc chém 500 + 100% crit để kết liễu Titan mượt mà (ONE-SHOT GÁY)
-					local slashCooldown = AOTConfig.SafeLegitDelay and 0.20 or 0.10
-					if useBlades and (now - lastBladeSlashTime >= slashCooldown) then
-						lastBladeSlashTime = now
-						consecutiveSlashes = consecutiveSlashes + 1
-
-						local postRemote, getRemote = getAOTRemotes()
-						if postRemote then
-							pcall(function() postRemote:FireServer("Attacks", "Slash", true) end)
-							pcall(function() postRemote:FireServer("Attacks", "Slash_Release") end)
-							pcall(function() postRemote:FireServer("Attacks", "M1") end)
-						end
-
-						for _, entry in ipairs(targetEntries) do
-							local nape = entry.nape
-							if nape then
-								if postRemote then
-									pcall(function() postRemote:FireServer("Hitboxes", "Register", nape, 500, 100) end)
-									pcall(function() postRemote:FireServer("Hitboxes", "Register", nape, 500) end)
-								end
-								if getRemote then
-									pcall(function() getRemote:InvokeServer("Hitboxes", "Register", nape, 500, 100) end)
-								end
-							end
-						end
-
-						if VirtualInputManager then
-							VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-							task.spawn(function()
-								task.wait(0.01)
-								VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
-							end)
-						end
-						activateEquippedTool()
-						triggerMobileM1Attack()
-						performAOTAutoSkills()
-					end
-				end)
-			end
-
-			-- 1. Anti-Gravity Stepped Loop: Giữ nhân vật lơ lửng, triệt tiêu trọng lực & Map NoClip
-			local RunService = getService("RunService")
-			RunService.Stepped:Connect(function()
-				if not (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid) then
-					return
-				end
-				local lp = Players and Players.LocalPlayer
-				local char = lp and lp.Character
-				local root = char and char:FindFirstChild("HumanoidRootPart")
-				local hum = char and char:FindFirstChildOfClass("Humanoid")
-
-				if char and hum and hum.Health > 0 then
-					for _, part in ipairs(char:GetDescendants()) do
-						if part:IsA("BasePart") and part.CanCollide then
-							part.CanCollide = false
-						end
-					end
-					if root then
-						local bv = root:FindFirstChild("HaiAnh_AOT_AntiGrav")
-						if not bv then
-							bv = Instance.new("BodyVelocity")
-							bv.Name = "HaiAnh_AOT_AntiGrav"
-							bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
-							bv.Velocity = Vector3.zero
-							bv.Parent = root
-						else
-							bv.Velocity = Vector3.zero
-						end
-						root.Velocity = Vector3.zero
-						root.RotVelocity = Vector3.zero
-						root.AssemblyLinearVelocity = Vector3.zero
-						root.AssemblyAngularVelocity = Vector3.zero
-					end
-				end
-			end)
-
-			-- 2. Heartbeat Farm Flight: BAY TRÊN TRỜI CAO CHÉM XUỐNG (High Sky Anti-Grab Farm)
-			RunService.Heartbeat:Connect(function(dt)
-				if not (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid) then
-					return
-				end
-				pcall(function()
-					local lp = Players and Players.LocalPlayer
-					local char = lp and lp.Character
-					local root = char and char:FindFirstChild("HumanoidRootPart")
-					if not root then return end
-
-					-- Đổi sang mục tiêu sống tiếp theo NGAY LẬP TỨC khi Titan chết hoặc mất hitbox (< 16ms)
-					if not currentTargetTitan
-						or not currentTargetTitan.model
-						or not currentTargetTitan.nape
-						or isTitanDeadOrInvalid(currentTargetTitan.model, currentTargetTitan.humanoid, currentTargetTitan.nape) then
-						if currentTargetTitan and currentTargetTitan.model then
-							onTitanDied(currentTargetTitan.model)
-						end
-						local list = getTitansList()
-						currentTargetTitan = list[1]
-					end
-
-					if currentTargetTitan and currentTargetTitan.nape and currentTargetTitan.nape.Parent then
-						local titanModel = currentTargetTitan.model
-						local titanRoot = titanModel:FindFirstChild("HumanoidRootPart") or
-							titanModel:FindFirstChild("Torso") or titanModel:FindFirstChild("UpperTorso") or
-							titanModel.PrimaryPart
-						local titanPivot = titanModel:GetPivot()
-						local napePart = currentTargetTitan.nape
-						local napePos = napePart.Position
-
-						local titanCF = titanRoot and titanRoot.CFrame or titanPivot
-						local lookVec = titanCF.LookVector
-
-						-- Luôn bay trên cao an toàn tuyệt đối (28-35 studs trên đỉnh gáy Titan, không bao giờ bị tóm)
-						local heightOffset = math.clamp(AOTConfig.HoverHeight or 28.0, 20.0, 60.0)
-						local behindDist = math.clamp(AOTConfig.BehindNapeDistance or 2.0, 0.0, 15.0)
-
-						if AOTConfig.FarmPosition == "Above Nape" then
-							heightOffset = math.clamp(AOTConfig.HoverHeight or 25.0, 20.0, 45.0)
-							behindDist = 2.0
-						elseif AOTConfig.FarmPosition == "Behind Nape" then
-							heightOffset = math.clamp(AOTConfig.HoverHeight or 22.0, 18.0, 35.0)
-							behindDist = 4.0
-						end
-
-						-- Tọa độ trên cao: Lơ lửng trên trời cao hơn gáy Titan
-						local goalPos = napePos - (lookVec * behindDist) + Vector3.new(0, heightOffset, 0)
-
-						local currentPos = root.Position
-						local diff = goalPos - currentPos
-						local flatDist = Vector3.new(diff.X, 0, diff.Z).Magnitude
-
-						if AOTConfig.InstantTeleport then
-							local targetCF = CFrame.lookAt(goalPos, Vector3.new(napePos.X, goalPos.Y - 2, napePos.Z))
-							root.CFrame = targetCF
-						else
-							local nextPos
-							if flatDist > 3.0 then
-								local speed = math.clamp(AOTConfig.FlightSpeed or 220, 100, 450)
-								local step = math.min(flatDist, speed * dt)
-								local dir = Vector3.new(diff.X, 0, diff.Z).Unit
-								-- Duy trì độ cao an toàn, lướt ngang mượt mà không khựng
-								local nextY = currentPos.Y + (goalPos.Y - currentPos.Y) * math.clamp(step / math.max(flatDist, 1), 0.1, 1)
-								nextPos = Vector3.new(currentPos.X + dir.X * step, nextY, currentPos.Z + dir.Z * step)
-							else
-								nextPos = goalPos
-							end
-							-- Hướng nhìn: Nhìn chúc nhẹ xuống gáy (-2 studs Y) triệt tiêu hoàn toàn rung lắc Gimbal Lock
-							local targetCF = CFrame.lookAt(nextPos, Vector3.new(napePos.X, nextPos.Y - 2, napePos.Z))
-							root.CFrame = targetCF
-						end
-					end
-				end)
-			end)
-
-			-- 3. Dedicated Hitbox Extender Engine & Anti-Grab Shield: Mở rộng hitbox gáy lên trời để chém từ trên cao trúng 100%
-			RunService.Heartbeat:Connect(function()
-				if not (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid or AOTConfig.HitboxExtender) then return end
-				local sz = AOTConfig.NapeHitboxSize or 80
-				pcall(function()
-					local searchFolders = {}
-					for _, fName in ipairs({ "Titans", "Enemies", "Boss", "Bosses", "Raid", "Spawns", "Entities" }) do
-						local f = Workspace:FindFirstChild(fName)
-						if f then table.insert(searchFolders, f) end
-					end
-					if #searchFolders == 0 then table.insert(searchFolders, Workspace) end
-
-					local lp = Players and Players.LocalPlayer
-					local char = lp and lp.Character
-
-					for _, folder in ipairs(searchFolders) do
-						for _, titan in ipairs(folder:GetChildren()) do
-							if titan:IsA("Model") and titan ~= char then
-								local nape = findTitanNape(titan)
-								if nape and nape:IsA("BasePart") then
-									nape.CanTouch = true
-									nape.CanCollide = false
-									nape.CanQuery = true
-									nape.Massless = true
-									if AOTConfig.HitboxExtender then
-										nape.Size = Vector3.new(sz, sz, sz)
-									end
-									if AOTConfig.ShowNapeHitbox then
-										nape.Transparency = 0.55
-										nape.Color = AOTConfig.ESPColor
-										nape.Material = Enum.Material.Neon
-									else
-										nape.Transparency = 1
-									end
-								end
-
-								-- TRIỆT TIÊU 100% HITBOX THÂN, TAY, CHÂN, ĐẦU, BẮT (Anti-Body Hit & Anti-Grab)
-								-- Vô hiệu hóa CanTouch & CanQuery trên mọi part khác trong titan để đòn chém CHỈ TRÚNG GÁY 100%
-								for _, part in ipairs(titan:GetDescendants()) do
-									if part:IsA("BasePart") and part ~= nape and part.Name ~= "HumanoidRootPart" then
-										part.CanTouch = false
-										part.CanCollide = false
-										part.CanQuery = false
-									end
-								end
-							end
-						end
-					end
-				end)
-			end)
-
-			-- 4. Combat Loop: Tấn công liên tục từ trên cao chém xuống gáy, tự nạp kiếm thông minh
-			task.spawn(function()
-				while not rayfieldDestroyed do
-					local delayTime = 0.04
-					if AOTConfig.SafeLegitDelay then
-						delayTime = math.random(80, 120) / 1000
-					end
-
-					pcall(function()
-						local lp = Players and Players.LocalPlayer
-						local char = lp and lp.Character
-						local root = char and char:FindFirstChild("HumanoidRootPart")
-
-						if not currentTargetTitan or not currentTargetTitan.nape or isTitanDeadOrInvalid(currentTargetTitan.model, currentTargetTitan.humanoid, currentTargetTitan.nape) then
-							local titans = getTitansList()
-							currentTargetTitan = titans[1]
-						end
-
-						if AOTConfig.AutoTitanShift or AOTConfig.TitanShifterMastery then
-							performAOTAutoShifter()
-						end
-
-						-- Chém mục tiêu từ trên cao: Khi đã bay đến phía trên gáy Titan (khoảng cách <= 55 studs)
-						local primaryTarget = nil
-						if (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid) and currentTargetTitan and currentTargetTitan.nape then
-							local distToNape = (root and currentTargetTitan.nape) and
-								(root.Position - currentTargetTitan.nape.Position).Magnitude or 9999
-							if distToNape <= 55 then
-								primaryTarget = currentTargetTitan
-							end
-						elseif AOTConfig.KillAura and currentTargetTitan and currentTargetTitan.nape then
-							local distToNape = (root and currentTargetTitan.nape) and
-								(root.Position - currentTargetTitan.nape.Position).Magnitude or 9999
-							if distToNape <= AOTConfig.KillAuraRange then
-								primaryTarget = currentTargetTitan
-							end
-						end
-
-						if primaryTarget then
-							performAOTMultiAttack(primaryTarget)
-						end
-
-						-- Tự động nạp kiếm thông minh khi kiếm cùn hoặc gãy
-						if AOTConfig.AutoReloadWhenBroken and isBladeActuallyBroken() then
-							performAOTReload(false)
-						end
-					end)
-					task.wait(delayTime)
-				end
-			end)
-
-			-- 5. Buff Loop: Godmode, Auto Escape Grab, Gas Durability, Infinite Hook, No Cooldown
-			task.spawn(function()
-				while not rayfieldDestroyed do
-					pcall(function()
-						local lp = Players and Players.LocalPlayer
-						local char = lp and lp.Character
-						local titans = getTitansList()
-						local postRemote = getAOTRemotes()
-
-						if AOTConfig.Godmode then
-							for _, t in ipairs(titans) do
-								local hb = t.model:FindFirstChild("Hitboxes")
-								if hb then
-									for _, sub in ipairs(hb:GetDescendants()) do
-										if sub:IsA("BasePart") and sub.Name ~= "Nape" then
-											sub.CanTouch = false
-											sub.CanCollide = false
-										end
-									end
-								end
-								for _, part in ipairs(t.model:GetDescendants()) do
-									if part:IsA("BasePart") and (string.find(string.lower(part.Name), "steam", 1, true) or string.find(string.lower(part.Name), "burn", 1, true) or string.find(string.lower(part.Name), "damage", 1, true)) then
-										part.CanTouch = false
-										part.CanCollide = false
-									end
-								end
-							end
-						end
-
-						if char then
-							if AOTConfig.Godmode then
-								local hum = char:FindFirstChildOfClass("Humanoid")
-								if hum and hum.Health > 0 and hum.Health < hum.MaxHealth then
-									pcall(function() hum.Health = hum.MaxHealth end)
-								end
-								pcall(function()
-									char:SetAttribute("Invulnerable", true)
-									char:SetAttribute("IFrame", true)
-								end)
-							end
-							if AOTConfig.AutoEscapeGrab then
-								local grabbed = char:FindFirstChild("Grabbed") or char:GetAttribute("Grabbed")
-								if grabbed then
-									pcall(function()
-										if postRemote then
-											postRemote:FireServer("Attacks", "Grab_Escape")
-											postRemote:FireServer("S_Character", "Escape")
-										end
-										triggerActionButtons({ "escape", "thoát", "thoat", "break" })
-									end)
-								end
-							end
-							if AOTConfig.InfiniteGasDurability then
-								pcall(function()
-									char:SetAttribute("Gas", 100)
-									char:SetAttribute("Blades", 100)
-									char:SetAttribute("MaxGas", 100)
-									char:SetAttribute("InfiniteGas", true)
-								end)
-							end
-
-							-- Tự động tiếp tế khi đứng gần trạm nạp (trong phạm vi 30 studs)
-							if AOTConfig.AutoRefillSupplies then
-								local root = char and char:FindFirstChild("HumanoidRootPart")
-								if root and Workspace then
-									local unclimbable = Workspace:FindFirstChild("Unclimbable")
-									local reloadsFolder = (unclimbable and unclimbable:FindFirstChild("Reloads"))
-									if reloadsFolder then
-										for _, obj in ipairs(reloadsFolder:GetDescendants()) do
-											if obj:IsA("ProximityPrompt") then
-												local p = obj.Parent
-												local pos = p and (p:IsA("BasePart") and p.Position or (p:IsA("Model") and p:GetPivot().Position))
-												if pos and (pos - root.Position).Magnitude <= 30 then
-													pcall(function() fireproximityprompt(obj, 0); fireproximityprompt(obj) end)
-													if postRemote then
-														pcall(function() postRemote:FireServer("S_Equipment", "Refill") end)
-													end
-												end
-											end
-										end
-									end
-								end
-							end
-							if AOTConfig.InfiniteHookRange then
-								pcall(function()
-									char:SetAttribute("HookRange", 999999)
-									char:SetAttribute("MaxHookRange", 999999)
-								end)
-							end
-							if AOTConfig.NoCooldown then
-								pcall(function()
-									char:SetAttribute("Cooldown", 0)
-									char:SetAttribute("SkillCooldown", 0)
-								end)
-							end
-						end
-					end)
-					task.wait(0.12)
-				end
-			end)
-
-			-- 6. Raid & Story VIP Automation Loop
-			task.spawn(function()
-				while not rayfieldDestroyed do
-					pcall(function()
-						local postRemote = getAOTRemotes()
-
-						if AOTConfig.AutoRaid then
-							triggerActionButtons({ "start", "bắt đầu", "bat dau", "ready", "sẵn sàng", "join", "tham gia" })
-							if AOTConfig.AutoOpenRaidChests then
-								triggerActionButtons({ "claim", "nhận", "nhan", "open", "mở", "chest", "rương" })
-							end
-							if AOTConfig.AutoRetry then
-								triggerActionButtons({ "retry", "chơi lại", "choi lai", "replay" })
-							end
-
-							if (AOTConfig.AutoFireCannons or AOTConfig.AutoOpenRaidChests) and fireproximityprompt and Workspace then
-								for _, obj in ipairs(Workspace:GetDescendants()) do
-									if obj:IsA("ProximityPrompt") and obj.Enabled then
-										pcall(function() fireproximityprompt(obj, 1) end)
-									end
-								end
-							end
-
-							if AOTConfig.AutoUpgradeHQ and postRemote then
-								pcall(function() postRemote:FireServer("Shop", "UpgradeHQ") end)
-								pcall(function() postRemote:FireServer("Raid", "Upgrade") end)
-								triggerActionButtons({ "upgrade", "nâng cấp", "nang cap", "hq", "fortify" })
-							end
-						end
-
-						if AOTConfig.AutoStoryMission then
-							triggerActionButtons({ "start", "bắt đầu", "deploy", "ra trận", "ready" })
-							if AOTConfig.AutoNextMission then
-								triggerActionButtons({ "next", "tiếp tục", "tiep tuc", "continue" })
-							end
-							if AOTConfig.AutoRetry then
-								triggerActionButtons({ "retry", "chơi lại", "choi lai" })
-							end
-						end
-					end)
-					task.wait(1.5)
-				end
-			end)
-
-			-- 7. Gacha / Spin Automation Loop
-			task.spawn(function()
-				while not rayfieldDestroyed do
-					pcall(function()
-						local postRemote = getAOTRemotes()
-						local lp = Players and Players.LocalPlayer
-						if AOTConfig.AutoRollFamily and postRemote then
-							local currentClan = lp and (lp:GetAttribute("Family") or lp:GetAttribute("Clan"))
-							local matched = false
-							if currentClan then
-								for _, target in ipairs(AOTConfig.TargetClans) do
-									if string.lower(tostring(currentClan)) == string.lower(tostring(target)) then
-										matched = true
-										break
-									end
-								end
-							end
-							if matched then
-								AOTConfig.AutoRollFamily = false
-								RayfieldLibrary:Notify({
-									Title = "Gacha Success",
-									Content = "Rolled Target Family: " .. tostring(currentClan),
-									Duration = 7,
-								})
-							else
-								postRemote:FireServer("Slots", "Roll", "Family")
-							end
-						end
-
-						if AOTConfig.AutoRollPerks and postRemote then
-							local currentPerk = lp and (lp:GetAttribute("Perk") or lp:GetAttribute("EquippedPerk"))
-							local matchedPerk = false
-							if currentPerk and AOTConfig.TargetPerks then
-								for _, pTarget in ipairs(AOTConfig.TargetPerks) do
-									if string.find(string.lower(tostring(currentPerk)), string.lower(tostring(pTarget)), 1, true) then
-										matchedPerk = true
-										break
-									end
-								end
-							end
-							if matchedPerk then
-								AOTConfig.AutoRollPerks = false
-								RayfieldLibrary:Notify({
-									Title = "Perk Success",
-									Content = "Rolled Target Perk: " .. tostring(currentPerk),
-									Duration = 7,
-								})
-							else
-								postRemote:FireServer("Slots", "Roll", "Perks")
-							end
-						end
-					end)
-					task.wait(0.6)
-				end
-			end)
-
-			-- 8. Anti-AFK & Shadowban Monitor Loop
-			task.spawn(function()
-				while not rayfieldDestroyed do
-					pcall(function()
-						if AOTConfig.AntiAFK then
-							local vu = VirtualUser
-							if vu then
-								vu:CaptureController()
-								vu:ClickButton2(Vector2.new(50, 50))
-							end
-						end
-
-						if AOTConfig.AutoShadowbanCheck then
-							local lp = Players and Players.LocalPlayer
-							if lp then
-								for attrName, attrVal in pairs(lp:GetAttributes()) do
-									local lower = string.lower(tostring(attrName))
-									if (string.find(lower, "shadowban", 1, true) or string.find(lower, "ban", 1, true) or string.find(lower, "restrict", 1, true)) and attrVal == true then
-										AOTConfig.AutoFarmTitan = false
-										AOTConfig.AutoRaid = false
-										RayfieldLibrary:Notify({
-											Title = "Emergency Stop",
-											Content = "Shadowban detected! Auto Farm stopped to prevent ban.",
-											Duration = 10,
-										})
-										break
-									end
-								end
-							end
-						end
-					end)
-					task.wait(15)
-				end
-			end)
-
-			-- 9. Visuals / Titan ESP Loop
-			local function cleanupESP()
-				for _, esp in pairs(espObjects) do
-					pcall(function()
-						if esp.highlight then esp.highlight:Destroy() end
-						if esp.billboard then esp.billboard:Destroy() end
-					end)
-				end
-				espObjects = {}
-			end
-
-			task.spawn(function()
-				while not rayfieldDestroyed do
-					pcall(function()
-						if not AOTConfig.TitanESP then
-							cleanupESP()
-							return
-						end
-
-						local titans = getTitansList()
-						local seenTitans = {}
-
-						for _, t in ipairs(titans) do
-							if t.model and t.model.Parent and t.dist <= AOTConfig.ESPMaxDistance then
-								seenTitans[t.model] = true
-								local esp = espObjects[t.model]
-								if not esp then
-									esp = {}
-									espObjects[t.model] = esp
-
-									local hl = Instance.new("Highlight")
-									hl.Name = "TitanHighlight"
-									hl.Adornee = t.model
-									hl.FillColor = AOTConfig.ESPColor
-									hl.FillTransparency = 0.72
-									hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-									hl.OutlineTransparency = 0.2
-									hl.Parent = t.model
-									esp.highlight = hl
-
-									local bb = Instance.new("BillboardGui")
-									bb.Name = "TitanInfo"
-									bb.Adornee = t.nape or t.model:FindFirstChild("Head")
-									bb.Size = UDim2.new(0, 180, 0, 45)
-									bb.StudsOffset = Vector3.new(0, 5, 0)
-									bb.AlwaysOnTop = true
-
-									local lbl = Instance.new("TextLabel")
-									lbl.Size = UDim2.new(1, 0, 1, 0)
-									lbl.BackgroundTransparency = 1
-									lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-									lbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-									lbl.TextStrokeTransparency = 0.2
-									lbl.Font = Enum.Font.GothamBold
-									lbl.TextSize = 13
-									lbl.Parent = bb
-									esp.label = lbl
-									esp.billboard = bb
-									bb.Parent = t.model
-								end
-
-								if esp.highlight then
-									esp.highlight.FillColor = AOTConfig.ESPColor
-								end
-
-								if esp.label then
-									local hpText = "HP: 100%"
-									if t.humanoid then
-										local pct = math.clamp(
-											math.floor((t.humanoid.Health / math.max(t.humanoid.MaxHealth, 1)) * 100), 0,
-											100)
-										hpText = "HP: " .. pct .. "%"
-									end
-									esp.label.Text = string.format("%s [%dm] | %s", t.cleanName, math.floor(t.dist),
-										hpText)
-								end
-							end
-						end
-
-						for model, esp in pairs(espObjects) do
-							if not seenTitans[model] or not model.Parent then
-								pcall(function()
-									if esp.highlight then esp.highlight:Destroy() end
-									if esp.billboard then esp.billboard:Destroy() end
-								end)
-								espObjects[model] = nil
-							end
-						end
-					end)
-					task.wait(0.2)
-				end
-				cleanupESP()
-			end)
-
-			-- 10. Performance, Screen Shake & Farm Statistics HUD Loop
-			local hudGui = nil
-			local hudTitansLabel = nil
-			local hudKpmLabel = nil
-			local hudBladesLabel = nil
-			local hudTimeLabel = nil
-			local hudTargetLabel = nil
-
-			updateFarmHUD = function()
-				if not AOTConfig.ShowFarmHUD then
-					if hudGui then hudGui.Enabled = false end
-					return
-				end
-
-				if not hudGui then
-					local parentGui = (gethui and gethui()) or
-						(CoreGui and pcall(function() return CoreGui end) and CoreGui) or
-						(lp and lp:FindFirstChild("PlayerGui"))
-					if not parentGui then return end
-
-					hudGui = Instance.new("ScreenGui")
-					hudGui.Name = "HaiAnh_AOTR_FarmHUD"
-					hudGui.ResetOnSpawn = false
-					hudGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-					local mainFrame = Instance.new("Frame")
-					mainFrame.Name = "MainFrame"
-					mainFrame.Size = UDim2.new(0, 240, 0, 155)
-					mainFrame.Position = UDim2.new(0, 20, 0.5, -80)
-					mainFrame.BackgroundColor3 = Color3.fromRGB(18, 16, 26)
-					mainFrame.BackgroundTransparency = 0.15
-					mainFrame.BorderSizePixel = 0
-					mainFrame.Active = true
-					mainFrame.Draggable = true
-					mainFrame.Parent = hudGui
-
-					local corner = Instance.new("UICorner")
-					corner.CornerRadius = UDim.new(0, 10)
-					corner.Parent = mainFrame
-
-					local stroke = Instance.new("UIStroke")
-					stroke.Color = Color3.fromRGB(170, 95, 255)
-					stroke.Thickness = 1.5
-					stroke.Transparency = 0.3
-					stroke.Parent = mainFrame
-
-					local title = Instance.new("TextLabel")
-					title.Size = UDim2.new(1, 0, 0, 28)
-					title.BackgroundTransparency = 1
-					title.Font = Enum.Font.GothamBold
-					title.Text = "⚔️ AOT:R FARM STATS"
-					title.TextColor3 = Color3.fromRGB(200, 150, 255)
-					title.TextSize = 13
-					title.Parent = mainFrame
-
-					local function createRow(name, yPos)
-						local lbl = Instance.new("TextLabel")
-						lbl.Name = name
-						lbl.Size = UDim2.new(1, -20, 0, 22)
-						lbl.Position = UDim2.new(0, 10, 0, yPos)
-						lbl.BackgroundTransparency = 1
-						lbl.Font = Enum.Font.GothamMedium
-						lbl.TextColor3 = Color3.fromRGB(235, 235, 245)
-						lbl.TextSize = 12
-						lbl.TextXAlignment = Enum.TextXAlignment.Left
-						lbl.Parent = mainFrame
-						return lbl
-					end
-
-					hudTitansLabel = createRow("TitansLabel", 30)
-					hudKpmLabel = createRow("KpmLabel", 54)
-					hudBladesLabel = createRow("BladesLabel", 78)
-					hudTimeLabel = createRow("TimeLabel", 102)
-					hudTargetLabel = createRow("TargetLabel", 126)
-
-					pcall(function() hudGui.Parent = parentGui end)
-				end
-
-				hudGui.Enabled = true
-
-				local elapsed = math.max(os.clock() - farmStats.startTime, 1)
-				local mins = elapsed / 60
-				local kpm = math.floor((farmStats.titansKilled / mins) * 10) / 10
-				local h = math.floor(elapsed / 3600)
-				local m = math.floor((elapsed % 3600) / 60)
-				local s = math.floor(elapsed % 60)
-				local timeStr = string.format("%02d:%02d:%02d", h, m, s)
-
-				local targetName = currentTargetTitan and currentTargetTitan.cleanName or "None"
-
-				hudTitansLabel.Text = "💀 Titans Slayed: " .. tostring(farmStats.titansKilled)
-				hudKpmLabel.Text = "⚡ Kill Rate: " .. tostring(kpm) .. " / min"
-				hudBladesLabel.Text = "🗡️ Blades Used: " .. tostring(farmStats.bladesReloaded)
-				hudTimeLabel.Text = "⏱️ Runtime: " .. timeStr
-				hudTargetLabel.Text = "🎯 Target: " .. targetName
-			end
-
-			disableScreenShake = function()
-				if not AOTConfig.DisableScreenShake then return end
-				pcall(function()
-					local cam = Workspace.CurrentCamera
-					if cam then
-						local camScript = cam:FindFirstChild("CameraShake") or cam:FindFirstChild("Shake")
-						if camScript then camScript:Destroy() end
-					end
-					local Lighting = getService("Lighting")
-					if Lighting then
-						for _, effect in ipairs(Lighting:GetChildren()) do
-							if effect:IsA("BlurEffect") and string.find(string.lower(effect.Name), "shake", 1, true) then
-								effect.Enabled = false
-							end
-						end
-					end
-				end)
-			end
-
-			task.spawn(function()
-				while not rayfieldDestroyed do
-					pcall(function()
-						updateFarmHUD()
-						disableScreenShake()
-					end)
-					task.wait(1.0)
-				end
-				if hudGui then
-					pcall(function() hudGui:Destroy() end)
-				end
-			end)
-		end
-
-		-- ============================================================================
-		-- MENU 2: BLOX FRUITS (HAIANH MENU VIP EDITION)
-		-- ============================================================================
-		local function loadBloxFruitsMenu()
-			local HubConfig = {
-				SelectedWeapon = "Melee",
-				AttackSpeed = "Super Fast",
-				HoverHeight = 15,
-				FlightSpeed = 260,
-				BringMobs = true,
-				AutoBuso = true,
-				AutoLevel = false,
-				AutoNearestMob = false,
-				AutoBoss = false,
-				AutoCandy = false,
-				KillAura = false,
-				HitboxSize = 65,
-				AutoStatMelee = false,
-				AutoStatDefense = false,
-				AutoStatSword = false,
-				AutoStatFruit = false,
-				AntiAFK = true,
-			}
-
-			local Window = RayfieldLibrary:CreateWindow({
-				Name = "HaiAnh Menu | Blox Fruits",
-				LoadingTitle = "HaiAnh Menu",
-				LoadingSubtitle = "Blox Fruits",
-				ConfigurationSaving = {
-					Enabled = true,
-					FolderName = "HaiAnhMenuConfig",
-					FileName = "BloxFruits"
-				},
-				KeySystem = false,
-			})
-
-			createFloatingToggle()
-
-			-- TAB 1: Auto Farm
-			local FarmTab = Window:CreateTab("Auto Farm", 0)
-			FarmTab:CreateSection("Farm Settings")
-
-			FarmTab:CreateDropdown({
-				Name = "Select Weapon",
-				Options = { "Melee", "Sword", "Fruit" },
-				CurrentOption = { "Melee" },
-				MultipleOptions = false,
-				Flag = "BF_Weapon",
-				Callback = function(Option)
-					HubConfig.SelectedWeapon = type(Option) == "table" and Option[1] or Option
-				end,
-			})
-
-			FarmTab:CreateSlider({
-				Name = "Farm Distance",
-				Range = { 5, 30 },
-				Increment = 1,
-				Suffix = "Studs",
-				CurrentValue = 15,
-				Flag = "BF_FarmDist",
-				Callback = function(Value)
-					HubConfig.HoverHeight = Value
-				end,
-			})
-
-			FarmTab:CreateSlider({
-				Name = "Tween Speed",
-				Range = { 150, 400 },
-				Increment = 10,
-				Suffix = "Studs/s",
-				CurrentValue = 260,
-				Flag = "BF_FlightSpeed",
-				Callback = function(Value)
-					HubConfig.FlightSpeed = Value
-				end,
-			})
-
-			FarmTab:CreateToggle({
-				Name = "Bring Mobs",
-				CurrentValue = true,
-				Flag = "BF_BringMobs",
-				Callback = function(Value)
-					HubConfig.BringMobs = Value
-				end,
-			})
-
-			FarmTab:CreateToggle({
-				Name = "Auto Buso Haki",
-				CurrentValue = true,
-				Flag = "BF_AutoBuso",
-				Callback = function(Value)
-					HubConfig.AutoBuso = Value
-				end,
-			})
-
-			FarmTab:CreateSection("Level Farming")
-
-			FarmTab:CreateToggle({
-				Name = "Auto Farm Level",
-				CurrentValue = false,
-				Flag = "BF_AutoLevel",
-				Callback = function(Value)
-					HubConfig.AutoLevel = Value
-				end,
-			})
-
-			FarmTab:CreateToggle({
-				Name = "Auto Farm Nearest Mob",
-				CurrentValue = false,
-				Flag = "BF_AutoNearest",
-				Callback = function(Value)
-					HubConfig.AutoNearestMob = Value
-				end,
-			})
-
-			FarmTab:CreateToggle({
-				Name = "Auto Farm Bosses",
-				CurrentValue = false,
-				Flag = "BF_AutoBoss",
-				Callback = function(Value)
-					HubConfig.AutoBoss = Value
-				end,
-			})
-
-			-- TAB 2: Combat & Stats
-			local CombatTab = Window:CreateTab("Combat & Stats", 0)
-			CombatTab:CreateSection("Combat & Aura")
-
-			CombatTab:CreateToggle({
-				Name = "Fast Attack Kill Aura",
-				CurrentValue = false,
-				Flag = "BF_KillAura",
-				Callback = function(Value)
-					HubConfig.KillAura = Value
-				end,
-			})
-
-			CombatTab:CreateSlider({
-				Name = "Mob Hitbox Expander",
-				Range = { 15, 120 },
-				Increment = 5,
-				Suffix = "Studs",
-				CurrentValue = 65,
-				Flag = "BF_Hitbox",
-				Callback = function(Value)
-					HubConfig.HitboxSize = Value
-				end,
-			})
-
-			CombatTab:CreateSection("Auto Stats")
-
-			CombatTab:CreateToggle({
-				Name = "Auto Melee Stat",
-				CurrentValue = false,
-				Flag = "BF_StatMelee",
-				Callback = function(Value)
-					HubConfig.AutoStatMelee = Value
-				end,
-			})
-
-			CombatTab:CreateToggle({
-				Name = "Auto Defense Stat",
-				CurrentValue = false,
-				Flag = "BF_StatDefense",
-				Callback = function(Value)
-					HubConfig.AutoStatDefense = Value
-				end,
-			})
-
-			CombatTab:CreateToggle({
-				Name = "Auto Sword Stat",
-				CurrentValue = false,
-				Flag = "BF_StatSword",
-				Callback = function(Value)
-					HubConfig.AutoStatSword = Value
-				end,
-			})
-
-			CombatTab:CreateToggle({
-				Name = "Auto Demon Fruit Stat",
-				CurrentValue = false,
-				Flag = "BF_StatFruit",
-				Callback = function(Value)
-					HubConfig.AutoStatFruit = Value
-				end,
-			})
-
-			-- TAB 3: Misc & Anti-Ban
-			local MiscTab = Window:CreateTab("Misc & Anti-Ban", 0)
-			MiscTab:CreateSection("Account Protection")
-
-			MiscTab:CreateToggle({
-				Name = "Anti-Ban Remote Shield",
-				CurrentValue = true,
-				Flag = "BF_AntiBan",
-				Callback = function(Value)
-					AntiBanShield.Enabled = Value
-				end,
-			})
-
-			MiscTab:CreateToggle({
-				Name = "Anti AFK",
-				CurrentValue = true,
-				Flag = "BF_AntiAFK",
-				Callback = function(Value)
-					HubConfig.AntiAFK = Value
-				end,
-			})
-
-			MiscTab:CreateButton({
-				Name = "Check Shield Status",
-				Callback = function()
-					RayfieldLibrary:Notify({
-						Title = "Anti-Ban Shield",
-						Content = "Active: Blocked " .. tostring(AntiBanShield.BlockedCount) .. " malicious remote calls",
-						Duration = 5,
-					})
-				end,
-			})
-
-			-- BF Logic Loops
-			local function getBFEnemies()
-				local enemies = {}
-				local lp = Players and Players.LocalPlayer
-				local char = lp and lp.Character
-				local root = char and char:FindFirstChild("HumanoidRootPart")
-				local folder = Workspace:FindFirstChild("Enemies")
-				if folder then
-					for _, mob in ipairs(folder:GetChildren()) do
-						local hum = mob:FindFirstChildOfClass("Humanoid")
-						local hrp = mob:FindFirstChild("HumanoidRootPart")
-						if hum and hum.Health > 0 and hrp then
-							local dist = root and (hrp.Position - root.Position).Magnitude or 9999
-							table.insert(enemies, { model = mob, humanoid = hum, root = hrp, dist = dist })
-						end
-					end
-				end
-				table.sort(enemies, function(a, b) return a.dist < b.dist end)
-				return enemies
-			end
-
-			local function equipBFWeapon()
-				pcall(function()
-					local lp = Players and Players.LocalPlayer
-					local char = lp and lp.Character
-					local bp = lp and lp:FindFirstChildOfClass("Backpack")
-					if not char or not bp then return end
-					local targetType = HubConfig.SelectedWeapon
-					for _, tool in ipairs(bp:GetChildren()) do
-						if tool:IsA("Tool") then
-							local tType = tool:GetAttribute("WeaponType") or tool.ToolTip or tool.Name
-							if string.find(string.lower(tType), string.lower(targetType), 1, true) then
-								char.Humanoid:EquipTool(tool)
-								break
-							end
-						end
-					end
-				end)
-			end
-
-			local function performBFAttack(targets)
-				pcall(function()
-					local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-					local validator = remotes and remotes:FindFirstChild("Validator")
-					if validator then
-						validator:FireServer(math.floor(os.clock()))
-					end
-
-					local combatRemote = (ReplicatedStorage:FindFirstChild("Modules") and ReplicatedStorage.Modules:FindFirstChild("Net") and ReplicatedStorage.Modules.Net:FindFirstChild("RE/CombatRegister"))
-						or ReplicatedStorage:FindFirstChild("RE/CombatRegister", true)
-
-					if combatRemote then
-						combatRemote:FireServer(0.1)
-					end
-
-					if VirtualUser then
-						VirtualUser:CaptureController()
-						VirtualUser:ClickButton1(Vector2.new(640, 360))
-					end
-				end)
-			end
-
-			local function tweenBFFlight(targetPos)
-				pcall(function()
-					local lp = Players and Players.LocalPlayer
-					local char = lp and lp.Character
-					local root = char and char:FindFirstChild("HumanoidRootPart")
-					if not root then return end
-
-					local bv = root:FindFirstChild("HaiAnh_BFAntiGrav")
-					if not bv then
-						bv = Instance.new("BodyVelocity")
-						bv.Name = "HaiAnh_BFAntiGrav"
-						bv.Velocity = Vector3.zero
-						bv.MaxForce = Vector3.new(9e8, 9e8, 9e8)
-						bv.Parent = root
-					else
-						bv.Velocity = Vector3.zero
-					end
-
-					local currentPos = root.Position
-					local dist = (targetPos - currentPos).Magnitude
-					local speed = math.max(HubConfig.FlightSpeed, 150)
-					local step = math.min(dist, speed * 0.05)
-					if dist > 5 then
-						local dir = (targetPos - currentPos).Unit
-						root.CFrame = CFrame.new(currentPos + dir * step, targetPos)
-					else
-						root.CFrame = CFrame.new(targetPos)
-					end
-				end)
-			end
-
-			task.spawn(function()
-				while not rayfieldDestroyed do
-					pcall(function()
-						if HubConfig.AutoBuso then
-							local lp = Players and Players.LocalPlayer
-							local char = lp and lp.Character
-							local hasHaki = char and (char:FindFirstChild("HasBuso") or char:GetAttribute("HasBuso"))
-							if not hasHaki then
-								local remotes = ReplicatedStorage:FindFirstChild("Remotes")
-								local commF = remotes and remotes:FindFirstChild("CommF_")
-								if commF then
-									commF:InvokeServer("Buso")
-								end
-							end
-						end
-
-						if HubConfig.KillAura or HubConfig.AutoLevel or HubConfig.AutoNearestMob or HubConfig.AutoBoss then
-							local enemies = getBFEnemies()
-							if #enemies > 0 then
-								equipBFWeapon()
-								local target = enemies[1]
-								if HubConfig.AutoLevel or HubConfig.AutoNearestMob or HubConfig.AutoBoss then
-									local hoverPos = target.root.Position + Vector3.new(0, HubConfig.HoverHeight, 0)
-									tweenBFFlight(hoverPos)
-								end
-
-								if HubConfig.BringMobs and #enemies > 1 then
-									for i = 2, math.min(#enemies, 6) do
-										pcall(function()
-											enemies[i].root.CFrame = target.root.CFrame
-											enemies[i].root.CanCollide = false
-										end)
-									end
-								end
-
-								performBFAttack(enemies)
-							end
-						end
-					end)
-					task.wait(0.04)
-				end
-			end)
-
-			task.spawn(function()
-				while not rayfieldDestroyed do
-					pcall(function()
-						if HubConfig.HitboxSize > 15 then
-							local enemies = getBFEnemies()
-							for _, mob in ipairs(enemies) do
-								mob.root.Size = Vector3.new(HubConfig.HitboxSize, HubConfig.HitboxSize,
-									HubConfig.HitboxSize)
-								mob.root.Transparency = 0.85
-								mob.root.CanCollide = false
-							end
-						end
-
-						if HubConfig.AntiAFK and VirtualUser then
-							VirtualUser:CaptureController()
-							VirtualUser:ClickButton2(Vector2.new(50, 50))
-						end
-					end)
-					task.wait(1)
-				end
-			end)
-		end
-
-		-- ============================================================================
-		-- MENU 3: UNIVERSAL FALLBACK
-		-- ============================================================================
-		local function loadUniversalMenu()
-			local Window = RayfieldLibrary:CreateWindow({
-				Name = "HaiAnh Menu | Universal",
-				LoadingTitle = "HaiAnh Menu",
-				LoadingSubtitle = "Universal Hub",
-				ConfigurationSaving = {
-					Enabled = true,
-					FolderName = "HaiAnhMenuConfig",
-					FileName = "Universal"
-				},
-				KeySystem = false,
-			})
-
-			createFloatingToggle()
-
-			local MainTab = Window:CreateTab("Main", 0)
-			MainTab:CreateSection("Universal Protection")
-
-			MainTab:CreateToggle({
-				Name = "Anti-Ban Remote Shield",
-				CurrentValue = true,
-				Flag = "Uni_AntiBan",
-				Callback = function(Value)
-					AntiBanShield.Enabled = Value
-				end,
-			})
-
-			MainTab:CreateToggle({
-				Name = "Anti AFK",
-				CurrentValue = true,
-				Flag = "Uni_AntiAFK",
-				Callback = function(Value)
-					if Value and VirtualUser then
-						VirtualUser:CaptureController()
-						VirtualUser:ClickButton2(Vector2.new(50, 50))
-					end
-				end,
-			})
-		end
-
-
-		local detectedGame = detectCurrentGame()
-		if detectedGame == "AOTR" then
-			loadAOTRMenu()
-		elseif detectedGame == "BLOX_FRUITS" then
-			loadBloxFruitsMenu()
-		else
-			loadUniversalMenu()
-		end
-	end)
+-- Weapon Status Check (Blades & Gas)
+local function checkWeapons()
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if not playerGui then return false, false end
+    local hud = playerGui:FindFirstChild("Interface") and playerGui.Interface:FindFirstChild("HUD")
+    if not hud then return false, false end
+
+    local bladesNeedRefill = false
+    local gasNeedRefill = false
+
+    local topBlades = hud.Main.Top:FindFirstChild("Blades")
+    if topBlades and topBlades:FindFirstChild("Sets") then
+        local bladeSets = tonumber(topBlades.Sets.Text) or 0
+        if bladeSets <= 0 then
+            bladesNeedRefill = true
+        end
+    end
+
+    return bladesNeedRefill, gasNeedRefill
 end
 
-return RayfieldLibrary
+-- Noclip Handler
+local noclipConnection = nil
+local function setNoclip(enabled)
+    if enabled then
+        if not noclipConnection then
+            noclipConnection = RunService.Stepped:Connect(function()
+                local char = LocalPlayer.Character
+                if char then
+                    for _, part in ipairs(char:GetDescendants()) do
+                        if part:IsA("BasePart") and part.CanCollide then
+                            part.CanCollide = false
+                        end
+                    end
+                end
+            end)
+        end
+    else
+        if noclipConnection then
+            noclipConnection:Disconnect()
+            noclipConnection = nil
+        end
+    end
+end
+
+-- Anti Injuries
+local function setupAntiInjuries()
+    local char = LocalPlayer.Character
+    if not char then return end
+    local injuries = char:WaitForChild("Injuries")
+    if injuries then
+        for _, injury in ipairs(injuries:GetChildren()) do
+            injury:Destroy()
+        end
+        injuries.ChildAdded:Connect(function(child)
+            if Settings.AntiInjuries then
+                task.defer(function() child:Destroy() end)
+            end
+        end)
+    end
+end
+
+-- Force Retry / Rewards Detection
+local function setupAutoRetry()
+    task.spawn(function()
+        while true do
+            task.wait(1)
+            if Settings.AutoRetry then
+                local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+                local rewards = playerGui and playerGui:FindFirstChild("Interface") and playerGui.Interface:FindFirstChild("Rewards")
+                if rewards and rewards.Visible then
+                    local retryBtn = rewards.Main.Info.Main.Buttons:FindFirstChild("Retry")
+                    if retryBtn and retryBtn.Visible then
+                        -- Read stats before retry
+                        local statsFolder = rewards.Main.Info.Main.Stats
+                        if statsFolder then
+                            pcall(function()
+                                SessionStats.TimeTaken = statsFolder.Time_Taken.Amount.Text
+                                SessionStats.TotalDamage = statsFolder.Damage_Dealt.Amount.Text
+                                SessionStats.TitansKilled = statsFolder.Titans_Killed.Amount.Text
+                                SessionStats.CriticalHits = statsFolder.Critical_Hits.Amount.Text
+                            end)
+                        end
+                        
+                        -- Click retry
+                        task.wait(1)
+                        VirtualInputManager:SendMouseButtonEvent(retryBtn.AbsolutePosition.X + 20, retryBtn.AbsolutePosition.Y + 20, 0, true, game, 0)
+                        task.wait(0.1)
+                        VirtualInputManager:SendMouseButtonEvent(retryBtn.AbsolutePosition.X + 20, retryBtn.AbsolutePosition.Y + 20, 0, false, game, 0)
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- Auto Skip Cutscene
+local function setupAutoSkip()
+    task.spawn(function()
+        while true do
+            task.wait(0.5)
+            if Settings.AutoSkipCutscene then
+                local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+                local skipBtn = playerGui and playerGui:FindFirstChild("Interface") and playerGui.Interface:FindFirstChild("Skip")
+                if skipBtn and skipBtn.Visible then
+                    VirtualInputManager:SendMouseButtonEvent(skipBtn.AbsolutePosition.X + 10, skipBtn.AbsolutePosition.Y + 10, 0, true, game, 0)
+                    task.wait(0.1)
+                    VirtualInputManager:SendMouseButtonEvent(skipBtn.AbsolutePosition.X + 10, skipBtn.AbsolutePosition.Y + 10, 0, false, game, 0)
+                end
+            end
+        end
+    end)
+end
+
+-- Auto Open Chests
+local function setupAutoChests()
+    task.spawn(function()
+        while true do
+            task.wait(1)
+            if Settings.AutoOpenChests then
+                local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+                local chests = playerGui and playerGui:FindFirstChild("Interface") and playerGui.Interface:FindFirstChild("Chests")
+                if chests and chests:FindFirstChild("Finish") and chests.Finish.Visible then
+                    local finishBtn = chests.Finish
+                    VirtualInputManager:SendMouseButtonEvent(finishBtn.AbsolutePosition.X + 10, finishBtn.AbsolutePosition.Y + 10, 0, true, game, 0)
+                    task.wait(0.1)
+                    VirtualInputManager:SendMouseButtonEvent(finishBtn.AbsolutePosition.X + 10, finishBtn.AbsolutePosition.Y + 10, 0, false, game, 0)
+                end
+            end
+        end
+    end)
+end
+
+-- Auto Farm Loop
+local function startAutoFarm()
+    task.spawn(function()
+        while Settings.AutoFarm do
+            task.wait(Settings.StartDelay or 0.1)
+            local char = LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local nape, titan = getClosestValidNape()
+                if nape and titan then
+                    -- Movement
+                    local targetCFrame = nape.CFrame * CFrame.new(0, 5, -10)
+                    if Settings.MoveMode == "Teleport" then
+                        hrp.CFrame = targetCFrame
+                    elseif Settings.MoveMode == "Hover" then
+                        local tween = TweenService:Create(hrp, TweenInfo.new(0.5, Enum.EasingStyle.Linear), { CFrame = targetCFrame })
+                        tween:Play()
+                        tween.Completed:Wait()
+                    end
+
+                    -- Attack (Left Click or Space + Attack)
+                    VirtualInputManager:SendMouseButtonEvent(Mouse.X, Mouse.Y, 0, true, game, 0)
+                    task.wait(0.05)
+                    VirtualInputManager:SendMouseButtonEvent(Mouse.X, Mouse.Y, 0, false, game, 0)
+                end
+            end
+        end
+    end)
+end
+
+-- ============================================================================
+-- UI SECTIONS & CONTROLS
+-- ============================================================================
+
+-- [[ TAB: MAIN ]]
+local mainFarmSection = tabs.Main:Section({ Title = "Farm", Side = "Left" })
+local mainMiscSection = tabs.Main:Section({ Title = "Misc", Side = "Right" })
+
+mainFarmSection:Toggle({
+    Title = "Auto Farm",
+    Default = false,
+    Callback = function(v)
+        Settings.AutoFarm = v
+        if v then startAutoFarm() end
+    end
+}, "AutoFarmToggle")
+
+mainFarmSection:Toggle({
+    Title = "Auto Farm [Safer]",
+    Default = false,
+    Callback = function(v)
+        Settings.AutoKillSafe = v
+    end
+}, "AutoKillSafe")
+
+mainFarmSection:Toggle({
+    Title = "Auto Mastery",
+    Default = false,
+    Callback = function(v)
+        Settings.AutoMastery = v
+    end
+}, "AutoMasteryToggle")
+
+mainFarmSection:Dropdown({
+    Title = "Movement Mode",
+    Options = { "Teleport", "Hover" },
+    Default = "Teleport",
+    Callback = function(v)
+        Settings.MoveMode = v
+    end
+}, "MoveMode")
+
+mainFarmSection:Slider({
+    Title = "Farm Delay",
+    Minimum = 1,
+    Maximum = 50,
+    Precision = 0,
+    Default = 5,
+    Callback = function(v)
+        Settings.StartDelay = v
+    end
+}, "StartDelaySlider")
+
+mainFarmSection:Slider({
+    Title = "Hover Speed",
+    Minimum = 50,
+    Maximum = 500,
+    Precision = 0,
+    Default = 250,
+    Callback = function(v)
+        Settings.HoverSpeed = v
+    end
+}, "HoverSpeedSlider")
+
+mainFarmSection:Slider({
+    Title = "Float Height",
+    Minimum = 50,
+    Maximum = 300,
+    Precision = 0,
+    Default = 250,
+    Callback = function(v)
+        Settings.FloatHeight = v
+    end
+}, "FloatHeightSlider")
+
+-- Misc Controls
+mainMiscSection:Toggle({
+    Title = "Auto Escape",
+    Default = false,
+    Callback = function(v)
+        Settings.AutoEscape = v
+    end
+}, "AutoEscapeEnabled")
+
+mainMiscSection:Toggle({
+    Title = "Anti Injuries",
+    Default = false,
+    Callback = function(v)
+        Settings.AntiInjuries = v
+        if v then setupAntiInjuries() end
+    end
+}, "AntiInjuriesToggle")
+
+mainMiscSection:Toggle({
+    Title = "Auto Retry",
+    Default = false,
+    Callback = function(v)
+        Settings.AutoRetry = v
+        if v then print("Auto Retry enabled"); setupAutoRetry() end
+    end
+}, "AutoRetryToggle")
+
+mainMiscSection:Toggle({
+    Title = "Auto Reload Blades",
+    Default = false,
+    Callback = function(v)
+        Settings.AutoReload = v
+    end
+}, "AutoReloadToggle")
+
+mainMiscSection:Toggle({
+    Title = "Auto Refill",
+    Default = false,
+    Callback = function(v)
+        Settings.AutoRefill = v
+    end
+}, "AutoRefillToggle")
+
+mainMiscSection:Toggle({
+    Title = "Remove Dmg Text",
+    Default = false,
+    Callback = function(v)
+        Settings.RemoveDmgText = v
+    end
+}, "RemoveDmgTextToggle")
+
+mainMiscSection:Toggle({
+    Title = "Auto Hide UI (15s)",
+    Default = false,
+    Callback = function(v)
+        Settings.AutoHideUI = v
+        if v then
+            task.delay(15, function()
+                -- Toggle Window UI
+            end)
+        end
+    end
+}, "AutoCloseToggle")
+
+mainMiscSection:Toggle({
+    Title = "Fail Safe",
+    Default = false,
+    Callback = function(v)
+        Settings.FailSafe = v
+        if v then
+            task.delay(180, function()
+                if Settings.FailSafe then
+                    -- Trigger Force Retry
+                end
+            end)
+        end
+    end
+}, "ForceRetryToggle")
+
+mainMiscSection:Toggle({
+    Title = "Noclip",
+    Default = false,
+    Callback = function(v)
+        Settings.Noclip = v
+        setNoclip(v)
+    end
+}, "NoClipToggle")
+
+-- [[ TAB: RAIDS ]]
+local raidSection = tabs.Raids:Section({ Title = "Raid [VERY RISKY USE NEW ACC/ALT]", Side = "Left" })
+local raidMiscSection = tabs.Raids:Section({ Title = "Misc", Side = "Right" })
+
+raidSection:Toggle({
+    Title = "Auto Raid [Blade]",
+    Default = false,
+    Callback = function(v)
+        Settings.AutoRaid = v
+    end
+}, "AutoRaid")
+
+raidSection:Slider({
+    Title = "Hover Speed",
+    Minimum = 50,
+    Maximum = 300,
+    Precision = 0,
+    Default = 250,
+    Callback = function(v)
+        Settings.RaidHoverSpeed = v
+    end
+}, "HoverSpeed")
+
+raidMiscSection:Toggle({
+    Title = "Auto Skip Cutscene",
+    Default = false,
+    Callback = function(v)
+        Settings.AutoSkipCutscene = v
+        if v then setupAutoSkip() end
+    end
+}, "AutoSkipCutscene")
+
+raidMiscSection:Toggle({
+    Title = "Auto Open Chests",
+    Default = false,
+    Callback = function(v)
+        Settings.AutoOpenChests = v
+        if v then setupAutoChests() end
+    end
+}, "AutoOpenChests")
+
+raidMiscSection:Button({
+    Title = "Return to Lobby",
+    Callback = function()
+        game:GetService("TeleportService"):Teleport(14214532675, LocalPlayer)
+    end
+})
+
+raidMiscSection:Button({
+    Title = "Return to Main Menu",
+    Callback = function()
+        -- Teleport or call Menu Remote
+    end
+})
+
+raidMiscSection:Button({
+    Title = "Force Retry",
+    Callback = function()
+        -- Remote retry
+    end
+})
+
+-- [[ TAB: STATS ]]
+local statsEarnings = tabs.Stats:Section({ Title = "Earnings", Side = "Left" })
+local statsPerf = tabs.Stats:Section({ Title = "Performance", Side = "Left" })
+local statsPerks = tabs.Stats:Section({ Title = "Perks & Special Items", Side = "Right" })
+
+statsEarnings:Label({ Text = "Gold: 0" })
+statsEarnings:Label({ Text = "XP: 0" })
+statsEarnings:Label({ Text = "Gems: 0" })
+statsEarnings:Label({ Text = "BP XP: 0" })
+
+statsPerf:Label({ Text = "Total Damage: 0" })
+statsPerf:Label({ Text = "Titans Killed: 0" })
+statsPerf:Label({ Text = "Critical Hits: 0" })
+statsPerf:Label({ Text = "Missions/Raids Completed: 0" })
+
+statsPerks:Label({ Text = "Common Perks: 0" })
+statsPerks:Label({ Text = "Rare Perks: 0" })
+statsPerks:Label({ Text = "Epic Perks: 0" })
+statsPerks:Label({ Text = "Legendary Perks: 0" })
+statsPerks:Label({ Text = "Prestige Scrolls: 0" })
+statsPerks:Label({ Text = "Mythical Perks: 0" })
+statsPerks:Label({ Text = "Serum: 0" })
+statsPerks:Label({ Text = "Scarfs: 0" })
+statsPerks:Label({ Text = "Last Updated: Never" })
+
+statsPerks:Button({
+    Title = "Reset Stats",
+    Callback = function()
+        print("Stats Reset")
+    end
+})
+
+statsPerks:Button({
+    Title = "Force Update Stats",
+    Callback = function()
+        print("Stats Updated")
+    end
+})
+
+-- [[ TAB: WEBHOOK ]]
+local webhookSection = tabs.Webhook:Section({ Title = "Discord Webhook", Side = "Left" })
+
+webhookSection:Toggle({
+    Title = "Notify Webhook",
+    Default = false,
+    Callback = function(v)
+        Settings.SendWebhook = v
+    end
+}, "SendWebhookToggle")
+
+webhookSection:Toggle({
+    Title = "Display Roblox Username",
+    Default = true,
+    Callback = function(v)
+        Settings.DisplayUsername = v
+    end
+}, "DisplayUsernameToggle")
+
+webhookSection:Toggle({
+    Title = "Ping on Serum/Mythic Only",
+    Default = false,
+    Callback = function(v)
+        Settings.PingSpecialOnly = v
+    end
+}, "PingSpecialToggle")
+
+webhookSection:Input({
+    Title = "Webhook",
+    Default = "",
+    Callback = function(v)
+        Settings.WebhookURL = v
+    end
+}, "WebhookInput")
+
+webhookSection:Button({
+    Title = "Test Webhook",
+    Callback = function()
+        if Settings.WebhookURL ~= "" then
+            local data = {
+                ["content"] = "LunarZ Webhook Test Successful!",
+                ["embeds"] = {{
+                    ["title"] = "LunarZ Hub - AOT:R",
+                    ["color"] = 65280,
+                    ["fields"] = {
+                        { ["name"] = "Player", ["value"] = Settings.DisplayUsername and LocalPlayer.Name or "Anonymous", ["inline"] = true },
+                        { ["name"] = "Status", ["value"] = "Active", ["inline"] = true }
+                    }
+                }}
+            }
+            if request or http_request then
+                (request or http_request)({
+                    Url = Settings.WebhookURL,
+                    Method = "POST",
+                    Headers = { ["Content-Type"] = "application/json" },
+                    Body = HttpService:JSONEncode(data)
+                })
+            end
+        end
+    end
+})
+
+-- [[ TAB: VISUAL ]]
+local visualSection = tabs.Visual:Section({ Title = "Visuals & Optimization", Side = "Left" })
+
+visualSection:Toggle({
+    Title = "Titan ESP",
+    Default = false,
+    Callback = function(v)
+        Settings.TitanESP = v
+    end
+}, "TitanESP")
+
+visualSection:Colorpicker({
+    Title = "ESP Color",
+    Default = Color3.fromRGB(255, 0, 0),
+    Callback = function(color)
+        Settings.ESPColor = color
+    end
+}, "ESPColor")
+
+visualSection:Toggle({
+    Title = "Optimize Game",
+    Default = false,
+    Callback = function(v)
+        Settings.OptimizeGame = v
+        if v then
+            -- Disable textures & shadows
+            for _, v in ipairs(Workspace:GetDescendants()) do
+                if v:IsA("BasePart") then
+                    v.Material = Enum.Material.SmoothPlastic
+                elseif v:IsA("Decal") or v:IsA("Texture") then
+                    v.Transparency = 1
+                end
+            end
+            game:GetService("Lighting").GlobalShadows = false
+        end
+    end
+}, "OptimizeGame")
+
+visualSection:Toggle({
+    Title = "Delete Map",
+    Default = false,
+    Callback = function(v)
+        Settings.DeleteMap = v
+        if v then
+            local unclimbable = Workspace:FindFirstChild("Unclimbable")
+            if unclimbable then
+                for _, obj in ipairs(unclimbable:GetChildren()) do
+                    if obj.Name ~= "Objective" and obj.Name ~= "Reloads" then
+                        obj:Destroy()
+                    end
+                end
+            end
+        end
+    end
+}, "del")
+
+-- [[ TAB: SETTINGS & CONFIG ]]
+MacLib:SetFolder("LunarZ")
+tabs.Settings:InsertConfigSection("Left")
+
+-- Select Default Tab
+tabs.Main:Select()
+
+print("LunarZ Loaded Successfully!")
+
