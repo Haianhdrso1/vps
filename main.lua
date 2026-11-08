@@ -1,17 +1,4 @@
 
---[[
-
-	Rayfield Interface Suite
-	by Sirius (Updated Universal PC & Mobile Edition - Build 1.758+)
-
-	shlex  | Designing + Programming
-	iRay   | Programming
-	Max    | Programming
-	Damian | Programming
-
-]]
-
--- Universal environment fallbacks for all PC & Mobile executors
 local getgenv = getgenv or function() return _G end
 local loadstring = loadstring or load
 
@@ -1286,6 +1273,7 @@ LoadingFrame.Version.Text = Release
 
 -- Thanks to Latte Softworks for the Lucide integration for Roblox
 local Icons = useStudio and require(script.Parent.icons) or loadWithTimeout(RAYFIELD_RAW .. 'icons.lua')
+if type(Icons) ~= "table" then Icons = nil end
 -- Variables
 
 local CFileName = nil
@@ -2563,6 +2551,13 @@ function RayfieldLibrary:CreateWindow(Settings)
 			TabButton.Image.Visible = true
 			TabButton.Title.TextXAlignment = Enum.TextXAlignment.Left
 			TabButton.Size = UDim2.new(0, TabButton.Title.TextBounds.X + 52, 0, 30)
+		else
+			TabButton.Image.Visible = false
+			TabButton.Image.Image = ""
+			TabButton.Title.AnchorPoint = Vector2.new(0.5, 0.5)
+			TabButton.Title.Position = UDim2.new(0.5, 0, 0.5, 0)
+			TabButton.Title.TextXAlignment = Enum.TextXAlignment.Center
+			TabButton.Size = UDim2.new(0, TabButton.Title.TextBounds.X + 26, 0, 30)
 		end
 
 
@@ -4802,7 +4797,7 @@ if getgenv then
 	end)
 end
 
--- Auto-launch Multi-Game Script Hub Window + Floating Toggle Button when main.lua is executed directly
+-- Auto-launch HaiAnh Menu Multi-Game Script Window + Floating Toggle Button when main.lua is executed directly
 local libraryOnly = false
 if getgenv then
 	local ok, val = pcall(function() return getgenv().RAYFIELD_LIBRARY_ONLY end)
@@ -4812,659 +4807,950 @@ end
 if not libraryOnly then
 	task.spawn(function()
 		local ReplicatedStorage = getService("ReplicatedStorage")
+		local VirtualInputManager = getService("VirtualInputManager")
 		local VirtualUser = getService("VirtualUser")
 		local MarketplaceService = getService("MarketplaceService")
 
-		-- ============================================================================
-		-- AUTO GAME DETECTION (Nhận diện chính xác game đang chơi - Không bật nhầm menu)
-		-- ============================================================================
-		local AOTR_GAME_ID = 4658598196
-		local AOTR_PLACES = {
-			[13379208636] = true,
-		}
+-- ============================================================================
+-- 1. ANTI-BAN & TELEMETRY SHIELD ENGINE (VIOLET HUB & TEKKIT HUB MECHANISM)
+-- ============================================================================
+local AntiBanShield = {
+	Enabled = true,
+	BlockedCount = 0,
+	LastBlockedRemote = "None",
+}
 
-		local BLOX_FRUITS_GAME_ID = 994732206
-		local BLOX_FRUITS_PLACES = {
-			[2753915549] = true, -- Sea 1
-			[4442272183] = true, -- Sea 2
-			[7449423635] = true, -- Sea 3
-		}
+local DetectionKeywords = {
+	"ban", "detect", "anticheat", "security", "flag", "telemetry",
+	"exploit", "kick", "tamper", "report", "cheat", "suspicious",
+	"unusual", "illegal", "speedhack", "nofall", "flyhack", "abnormal",
+	"damagecheck", "checkdamage", "integrity"
+}
 
-		local function detectCurrentGame()
-			local gid = tonumber(game.GameId) or 0
-			local pid = tonumber(game.PlaceId) or 0
-
-			-- 1. Kiểm tra theo UniverseId (GameId) và PlaceId chính thức
-			if gid == AOTR_GAME_ID or AOTR_PLACES[pid] then
-				return "AOTR"
-			end
-			if gid == BLOX_FRUITS_GAME_ID or BLOX_FRUITS_PLACES[pid] then
-				return "BLOX_FRUITS"
-			end
-
-			-- 2. Kiểm tra theo Cấu trúc Workspace đặc trưng của từng game
-			if Workspace then
-				if Workspace:FindFirstChild("Titans") or Workspace:FindFirstChild("Unclimbable") or Workspace:FindFirstChild("Climbable") then
-					return "AOTR"
-				end
-				if Workspace:FindFirstChild("Enemies") and ReplicatedStorage and ReplicatedStorage:FindFirstChild("Modules") and ReplicatedStorage.Modules:FindFirstChild("Net") then
-					return "BLOX_FRUITS"
-				end
-			end
-
-			-- 3. Kiểm tra theo Tên Place trên Roblox Marketplace
-			if MarketplaceService and pid > 0 then
-				local ok, info = pcall(MarketplaceService.GetProductInfo, MarketplaceService, pid)
-				if ok and type(info) == "table" and type(info.Name) == "string" then
-					local lowerName = string.lower(info.Name)
-					if string.find(lowerName, "attack on titan", 1, true) or string.find(lowerName, "aot:r", 1, true) or string.find(lowerName, "aotr", 1, true) or string.find(lowerName, "revolution", 1, true) then
-						return "AOTR"
-					elseif string.find(lowerName, "blox fruit", 1, true) then
-						return "BLOX_FRUITS"
+-- Hook metamethod __namecall to intercept and drop client-side detection reports
+pcall(function()
+	if hookmetamethod then
+		local oldNamecall
+		oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+			local method = getnamecallmethod()
+			if AntiBanShield.Enabled and (method == "FireServer" or method == "InvokeServer") then
+				local remoteName = string.lower(tostring(self.Name))
+				for _, kw in ipairs(DetectionKeywords) do
+					if string.find(remoteName, kw, 1, true) then
+						AntiBanShield.BlockedCount = AntiBanShield.BlockedCount + 1
+						AntiBanShield.LastBlockedRemote = tostring(self.Name)
+						return nil
 					end
 				end
-			end
 
-			return "UNKNOWN"
-		end
-
-		local detectedGame = detectCurrentGame()
-
-		-- Tạo Nút Bật/Tắt Menu nổi trên màn hình cho cả Mobile & PC (Delta Executor)
-		local function createFloatingToggle()
-			pcall(function()
-				local parentContainer = getSafeGuiParent()
-				if not parentContainer then return end
-
-				local oldToggle = parentContainer:FindFirstChild("DeltaFloatingToggleGui")
-				if oldToggle then oldToggle:Destroy() end
-
-				local ToggleGui = Instance.new("ScreenGui")
-				ToggleGui.Name = "DeltaFloatingToggleGui"
-				ToggleGui.ResetOnSpawn = false
-				ToggleGui.IgnoreGuiInset = true
-				ToggleGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-				ToggleGui.DisplayOrder = 999
-				parentGui(ToggleGui)
-
-				local ToggleBtn = Instance.new("ImageButton")
-				ToggleBtn.Name = "NinjaToggleBtn"
-				ToggleBtn.Parent = ToggleGui
-				ToggleBtn.Size = UDim2.new(0, 50, 0, 50)
-				ToggleBtn.Position = UDim2.new(0, 20, 0.5, -25)
-				ToggleBtn.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
-				ToggleBtn.BorderSizePixel = 0
-				ToggleBtn.AutoButtonColor = true
-				ToggleBtn.Image = "rbxassetid://4483362458"
-
-				local Corner = Instance.new("UICorner")
-				Corner.CornerRadius = UDim.new(0, 12)
-				Corner.Parent = ToggleBtn
-
-				local Stroke = Instance.new("UIStroke")
-				Stroke.Color = Color3.fromRGB(220, 220, 220)
-				Stroke.Thickness = 1.5
-				Stroke.Transparency = 0.25
-				Stroke.Parent = ToggleBtn
-
-				makeDraggable(ToggleBtn, ToggleBtn)
-
-				local pressStartPos = nil
-				ToggleBtn.InputBegan:Connect(function(input)
-					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-						pressStartPos = Vector2.new(input.Position.X, input.Position.Y)
-					end
-				end)
-
-				ToggleBtn.InputEnded:Connect(function(input)
-					if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-						local endPos = Vector2.new(input.Position.X, input.Position.Y)
-						if not pressStartPos or (endPos - pressStartPos).Magnitude < 12 then
-							RayfieldLibrary:SetVisibility(not RayfieldLibrary:IsVisible())
+				local args = {...}
+				for _, arg in ipairs(args) do
+					if type(arg) == "string" then
+						local lowerArg = string.lower(arg)
+						for _, kw in ipairs(DetectionKeywords) do
+							if string.find(lowerArg, kw, 1, true) then
+								AntiBanShield.BlockedCount = AntiBanShield.BlockedCount + 1
+								AntiBanShield.LastBlockedRemote = tostring(self.Name) .. " [" .. arg .. "]"
+								return nil
+							end
 						end
-						pressStartPos = nil
 					end
-				end)
+				end
+			end
+			return oldNamecall(self, ...)
+		end))
+	end
+end)
+
+-- Hook LocalPlayer:Kick to prevent client scripts from kicking the user
+pcall(function()
+	if hookfunction and Players and Players.LocalPlayer then
+		local oldKick
+		oldKick = hookfunction(Players.LocalPlayer.Kick, newcclosure(function(self, ...)
+			if AntiBanShield.Enabled then
+				AntiBanShield.BlockedCount = AntiBanShield.BlockedCount + 1
+				AntiBanShield.LastBlockedRemote = "LocalPlayer:Kick"
+				return nil
+			end
+			return oldKick(self, ...)
+		end))
+	end
+end)
+
+-- ============================================================================
+-- 2. AUTO GAME DETECTION
+-- ============================================================================
+local AOTR_GAME_ID = 4658598196
+local AOTR_PLACES = {
+	[13379208636] = true,
+}
+
+local BLOX_FRUITS_GAME_ID = 994732206
+local BLOX_FRUITS_PLACES = {
+	[2753915549] = true,
+	[4442272183] = true,
+	[7449423635] = true,
+}
+
+local function detectCurrentGame()
+	local pId = game.PlaceId
+	local gId = game.GameId
+
+	if AOTR_PLACES[pId] or gId == AOTR_GAME_ID then
+		return "AOTR"
+	end
+	if BLOX_FRUITS_PLACES[pId] or gId == BLOX_FRUITS_GAME_ID then
+		return "BLOX_FRUITS"
+	end
+
+	local title = ""
+	pcall(function()
+		local product = MarketplaceService:GetProductInfo(pId)
+		if product and product.Name then
+			title = string.lower(product.Name)
+		end
+	end)
+
+	if string.find(title, "attack on titan", 1, true) or string.find(title, "revolution", 1, true) or string.find(title, "aotr", 1, true) then
+		return "AOTR"
+	end
+	if string.find(title, "blox fruits", 1, true) or string.find(title, "bloxfruits", 1, true) then
+		return "BLOX_FRUITS"
+	end
+
+	return "UNIVERSAL"
+end
+
+-- ============================================================================
+-- 3. FLOATING TOGGLE BUTTON (DRAGGABLE & MOBILE FRIENDLY)
+-- ============================================================================
+local rayfieldDestroyed = false
+
+local function createFloatingToggle()
+	local CoreGui = getService("CoreGui")
+	local UserInputService = getService("UserInputService")
+	local TweenService = getService("TweenService")
+	local lp = Players and Players.LocalPlayer
+	local targetParent = CoreGui
+	if not pcall(function() return CoreGui:GetChildren() end) then
+		targetParent = (lp and lp:FindFirstChildOfClass("PlayerGui")) or CoreGui
+	end
+
+	local existing = targetParent:FindFirstChild("HaiAnhFloatingToggle")
+	if existing then existing:Destroy() end
+
+	local screenGui = Instance.new("ScreenGui")
+	screenGui.Name = "HaiAnhFloatingToggle"
+	screenGui.ResetOnSpawn = false
+	screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+	local btn = Instance.new("TextButton")
+	btn.Name = "ToggleButton"
+	btn.Size = UDim2.new(0, 50, 0, 50)
+	btn.Position = UDim2.new(0.04, 0, 0.28, 0)
+	btn.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+	btn.Text = "HA"
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 16
+	btn.AutoButtonColor = false
+	btn.Parent = screenGui
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 14)
+	corner.Parent = btn
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(170, 95, 255)
+	stroke.Thickness = 2.2
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	stroke.Parent = btn
+
+	local dragging = false
+	local dragInput, dragStart, startPos
+
+	btn.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = btn.Position
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
 			end)
 		end
+	end)
 
-		-- ============================================================================
-		-- MENU 1: ATTACK ON TITAN: REVOLUTION (AOT:R)
-		-- ============================================================================
-		local function loadAOTRMenu()
-			local AOTConfig = {
-				-- 1. Main / Auto Farm
-				AutoFarmTitan = false,
-				SafeFarm = true,
-				FarmSpeed = 280,
-				SelectedStoryMap = "Shiganshina",
-				SelectedDifficulty = "Hard",
-				AutoQuestStory = false,
-				SelectedRaid = "Female Titan",
-				AutoRaid = false,
-				AutoOpenChests = false,
-				AutoRetry = false,
-				TitanMasteryFarm = false,
+	btn.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
+	end)
 
-				-- 2. Combat / Buff
-				KillAura = false,
-				KillAuraRange = 100,
-				Godmode = false,
-				AutoEscapeGrab = true,
-				InfiniteGasBlades = false,
-				AutoReloadBladesSpears = false,
-				HitboxExtender = false,
-				NapeHitboxSize = 85,
-				InfiniteHookRange = false,
-				NoCooldown = false,
+	UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			local delta = input.Position - dragStart
+			btn.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		end
+	end)
 
-				-- 3. Misc / Gacha
-				TargetClans = {"Shiki (SS)", "Fritz (SS)", "Helos (SS)", "Ackerman (S)", "Yeager (S)"},
-				AutoSpin = false,
-				AntiAFK = true,
-				AutoShadowbanCheck = false,
-				WebhookURL = "",
-				RewardsWebhook = false,
+	btn.MouseButton1Click:Connect(function()
+		pcall(function()
+			local mainGui = CoreGui:FindFirstChild("Rayfield") or (lp and lp:FindFirstChildOfClass("PlayerGui") and lp:FindFirstChildOfClass("PlayerGui"):FindFirstChild("Rayfield"))
+			if mainGui then
+				mainGui.Enabled = not mainGui.Enabled
+			end
+		end)
+	end)
 
-				-- 4. Visuals / ESP
-				TitanESP = false,
-				ShowNapeESP = false,
-				ESPColor = Color3.fromRGB(255, 65, 65),
-			}
+	pcall(function() screenGui.Parent = targetParent end)
+end
 
-			local Window = RayfieldLibrary:CreateWindow({
-				Name = "Attack on Titan: Revolution | Universal Hub",
-				LoadingTitle = "Attack on Titan: Revolution",
-				LoadingSubtitle = "Auto-Detected | PC & Mobile (Delta Ready)",
-				ConfigurationSaving = {
-					Enabled = true,
-					FolderName = "ScriptHubConfig",
-					FileName = "AOTRevolution_Config"
-				},
-				KeySystem = false,
-			})
+local function clickGuiButton(btn)
+	if not btn then return false end
+	pcall(function()
+		if getconnections then
+			for _, c in ipairs(getconnections(btn.MouseButton1Click)) do
+				if c.Function then c.Function() end
+			end
+			for _, c in ipairs(getconnections(btn.Activated)) do
+				if c.Function then c.Function() end
+			end
+		else
+			local vp = (Workspace and Workspace.CurrentCamera and Workspace.CurrentCamera.ViewportSize) or Vector2.new(1280, 720)
+			local absPos = btn.AbsolutePosition
+			local absSz = btn.AbsoluteSize
+			local cx = absPos.X + absSz.X / 2
+			local cy = absPos.Y + absSz.Y / 2
+			if VirtualInputManager then
+				VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, true, game, 1)
+				task.wait(0.01)
+				VirtualInputManager:SendMouseButtonEvent(cx, cy, 0, false, game, 1)
+			end
+		end
+	end)
+	return true
+end
 
-			createFloatingToggle()
+local function triggerActionButtons(keywords)
+	local lp = Players and Players.LocalPlayer
+	local pgui = lp and lp:FindFirstChildOfClass("PlayerGui")
+	if not pgui then return false end
+	local triggered = false
 
-			RayfieldLibrary:Notify({
-				Title = "Đã nhận diện Game",
-				Content = "Đang chạy menu: Attack on Titan: Revolution (PC & Mobile)",
-				Duration = 6,
-				Image = 4483362458,
-			})
+	for _, obj in ipairs(pgui:GetDescendants()) do
+		if (obj:IsA("TextButton") or obj:IsA("ImageButton")) and obj.Visible then
+			local labelText = obj:IsA("TextButton") and obj.Text or ""
+			local childLabel = obj:FindFirstChildWhichIsA("TextLabel", true)
+			if childLabel and childLabel.Text ~= "" then
+				labelText = labelText .. " " .. childLabel.Text
+			end
+			local fullText = string.lower(obj.Name .. " " .. labelText)
+			for _, kw in ipairs(keywords) do
+				if fullText == kw or string.find(fullText, kw, 1, true) then
+					clickGuiButton(obj)
+					triggered = true
+					break
+				end
+			end
+		end
+	end
+	return triggered
+end
 
-			-- ------------------------------------------------------------------------
-			-- TAB 1: Nhóm Main / Auto Farm (Tự động cày cuốc)
-			-- ------------------------------------------------------------------------
-			local FarmTab = Window:CreateTab("Main / Auto Farm", 4483362458)
+-- ============================================================================
+-- MENU 1: ATTACK ON TITAN: REVOLUTION (HAIANH MENU EDITION)
+-- ============================================================================
+local function loadAOTRMenu()
+	local AOTConfig = {
+		-- Auto Farm
+		WeaponMode = "Auto",
+		FarmPosition = "Above Head",
+		HoverHeight = 18,
+		FlightSpeed = 300,
+		AutoFarmTitan = false,
+		SafeLegitDelay = false,
+		TitanShifterMastery = false,
+		AutoReload = true,
+		AutoRefillSupplies = true,
+		InfiniteGasDurability = false,
 
-			FarmTab:CreateSection("Cày Titan & Độ Thuần Thục (AFK Farm)")
+		-- Multi-Target Combat (True Equipment Damage Formula - Violet Hub Engine)
+		MultiTargetAttack = true,
+		MaxTargets = 5,
+		AttackRadius = 85,
+		KillAura = false,
+		KillAuraRange = 120,
+		HitboxExtender = true,
+		NapeHitboxSize = 85,
+		Godmode = false,
+		AutoEscapeGrab = true,
+		InfiniteHookRange = false,
+		NoCooldown = false,
 
-			FarmTab:CreateToggle({
-				Name = "Auto Farm Titan (Bay & Chém Gáy Nape)",
-				CurrentValue = false,
-				Flag = "AOT_AutoFarmTitan",
-				Callback = function(Value)
-					AOTConfig.AutoFarmTitan = Value
-				end,
-			})
+		-- Raid & Story
+		SelectedRaid = "Colossal Titan",
+		SelectedRaidDiff = "Aberrant",
+		AutoRaid = false,
+		AutoOpenRaidChests = true,
+		SelectedStoryMap = "Shiganshina",
+		SelectedDifficulty = "Hard",
+		AutoStoryMission = false,
+		AutoRetry = false,
+		AutoNextMission = false,
 
-			FarmTab:CreateToggle({
-				Name = "Safe Farm / Legit Farm (Chống Shadowban)",
-				CurrentValue = true,
-				Flag = "AOT_SafeFarm",
-				Callback = function(Value)
-					AOTConfig.SafeFarm = Value
-				end,
-			})
+		-- Anti-Ban & Security
+		AntiBanShield = true,
+		TargetClans = {"Shiki", "Fritz", "Helos", "Ackerman", "Yeager"},
+		AutoRollFamily = false,
+		AutoRollPerks = false,
+		AntiAFK = true,
+		AutoShadowbanCheck = false,
+		WebhookURL = "",
+		RewardsWebhook = false,
 
-			FarmTab:CreateSlider({
-				Name = "Tốc độ bay (Tween Speed)",
-				Range = {100, 600},
-				Increment = 10,
-				Suffix = "Studs/s",
-				CurrentValue = 280,
-				Flag = "AOT_FarmSpeed",
-				Callback = function(Value)
-					AOTConfig.FarmSpeed = Value
-				end,
-			})
+		-- Visuals
+		TitanESP = false,
+		ShowNapeHitbox = false,
+		ESPMaxDistance = 800,
+		ESPColor = Color3.fromRGB(170, 95, 255),
+	}
 
-			FarmTab:CreateToggle({
-				Name = "Titan Mastery Farm (Dành cho Titan Shifter)",
-				CurrentValue = false,
-				Flag = "AOT_TitanMastery",
-				Callback = function(Value)
-					AOTConfig.TitanMasteryFarm = Value
-				end,
-			})
+	local Window = RayfieldLibrary:CreateWindow({
+		Name = "HaiAnh Menu | Attack on Titan: Revolution",
+		LoadingTitle = "HaiAnh Menu",
+		LoadingSubtitle = "Attack on Titan: Revolution",
+		ConfigurationSaving = {
+			Enabled = true,
+			FolderName = "HaiAnhMenuConfig",
+			FileName = "AOTRevolution"
+		},
+		KeySystem = false,
+	})
 
-			FarmTab:CreateSection("Auto Quest / Story & Phó Bản Raid")
+	createFloatingToggle()
 
-			FarmTab:CreateDropdown({
-				Name = "Select Story Map",
-				Options = {"Shiganshina", "Trost", "Outskirts", "Giant Forest", "Utgard", "Stohess"},
-				CurrentOption = {"Shiganshina"},
-				MultipleOptions = false,
-				Flag = "AOT_StoryMap",
-				Callback = function(Option)
-					AOTConfig.SelectedStoryMap = type(Option) == "table" and Option[1] or Option
-				end,
-			})
+	-- TAB 1: Main / Auto Farm
+	local FarmTab = Window:CreateTab("Main / Auto Farm", 0)
+	FarmTab:CreateSection("Farm Configuration")
 
-			FarmTab:CreateDropdown({
-				Name = "Select Difficulty",
-				Options = {"Easy", "Normal", "Hard", "Severe", "Aberrant"},
-				CurrentOption = {"Hard"},
-				MultipleOptions = false,
-				Flag = "AOT_StoryDiff",
-				Callback = function(Option)
-					AOTConfig.SelectedDifficulty = type(Option) == "table" and Option[1] or Option
-				end,
-			})
+	FarmTab:CreateDropdown({
+		Name = "Weapon Mode",
+		Options = {"Auto", "Blades", "Thunder Spears"},
+		CurrentOption = {"Auto"},
+		MultipleOptions = false,
+		Flag = "AOT_WeaponMode",
+		Callback = function(Option)
+			AOTConfig.WeaponMode = type(Option) == "table" and Option[1] or Option
+		end,
+	})
 
-			FarmTab:CreateToggle({
-				Name = "Auto Quest / Select Story (Tự nhận Q & Vào màn)",
-				CurrentValue = false,
-				Flag = "AOT_AutoQuestStory",
-				Callback = function(Value)
-					AOTConfig.AutoQuestStory = Value
-				end,
-			})
+	FarmTab:CreateDropdown({
+		Name = "Farm Position",
+		Options = {"Above Head", "Behind Nape"},
+		CurrentOption = {"Above Head"},
+		MultipleOptions = false,
+		Flag = "AOT_FarmPosition",
+		Callback = function(Option)
+			AOTConfig.FarmPosition = type(Option) == "table" and Option[1] or Option
+		end,
+	})
 
-			FarmTab:CreateDropdown({
-				Name = "Select Raid Boss",
-				Options = {"Female Titan", "Armored Titan", "Colossal Titan", "Attack Titan", "Beast Titan"},
-				CurrentOption = {"Female Titan"},
-				MultipleOptions = false,
-				Flag = "AOT_RaidBoss",
-				Callback = function(Option)
-					AOTConfig.SelectedRaid = type(Option) == "table" and Option[1] or Option
-				end,
-			})
+	FarmTab:CreateSlider({
+		Name = "Hover Height",
+		Range = {10, 45},
+		Increment = 1,
+		Suffix = "Studs",
+		CurrentValue = 18,
+		Flag = "AOT_HoverHeight",
+		Callback = function(Value)
+			AOTConfig.HoverHeight = Value
+		end,
+	})
 
-			FarmTab:CreateToggle({
-				Name = "Auto Raid (Tự xếp hàng & Đánh Raid liên tiếp)",
-				CurrentValue = false,
-				Flag = "AOT_AutoRaid",
-				Callback = function(Value)
-					AOTConfig.AutoRaid = Value
-				end,
-			})
+	FarmTab:CreateSlider({
+		Name = "Flight Speed",
+		Range = {150, 600},
+		Increment = 10,
+		Suffix = "Studs/s",
+		CurrentValue = 300,
+		Flag = "AOT_FlightSpeed",
+		Callback = function(Value)
+			AOTConfig.FlightSpeed = Value
+		end,
+	})
 
-			FarmTab:CreateToggle({
-				Name = "Auto Open Chests (Tự mở rương sau phó bản)",
-				CurrentValue = false,
-				Flag = "AOT_AutoOpenChests",
-				Callback = function(Value)
-					AOTConfig.AutoOpenChests = Value
-				end,
-			})
+	FarmTab:CreateSection("Main Auto Farm")
 
-			FarmTab:CreateToggle({
-				Name = "Auto Retry (Tự bấm chơi lại ngay lập tức)",
-				CurrentValue = false,
-				Flag = "AOT_AutoRetry",
-				Callback = function(Value)
-					AOTConfig.AutoRetry = Value
-				end,
-			})
-
-			-- ------------------------------------------------------------------------
-			-- TAB 2: Nhóm Combat / Buff (Hỗ trợ chiến đấu)
-			-- ------------------------------------------------------------------------
-			local CombatTab = Window:CreateTab("Combat / Buff", 4483362458)
-
-			CombatTab:CreateSection("Sát Thương & Mở Rộng Gáy (Hitbox / Nape)")
-
-			CombatTab:CreateToggle({
-				Name = "Kill Aura / Instant Kill (Chém siêu tốc quanh người)",
-				CurrentValue = false,
-				Flag = "AOT_KillAura",
-				Callback = function(Value)
-					AOTConfig.KillAura = Value
-				end,
-			})
-
-			CombatTab:CreateSlider({
-				Name = "Khoảng cách Kill Aura",
-				Range = {30, 250},
-				Increment = 5,
-				Suffix = "Studs",
-				CurrentValue = 100,
-				Flag = "AOT_KillAuraRange",
-				Callback = function(Value)
-					AOTConfig.KillAuraRange = Value
-				end,
-			})
-
-			CombatTab:CreateToggle({
-				Name = "Hitbox Extender / Nape Extension (Phóng to Gáy Titan)",
-				CurrentValue = false,
-				Flag = "AOT_HitboxExtender",
-				Callback = function(Value)
-					AOTConfig.HitboxExtender = Value
-				end,
-			})
-
-			CombatTab:CreateSlider({
-				Name = "Kích thước Nape Hitbox",
-				Range = {20, 150},
-				Increment = 5,
-				Suffix = "Size",
-				CurrentValue = 85,
-				Flag = "AOT_NapeSize",
-				Callback = function(Value)
-					AOTConfig.NapeHitboxSize = Value
-				end,
-			})
-
-			CombatTab:CreateSection("Bất Tử, Giải Thoát & Bộ Cơ Động (ODMG)")
-
-			CombatTab:CreateToggle({
-				Name = "Godmode (Bất tử - Không nhận sát thương từ Titan)",
-				CurrentValue = false,
-				Flag = "AOT_Godmode",
-				Callback = function(Value)
-					AOTConfig.Godmode = Value
-				end,
-			})
-
-			CombatTab:CreateToggle({
-				Name = "Auto Escape Grab (Tự thoát ngay khi bị Titan túm)",
-				CurrentValue = true,
-				Flag = "AOT_AutoEscapeGrab",
-				Callback = function(Value)
-					AOTConfig.AutoEscapeGrab = Value
-				end,
-			})
-
-			CombatTab:CreateToggle({
-				Name = "Infinite Gas & Blades Durability (Vô hạn Gas & Độ bền kiếm)",
-				CurrentValue = false,
-				Flag = "AOT_InfGasBlades",
-				Callback = function(Value)
-					AOTConfig.InfiniteGasBlades = Value
-				end,
-			})
-
-			CombatTab:CreateToggle({
-				Name = "Auto Reload Blades & Spears (Thay kiếm & Giáo Sấm Sét từ xa)",
-				CurrentValue = false,
-				Flag = "AOT_AutoReload",
-				Callback = function(Value)
-					AOTConfig.AutoReloadBladesSpears = Value
-				end,
-			})
-
-			CombatTab:CreateToggle({
-				Name = "ODMG Infinite Hook Range (Tăng tầm bắn dây móc vô hạn)",
-				CurrentValue = false,
-				Flag = "AOT_InfHookRange",
-				Callback = function(Value)
-					AOTConfig.InfiniteHookRange = Value
-				end,
-			})
-
-			CombatTab:CreateToggle({
-				Name = "No Cooldown (Xóa thời gian hồi chiêu kỹ năng)",
-				CurrentValue = false,
-				Flag = "AOT_NoCooldown",
-				Callback = function(Value)
-					AOTConfig.NoCooldown = Value
-				end,
-			})
-
-			-- ------------------------------------------------------------------------
-			-- TAB 3: Nhóm Misc / Gacha (Tiện ích & Vòng quay)
-			-- ------------------------------------------------------------------------
-			local MiscTab = Window:CreateTab("Misc / Gacha", 4483362458)
-
-			MiscTab:CreateSection("Auto Spin / Săn Gia Tộc Hiếm (SS / S)")
-
-			MiscTab:CreateDropdown({
-				Name = "Chọn Gia Tộc Mục Tiêu (Dừng khi trúng)",
-				Options = {
-					"Shiki (SS)",
-					"Fritz (SS)",
-					"Helos (SS)",
-					"Ackerman (S)",
-					"Yeager (S)",
-					"Reiss (A)",
-					"Braun (A)",
-					"Arlert (A)",
-				},
-				CurrentOption = {"Shiki (SS)", "Fritz (SS)", "Helos (SS)", "Ackerman (S)", "Yeager (S)"},
-				MultipleOptions = true,
-				Flag = "AOT_TargetClans",
-				Callback = function(Options)
-					if type(Options) == "table" then
-						AOTConfig.TargetClans = Options
-					end
-				end,
-			})
-
-			MiscTab:CreateToggle({
-				Name = "Auto Spin / Auto Roll (Tự quay Gia Tộc đến khi trúng)",
-				CurrentValue = false,
-				Flag = "AOT_AutoSpin",
-				Callback = function(Value)
-					AOTConfig.AutoSpin = Value
-				end,
-			})
-
-			MiscTab:CreateSection("An Toàn Tài Khoản & Treo Máy")
-
-			MiscTab:CreateToggle({
-				Name = "Anti AFK (Chống văng phòng chờ khi treo > 20 phút)",
-				CurrentValue = true,
-				Flag = "AOT_AntiAFK",
-				Callback = function(Value)
-					AOTConfig.AntiAFK = Value
-				end,
-			})
-
-			local function runShadowbanCheck()
-				local lp = Players and Players.LocalPlayer
-				local suspiciousFlags = {}
-
+	FarmTab:CreateToggle({
+		Name = "Auto Farm Titan",
+		CurrentValue = false,
+		Flag = "AOT_AutoFarmTitan",
+		Callback = function(Value)
+			AOTConfig.AutoFarmTitan = Value
+			if not Value and not AOTConfig.TitanShifterMastery and not AOTConfig.AutoRaid then
 				pcall(function()
-					if lp then
-						for attrName, attrVal in pairs(lp:GetAttributes()) do
-							local lower = string.lower(tostring(attrName))
-							if (string.find(lower, "ban", 1, true) or string.find(lower, "flag", 1, true) or string.find(lower, "cheat", 1, true) or string.find(lower, "restrict", 1, true)) and attrVal == true then
-								table.insert(suspiciousFlags, tostring(attrName))
-							end
-						end
-						for _, child in ipairs(lp:GetDescendants()) do
-							local lower = string.lower(child.Name)
-							if (string.find(lower, "shadowban", 1, true) or string.find(lower, "banned", 1, true)) and child:IsA("BoolValue") and child.Value == true then
-								table.insert(suspiciousFlags, child.Name)
-							end
-						end
+					local lp = Players and Players.LocalPlayer
+					local char = lp and lp.Character
+					local root = char and char:FindFirstChild("HumanoidRootPart")
+					if root then
+						local bv = root:FindFirstChild("HaiAnh_AntiGravity")
+						local bg = root:FindFirstChild("HaiAnh_GyroLock")
+						if bv then bv:Destroy() end
+						if bg then bg:Destroy() end
 					end
 				end)
-
-				if #suspiciousFlags > 0 then
-					RayfieldLibrary:Notify({
-						Title = "Cảnh Báo Shadowban!",
-						Content = "Phát hiện cờ bất thường: " .. table.concat(suspiciousFlags, ", ") .. ". Hãy bật Safe Farm!",
-						Duration = 8,
-						Image = 4483362458,
-					})
-				else
-					RayfieldLibrary:Notify({
-						Title = "Shadowban Checker",
-						Content = "Tài khoản AN TOÀN (Clean) — Không phát hiện cờ Shadowban.",
-						Duration = 6,
-						Image = 4483362458,
-					})
-				end
 			end
+		end,
+	})
 
-			MiscTab:CreateButton({
-				Name = "Shadowban Checker (Kiểm tra trạng thái tài khoản ngay)",
-				Callback = runShadowbanCheck,
-			})
+	FarmTab:CreateToggle({
+		Name = "Safe Legit Farm",
+		CurrentValue = false,
+		Flag = "AOT_SafeLegitDelay",
+		Callback = function(Value)
+			AOTConfig.SafeLegitDelay = Value
+		end,
+	})
 
-			MiscTab:CreateToggle({
-				Name = "Tự động kiểm tra Shadowban định kỳ",
-				CurrentValue = false,
-				Flag = "AOT_AutoShadowbanCheck",
-				Callback = function(Value)
-					AOTConfig.AutoShadowbanCheck = Value
-					if Value then runShadowbanCheck() end
-				end,
-			})
+	FarmTab:CreateToggle({
+		Name = "Titan Shifter Mastery",
+		CurrentValue = false,
+		Flag = "AOT_TitanMastery",
+		Callback = function(Value)
+			AOTConfig.TitanShifterMastery = Value
+		end,
+	})
 
-			MiscTab:CreateSection("Rewards Webhook (Thông báo Discord)")
+	FarmTab:CreateSection("Blades & Thunder Spears Reload")
 
-			MiscTab:CreateInput({
-				Name = "Discord Webhook URL",
-				CurrentValue = "",
-				PlaceholderText = "https://discord.com/api/webhooks/...",
-				RemoveTextAfterFocusLost = false,
-				Flag = "AOT_WebhookURL",
-				Callback = function(Text)
-					AOTConfig.WebhookURL = tostring(Text or "")
-				end,
-			})
+	FarmTab:CreateToggle({
+		Name = "Auto Reload Blades & Spears",
+		CurrentValue = true,
+		Flag = "AOT_AutoReload",
+		Callback = function(Value)
+			AOTConfig.AutoReload = Value
+		end,
+	})
 
-			MiscTab:CreateToggle({
-				Name = "Rewards Webhook (Tự gửi Vàng/EXP/Vật phẩm về Discord)",
-				CurrentValue = false,
-				Flag = "AOT_RewardsWebhook",
-				Callback = function(Value)
-					AOTConfig.RewardsWebhook = Value
-				end,
-			})
+	FarmTab:CreateToggle({
+		Name = "Auto Refill Supplies",
+		CurrentValue = true,
+		Flag = "AOT_AutoRefill",
+		Callback = function(Value)
+			AOTConfig.AutoRefillSupplies = Value
+		end,
+	})
 
-			local function sendDiscordWebhook(title, description)
-				local url = AOTConfig.WebhookURL
-				if type(url) ~= "string" or not string.find(url, "discord", 1, true) then
-					return false
-				end
-				if type(requestFunc) ~= "function" then
-					return false
-				end
-				local payload = HttpService:JSONEncode({
-					username = "AOT:R Rewards Tracker",
-					embeds = {{
-						title = title,
-						description = description,
-						color = 16733525,
-						footer = { text = "Attack on Titan: Revolution • Universal Hub" },
-					}}
-				})
-				local ok = pcall(requestFunc, {
-					Url = url,
-					Method = "POST",
-					Headers = { ["Content-Type"] = "application/json" },
-					Body = payload,
-				})
-				return ok
-			end
+	FarmTab:CreateToggle({
+		Name = "Infinite Gas & Durability",
+		CurrentValue = false,
+		Flag = "AOT_InfiniteGas",
+		Callback = function(Value)
+			AOTConfig.InfiniteGasDurability = Value
+		end,
+	})
 
-			MiscTab:CreateButton({
-				Name = "Test Webhook (Gửi thử thông báo về Discord)",
-				Callback = function()
-					if sendDiscordWebhook("Test Kết Nối Webhook", "Kết nối Rewards Webhook thành công!") then
-						RayfieldLibrary:Notify({
-							Title = "Rewards Webhook",
-							Content = "Đã gửi tin nhắn thử nghiệm tới Discord thành công!",
-							Duration = 5,
-							Image = 4483362458,
-						})
-					else
-						RayfieldLibrary:Notify({
-							Title = "Rewards Webhook",
-							Content = "Vui lòng nhập đúng Discord Webhook URL trước khi thử!",
-							Duration = 5,
-							Image = 4483362458,
-						})
+	-- TAB 2: Combat / Buff
+	local CombatTab = Window:CreateTab("Combat / Buff", 0)
+	CombatTab:CreateSection("Multi-Target Combat")
+
+	CombatTab:CreateToggle({
+		Name = "Multi-Target Attack",
+		CurrentValue = true,
+		Flag = "AOT_MultiTargetAttack",
+		Callback = function(Value)
+			AOTConfig.MultiTargetAttack = Value
+		end,
+	})
+
+	CombatTab:CreateSlider({
+		Name = "Max Attack Targets",
+		Range = {1, 10},
+		Increment = 1,
+		Suffix = "Titans",
+		CurrentValue = 5,
+		Flag = "AOT_MaxTargets",
+		Callback = function(Value)
+			AOTConfig.MaxTargets = Value
+		end,
+	})
+
+	CombatTab:CreateSlider({
+		Name = "Attack Radius",
+		Range = {30, 150},
+		Increment = 5,
+		Suffix = "Studs",
+		CurrentValue = 85,
+		Flag = "AOT_AttackRadius",
+		Callback = function(Value)
+			AOTConfig.AttackRadius = Value
+		end,
+	})
+
+	CombatTab:CreateSection("Kill Aura & Hitbox")
+
+	CombatTab:CreateToggle({
+		Name = "Kill Aura",
+		CurrentValue = false,
+		Flag = "AOT_KillAura",
+		Callback = function(Value)
+			AOTConfig.KillAura = Value
+		end,
+	})
+
+	CombatTab:CreateSlider({
+		Name = "Kill Aura Range",
+		Range = {30, 250},
+		Increment = 5,
+		Suffix = "Studs",
+		CurrentValue = 120,
+		Flag = "AOT_KillAuraRange",
+		Callback = function(Value)
+			AOTConfig.KillAuraRange = Value
+		end,
+	})
+
+	CombatTab:CreateToggle({
+		Name = "Nape Hitbox Extender",
+		CurrentValue = true,
+		Flag = "AOT_HitboxExtender",
+		Callback = function(Value)
+			AOTConfig.HitboxExtender = Value
+		end,
+	})
+
+	CombatTab:CreateSlider({
+		Name = "Nape Hitbox Size",
+		Range = {20, 150},
+		Increment = 5,
+		Suffix = "Studs",
+		CurrentValue = 85,
+		Flag = "AOT_NapeSize",
+		Callback = function(Value)
+			AOTConfig.NapeHitboxSize = Value
+		end,
+	})
+
+	CombatTab:CreateSection("Player Buffs & ODMG")
+
+	CombatTab:CreateToggle({
+		Name = "Godmode",
+		CurrentValue = false,
+		Flag = "AOT_Godmode",
+		Callback = function(Value)
+			AOTConfig.Godmode = Value
+		end,
+	})
+
+	CombatTab:CreateToggle({
+		Name = "Auto Escape Grab",
+		CurrentValue = true,
+		Flag = "AOT_AutoEscapeGrab",
+		Callback = function(Value)
+			AOTConfig.AutoEscapeGrab = Value
+		end,
+	})
+
+	CombatTab:CreateToggle({
+		Name = "ODMG Infinite Hook Range",
+		CurrentValue = false,
+		Flag = "AOT_InfHookRange",
+		Callback = function(Value)
+			AOTConfig.InfiniteHookRange = Value
+		end,
+	})
+
+	CombatTab:CreateToggle({
+		Name = "No Skill Cooldown",
+		CurrentValue = false,
+		Flag = "AOT_NoCooldown",
+		Callback = function(Value)
+			AOTConfig.NoCooldown = Value
+		end,
+	})
+
+	-- TAB 3: Raid & Story
+	local RaidTab = Window:CreateTab("Raid & Story", 0)
+	RaidTab:CreateSection("Auto Raid")
+
+	RaidTab:CreateDropdown({
+		Name = "Select Raid Boss",
+		Options = {"Colossal Titan", "Armored Titan", "Female Titan", "Beast Titan"},
+		CurrentOption = {"Colossal Titan"},
+		MultipleOptions = false,
+		Flag = "AOT_RaidBoss",
+		Callback = function(Option)
+			AOTConfig.SelectedRaid = type(Option) == "table" and Option[1] or Option
+		end,
+	})
+
+	RaidTab:CreateDropdown({
+		Name = "Raid Difficulty",
+		Options = {"Easy", "Normal", "Hard", "Severe", "Aberrant"},
+		CurrentOption = {"Aberrant"},
+		MultipleOptions = false,
+		Flag = "AOT_RaidDiff",
+		Callback = function(Option)
+			AOTConfig.SelectedRaidDiff = type(Option) == "table" and Option[1] or Option
+		end,
+	})
+
+	RaidTab:CreateToggle({
+		Name = "Auto Raid",
+		CurrentValue = false,
+		Flag = "AOT_AutoRaid",
+		Callback = function(Value)
+			AOTConfig.AutoRaid = Value
+		end,
+	})
+
+	RaidTab:CreateToggle({
+		Name = "Auto Open Raid Chests",
+		CurrentValue = true,
+		Flag = "AOT_OpenChests",
+		Callback = function(Value)
+			AOTConfig.AutoOpenRaidChests = Value
+		end,
+	})
+
+	RaidTab:CreateSection("Auto Story Mission")
+
+	RaidTab:CreateDropdown({
+		Name = "Select Story Chapter",
+		Options = {"Shiganshina", "Trost District", "Giant Tree Forest", "Stohess", "Utgard Castle"},
+		CurrentOption = {"Shiganshina"},
+		MultipleOptions = false,
+		Flag = "AOT_StoryMap",
+		Callback = function(Option)
+			AOTConfig.SelectedStoryMap = type(Option) == "table" and Option[1] or Option
+		end,
+	})
+
+	RaidTab:CreateDropdown({
+		Name = "Mission Difficulty",
+		Options = {"Normal", "Hard", "Severe", "Aberrant"},
+		CurrentOption = {"Hard"},
+		MultipleOptions = false,
+		Flag = "AOT_StoryDiff",
+		Callback = function(Option)
+			AOTConfig.SelectedDifficulty = type(Option) == "table" and Option[1] or Option
+		end,
+	})
+
+	RaidTab:CreateToggle({
+		Name = "Auto Story Mission",
+		CurrentValue = false,
+		Flag = "AOT_AutoStory",
+		Callback = function(Value)
+			AOTConfig.AutoStoryMission = Value
+		end,
+	})
+
+	RaidTab:CreateToggle({
+		Name = "Auto Retry on Failure",
+		CurrentValue = false,
+		Flag = "AOT_AutoRetry",
+		Callback = function(Value)
+			AOTConfig.AutoRetry = Value
+		end,
+	})
+
+	RaidTab:CreateToggle({
+		Name = "Auto Next Mission",
+		CurrentValue = false,
+		Flag = "AOT_AutoNext",
+		Callback = function(Value)
+			AOTConfig.AutoNextMission = Value
+		end,
+	})
+
+	-- TAB 4: Misc / Gacha
+	local MiscTab = Window:CreateTab("Misc / Gacha", 0)
+	MiscTab:CreateSection("Family & Perk Gacha")
+
+	MiscTab:CreateDropdown({
+		Name = "Target Families",
+		Options = {"Shiki", "Fritz", "Helos", "Ackerman", "Yeager", "Reiss", "Tybur", "Arlert", "Leonhart"},
+		CurrentOption = {"Shiki", "Fritz", "Helos"},
+		MultipleOptions = true,
+		Flag = "AOT_TargetClans",
+		Callback = function(Options)
+			AOTConfig.TargetClans = Options
+		end,
+	})
+
+	MiscTab:CreateToggle({
+		Name = "Auto Spin Family",
+		CurrentValue = false,
+		Flag = "AOT_AutoFamily",
+		Callback = function(Value)
+			AOTConfig.AutoRollFamily = Value
+		end,
+	})
+
+	MiscTab:CreateToggle({
+		Name = "Auto Spin Perks",
+		CurrentValue = false,
+		Flag = "AOT_AutoPerks",
+		Callback = function(Value)
+			AOTConfig.AutoRollPerks = Value
+		end,
+	})
+
+	MiscTab:CreateSection("Anti-Ban & Security")
+
+	MiscTab:CreateToggle({
+		Name = "Anti-Ban Remote Shield",
+		CurrentValue = true,
+		Flag = "AOT_AntiBanShield",
+		Callback = function(Value)
+			AOTConfig.AntiBanShield = Value
+			AntiBanShield.Enabled = Value
+		end,
+	})
+
+	MiscTab:CreateToggle({
+		Name = "Anti AFK",
+		CurrentValue = true,
+		Flag = "AOT_AntiAFK",
+		Callback = function(Value)
+			AOTConfig.AntiAFK = Value
+		end,
+	})
+
+	local function runShadowbanCheck()
+		local lp = Players and Players.LocalPlayer
+		local suspiciousFlags = {}
+		pcall(function()
+			if lp then
+				for attrName, attrVal in pairs(lp:GetAttributes()) do
+					local lower = string.lower(tostring(attrName))
+					if (string.find(lower, "ban", 1, true) or string.find(lower, "flag", 1, true) or string.find(lower, "cheat", 1, true) or string.find(lower, "restrict", 1, true)) and attrVal == true then
+						table.insert(suspiciousFlags, tostring(attrName))
 					end
-				end,
+				end
+				for _, child in ipairs(lp:GetDescendants()) do
+					local lower = string.lower(child.Name)
+					if (string.find(lower, "shadowban", 1, true) or string.find(lower, "banned", 1, true)) and child:IsA("BoolValue") and child.Value == true then
+						table.insert(suspiciousFlags, child.Name)
+					end
+				end
+			end
+		end)
+
+		if #suspiciousFlags > 0 then
+			RayfieldLibrary:Notify({
+				Title = "Shadowban Warning",
+				Content = "Flagged attributes detected: " .. table.concat(suspiciousFlags, ", "),
+				Duration = 7,
 			})
-
-			-- ------------------------------------------------------------------------
-			-- TAB 4: Nhóm Visuals / ESP (Hiển thị xuyên tường)
-			-- ------------------------------------------------------------------------
-			local VisualTab = Window:CreateTab("Visuals / ESP", 4483362458)
-
-			VisualTab:CreateSection("Titan ESP (Xuyên tường, Khoảng cách, Tên & Thanh máu)")
-
-			VisualTab:CreateToggle({
-				Name = "Titan ESP (Khung viền xuyên tường, Khoảng cách, Tên & Máu)",
-				CurrentValue = false,
-				Flag = "AOT_TitanESP",
-				Callback = function(Value)
-					AOTConfig.TitanESP = Value
-				end,
+			-- Emergency auto-stop to protect account
+			AOTConfig.AutoFarmTitan = false
+			AOTConfig.AutoRaid = false
+		else
+			RayfieldLibrary:Notify({
+				Title = "Shadowban Status",
+				Content = "Account Clean: Blocked Remotes: " .. tostring(AntiBanShield.BlockedCount),
+				Duration = 5,
 			})
+		end
+	end
 
-			VisualTab:CreateToggle({
-				Name = "Highlight Gáy Titan (Show Nape Box)",
-				CurrentValue = false,
-				Flag = "AOT_ShowNapeESP",
-				Callback = function(Value)
-					AOTConfig.ShowNapeESP = Value
-				end,
-			})
+	MiscTab:CreateButton({
+		Name = "Check Shadowban Status",
+		Callback = runShadowbanCheck,
+	})
 
-			VisualTab:CreateColorPicker({
-				Name = "Màu sắc Titan ESP",
-				Color = Color3.fromRGB(255, 65, 65),
-				Flag = "AOT_ESPColor",
-				Callback = function(Value)
-					AOTConfig.ESPColor = Value
-				end,
-			})
+	MiscTab:CreateToggle({
+		Name = "Auto Shadowban Monitor",
+		CurrentValue = false,
+		Flag = "AOT_AutoShadowbanCheck",
+		Callback = function(Value)
+			AOTConfig.AutoShadowbanCheck = Value
+			if Value then runShadowbanCheck() end
+		end,
+	})
 
-			-- ========================================================================
-			-- HỆ THỐNG XỬ LÝ LOGIC CHO ATTACK ON TITAN: REVOLUTION
-			-- ========================================================================
-			-- 1. Anti-AFK
+	MiscTab:CreateInput({
+		Name = "Discord Webhook URL",
+		CurrentValue = "",
+		PlaceholderText = "https://discord.com/api/webhooks/...",
+		RemoveTextAfterFocusLost = false,
+		Flag = "AOT_WebhookURL",
+		Callback = function(Text)
+			AOTConfig.WebhookURL = tostring(Text or "")
+		end,
+	})
+
+	MiscTab:CreateToggle({
+		Name = "Send Rewards to Webhook",
+		CurrentValue = false,
+		Flag = "AOT_RewardsWebhook",
+		Callback = function(Value)
+			AOTConfig.RewardsWebhook = Value
+		end,
+	})
+
+	local function sendDiscordWebhook(title, description)
+		if AOTConfig.WebhookURL == "" or not string.find(AOTConfig.WebhookURL, "http") then return end
+		local req = requestFunc
+		if req then
 			pcall(function()
-				local lp = Players and Players.LocalPlayer
-				if lp then
-					lp.Idled:Connect(function()
-						if AOTConfig.AntiAFK and VirtualUser then
-							pcall(function()
-								VirtualUser:CaptureController()
-								VirtualUser:ClickButton2(Vector2.new(0, 0))
-							end)
-						end
-					end)
+				local payload = {
+					["embeds"] = {{
+						["title"] = title or "HaiAnh Menu - AOT:R Update",
+						["description"] = description or "Auto Farm notification",
+						["color"] = 11141375,
+						["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+						["footer"] = { ["text"] = "HaiAnh Menu | Violet Engine" }
+					}}
+				}
+				local HttpService = getService("HttpService")
+				local json = HttpService and HttpService:JSONEncode(payload)
+				if json then
+					req({
+						Url = AOTConfig.WebhookURL,
+						Method = "POST",
+						Headers = { ["Content-Type"] = "application/json" },
+						Body = json,
+					})
 				end
 			end)
+		end
+	end
 
-			-- Hàm lấy danh sách Titan còn sống trong Workspace.Titans
-			local function getTitansList()
-				local list = {}
-				local lp = Players and Players.LocalPlayer
-				local char = lp and lp.Character
-				local root = char and char:FindFirstChild("HumanoidRootPart")
-				local titansFolder = Workspace and (Workspace:FindFirstChild("Titans") or Workspace:FindFirstChild("Enemies"))
-				if not titansFolder then return list end
+	MiscTab:CreateButton({
+		Name = "Test Discord Webhook",
+		Callback = function()
+			sendDiscordWebhook("HaiAnh Menu Test", "Discord Webhook connection verified successfully!")
+			RayfieldLibrary:Notify({
+				Title = "Webhook Test",
+				Content = "Test payload sent to Discord Webhook",
+				Duration = 4,
+			})
+		end,
+	})
 
-				for _, titan in ipairs(titansFolder:GetChildren()) do
-					if titan:IsA("Model") then
-						local hum = titan:FindFirstChildOfClass("Humanoid")
-						local hitboxes = titan:FindFirstChild("Hitboxes")
-						local hitFolder = hitboxes and hitboxes:FindFirstChild("Hit")
-						local nape = (hitFolder and hitFolder:FindFirstChild("Nape"))
-							or titan:FindFirstChild("Nape", true)
-							or titan:FindFirstChild("HumanoidRootPart")
-							or titan:FindFirstChild("Head")
+	-- TAB 5: Visuals / ESP
+	local VisualTab = Window:CreateTab("Visuals / ESP", 0)
+	VisualTab:CreateSection("Titan ESP")
 
+	VisualTab:CreateToggle({
+		Name = "Titan ESP",
+		CurrentValue = false,
+		Flag = "AOT_TitanESP",
+		Callback = function(Value)
+			AOTConfig.TitanESP = Value
+		end,
+	})
+
+	VisualTab:CreateToggle({
+		Name = "Highlight Titan Nape",
+		CurrentValue = false,
+		Flag = "AOT_ShowNape",
+		Callback = function(Value)
+			AOTConfig.ShowNapeHitbox = Value
+		end,
+	})
+
+	VisualTab:CreateSlider({
+		Name = "ESP Max Distance",
+		Range = {200, 2500},
+		Increment = 50,
+		Suffix = "Studs",
+		CurrentValue = 800,
+		Flag = "AOT_ESPDistance",
+		Callback = function(Value)
+			AOTConfig.ESPMaxDistance = Value
+		end,
+	})
+
+	VisualTab:CreateColorPicker({
+		Name = "Titan ESP Color",
+		Color = Color3.fromRGB(170, 95, 255),
+		Flag = "AOT_ESPColor",
+		Callback = function(Value)
+			AOTConfig.ESPColor = Value
+		end,
+	})
+
+	-- ========================================================================
+	-- AOT:R CORE LOGIC & ENGINE
+	-- ========================================================================
+	local currentTargetTitan = nil
+	local espObjects = {}
+
+	local function getAOTRemotes()
+		local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+		local post = (remotes and remotes:FindFirstChild("POST")) or ReplicatedStorage:FindFirstChild("POST", true)
+		local get = (remotes and remotes:FindFirstChild("GET")) or ReplicatedStorage:FindFirstChild("GET", true)
+		return post, get
+	end
+
+	local function getCleanTitanName(model)
+		if not model then return "Titan" end
+		for _, attr in ipairs({"Title", "TitanType", "Type", "Variant", "BossName", "Class"}) do
+			local val = model:GetAttribute(attr)
+			if type(val) == "string" and val ~= "" and not string.match(val, "%x+%-%x+") and #val < 20 then
+				return val
+			end
+		end
+		local raw = tostring(model.Name)
+		if string.match(raw, "%x+%-%x+") or #raw >= 20 then
+			if model:FindFirstChild("Abnormal") or model:GetAttribute("Abnormal") == true then
+				return "Abnormal Titan"
+			elseif model:FindFirstChild("Crawler") or model:GetAttribute("Crawler") == true then
+				return "Crawler Titan"
+			elseif model:FindFirstChild("Shifter") or model:GetAttribute("Shifter") == true then
+				return "Titan Shifter"
+			elseif model:FindFirstChild("Boss") or model:GetAttribute("Boss") == true or string.find(string.lower(raw), "colossal", 1, true) then
+				return "Colossal Titan"
+			end
+			return "Titan"
+		end
+		return raw
+	end
+
+	local function getTitansList()
+		local list = {}
+		local lp = Players and Players.LocalPlayer
+		local char = lp and lp.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart")
+		if not Workspace then return list end
+
+		local searchFolders = {}
+		for _, fName in ipairs({"Titans", "Enemies", "Boss", "Bosses", "Raid", "Spawns"}) do
+			local f = Workspace:FindFirstChild(fName)
+			if f then table.insert(searchFolders, f) end
+		end
+		if #searchFolders == 0 then table.insert(searchFolders, Workspace) end
+
+		local seen = {}
+		for _, folder in ipairs(searchFolders) do
+			for _, titan in ipairs(folder:GetChildren()) do
+				if titan:IsA("Model") and not seen[titan] and titan ~= char then
+					local hum = titan:FindFirstChildOfClass("Humanoid")
+					local hitboxes = titan:FindFirstChild("Hitboxes")
+					local hitFolder = hitboxes and hitboxes:FindFirstChild("Hit")
+					local nape = (hitFolder and hitFolder:FindFirstChild("Nape"))
+						or titan:FindFirstChild("Nape", true)
+						or titan:FindFirstChild("HumanoidRootPart")
+						or titan:FindFirstChild("Head")
+
+					local isTitanCandidate = (hum ~= nil) or (hitboxes ~= nil) or (nape ~= nil)
+					if isTitanCandidate and nape and nape:IsA("BasePart") then
 						local alive = true
 						if hum and hum.Health <= 0 then
 							alive = false
 						end
-						if alive and nape and nape:IsA("BasePart") then
+						if alive then
+							seen[titan] = true
 							local dist = root and (nape.Position - root.Position).Magnitude or 9999
 							table.insert(list, {
 								model = titan,
+								cleanName = getCleanTitanName(titan),
 								humanoid = hum,
 								nape = nape,
 								dist = dist,
@@ -5472,668 +5758,1036 @@ if not libraryOnly then
 						end
 					end
 				end
-
-				table.sort(list, function(a, b) return a.dist < b.dist end)
-				return list
 			end
+		end
 
-			-- Hàm thực hiện tấn công vào Nape của Titan
-			local function slashTitanNape(titanEntry)
-				if not titanEntry or not titanEntry.nape then return end
-				pcall(function()
-					-- Kích hoạt vũ khí/remote trong ReplicatedStorage hoặc Character
-					local lp = Players and Players.LocalPlayer
-					local char = lp and lp.Character
-					if char then
-						local tool = char:FindFirstChildOfClass("Tool")
-						if tool then
-							tool:Activate()
-						end
-					end
+		table.sort(list, function(a, b) return a.dist < b.dist end)
+		return list
+	end
 
-					if ReplicatedStorage then
-						for _, obj in ipairs(ReplicatedStorage:GetDescendants()) do
-							if obj:IsA("RemoteEvent") then
-								local n = string.lower(obj.Name)
-								if n == "slash" or n == "attack" or n == "hit" or n == "damagetitan" or n == "registernapehit" then
-									pcall(function()
-										obj:FireServer(titanEntry.nape, titanEntry.model)
-									end)
-								end
+	-- Multi-Target Attack: 1 slash or 1 spear hits 3-5 Titans simultaneously using real equipment damage
+	local function performAOTMultiAttack(primaryTarget)
+		if not primaryTarget or not primaryTarget.nape then return end
+		pcall(function()
+			local lp = Players and Players.LocalPlayer
+			local char = lp and lp.Character
+			local root = char and char:FindFirstChild("HumanoidRootPart")
+			local postRemote, getRemote = getAOTRemotes()
+
+			-- Gather target list
+			local targetEntries = { primaryTarget }
+			if AOTConfig.MultiTargetAttack then
+				local allTitans = getTitansList()
+				local maxT = math.clamp(AOTConfig.MaxTargets or 5, 1, 10)
+				local radius = AOTConfig.AttackRadius or 85
+				for _, t in ipairs(allTitans) do
+					if t ~= primaryTarget and t.nape and t.humanoid and t.humanoid.Health > 0 then
+						local dToPrimary = (t.nape.Position - primaryTarget.nape.Position).Magnitude
+						local dToPlayer = root and (t.nape.Position - root.Position).Magnitude or dToPrimary
+						if dToPrimary <= radius or dToPlayer <= radius then
+							table.insert(targetEntries, t)
+							if #targetEntries >= maxT then
+								break
 							end
 						end
 					end
+				end
+			end
 
-					if VirtualUser then
-						VirtualUser:CaptureController()
-						VirtualUser:Button1Down(Vector2.new(640, 360))
-						task.wait(0.02)
-						VirtualUser:Button1Up(Vector2.new(640, 360))
+			-- Line of sight check if Safe Legit Farm is enabled
+			if AOTConfig.SafeLegitDelay and root and primaryTarget.nape then
+				local params = RaycastParams.new()
+				params.FilterDescendantsInstances = { char, primaryTarget.model }
+				params.FilterType = Enum.RaycastFilterType.Exclude
+				local hit = Workspace:Raycast(root.Position, primaryTarget.nape.Position - root.Position, params)
+				if hit and hit.Instance and hit.Instance.CanCollide and hit.Instance.Transparency < 0.8 then
+					-- Blocked by terrain or thick wall; skip this tick to prevent server sanity flags
+					return
+				end
+			end
+
+			local cam = Workspace and Workspace.CurrentCamera
+			local vpSize = cam and cam.ViewportSize or Vector2.new(1280, 720)
+
+			local useSpears = (AOTConfig.WeaponMode == "Thunder Spears") or (AOTConfig.WeaponMode == "Auto")
+			local useBlades = (AOTConfig.WeaponMode == "Blades") or (AOTConfig.WeaponMode == "Auto")
+
+			-- Hitbox Extension for all targets
+			if AOTConfig.HitboxExtender then
+				local sz = AOTConfig.NapeHitboxSize
+				for _, entry in ipairs(targetEntries) do
+					if entry.nape and entry.nape:IsA("BasePart") then
+						entry.nape.Size = Vector3.new(sz, sz, sz)
+						entry.nape.CanCollide = false
+						entry.nape.Massless = true
 					end
+				end
+			end
+
+			-- 1. Thunder Spears AoE
+			if useSpears then
+				for _, entry in ipairs(targetEntries) do
+					if entry.nape then
+						if postRemote then
+							pcall(function() postRemote:FireServer("S_Equipment", "Spears", "Fire", entry.nape.Position) end)
+							pcall(function() postRemote:FireServer("Attacks", "Spears", entry.nape.Position) end)
+							pcall(function() postRemote:FireServer("S_Equipment", "Spear", entry.nape.Position) end)
+							pcall(function() postRemote:FireServer("Hitboxes", "Register", entry.nape) end)
+						end
+						if getRemote then
+							pcall(function() getRemote:InvokeServer("S_Equipment", "Spears", entry.nape) end)
+							pcall(function() getRemote:InvokeServer("Hitboxes", "Register", entry.nape) end)
+						end
+					end
+				end
+
+				if VirtualInputManager then
+					pcall(function()
+						VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.F, false, game)
+						task.wait(0.005)
+						VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.F, false, game)
+					end)
+				end
+				triggerActionButtons({"spear", "thương", "thuong", "thunder"})
+				if VirtualInputManager then
+					pcall(function()
+						VirtualInputManager:SendMouseButtonEvent(vpSize.X / 2, vpSize.Y / 2, 0, true, game, 1)
+						task.wait(0.005)
+						VirtualInputManager:SendMouseButtonEvent(vpSize.X / 2, vpSize.Y / 2, 0, false, game, 1)
+					end)
+				end
+			end
+
+			-- 2. Blade Slash AoE (1 slash hits all gathered targets with true equipment damage)
+			if useBlades then
+				if postRemote then
+					pcall(function() postRemote:FireServer("Attacks", "Slash", true) end)
+					pcall(function() postRemote:FireServer("Attacks", "Slash_Release") end)
+					pcall(function() postRemote:FireServer("Attacks", "M1") end)
+				end
+
+				for _, entry in ipairs(targetEntries) do
+					if entry.nape then
+						if postRemote then
+							pcall(function() postRemote:FireServer("Hitboxes", "Register", entry.nape) end)
+						end
+						if getRemote then
+							pcall(function() getRemote:InvokeServer("Hitboxes", "Register", entry.nape) end)
+						end
+					end
+				end
+
+				triggerActionButtons({"m1", "slash", "attack", "chém", "chem"})
+				if VirtualInputManager then
+					pcall(function()
+						VirtualInputManager:SendMouseButtonEvent(vpSize.X / 2, vpSize.Y / 2, 0, true, game, 1)
+						task.wait(0.01)
+						VirtualInputManager:SendMouseButtonEvent(vpSize.X / 2, vpSize.Y / 2, 0, false, game, 1)
+					end)
+				elseif VirtualUser then
+					pcall(function()
+						VirtualUser:CaptureController()
+						VirtualUser:ClickButton1(Vector2.new(vpSize.X / 2, vpSize.Y / 2))
+					end)
+				end
+			end
+		end)
+	end
+
+	local lastReloadTime = 0
+	local function performAOTReload()
+		if os.clock() - lastReloadTime < 1.8 then return end
+		lastReloadTime = os.clock()
+		pcall(function()
+			local postRemote, getRemote = getAOTRemotes()
+			if postRemote then
+				pcall(function() postRemote:FireServer("Attacks", "Reload") end)
+				pcall(function() postRemote:FireServer("S_Equipment", "Reload") end)
+				pcall(function() postRemote:FireServer("S_Equipment", "Refill") end)
+			end
+			if getRemote then
+				pcall(function() getRemote:InvokeServer("S_Equipment", "Reload") end)
+			end
+
+			triggerActionButtons({"nạp lại", "nap lai", "reload", "refill", "nạp"})
+
+			if VirtualInputManager then
+				pcall(function()
+					VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
+					task.wait(0.02)
+					VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
 				end)
 			end
 
-			-- 2. Vòng lặp Hitbox Extender, Godmode, Infinite Gas/Blades, Escape Grab, Hook Range, No Cooldown
-			task.spawn(function()
-				while not rayfieldDestroyed do
-					pcall(function()
-						local lp = Players and Players.LocalPlayer
-						local char = lp and lp.Character
-						local titans = getTitansList()
-
-						-- Mở rộng Nape Hitbox & Xóa Hitbox gây sát thương của Titan khi bật Godmode
-						for _, t in ipairs(titans) do
-							if AOTConfig.HitboxExtender and t.nape then
-								local sz = AOTConfig.NapeHitboxSize
-								t.nape.Size = Vector3.new(sz, sz, sz)
-								t.nape.CanCollide = false
-								t.nape.Transparency = AOTConfig.ShowNapeESP and 0.45 or 0.92
-								t.nape.Color = AOTConfig.ESPColor
-								t.nape.Material = Enum.Material.Neon
-							elseif t.nape and AOTConfig.ShowNapeESP then
-								t.nape.Transparency = 0.45
-								t.nape.Color = AOTConfig.ESPColor
-							end
-
-							if AOTConfig.Godmode then
-								local hb = t.model:FindFirstChild("Hitboxes")
-								if hb then
-									for _, sub in ipairs(hb:GetDescendants()) do
-										if sub:IsA("BasePart") and sub.Name ~= "Nape" and sub.Parent.Name ~= "Hit" then
-											sub.CanTouch = false
-										end
-									end
-								end
+			if AOTConfig.AutoRefillSupplies and Workspace then
+				local unclimbable = Workspace:FindFirstChild("Unclimbable")
+				local reloadsFolder = (unclimbable and unclimbable:FindFirstChild("Reloads")) or Workspace
+				for _, obj in ipairs(reloadsFolder:GetDescendants()) do
+					if obj:IsA("ProximityPrompt") then
+						local pText = string.lower(obj.Name .. " " .. obj.ActionText .. " " .. obj.ObjectText)
+						if string.find(pText, "gas", 1, true) or string.find(pText, "blade", 1, true) or string.find(pText, "refill", 1, true) or string.find(pText, "supply", 1, true) then
+							if fireproximityprompt then
+								pcall(function() fireproximityprompt(obj, 1) end)
 							end
 						end
+					end
+				end
+			end
+		end)
+	end
 
-						if char then
-							-- Auto Escape Grab
-							if AOTConfig.AutoEscapeGrab then
-								local grabbed = char:FindFirstChild("Grabbed") or char:GetAttribute("Grabbed")
-								if grabbed then
-									pcall(function()
-										if typeof(grabbed) == "Instance" and grabbed:IsA("BoolValue") then
-											grabbed.Value = false
-										end
-										char:SetAttribute("Grabbed", false)
-									end)
-									if ReplicatedStorage then
-										for _, r in ipairs(ReplicatedStorage:GetDescendants()) do
-											if r:IsA("RemoteEvent") and (string.find(string.lower(r.Name), "escape", 1, true) or string.find(string.lower(r.Name), "struggle", 1, true) or string.find(string.lower(r.Name), "grab", 1, true)) then
-												pcall(function() r:FireServer() end)
-											end
-										end
-									end
-								end
-							end
+	local function enableHoverLock(rootPart)
+		if not rootPart then return end
+		local bv = rootPart:FindFirstChild("HaiAnh_AntiGravity")
+		if not bv then
+			bv = Instance.new("BodyVelocity")
+			bv.Name = "HaiAnh_AntiGravity"
+			bv.Velocity = Vector3.zero
+			bv.MaxForce = Vector3.new(9e8, 9e8, 9e8)
+			bv.P = 12500
+			bv.Parent = rootPart
+		else
+			bv.Velocity = Vector3.zero
+		end
 
-							-- Infinite Gas & Blades Durability + No Cooldown + ODMG Hook Range
-							if AOTConfig.InfiniteGasBlades or AOTConfig.NoCooldown or AOTConfig.InfiniteHookRange then
-								for attrName, attrVal in pairs(char:GetAttributes()) do
-									local lower = string.lower(tostring(attrName))
-									if AOTConfig.InfiniteGasBlades and (string.find(lower, "gas", 1, true) or string.find(lower, "durability", 1, true) or string.find(lower, "blade", 1, true) or string.find(lower, "spear", 1, true)) and type(attrVal) == "number" then
-										local maxVal = char:GetAttribute("Max" .. attrName) or 100
-										if attrVal < maxVal then
-											pcall(function() char:SetAttribute(attrName, maxVal) end)
-										end
-									end
-									if AOTConfig.NoCooldown and string.find(lower, "cooldown", 1, true) then
-										pcall(function()
-											if type(attrVal) == "number" then char:SetAttribute(attrName, 0) end
-											if type(attrVal) == "boolean" then char:SetAttribute(attrName, false) end
-										end)
-									end
-									if AOTConfig.InfiniteHookRange and (string.find(lower, "range", 1, true) or string.find(lower, "hook", 1, true) or string.find(lower, "grapple", 1, true)) and type(attrVal) == "number" then
-										pcall(function() char:SetAttribute(attrName, 9999) end)
-									end
-								end
+		local bg = rootPart:FindFirstChild("HaiAnh_GyroLock")
+		if not bg then
+			bg = Instance.new("BodyGyro")
+			bg.Name = "HaiAnh_GyroLock"
+			bg.MaxTorque = Vector3.new(9e8, 9e8, 9e8)
+			bg.P = 15000
+			bg.D = 500
+			bg.Parent = rootPart
+		end
+		return bv, bg
+	end
 
-								for _, valObj in ipairs(char:GetDescendants()) do
-									if valObj:IsA("NumberValue") or valObj:IsA("IntValue") then
-										local lower = string.lower(valObj.Name)
-										if AOTConfig.InfiniteGasBlades and (string.find(lower, "gas", 1, true) or string.find(lower, "durability", 1, true) or string.find(lower, "blade", 1, true)) then
-											valObj.Value = math.max(valObj.Value, 100)
-										elseif AOTConfig.NoCooldown and string.find(lower, "cooldown", 1, true) then
-											valObj.Value = 0
-										elseif AOTConfig.InfiniteHookRange and (string.find(lower, "range", 1, true) or string.find(lower, "hook", 1, true)) then
-											valObj.Value = 9999
-										end
-									end
-								end
-							end
+	local function disableHoverLock()
+		pcall(function()
+			local lp = Players and Players.LocalPlayer
+			local char = lp and lp.Character
+			local root = char and char:FindFirstChild("HumanoidRootPart")
+			if root then
+				local bv = root:FindFirstChild("HaiAnh_AntiGravity")
+				local bg = root:FindFirstChild("HaiAnh_GyroLock")
+				if bv then bv:Destroy() end
+				if bg then bg:Destroy() end
+			end
+		end)
+	end
 
-							-- Auto Reload Blades & Thunder Spears từ xa
-							if AOTConfig.AutoReloadBladesSpears then
-								if Workspace then
-									for _, prompt in ipairs(Workspace:GetDescendants()) do
-										if prompt:IsA("ProximityPrompt") then
-											local pName = string.lower(prompt.Name .. " " .. prompt.ActionText .. " " .. prompt.ObjectText)
-											if string.find(pName, "reload", 1, true) or string.find(pName, "refill", 1, true) or string.find(pName, "supply", 1, true) or string.find(pName, "gas", 1, true) or string.find(pName, "blade", 1, true) or string.find(pName, "spear", 1, true) then
-												if type(fireproximityprompt) == "function" then
-													pcall(fireproximityprompt, prompt)
-												end
-											end
-										end
-									end
-								end
-								if ReplicatedStorage then
-									for _, r in ipairs(ReplicatedStorage:GetDescendants()) do
-										if r:IsA("RemoteEvent") then
-											local rn = string.lower(r.Name)
-											if string.find(rn, "refill", 1, true) or string.find(rn, "reload", 1, true) or string.find(rn, "resupply", 1, true) then
-												pcall(function() r:FireServer() end)
-											end
-										end
-									end
-								end
-							end
+	-- 1. Anti-Gravity Stepped Loop
+	local RunService = getService("RunService")
+	RunService.Stepped:Connect(function()
+		if not (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid) then
+			return
+		end
+		local lp = Players and Players.LocalPlayer
+		local char = lp and lp.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart")
+		local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+		if char and hum and hum.Health > 0 then
+			pcall(function()
+				hum:ChangeState(Enum.HumanoidStateType.Freefall)
+			end)
+			for _, part in ipairs(char:GetDescendants()) do
+				if part:IsA("BasePart") and part.CanCollide then
+					part.CanCollide = false
+				end
+			end
+			if root then
+				root.Velocity = Vector3.zero
+				root.RotVelocity = Vector3.zero
+				root.AssemblyLinearVelocity = Vector3.zero
+				root.AssemblyAngularVelocity = Vector3.zero
+			end
+		end
+	end)
+
+	-- 2. Heartbeat Farm Flight & Hover Loop
+	RunService.Heartbeat:Connect(function(dt)
+		if not (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid) then
+			return
+		end
+		pcall(function()
+			local lp = Players and Players.LocalPlayer
+			local char = lp and lp.Character
+			local root = char and char:FindFirstChild("HumanoidRootPart")
+			if not root then return end
+
+			local _, bg = enableHoverLock(root)
+
+			if not currentTargetTitan or not currentTargetTitan.nape or not currentTargetTitan.nape.Parent or (currentTargetTitan.humanoid and currentTargetTitan.humanoid.Health <= 0) then
+				local list = getTitansList()
+				currentTargetTitan = list[1]
+			end
+
+			if currentTargetTitan and currentTargetTitan.nape then
+				local napePos = currentTargetTitan.nape.Position
+				local hoverOffset = Vector3.new(0, AOTConfig.HoverHeight, 0)
+				if AOTConfig.FarmPosition == "Behind Nape" then
+					hoverOffset = (currentTargetTitan.nape.CFrame.LookVector * -9) + Vector3.new(0, AOTConfig.HoverHeight * 0.5, 0)
+				end
+
+				local goalPos = napePos + hoverOffset
+				local currentPos = root.Position
+				local diff = goalPos - currentPos
+				local flatDist = Vector3.new(diff.X, 0, diff.Z).Magnitude
+
+				local nextPos
+				if flatDist > 25 then
+					local step = math.min(flatDist, math.max(AOTConfig.FlightSpeed, 150) * dt)
+					local dir = Vector3.new(diff.X, 0, diff.Z).Unit
+					nextPos = Vector3.new(currentPos.X + dir.X * step, goalPos.Y, currentPos.Z + dir.Z * step)
+				else
+					nextPos = goalPos
+				end
+
+				local targetCF = CFrame.lookAt(nextPos, napePos)
+				root.CFrame = targetCF
+				if bg then
+					bg.CFrame = targetCF
+				end
+			end
+		end)
+	end)
+
+	-- 3. Combat Loop: Multi-Target Attack with Legit Jitter Cadence
+	task.spawn(function()
+		while not rayfieldDestroyed do
+			local delayTime = 0.05
+			if AOTConfig.SafeLegitDelay then
+				-- Jitter delay: 0.085s - 0.135s mimics human M1 tapping cadence
+				delayTime = math.random(85, 135) / 1000
+			end
+
+			pcall(function()
+				local titans = getTitansList()
+				currentTargetTitan = titans[1]
+
+				if AOTConfig.KillAura then
+					for _, t in ipairs(titans) do
+						if t.dist <= AOTConfig.KillAuraRange then
+							performAOTMultiAttack(t)
 						end
-					end)
-					task.wait(0.25)
+					end
+				end
+
+				if (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid) and currentTargetTitan then
+					if currentTargetTitan.dist <= (AOTConfig.HoverHeight + 55) then
+						performAOTMultiAttack(currentTargetTitan)
+					end
+				end
+
+				if AOTConfig.AutoReload and (AOTConfig.AutoFarmTitan or AOTConfig.AutoRaid or AOTConfig.KillAura) then
+					performAOTReload()
 				end
 			end)
+			task.wait(delayTime)
+		end
+	end)
 
-			-- 3. Vòng lặp Auto Farm Titan, Kill Aura, Titan Mastery Farm
-			local activeFarmTween = nil
-			task.spawn(function()
-				while not rayfieldDestroyed do
-					local waitDelay = AOTConfig.SafeFarm and (math.random(18, 38) / 100) or 0.08
-					pcall(function()
-						local lp = Players and Players.LocalPlayer
-						local char = lp and lp.Character
-						local root = char and char:FindFirstChild("HumanoidRootPart")
-						if not root then return end
+	-- 4. Buff Loop: Godmode, Auto Escape Grab, Gas Durability
+	task.spawn(function()
+		while not rayfieldDestroyed do
+			pcall(function()
+				local lp = Players and Players.LocalPlayer
+				local char = lp and lp.Character
+				local titans = getTitansList()
+				local postRemote = getAOTRemotes()
 
-						local titans = getTitansList()
-						if #titans == 0 then return end
+				for _, t in ipairs(titans) do
+					if t.nape and AOTConfig.HitboxExtender then
+						local sz = AOTConfig.NapeHitboxSize
+						t.nape.Size = Vector3.new(sz, sz, sz)
+						t.nape.CanCollide = false
+						t.nape.Massless = true
+					end
 
-						-- Kill Aura
-						if AOTConfig.KillAura then
-							for _, t in ipairs(titans) do
-								if t.dist <= AOTConfig.KillAuraRange then
-									slashTitanNape(t)
+					if AOTConfig.Godmode then
+						local hb = t.model:FindFirstChild("Hitboxes")
+						if hb then
+							for _, sub in ipairs(hb:GetDescendants()) do
+								if sub:IsA("BasePart") and sub.Name ~= "Nape" then
+									sub.CanTouch = false
+									sub.CanCollide = false
 								end
 							end
 						end
-
-						-- Auto Farm Titan (Bay đến phía sau gáy Nape và chém)
-						if AOTConfig.AutoFarmTitan or AOTConfig.TitanMasteryFarm then
-							local target = titans[1]
-							if target and target.nape then
-								local targetCFrame = target.nape.CFrame * CFrame.new(0, 4, 6)
-								local dist = (targetCFrame.Position - root.Position).Magnitude
-								root.Velocity = Vector3.zero
-
-								if AOTConfig.SafeFarm and dist > 20 then
-									local duration = math.clamp(dist / math.max(AOTConfig.FarmSpeed, 100), 0.08, 2.5)
-									if activeFarmTween then
-										pcall(function() activeFarmTween:Cancel() end)
-									end
-									activeFarmTween = TweenService:Create(root, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
-									activeFarmTween:Play()
-								else
-									root.CFrame = targetCFrame
-								end
-
-								if dist <= 65 then
-									slashTitanNape(target)
-								end
+						for _, part in ipairs(t.model:GetDescendants()) do
+							if part:IsA("BasePart") and (string.find(string.lower(part.Name), "steam", 1, true) or string.find(string.lower(part.Name), "burn", 1, true) or string.find(string.lower(part.Name), "damage", 1, true)) then
+								part.CanTouch = false
+								part.CanCollide = false
 							end
 						end
-
-						-- Titan Mastery Farm (Tự biến hình & dùng kỹ năng Shifter)
-						if AOTConfig.TitanMasteryFarm and ReplicatedStorage then
-							for _, r in ipairs(ReplicatedStorage:GetDescendants()) do
-								if r:IsA("RemoteEvent") then
-									local rn = string.lower(r.Name)
-									if string.find(rn, "shift", 1, true) or string.find(rn, "transform", 1, true) or string.find(rn, "skill", 1, true) then
-										pcall(function() r:FireServer() end)
-									end
-								end
-							end
-						end
-					end)
-					task.wait(waitDelay)
+					end
 				end
-			end)
 
-			-- 4. Vòng lặp Auto Open Chests, Auto Retry, Auto Raid, Auto Quest, Auto Spin
-			task.spawn(function()
-				while not rayfieldDestroyed do
-					pcall(function()
-						local lp = Players and Players.LocalPlayer
-						local pgui = lp and lp:FindFirstChildOfClass("PlayerGui")
-
-						-- Auto Quest / Select Story & Auto Raid
-						if (AOTConfig.AutoQuestStory or AOTConfig.AutoRaid) and ReplicatedStorage then
-							for _, r in ipairs(ReplicatedStorage:GetDescendants()) do
-								if r:IsA("RemoteEvent") or r:IsA("RemoteFunction") then
-									local rn = string.lower(r.Name)
-									if AOTConfig.AutoQuestStory and (string.find(rn, "mission", 1, true) or string.find(rn, "story", 1, true) or string.find(rn, "quest", 1, true) or string.find(rn, "start", 1, true)) then
-										pcall(function()
-											if r:IsA("RemoteEvent") then
-												r:FireServer(AOTConfig.SelectedStoryMap, AOTConfig.SelectedDifficulty)
-											else
-												r:InvokeServer(AOTConfig.SelectedStoryMap, AOTConfig.SelectedDifficulty)
-											end
-										end)
-									end
-									if AOTConfig.AutoRaid and (string.find(rn, "raid", 1, true) or string.find(rn, "queue", 1, true) or string.find(rn, "join", 1, true)) then
-										pcall(function()
-											if r:IsA("RemoteEvent") then
-												r:FireServer(AOTConfig.SelectedRaid)
-											else
-												r:InvokeServer(AOTConfig.SelectedRaid)
-											end
-										end)
-									end
-								end
-							end
+				if char then
+					if AOTConfig.Godmode then
+						local hum = char:FindFirstChildOfClass("Humanoid")
+						if hum and hum.Health > 0 and hum.Health < hum.MaxHealth then
+							pcall(function() hum.Health = hum.MaxHealth end)
 						end
-
-						-- Auto Open Chests
-						if AOTConfig.AutoOpenChests then
-							if Workspace then
-								for _, obj in ipairs(Workspace:GetDescendants()) do
-									if obj:IsA("ProximityPrompt") and string.find(string.lower(obj.Parent and obj.Parent.Name or obj.Name), "chest", 1, true) then
-										if type(fireproximityprompt) == "function" then
-											pcall(fireproximityprompt, obj)
-										end
-									end
-								end
-							end
-							if ReplicatedStorage then
-								for _, r in ipairs(ReplicatedStorage:GetDescendants()) do
-									if (r:IsA("RemoteEvent") or r:IsA("RemoteFunction")) and string.find(string.lower(r.Name), "chest", 1, true) then
-										pcall(function()
-											if r:IsA("RemoteEvent") then r:FireServer() else r:InvokeServer() end
-										end)
-									end
-								end
-							end
-						end
-
-						-- Auto Retry khi hiện bảng kết quả
-						if AOTConfig.AutoRetry and pgui then
-							for _, btn in ipairs(pgui:GetDescendants()) do
-								if (btn:IsA("TextButton") or btn:IsA("ImageButton")) and btn.Visible then
-									local txt = string.lower((btn:IsA("TextButton") and btn.Text or "") .. " " .. btn.Name)
-									if string.find(txt, "retry", 1, true) or string.find(txt, "play again", 1, true) or string.find(txt, "replay", 1, true) then
-										if type(firesignal) == "function" then
-											pcall(firesignal, btn.MouseButton1Click)
-										end
-										if AOTConfig.RewardsWebhook then
-											sendDiscordWebhook("Hoàn thành Phó Bản / Raid", "Đã tự động nhận thưởng và bấm Retry màn chơi tiếp theo.")
-										end
-									end
-								end
-							end
-							if ReplicatedStorage then
-								for _, r in ipairs(ReplicatedStorage:GetDescendants()) do
-									if r:IsA("RemoteEvent") and string.find(string.lower(r.Name), "retry", 1, true) then
-										pcall(function() r:FireServer() end)
-									end
-								end
-							end
-						end
-
-						-- Auto Spin / Auto Roll Gia Tộc (Dừng ngay khi trúng tộc mục tiêu)
-						if AOTConfig.AutoSpin then
-							local currentClan = ""
-							if lp then
-								currentClan = tostring(lp:GetAttribute("Family") or lp:GetAttribute("Clan") or "")
-								if currentClan == "" then
-									local famVal = lp:FindFirstChild("Family", true) or lp:FindFirstChild("Clan", true)
-									if famVal and famVal:IsA("StringValue") then
-										currentClan = famVal.Value
-									end
-								end
-							end
-
-							local matchedTarget = false
-							if currentClan ~= "" then
-								for _, target in ipairs(AOTConfig.TargetClans) do
-									local cleanTarget = string.lower(string.match(target, "^([%w]+)") or target)
-									if string.find(string.lower(currentClan), cleanTarget, 1, true) then
-										matchedTarget = true
-										break
-									end
-								end
-							end
-
-							if matchedTarget then
-								AOTConfig.AutoSpin = false
-								RayfieldLibrary:Notify({
-									Title = "Auto Spin Thành Công!",
-									Content = "Đã trúng gia tộc mục tiêu: " .. tostring(currentClan) .. "! Đã tự động dừng quay.",
-									Duration = 10,
-									Image = 4483362458,
-								})
-								if AOTConfig.RewardsWebhook then
-									sendDiscordWebhook("Trúng Gia Tộc Hiếm!", "Gia tộc nhận được: **" .. tostring(currentClan) .. "**")
-								end
-							elseif ReplicatedStorage then
-								for _, r in ipairs(ReplicatedStorage:GetDescendants()) do
-									local rn = string.lower(r.Name)
-									if (r:IsA("RemoteEvent") or r:IsA("RemoteFunction")) and (string.find(rn, "spin", 1, true) or string.find(rn, "roll", 1, true) or string.find(rn, "family", 1, true)) then
-										pcall(function()
-											if r:IsA("RemoteEvent") then r:FireServer() else r:InvokeServer() end
-										end)
-									end
-								end
-							end
-						end
-					end)
-					task.wait(1.2)
-				end
-			end)
-
-			-- 5. Vòng lặp Titan ESP (Highlight xuyên tường + Billboard tên, khoảng cách, máu)
-			local espObjects = {}
-			local function cleanupESP()
-				for model, items in pairs(espObjects) do
-					if not model or not model.Parent or not AOTConfig.TitanESP then
 						pcall(function()
-							if items.highlight then items.highlight:Destroy() end
-							if items.billboard then items.billboard:Destroy() end
+							char:SetAttribute("Invulnerable", true)
+							char:SetAttribute("IFrame", true)
+						end)
+					end
+					if AOTConfig.AutoEscapeGrab then
+						local grabbed = char:FindFirstChild("Grabbed") or char:GetAttribute("Grabbed")
+						if grabbed then
+							pcall(function()
+								if postRemote then
+									postRemote:FireServer("Attacks", "Grab_Escape")
+									postRemote:FireServer("S_Character", "Escape")
+								end
+								triggerActionButtons({"escape", "thoát", "thoat", "break"})
+							end)
+						end
+					end
+					if AOTConfig.InfiniteGasDurability then
+						pcall(function()
+							char:SetAttribute("Gas", 100)
+							char:SetAttribute("Blades", 100)
+							char:SetAttribute("MaxGas", 100)
+							char:SetAttribute("InfiniteGas", true)
+						end)
+					end
+				end
+			end)
+			task.wait(0.12)
+		end
+	end)
+
+	-- 5. Raid & Story Automation Loop
+	task.spawn(function()
+		while not rayfieldDestroyed do
+			pcall(function()
+				if AOTConfig.AutoRaid then
+					triggerActionButtons({"start", "bắt đầu", "bat dau", "ready", "sẵn sàng", "join", "tham gia"})
+					if AOTConfig.AutoOpenRaidChests then
+						triggerActionButtons({"claim", "nhận", "nhan", "open", "mở", "chest", "rương"})
+					end
+					if AOTConfig.AutoRetry then
+						triggerActionButtons({"retry", "chơi lại", "choi lai", "replay"})
+					end
+				end
+
+				if AOTConfig.AutoStoryMission then
+					triggerActionButtons({"start", "bắt đầu", "deploy", "ra trận", "ready"})
+					if AOTConfig.AutoNextMission then
+						triggerActionButtons({"next", "tiếp tục", "tiep tuc", "continue"})
+					end
+					if AOTConfig.AutoRetry then
+						triggerActionButtons({"retry", "chơi lại", "choi lai"})
+					end
+				end
+			end)
+			task.wait(1.5)
+		end
+	end)
+
+	-- 6. Gacha / Spin Automation Loop
+	task.spawn(function()
+		while not rayfieldDestroyed do
+			pcall(function()
+				local postRemote = getAOTRemotes()
+				local lp = Players and Players.LocalPlayer
+				if AOTConfig.AutoRollFamily and postRemote then
+					local currentClan = lp and (lp:GetAttribute("Family") or lp:GetAttribute("Clan"))
+					local matched = false
+					if currentClan then
+						for _, target in ipairs(AOTConfig.TargetClans) do
+							if string.lower(tostring(currentClan)) == string.lower(tostring(target)) then
+								matched = true
+								break
+							end
+						end
+					end
+					if matched then
+						AOTConfig.AutoRollFamily = false
+						RayfieldLibrary:Notify({
+							Title = "Gacha Success",
+							Content = "Rolled Target Family: " .. tostring(currentClan),
+							Duration = 7,
+						})
+					else
+						postRemote:FireServer("Slots", "Roll", "Family")
+					end
+				end
+
+				if AOTConfig.AutoRollPerks and postRemote then
+					postRemote:FireServer("Slots", "Roll", "Perks")
+				end
+			end)
+			task.wait(0.6)
+		end
+	end)
+
+	-- 7. Anti-AFK & Shadowban Monitor Loop
+	task.spawn(function()
+		while not rayfieldDestroyed do
+			pcall(function()
+				if AOTConfig.AntiAFK then
+					local vu = VirtualUser
+					if vu then
+						vu:CaptureController()
+						vu:ClickButton2(Vector2.new(50, 50))
+					end
+				end
+
+				if AOTConfig.AutoShadowbanCheck then
+					local lp = Players and Players.LocalPlayer
+					if lp then
+						for attrName, attrVal in pairs(lp:GetAttributes()) do
+							local lower = string.lower(tostring(attrName))
+							if (string.find(lower, "shadowban", 1, true) or string.find(lower, "ban", 1, true) or string.find(lower, "restrict", 1, true)) and attrVal == true then
+								-- Detected! Auto-abort farming
+								AOTConfig.AutoFarmTitan = false
+								AOTConfig.AutoRaid = false
+								disableHoverLock()
+								RayfieldLibrary:Notify({
+									Title = "Emergency Stop",
+									Content = "Shadowban detected! Auto Farm stopped to prevent ban.",
+									Duration = 10,
+								})
+								break
+							end
+						end
+					end
+				end
+			end)
+			task.wait(15)
+		end
+	end)
+
+	-- 8. Visuals / Titan ESP Loop
+	local function cleanupESP()
+		for _, esp in pairs(espObjects) do
+			pcall(function()
+				if esp.highlight then esp.highlight:Destroy() end
+				if esp.billboard then esp.billboard:Destroy() end
+			end)
+		end
+		espObjects = {}
+	end
+
+	task.spawn(function()
+		while not rayfieldDestroyed do
+			pcall(function()
+				if not AOTConfig.TitanESP then
+					cleanupESP()
+					return
+				end
+
+				local titans = getTitansList()
+				local seenTitans = {}
+
+				for _, t in ipairs(titans) do
+					if t.model and t.model.Parent and t.dist <= AOTConfig.ESPMaxDistance then
+						seenTitans[t.model] = true
+						local esp = espObjects[t.model]
+						if not esp then
+							esp = {}
+							espObjects[t.model] = esp
+
+							local hl = Instance.new("Highlight")
+							hl.Name = "TitanHighlight"
+							hl.Adornee = t.model
+							hl.FillColor = AOTConfig.ESPColor
+							hl.FillTransparency = 0.72
+							hl.OutlineColor = Color3.fromRGB(255, 255, 255)
+							hl.OutlineTransparency = 0.2
+							hl.Parent = t.model
+							esp.highlight = hl
+
+							local bb = Instance.new("BillboardGui")
+							bb.Name = "TitanInfo"
+							bb.Adornee = t.nape or t.model:FindFirstChild("Head") or t.model:FindFirstChild("HumanoidRootPart")
+							bb.Size = UDim2.new(0, 180, 0, 45)
+							bb.StudsOffset = Vector3.new(0, 5, 0)
+							bb.AlwaysOnTop = true
+
+							local lbl = Instance.new("TextLabel")
+							lbl.Size = UDim2.new(1, 0, 1, 0)
+							lbl.BackgroundTransparency = 1
+							lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+							lbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+							lbl.TextStrokeTransparency = 0.2
+							lbl.Font = Enum.Font.GothamBold
+							lbl.TextSize = 13
+							lbl.Parent = bb
+							esp.label = lbl
+							esp.billboard = bb
+							bb.Parent = t.model
+						end
+
+						if esp.highlight then
+							esp.highlight.FillColor = AOTConfig.ESPColor
+						end
+
+						if esp.label then
+							local hpText = "HP: 100%"
+							if t.humanoid then
+								local pct = math.clamp(math.floor((t.humanoid.Health / math.max(t.humanoid.MaxHealth, 1)) * 100), 0, 100)
+								hpText = "HP: " .. pct .. "%"
+							end
+							esp.label.Text = string.format("%s [%dm] | %s", t.cleanName, math.floor(t.dist), hpText)
+						end
+					end
+				end
+
+				for model, esp in pairs(espObjects) do
+					if not seenTitans[model] or not model.Parent then
+						pcall(function()
+							if esp.highlight then esp.highlight:Destroy() end
+							if esp.billboard then esp.billboard:Destroy() end
 						end)
 						espObjects[model] = nil
 					end
 				end
-			end
-
-			task.spawn(function()
-				while not rayfieldDestroyed do
-					pcall(function()
-						cleanupESP()
-						if not AOTConfig.TitanESP then return end
-
-						local titans = getTitansList()
-						for _, t in ipairs(titans) do
-							local data = espObjects[t.model]
-							if not data then
-								local hl = Instance.new("Highlight")
-								hl.Name = "AOTR_TitanHighlight"
-								hl.FillTransparency = 0.65
-								hl.OutlineTransparency = 0
-								hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-								hl.Adornee = t.model
-								hl.Parent = t.model
-
-								local bb = Instance.new("BillboardGui")
-								bb.Name = "AOTR_TitanESP"
-								bb.Size = UDim2.new(0, 180, 0, 50)
-								bb.StudsOffset = Vector3.new(0, 6, 0)
-								bb.AlwaysOnTop = true
-								bb.Adornee = t.nape
-								bb.Parent = t.nape
-
-								local lbl = Instance.new("TextLabel")
-								lbl.Size = UDim2.new(1, 0, 1, 0)
-								lbl.BackgroundTransparency = 1
-								lbl.Font = Enum.Font.GothamBold
-								lbl.TextSize = 13
-								lbl.TextStrokeTransparency = 0.2
-								lbl.Parent = bb
-
-								data = { highlight = hl, billboard = bb, label = lbl }
-								espObjects[t.model] = data
-							end
-
-							data.highlight.FillColor = AOTConfig.ESPColor
-							data.highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
-							data.label.TextColor3 = AOTConfig.ESPColor
-
-							local hpText = ""
-							if t.humanoid then
-								hpText = string.format(" | HP: %d/%d", math.floor(t.humanoid.Health), math.floor(t.humanoid.MaxHealth))
-							end
-							data.label.Text = string.format("%s [%dm]%s", tostring(t.model.Name), math.floor(t.dist), hpText)
-						end
-					end)
-					task.wait(0.35)
-				end
-				cleanupESP()
 			end)
+			task.wait(0.2)
 		end
+		cleanupESP()
+	end)
+end
 
-		-- ============================================================================
-		-- MENU 2: BLOX FRUITS
-		-- ============================================================================
-		local function loadBloxFruitsMenu()
-			local HubConfig = {
-				FastAttackMode = "Fast Attack",
-				SelectedWeapon = "Melee",
-				AutoLevel = true,
-				AutoCandy = false,
-				KillAura = false,
-			}
+-- ============================================================================
+-- MENU 2: BLOX FRUITS (HAIANH MENU EDITION)
+-- ============================================================================
+local function loadBloxFruitsMenu()
+	local HubConfig = {
+		SelectedWeapon = "Melee",
+		AttackSpeed = "Super Fast",
+		HoverHeight = 15,
+		FlightSpeed = 260,
+		BringMobs = true,
+		AutoBuso = true,
+		AutoLevel = false,
+		AutoNearestMob = false,
+		AutoBoss = false,
+		AutoCandy = false,
+		KillAura = false,
+		HitboxSize = 50,
+		AutoStatMelee = false,
+		AutoStatDefense = false,
+		AutoStatSword = false,
+		AutoStatFruit = false,
+		AntiAFK = true,
+	}
 
-			local Window = RayfieldLibrary:CreateWindow({
-				Name = "Blox Fruits | Universal Hub",
-				LoadingTitle = "Blox Fruits",
-				LoadingSubtitle = "Auto-Detected | PC & Mobile (Delta Ready)",
-				ConfigurationSaving = {
-					Enabled = true,
-					FolderName = "ScriptHubConfig",
-					FileName = "BloxFruitsHub"
-				},
-				KeySystem = false,
-			})
+	local Window = RayfieldLibrary:CreateWindow({
+		Name = "HaiAnh Menu | Blox Fruits",
+		LoadingTitle = "HaiAnh Menu",
+		LoadingSubtitle = "Blox Fruits",
+		ConfigurationSaving = {
+			Enabled = true,
+			FolderName = "HaiAnhMenuConfig",
+			FileName = "BloxFruits"
+		},
+		KeySystem = false,
+	})
 
-			createFloatingToggle()
+	createFloatingToggle()
 
+	-- TAB 1: Auto Farm
+	local FarmTab = Window:CreateTab("Auto Farm", 0)
+	FarmTab:CreateSection("Farm Settings")
+
+	FarmTab:CreateDropdown({
+		Name = "Select Weapon",
+		Options = {"Melee", "Sword", "Fruit"},
+		CurrentOption = {"Melee"},
+		MultipleOptions = false,
+		Flag = "BF_Weapon",
+		Callback = function(Option)
+			HubConfig.SelectedWeapon = type(Option) == "table" and Option[1] or Option
+		end,
+	})
+
+	FarmTab:CreateSlider({
+		Name = "Farm Distance",
+		Range = {5, 30},
+		Increment = 1,
+		Suffix = "Studs",
+		CurrentValue = 15,
+		Flag = "BF_FarmDist",
+		Callback = function(Value)
+			HubConfig.HoverHeight = Value
+		end,
+	})
+
+	FarmTab:CreateSlider({
+		Name = "Tween Speed",
+		Range = {150, 400},
+		Increment = 10,
+		Suffix = "Studs/s",
+		CurrentValue = 260,
+		Flag = "BF_FlightSpeed",
+		Callback = function(Value)
+			HubConfig.FlightSpeed = Value
+		end,
+	})
+
+	FarmTab:CreateToggle({
+		Name = "Bring Mobs",
+		CurrentValue = true,
+		Flag = "BF_BringMobs",
+		Callback = function(Value)
+			HubConfig.BringMobs = Value
+		end,
+	})
+
+	FarmTab:CreateToggle({
+		Name = "Auto Buso Haki",
+		CurrentValue = true,
+		Flag = "BF_AutoBuso",
+		Callback = function(Value)
+			HubConfig.AutoBuso = Value
+		end,
+	})
+
+	FarmTab:CreateSection("Level Farming")
+
+	FarmTab:CreateToggle({
+		Name = "Auto Farm Level",
+		CurrentValue = false,
+		Flag = "BF_AutoLevel",
+		Callback = function(Value)
+			HubConfig.AutoLevel = Value
+		end,
+	})
+
+	FarmTab:CreateToggle({
+		Name = "Auto Farm Nearest Mob",
+		CurrentValue = false,
+		Flag = "BF_AutoNearest",
+		Callback = function(Value)
+			HubConfig.AutoNearestMob = Value
+		end,
+	})
+
+	FarmTab:CreateToggle({
+		Name = "Auto Farm Bosses",
+		CurrentValue = false,
+		Flag = "BF_AutoBoss",
+		Callback = function(Value)
+			HubConfig.AutoBoss = Value
+		end,
+	})
+
+	-- TAB 2: Combat & Stats
+	local CombatTab = Window:CreateTab("Combat & Stats", 0)
+	CombatTab:CreateSection("Combat & Aura")
+
+	CombatTab:CreateToggle({
+		Name = "Fast Attack Kill Aura",
+		CurrentValue = false,
+		Flag = "BF_KillAura",
+		Callback = function(Value)
+			HubConfig.KillAura = Value
+		end,
+	})
+
+	CombatTab:CreateSlider({
+		Name = "Mob Hitbox Expander",
+		Range = {15, 100},
+		Increment = 5,
+		Suffix = "Studs",
+		CurrentValue = 50,
+		Flag = "BF_Hitbox",
+		Callback = function(Value)
+			HubConfig.HitboxSize = Value
+		end,
+	})
+
+	CombatTab:CreateSection("Auto Stats")
+
+	CombatTab:CreateToggle({
+		Name = "Auto Melee Stat",
+		CurrentValue = false,
+		Flag = "BF_StatMelee",
+		Callback = function(Value)
+			HubConfig.AutoStatMelee = Value
+		end,
+	})
+
+	CombatTab:CreateToggle({
+		Name = "Auto Defense Stat",
+		CurrentValue = false,
+		Flag = "BF_StatDefense",
+		Callback = function(Value)
+			HubConfig.AutoStatDefense = Value
+		end,
+	})
+
+	CombatTab:CreateToggle({
+		Name = "Auto Sword Stat",
+		CurrentValue = false,
+		Flag = "BF_StatSword",
+		Callback = function(Value)
+			HubConfig.AutoStatSword = Value
+		end,
+	})
+
+	CombatTab:CreateToggle({
+		Name = "Auto Demon Fruit Stat",
+		CurrentValue = false,
+		Flag = "BF_StatFruit",
+		Callback = function(Value)
+			HubConfig.AutoStatFruit = Value
+		end,
+	})
+
+	-- TAB 3: Misc & Anti-Ban
+	local MiscTab = Window:CreateTab("Misc & Anti-Ban", 0)
+	MiscTab:CreateSection("Account Protection")
+
+	MiscTab:CreateToggle({
+		Name = "Anti-Ban Remote Shield",
+		CurrentValue = true,
+		Flag = "BF_AntiBan",
+		Callback = function(Value)
+			AntiBanShield.Enabled = Value
+		end,
+	})
+
+	MiscTab:CreateToggle({
+		Name = "Anti AFK",
+		CurrentValue = true,
+		Flag = "BF_AntiAFK",
+		Callback = function(Value)
+			HubConfig.AntiAFK = Value
+		end,
+	})
+
+	MiscTab:CreateButton({
+		Name = "Check Shield Status",
+		Callback = function()
 			RayfieldLibrary:Notify({
-				Title = "Đã nhận diện Game",
-				Content = "Đang chạy menu: Blox Fruits (PC & Mobile)",
-				Duration = 6,
-				Image = 4483362458,
+				Title = "Anti-Ban Shield",
+				Content = "Active: Blocked " .. tostring(AntiBanShield.BlockedCount) .. " malicious remote calls",
+				Duration = 5,
 			})
+		end,
+	})
 
-			local MainTab = Window:CreateTab("Main", 4483362458)
-			MainTab:CreateSection("Farming")
+	-- BF Logic Loops
+	local function getBFEnemies()
+		local enemies = {}
+		local lp = Players and Players.LocalPlayer
+		local char = lp and lp.Character
+		local root = char and char:FindFirstChild("HumanoidRootPart")
+		local folder = Workspace:FindFirstChild("Enemies")
+		if folder then
+			for _, mob in ipairs(folder:GetChildren()) do
+				local hum = mob:FindFirstChildOfClass("Humanoid")
+				local hrp = mob:FindFirstChild("HumanoidRootPart")
+				if hum and hum.Health > 0 and hrp then
+					local dist = root and (hrp.Position - root.Position).Magnitude or 9999
+					table.insert(enemies, { model = mob, humanoid = hum, root = hrp, dist = dist })
+				end
+			end
+		end
+		table.sort(enemies, function(a, b) return a.dist < b.dist end)
+		return enemies
+	end
 
-			MainTab:CreateDropdown({
-				Name = "Select Fast Attack",
-				Options = {"Fast Attack", "Slow Attack"},
-				CurrentOption = {"Fast Attack"},
-				MultipleOptions = false,
-				Flag = "FastAttackFlag",
-				Callback = function(Option)
-					local picked = type(Option) == "table" and Option[1] or Option
-					HubConfig.FastAttackMode = picked or "Fast Attack"
-				end,
-			})
-
-			MainTab:CreateDropdown({
-				Name = "Weapon",
-				Options = {"Melee", "Sword", "Gun", "Blox Fruit"},
-				CurrentOption = {"Melee"},
-				MultipleOptions = false,
-				Flag = "WeaponFlag",
-				Callback = function(Option)
-					local picked = type(Option) == "table" and Option[1] or Option
-					HubConfig.SelectedWeapon = picked or "Melee"
-				end,
-			})
-
-			MainTab:CreateToggle({
-				Name = "Auto Level",
-				CurrentValue = true,
-				Flag = "AutoLevelFlag",
-				Callback = function(Value)
-					HubConfig.AutoLevel = Value
-				end,
-			})
-
-			MainTab:CreateToggle({
-				Name = "Auto Farm Candy ( Only Max Level )",
-				CurrentValue = false,
-				Flag = "AutoCandyFlag",
-				Callback = function(Value)
-					HubConfig.AutoCandy = Value
-				end,
-			})
-
-			MainTab:CreateToggle({
-				Name = "Kill Near | Mob Aura",
-				CurrentValue = false,
-				Flag = "KillAuraFlag",
-				Callback = function(Value)
-					HubConfig.KillAura = Value
-				end,
-			})
-
-			local function equipSelectedWeapon()
-				local lp = Players and Players.LocalPlayer
-				if not lp or not lp.Character or not lp:FindFirstChild("Backpack") then return end
-				local humanoid = lp.Character:FindFirstChildOfClass("Humanoid")
-				if not humanoid then return end
-
-				local targetTip = HubConfig.SelectedWeapon or "Melee"
-				for _, tool in ipairs(lp.Backpack:GetChildren()) do
-					if tool:IsA("Tool") and (tool.ToolTip == targetTip or string.find(string.lower(tool.Name), string.lower(targetTip), 1, true)) then
-						pcall(function() humanoid:EquipTool(tool) end)
-						return
+	local function equipBFWeapon()
+		pcall(function()
+			local lp = Players and Players.LocalPlayer
+			local char = lp and lp.Character
+			local bp = lp and lp:FindFirstChildOfClass("Backpack")
+			if not char or not bp then return end
+			local targetType = HubConfig.SelectedWeapon
+			for _, tool in ipairs(bp:GetChildren()) do
+				if tool:IsA("Tool") then
+					local tType = tool:GetAttribute("WeaponType") or tool.ToolTip or tool.Name
+					if string.find(string.lower(tType), string.lower(targetType), 1, true) then
+						char.Humanoid:EquipTool(tool)
+						break
 					end
 				end
 			end
+		end)
+	end
 
-			local function getNearbyEnemies(maxDist)
-				local lp = Players and Players.LocalPlayer
-				local char = lp and lp.Character
-				local root = char and char:FindFirstChild("HumanoidRootPart")
-				if not root then return {} end
+	local function performBFAttack(targets)
+		pcall(function()
+			local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+			local validator = remotes and remotes:FindFirstChild("Validator")
+			if validator then
+				validator:FireServer(math.floor(os.clock()))
+			end
 
-				local targets = {}
-				local enemiesFolder = Workspace and Workspace:FindFirstChild("Enemies")
-				if enemiesFolder then
-					for _, mob in ipairs(enemiesFolder:GetChildren()) do
-						local mobHum = mob:FindFirstChildOfClass("Humanoid")
-						local mobRoot = mob:FindFirstChild("HumanoidRootPart")
-						if mobHum and mobRoot and mobHum.Health > 0 then
-							local dist = (mobRoot.Position - root.Position).Magnitude
-							if dist <= (maxDist or 65) then
-								table.insert(targets, {model = mob, root = mobRoot, dist = dist})
-							end
+			local combatRemote = (ReplicatedStorage:FindFirstChild("Modules") and ReplicatedStorage.Modules:FindFirstChild("Net") and ReplicatedStorage.Modules.Net:FindFirstChild("RE/CombatRegister"))
+				or ReplicatedStorage:FindFirstChild("RE/CombatRegister", true)
+
+			if combatRemote then
+				combatRemote:FireServer(0.1)
+			end
+
+			if VirtualUser then
+				VirtualUser:CaptureController()
+				VirtualUser:ClickButton1(Vector2.new(640, 360))
+			end
+		end)
+	end
+
+	local function tweenBFFlight(targetPos)
+		pcall(function()
+			local lp = Players and Players.LocalPlayer
+			local char = lp and lp.Character
+			local root = char and char:FindFirstChild("HumanoidRootPart")
+			if not root then return end
+
+			local bv = root:FindFirstChild("HaiAnh_BFAntiGrav")
+			if not bv then
+				bv = Instance.new("BodyVelocity")
+				bv.Name = "HaiAnh_BFAntiGrav"
+				bv.Velocity = Vector3.zero
+				bv.MaxForce = Vector3.new(9e8, 9e8, 9e8)
+				bv.Parent = root
+			else
+				bv.Velocity = Vector3.zero
+			end
+
+			local currentPos = root.Position
+			local dist = (targetPos - currentPos).Magnitude
+			local speed = math.max(HubConfig.FlightSpeed, 150)
+			local step = math.min(dist, speed * 0.05)
+			if dist > 5 then
+				local dir = (targetPos - currentPos).Unit
+				root.CFrame = CFrame.new(currentPos + dir * step, targetPos)
+			else
+				root.CFrame = CFrame.new(targetPos)
+			end
+		end)
+	end
+
+	task.spawn(function()
+		while not rayfieldDestroyed do
+			pcall(function()
+				if HubConfig.AutoBuso then
+					local lp = Players and Players.LocalPlayer
+					local char = lp and lp.Character
+					local hasHaki = char and (char:FindFirstChild("HasBuso") or char:GetAttribute("HasBuso"))
+					if not hasHaki then
+						local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+						local commF = remotes and remotes:FindFirstChild("CommF_")
+						if commF then
+							commF:InvokeServer("Buso")
 						end
 					end
 				end
-				table.sort(targets, function(a, b) return a.dist < b.dist end)
-				return targets
-			end
 
-			local function performAttack()
-				local targets = getNearbyEnemies(65)
-				if #targets == 0 then return end
-
-				pcall(function()
-					local net = ReplicatedStorage and ReplicatedStorage:FindFirstChild("Modules")
-						and ReplicatedStorage.Modules:FindFirstChild("Net")
-					if net then
-						local regAttack = net:FindFirstChild("RE/RegisterAttack")
-						local regHit = net:FindFirstChild("RE/RegisterHit")
-						if regAttack and regHit then
-							local hitList = {}
-							for i = 1, #targets do
-								local head = targets[i].model:FindFirstChild("Head") or targets[i].root
-								table.insert(hitList, {targets[i].model, head})
-							end
-							regAttack:FireServer(0)
-							regHit:FireServer(targets[1].root, hitList)
-							return
+				if HubConfig.KillAura or HubConfig.AutoLevel or HubConfig.AutoNearestMob or HubConfig.AutoBoss then
+					local enemies = getBFEnemies()
+					if #enemies > 0 then
+						equipBFWeapon()
+						local target = enemies[1]
+						if HubConfig.AutoLevel or HubConfig.AutoNearestMob or HubConfig.AutoBoss then
+							local hoverPos = target.root.Position + Vector3.new(0, HubConfig.HoverHeight, 0)
+							tweenBFFlight(hoverPos)
 						end
-					end
 
-					if VirtualUser then
-						VirtualUser:CaptureController()
-						VirtualUser:Button1Down(Vector2.new(1280, 672))
-					end
-				end)
-			end
-
-			task.spawn(function()
-				while not rayfieldDestroyed do
-					local delayTime = HubConfig.FastAttackMode == "Fast Attack" and 0.08 or 0.25
-					if HubConfig.AutoLevel or HubConfig.AutoCandy or HubConfig.KillAura then
-						pcall(function()
-							equipSelectedWeapon()
-							local lp = Players and Players.LocalPlayer
-							local char = lp and lp.Character
-							local root = char and char:FindFirstChild("HumanoidRootPart")
-							local targets = getNearbyEnemies(HubConfig.KillAura and 80 or 350)
-							if root and #targets > 0 then
-								local primary = targets[1]
-								if (HubConfig.AutoLevel or HubConfig.AutoCandy) and primary.dist > 15 then
-									root.CFrame = primary.root.CFrame * CFrame.new(0, 12, 0)
-								end
-								for i = 1, #targets do
-									if targets[i].dist <= 65 then
-										pcall(function()
-											targets[i].root.CanCollide = false
-											targets[i].root.Size = Vector3.new(50, 50, 50)
-											if HubConfig.AutoLevel or HubConfig.AutoCandy then
-												targets[i].root.CFrame = primary.root.CFrame
-											end
-										end)
-									end
-								end
-								performAttack()
+						if HubConfig.BringMobs and #enemies > 1 then
+							for i = 2, math.min(#enemies, 6) do
+								pcall(function()
+									enemies[i].root.CFrame = target.root.CFrame
+									enemies[i].root.CanCollide = false
+								end)
 							end
-						end)
+						end
+
+						performBFAttack(enemies)
 					end
-					task.wait(delayTime)
 				end
 			end)
+			task.wait(0.04)
 		end
+	end)
 
-		-- ============================================================================
-		-- KHỞI CHẠY ĐÚNG MENU CỦA GAME ĐANG CHƠI (KHÔNG BẬT NHẦM)
-		-- ============================================================================
-		if detectedGame == "AOTR" then
-			loadAOTRMenu()
-		elseif detectedGame == "BLOX_FRUITS" then
-			loadBloxFruitsMenu()
-		else
-			-- Trường hợp vào sảnh chờ phụ chưa kịp tải map hoặc game khác:
-			-- Chờ thêm tối đa 3 giây để kiểm tra lại trước khi hỏi người dùng
-			task.wait(2)
-			detectedGame = detectCurrentGame()
-			if detectedGame == "AOTR" then
-				loadAOTRMenu()
-			elseif detectedGame == "BLOX_FRUITS" then
-				loadBloxFruitsMenu()
-			else
-				local SelectorWindow = RayfieldLibrary:CreateWindow({
-					Name = "Multi-Game Script Hub | Chọn Game",
-					LoadingTitle = "Multi-Game Hub",
-					LoadingSubtitle = "Không tự bật nhầm tính năng khi khác PlaceId",
-					ConfigurationSaving = { Enabled = false },
-					KeySystem = false,
-				})
-				createFloatingToggle()
-				local SelectTab = SelectorWindow:CreateTab("Chọn Game", 4483362458)
-				SelectTab:CreateSection("PlaceId hiện tại: " .. tostring(game.PlaceId))
-				SelectTab:CreateLabel("Không nhận diện được PlaceId tự động. Chọn đúng game bạn đang chơi bên dưới:")
-				SelectTab:CreateButton({
-					Name = "Mở Menu: Attack on Titan: Revolution",
-					Callback = function()
-						RayfieldLibrary:Destroy()
-						task.wait(0.2)
-						loadAOTRMenu()
-					end,
-				})
-				SelectTab:CreateButton({
-					Name = "Mở Menu: Blox Fruits",
-					Callback = function()
-						RayfieldLibrary:Destroy()
-						task.wait(0.2)
-						loadBloxFruitsMenu()
-					end,
-				})
-			end
+	task.spawn(function()
+		while not rayfieldDestroyed do
+			pcall(function()
+				if HubConfig.HitboxSize > 15 then
+					local enemies = getBFEnemies()
+					for _, mob in ipairs(enemies) do
+						mob.root.Size = Vector3.new(HubConfig.HitboxSize, HubConfig.HitboxSize, HubConfig.HitboxSize)
+						mob.root.Transparency = 0.85
+						mob.root.CanCollide = false
+					end
+				end
+
+				if HubConfig.AntiAFK and VirtualUser then
+					VirtualUser:CaptureController()
+					VirtualUser:ClickButton2(Vector2.new(50, 50))
+				end
+			end)
+			task.wait(1)
 		end
+	end)
+end
+
+-- ============================================================================
+-- MENU 3: UNIVERSAL FALLBACK
+-- ============================================================================
+local function loadUniversalMenu()
+	local Window = RayfieldLibrary:CreateWindow({
+		Name = "HaiAnh Menu | Universal",
+		LoadingTitle = "HaiAnh Menu",
+		LoadingSubtitle = "Universal Hub",
+		ConfigurationSaving = {
+			Enabled = true,
+			FolderName = "HaiAnhMenuConfig",
+			FileName = "Universal"
+		},
+		KeySystem = false,
+	})
+
+	createFloatingToggle()
+
+	local MainTab = Window:CreateTab("Main", 0)
+	MainTab:CreateSection("Universal Protection")
+
+	MainTab:CreateToggle({
+		Name = "Anti-Ban Remote Shield",
+		CurrentValue = true,
+		Flag = "Uni_AntiBan",
+		Callback = function(Value)
+			AntiBanShield.Enabled = Value
+		end,
+	})
+
+	MainTab:CreateToggle({
+		Name = "Anti AFK",
+		CurrentValue = true,
+		Flag = "Uni_AntiAFK",
+		Callback = function(Value)
+			if Value and VirtualUser then
+				VirtualUser:CaptureController()
+				VirtualUser:ClickButton2(Vector2.new(50, 50))
+			end
+		end,
+	})
+end
+
+-- ============================================================================
+-- AUTO EXECUTION ROUTER
+-- ============================================================================
+local detectedGame = detectCurrentGame()
+if detectedGame == "AOTR" then
+	loadAOTRMenu()
+elseif detectedGame == "BLOX_FRUITS" then
+	loadBloxFruitsMenu()
+else
+	loadUniversalMenu()
+end
+
 	end)
 end
 
