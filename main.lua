@@ -5670,7 +5670,7 @@ if not libraryOnly then
 				WeaponMode = "Auto",
 				FarmPosition = "High Sky (Anti-Grab)",
 				TargetPriority = "Closest", -- "Closest", "Bosses First", "Crawlers & Abnormals", "Lowest HP"
-				BehindNapeDistance = 2.0,
+				BehindNapeDistance = 6.0,
 				HoverHeight = 28.0,
 				FlightSpeed = 280,
 				InstantTeleport = false,
@@ -5682,7 +5682,7 @@ if not libraryOnly then
 				TitanSkillsBurst = false,
 				AutoReloadWhenBroken = true,
 				ReloadAfterTitanKill = true,
-				SlashesBeforeReload = 10,
+				SlashesBeforeReload = 6,
 				AutoRefillSupplies = true,
 				InfiniteGasDurability = false,
 
@@ -5697,6 +5697,7 @@ if not libraryOnly then
 				KillAura = false,
 				KillAuraRange = 120,
 				HitboxExtender = true,
+				BringNapeToWeapon = true,
 				NapeHitboxSize = 80,
 				Godmode = false,
 				AutoEscapeGrab = true,
@@ -5801,10 +5802,10 @@ if not libraryOnly then
 
 			FarmTab:CreateSlider({
 				Name = "Behind Nape Distance",
-				Range = { 0, 15 },
+				Range = { 1, 15 },
 				Increment = 0.5,
 				Suffix = "Studs",
-				CurrentValue = 1.0,
+				CurrentValue = 6.0,
 				Flag = "AOT_BehindNapeDistance",
 				Callback = function(Value)
 					AOTConfig.BehindNapeDistance = Value
@@ -6579,10 +6580,10 @@ if not libraryOnly then
 			local lastRefillTime = 0
 			refillSuppliesAtStation = function()
 				local now = os.clock()
-				if now - lastRefillTime < 1.2 then return end
+				if now - lastRefillTime < 1.0 then return end
 				lastRefillTime = now
 				pcall(function()
-					local postRemote = getAOTRemotes()
+					local postRemote, getRemote = getAOTRemotes()
 					if postRemote then
 						pcall(function() postRemote:FireServer("S_Equipment", "Refill") end)
 						pcall(function() postRemote:FireServer("Equipment", "Refill") end)
@@ -6590,36 +6591,21 @@ if not libraryOnly then
 						pcall(function() postRemote:FireServer("Attacks", "Refill") end)
 					end
 
-					local lp = Players and Players.LocalPlayer
-					local char = lp and lp.Character
-					local root = char and char:FindFirstChild("HumanoidRootPart")
-
-					local nearestPrompt = nil
-					local nearestDist = 99999
-					local nearestPos = nil
-
-					if fireproximityprompt and Workspace then
-						for _, obj in ipairs(Workspace:GetDescendants()) do
-							if obj:IsA("ProximityPrompt") and obj.Enabled then
-								local text = string.lower(obj.Name .. " " .. obj.ActionText .. " " .. obj.ObjectText)
-								if string.find(text, "refill", 1, true) or string.find(text, "gas", 1, true) or string.find(text, "blade", 1, true) or string.find(text, "supply", 1, true) or string.find(text, "horse", 1, true) or string.find(text, "chest", 1, true) then
-									local parentPart = obj.Parent
-									local pos = parentPart and
-										(parentPart:IsA("BasePart") and parentPart.Position or (parentPart:IsA("Model") and parentPart:GetPivot().Position))
-									local d = (root and pos) and (pos - root.Position).Magnitude or 100
-									if d < nearestDist then
-										nearestDist = d
-										nearestPrompt = obj
-										nearestPos = pos
+					if Workspace then
+						local unclimbable = Workspace:FindFirstChild("Unclimbable")
+						local reloadsFolder = (unclimbable and unclimbable:FindFirstChild("Reloads")) or Workspace
+						for _, obj in ipairs(reloadsFolder:GetDescendants()) do
+							if obj:IsA("ProximityPrompt") then
+								local pText = string.lower(obj.Name .. " " .. obj.ActionText .. " " .. obj.ObjectText)
+								if reloadsFolder ~= Workspace or string.find(pText, "reload", 1, true) or string.find(pText, "refill", 1, true) or string.find(pText, "supply", 1, true) or string.find(pText, "gas", 1, true) or string.find(pText, "blade", 1, true) or string.find(pText, "horse", 1, true) or string.find(pText, "chest", 1, true) then
+									if type(fireproximityprompt) == "function" then
+										pcall(fireproximityprompt, obj, 0)
+										pcall(fireproximityprompt, obj)
 									end
-									pcall(function() fireproximityprompt(obj, 0) end)
-									pcall(function() fireproximityprompt(obj) end)
 								end
 							end
 						end
 					end
-
-
 
 					farmStats.bladesReloaded = farmStats.bladesReloaded + 1
 				end)
@@ -6923,19 +6909,24 @@ if not libraryOnly then
 					return true
 				end
 				local dur = char:GetAttribute("Durability") or char:GetAttribute("BladeDurability")
-				if dur ~= nil and type(dur) == "number" and dur <= 15 then
+				if dur ~= nil and type(dur) == "number" and dur <= 20 then
 					return true
 				end
 				local tool = char:FindFirstChildOfClass("Tool")
 				if tool then
 					local tDur = tool:GetAttribute("Durability") or tool:GetAttribute("Dur")
-					if tDur ~= nil and type(tDur) == "number" and tDur <= 15 then
+					if tDur ~= nil and type(tDur) == "number" and tDur <= 20 then
 						return true
 					end
 				end
 
-				-- 2. Tự động nạp kiếm định kỳ theo số nhát chém thực tế (mặc định 10 nhát)
-				if consecutiveSlashes >= (AOTConfig.SlashesBeforeReload or 10) then
+				-- 2. Tự động nạp kiếm định kỳ theo số nhát chém thực tế (mặc định 6 nhát)
+				if consecutiveSlashes >= (AOTConfig.SlashesBeforeReload or 6) then
+					return true
+				end
+
+				-- 3. Nút GUI mobile "Nạp lại" đang hiển thị
+				if cachedGuiState.reload and cachedGuiState.reload.Parent and cachedGuiState.reload.Visible then
 					return true
 				end
 
@@ -6963,6 +6954,7 @@ if not libraryOnly then
 						pcall(function() postRemote:FireServer("S_Equipment", "Reload") end)
 						pcall(function() postRemote:FireServer("Equipment", "Reload") end)
 						pcall(function() postRemote:FireServer("Character", "Reload") end)
+						pcall(function() postRemote:FireServer("S_Equipment", "Refill") end)
 					end
 					if getRemote then
 						task.spawn(function()
@@ -6972,7 +6964,7 @@ if not libraryOnly then
 					end
 
 					-- 2. Kích hoạt nút GUI "Nạp lại" trên màn hình Mobile
-					triggerActionButtons({ "nạp lại", "nap lai", "reload" })
+					triggerActionButtons({ "nạp lại", "nap lai", "reload", "refill" })
 					if cachedGuiState.reload and cachedGuiState.reload.Parent then
 						clickGuiButtonFast(cachedGuiState.reload)
 					end
@@ -6986,10 +6978,21 @@ if not libraryOnly then
 						end)
 					end
 
-					-- Chỉ tiếp tế tại trạm khi hộp kiếm dự phòng THỰC SỰ hết sạch (0 spare blades)
-					local bladesReserve = char and (char:GetAttribute("Blades") or char:GetAttribute("SpareBlades"))
-					if AOTConfig.AutoRefillSupplies and bladesReserve ~= nil and type(bladesReserve) == "number" and bladesReserve <= 0 then
-						refillSuppliesAtStation()
+					-- 4. Kích hoạt trạm tiếp tế nếu có trạm gần đó
+					if AOTConfig.AutoRefillSupplies and Workspace then
+						local unclimbable = Workspace:FindFirstChild("Unclimbable")
+						local reloadsFolder = (unclimbable and unclimbable:FindFirstChild("Reloads")) or Workspace
+						for _, obj in ipairs(reloadsFolder:GetDescendants()) do
+							if obj:IsA("ProximityPrompt") then
+								local pText = string.lower(obj.Name .. " " .. obj.ActionText .. " " .. obj.ObjectText)
+								if reloadsFolder ~= Workspace or string.find(pText, "reload", 1, true) or string.find(pText, "refill", 1, true) or string.find(pText, "supply", 1, true) or string.find(pText, "gas", 1, true) or string.find(pText, "blade", 1, true) or string.find(pText, "horse", 1, true) or string.find(pText, "chest", 1, true) then
+									if type(fireproximityprompt) == "function" then
+										pcall(fireproximityprompt, obj, 0)
+										pcall(fireproximityprompt, obj)
+									end
+								end
+							end
+						end
 					end
 				end)
 			end
@@ -7142,14 +7145,30 @@ if not libraryOnly then
 					local useSpears = (AOTConfig.WeaponMode == "Thunder Spears") or (AOTConfig.WeaponMode == "Auto")
 					local useBlades = (AOTConfig.WeaponMode == "Blades") or (AOTConfig.WeaponMode == "Auto")
 
-					-- 1. Bắn thương sấm sét (Thunder Spears)
+					-- 1. Mở rộng hitbox gáy & Kéo gáy vào tầm chém vũ khí (Cơ chế Violet Hub: chém phát ăn ngay)
+					if nape:IsA("BasePart") then
+						local sz = AOTConfig.NapeHitboxSize or 80
+						nape.CanTouch = true
+						nape.CanCollide = false
+						nape.CanQuery = true
+						nape.Massless = true
+						if AOTConfig.HitboxExtender then
+							nape.Size = Vector3.new(sz, sz, sz)
+						end
+
+						if root and (AOTConfig.BringNapeToWeapon or AOTConfig.AutoFarmTitan or AOTConfig.AutoRaid or AOTConfig.KillAura) then
+							nape.CFrame = root.CFrame * CFrame.new(0, -1.5, -3.5)
+						end
+					end
+
+					-- 2. Bắn thương sấm sét (Thunder Spears)
 					if useSpears and postRemote then
 						pcall(function() postRemote:FireServer("S_Equipment", "Spears", "Fire", nape.Position) end)
 						pcall(function() postRemote:FireServer("S_Equipment", "Spears", nape.CFrame) end)
 						pcall(function() postRemote:FireServer("Attacks", "Spears", nape.Position) end)
 					end
 
-					-- 2. Gửi RemoteEvent chém kiếm (POST)
+					-- 3. Gửi RemoteEvent chém kiếm (POST)
 					if postRemote then
 						if useBlades then
 							pcall(function() postRemote:FireServer("Attacks", "Slash", true) end)
@@ -7159,7 +7178,7 @@ if not libraryOnly then
 						end
 					end
 
-					-- 3. Gửi RemoteFunction chém kiếm chí mạng (GET) - CƠ CHẾ CHÉM PHÁT ĂN NGAY CỦA VIOLET HUB
+					-- 4. Gửi RemoteFunction chém kiếm chí mạng (GET) - CƠ CHẾ CHÉM PHÁT ĂN NGAY CỦA VIOLET HUB
 					if getRemote then
 						task.spawn(function()
 							pcall(function() getRemote:InvokeServer("Hitboxes", "Register", nape, math.random(460, 500), 100) end)
@@ -7169,7 +7188,7 @@ if not libraryOnly then
 						end)
 					end
 
-					-- 4. Kích hoạt đòn đánh M1 Mobile & Tool
+					-- 5. Kích hoạt đòn đánh M1 Mobile & Tool
 					triggerMobileM1Attack()
 					activateEquippedTool()
 
@@ -7255,36 +7274,35 @@ if not libraryOnly then
 
 					if currentTargetTitan and currentTargetTitan.nape and currentTargetTitan.nape.Parent then
 						local napePos = currentTargetTitan.nape.Position
-						-- Luôn giữ nguyên độ cao tuyệt đối trên mây (28 studs), không bao giờ hạ thấp
-						local hoverOffset = Vector3.new(0, AOTConfig.HoverHeight or 28.0, 0)
-						if AOTConfig.FarmPosition == "Behind Nape" then
-							local titanCF = currentTargetTitan.model:GetPivot()
-							hoverOffset = (titanCF.LookVector * -(AOTConfig.BehindNapeDistance or 2.0)) + Vector3.new(0, AOTConfig.HoverHeight or 28.0, 0)
-						end
+						local titanCF = currentTargetTitan.model:GetPivot()
+						local hoverHeight = math.max(AOTConfig.HoverHeight or 28.0, 26.0)
+						local behindDist = math.max(AOTConfig.BehindNapeDistance or 6.0, 4.0)
 
-						local goalPos = napePos + hoverOffset
+						-- Cố định vị trí trên cao an toàn tuyệt đối và lùi sau lưng Titan (không bao giờ rơi xuống đầu)
+						local behindOffset = -titanCF.LookVector * behindDist
+						local hoverOffset = Vector3.new(0, hoverHeight, 0)
+						local goalPos = napePos + behindOffset + hoverOffset
+
 						local currentPos = root.Position
 						local diff = goalPos - currentPos
-						local flatDist = Vector3.new(diff.X, 0, diff.Z).Magnitude
+						local dist = diff.Magnitude
+						local speed = math.max(AOTConfig.FlightSpeed or 280, 160)
+						local step = speed * dt
 
 						local nextPos
-						if flatDist > 25 then
-							local speed = math.max(AOTConfig.FlightSpeed or 280, 160)
-							local step = math.min(flatDist, speed * dt)
-							local dir = Vector3.new(diff.X, 0, diff.Z).Unit
-							-- Luôn giữ cao độ trên không trung, không hạ thấp xuống đất khi bay xa
-							nextPos = Vector3.new(currentPos.X + dir.X * step, math.max(currentPos.Y, goalPos.Y), currentPos.Z + dir.Z * step)
-						else
+						if dist <= step or dist < 0.5 then
 							nextPos = goalPos
+						else
+							nextPos = currentPos + (diff / dist) * step
 						end
 
-						local targetCF = CFrame.lookAt(nextPos, Vector3.new(napePos.X, nextPos.Y - 2, napePos.Z))
+						local targetCF = CFrame.lookAt(nextPos, napePos)
 						root.CFrame = targetCF
 					end
 				end)
 			end)
 
-			-- 3. Dedicated Hitbox Extender Engine & Anti-Grab Shield: Mở rộng hitbox gáy lên trời để chém từ trên cao trúng 100%
+			-- 3. Dedicated Hitbox Extender Engine: Mở rộng hitbox gáy & Bảo vệ an toàn
 			RunService.Heartbeat:Connect(function()
 				if not (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid or AOTConfig.HitboxExtender) then return end
 				local sz = AOTConfig.NapeHitboxSize or 80
@@ -7320,12 +7338,16 @@ if not libraryOnly then
 									end
 								end
 
-								-- TRIỆT TIÊU 100% HITBOX THÂN, TAY, CHÂN, ĐẦU, BẮT (Anti-Body Hit & Anti-Grab)
-								for _, part in ipairs(titan:GetDescendants()) do
-									if part:IsA("BasePart") and part ~= nape and part.Name ~= "HumanoidRootPart" then
-										part.CanTouch = false
-										part.CanCollide = false
-										part.CanQuery = false
+								-- Chỉ khi bật Godmode mới triệt tiêu va chạm gây sát thương từ các part khác trong Hitboxes
+								if AOTConfig.Godmode then
+									local hb = titan:FindFirstChild("Hitboxes")
+									if hb then
+										for _, sub in ipairs(hb:GetDescendants()) do
+											if sub:IsA("BasePart") and string.lower(sub.Name) ~= "nape" and sub ~= nape then
+												sub.CanTouch = false
+												sub.CanCollide = false
+											end
+										end
 									end
 								end
 							end
@@ -7368,6 +7390,67 @@ if not libraryOnly then
 						end
 					end)
 					task.wait(delayTime)
+				end
+			end)
+
+			-- 5. Dedicated Refill Station Engine: Tự động tiếp tế kiếm & gas khi đứng gần trạm tiếp tế (ở chỗ nạp)
+			task.spawn(function()
+				while not rayfieldDestroyed do
+					pcall(function()
+						if AOTConfig.AutoRefillSupplies then
+							local lp = Players and Players.LocalPlayer
+							local char = lp and lp.Character
+							local root = char and char:FindFirstChild("HumanoidRootPart")
+							if root and Workspace then
+								local unclimbable = Workspace:FindFirstChild("Unclimbable")
+								local reloadsFolder = (unclimbable and unclimbable:FindFirstChild("Reloads"))
+								local searchTargets = reloadsFolder and reloadsFolder:GetDescendants() or nil
+
+								if searchTargets then
+									for _, obj in ipairs(searchTargets) do
+										if obj:IsA("ProximityPrompt") then
+											local parentPart = obj.Parent
+											local pos = parentPart and (parentPart:IsA("BasePart") and parentPart.Position or (parentPart:IsA("Model") and parentPart:GetPivot().Position))
+											local d = pos and (pos - root.Position).Magnitude or 999
+											if d <= 35 then
+												if type(fireproximityprompt) == "function" then
+													pcall(fireproximityprompt, obj, 0)
+													pcall(fireproximityprompt, obj)
+												end
+												local postRemote = getAOTRemotes()
+												if postRemote then
+													pcall(function() postRemote:FireServer("S_Equipment", "Refill") end)
+													pcall(function() postRemote:FireServer("Equipment", "Refill") end)
+												end
+											end
+										end
+									end
+								end
+
+								for _, obj in ipairs(Workspace:GetDescendants()) do
+									if obj:IsA("ProximityPrompt") then
+										local parentPart = obj.Parent
+										local pos = parentPart and (parentPart:IsA("BasePart") and parentPart.Position or (parentPart:IsA("Model") and parentPart:GetPivot().Position))
+										if pos and (pos - root.Position).Magnitude <= 35 then
+											local pText = string.lower(obj.Name .. " " .. obj.ActionText .. " " .. obj.ObjectText)
+											if string.find(pText, "reload", 1, true) or string.find(pText, "refill", 1, true) or string.find(pText, "supply", 1, true) or string.find(pText, "gas", 1, true) or string.find(pText, "blade", 1, true) or string.find(pText, "horse", 1, true) or string.find(pText, "chest", 1, true) then
+												if type(fireproximityprompt) == "function" then
+													pcall(fireproximityprompt, obj, 0)
+													pcall(fireproximityprompt, obj)
+												end
+												local postRemote = getAOTRemotes()
+												if postRemote then
+													pcall(function() postRemote:FireServer("S_Equipment", "Refill") end)
+													pcall(function() postRemote:FireServer("Equipment", "Refill") end)
+												end
+											end
+										end
+									end
+								end
+							end
+						end
+					end)
+					task.wait(0.5)
 				end
 			end)
 
