@@ -6493,89 +6493,388 @@ if not libraryOnly then
 				end
 			end)
 
-			-- 4. Target Acquisition (getClosestValidNape)
-			local function getClosestValidNape()
-				local char = LocalPlayer and LocalPlayer.Character
-				local hrp = char and char:FindFirstChild("HumanoidRootPart")
-				if not hrp then return nil, nil end
-				local hrpPos = hrp.Position
+						-- ========================================================================
+			-- AOT:R CORE COMBAT, TARGETING & UTILITY ENGINE (VIP ROBUST EDITION)
+			-- ========================================================================
+			local deadTitanCache = setmetatable({}, { __mode = "k" })
+			local napeCache = setmetatable({}, { __mode = "k" })
+			local consecutiveSlashes = 0
+			local lastBladeSlashTime = 0
+			local lastReloadTime = 0
+			local lastRefillTime = 0
+			local lastMasteryTime = 0
 
-				local titansFolder = Workspace:FindFirstChild("Titans")
-				if not titansFolder then return nil, nil end
+			-- Remote detection helper
+			local function getAOTRemotes()
+				local assets = ReplicatedStorage:FindFirstChild("Assets")
+				local remotes = (assets and assets:FindFirstChild("Remotes"))
+					or ReplicatedStorage:FindFirstChild("Remotes")
+					or ReplicatedStorage:FindFirstChild("Remotes", true)
+				local post = (remotes and remotes:FindFirstChild("POST"))
+					or ReplicatedStorage:FindFirstChild("POST", true)
+				local get = (remotes and remotes:FindFirstChild("GET"))
+					or ReplicatedStorage:FindFirstChild("GET", true)
+				return post, get
+			end
 
-				local closestTitan = nil
-				local closestDist = math.huge
-				local targetNape = nil
+			-- Mobile Touch / GUI Detection Helper
+			local cachedGuiState = {
+				m1 = nil,
+				reload = nil,
+				lastScan = 0
+			}
 
-				for _, titan in ipairs(titansFolder:GetChildren()) do
-					pcall(function()
-						local hum = titan:FindFirstChildOfClass("Humanoid")
-						local nape = (titan:FindFirstChild("Hitboxes") and titan.Hitboxes:FindFirstChild("Nape")) 
-									or titan:FindFirstChild("Nape") 
-									or titan:FindFirstChild("Head")
+			local function refreshCachedGuiElements(force)
+				local now = os.clock()
+				if not force and (now - cachedGuiState.lastScan < 3.0) and cachedGuiState.m1 and cachedGuiState.m1.Parent then
+					return
+				end
+				cachedGuiState.lastScan = now
+				local pgui = LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui")
+				if not pgui then return end
 
-						local isDead = (hum and hum.Health <= 0) 
-									or titan:GetAttribute("Dead") == true 
-									or titan:GetAttribute("Defeated") == true
-
-						if nape and not isDead then
-							local dist = (hrpPos - nape.Position).Magnitude
-							if dist < closestDist then
-								closestDist = dist
-								closestTitan = titan
-								targetNape = nape
+				for _, obj in ipairs(pgui:GetDescendants()) do
+					if (obj:IsA("TextButton") or obj:IsA("ImageButton")) and obj.Visible then
+						local name = string.lower(obj.Name)
+						local text = obj:IsA("TextButton") and string.lower(obj.Text) or ""
+						local childLabel = obj:FindFirstChildWhichIsA("TextLabel", true)
+						if childLabel and childLabel.Text ~= "" then
+							text = text .. " " .. string.lower(childLabel.Text)
+						end
+						local combined = name .. " " .. text
+						if string.find(combined, "m1", 1, true) or string.find(combined, "slash", 1, true) or string.find(combined, "attack", 1, true) then
+							if not cachedGuiState.m1 or not cachedGuiState.m1.Parent then
+								cachedGuiState.m1 = obj
 							end
 						end
-					end)
+						if string.find(combined, "reload", 1, true) or string.find(combined, "nạp", 1, true) or string.find(combined, "nap", 1, true) then
+							if not cachedGuiState.reload or not cachedGuiState.reload.Parent then
+								cachedGuiState.reload = obj
+							end
+						end
+					end
+				end
+			end
+
+			local function clickGuiButtonFast(btn)
+				if not btn or not btn.Parent then return false end
+				pcall(function()
+					local fired = false
+					if firesignal then
+						if btn.Activated then firesignal(btn.Activated); fired = true end
+						if btn.MouseButton1Click then firesignal(btn.MouseButton1Click); fired = true end
+						if btn.MouseButton1Down then firesignal(btn.MouseButton1Down); fired = true end
+						if btn.MouseButton1Up then firesignal(btn.MouseButton1Up); fired = true end
+					end
+					if not fired and VirtualUser then
+						local absPos = btn.AbsolutePosition
+						local absSz = btn.AbsoluteSize
+						VirtualUser:ClickButton1(Vector2.new(absPos.X + absSz.X / 2, absPos.Y + absSz.Y / 2))
+					end
+				end)
+				return true
+			end
+
+			-- Check if Titan is dead or defeated
+			local function isTitanDead(titan, hum, nape)
+				if not titan or not titan.Parent or not titan:IsDescendantOf(Workspace) then return true end
+				if deadTitanCache[titan] then return true end
+				if Players and Players:GetPlayerFromCharacter(titan) then return true end
+
+				for _, attr in ipairs({ "Dead", "Died", "Death", "Killed", "Ragdoll", "Defeated", "Despawn", "Down", "Dying", "Falling", "Cut", "Sliced" }) do
+					if titan:GetAttribute(attr) == true then
+						deadTitanCache[titan] = true
+						return true
+					end
 				end
 
-				return targetNape, closestTitan
+				local hpAttr = titan:GetAttribute("Health") or titan:GetAttribute("HP")
+				if hpAttr ~= nil and type(hpAttr) == "number" and hpAttr <= 0 then
+					deadTitanCache[titan] = true
+					return true
+				end
+
+				if titan:FindFirstChild("Dead") or titan:FindFirstChild("Death") or titan:FindFirstChild("Ragdoll") or titan:FindFirstChild("Defeated") or titan:FindFirstChild("Cut") then
+					deadTitanCache[titan] = true
+					return true
+				end
+
+				local hpVal = titan:FindFirstChild("Health") or titan:FindFirstChild("HP")
+				if hpVal and hpVal:IsA("ValueBase") and hpVal.Value <= 0 then
+					deadTitanCache[titan] = true
+					return true
+				end
+
+				if hum and hum.Health <= 0 then
+					deadTitanCache[titan] = true
+					return true
+				end
+
+				return false
+			end
+
+			-- Find Nape or WeakPoint Hitbox
+			local function findTitanNape(titan)
+				if not titan or not titan.Parent then return nil end
+				if Players and Players:GetPlayerFromCharacter(titan) then return nil end
+				if deadTitanCache[titan] then return nil end
+
+				local cached = napeCache[titan]
+				if cached and cached.Parent and cached:IsDescendantOf(titan) then
+					return cached
+				end
+
+				local hitboxes = titan:FindFirstChild("Hitboxes")
+				local hitFolder = hitboxes and hitboxes:FindFirstChild("Hit")
+				local nape = (hitFolder and hitFolder:FindFirstChild("Nape"))
+					or (hitboxes and hitboxes:FindFirstChild("Nape"))
+
+				if not nape or not nape:IsA("BasePart") then
+					for _, part in ipairs(titan:GetDescendants()) do
+						if part:IsA("BasePart") then
+							local pName = string.lower(part.Name)
+							if pName == "nape" or pName == "weakpoint" or pName == "core" then
+								nape = part
+								break
+							end
+						end
+					end
+				end
+
+				if not nape or not nape:IsA("BasePart") then
+					local head = titan:FindFirstChild("Head")
+					if head and head:IsA("BasePart") then
+						nape = head
+					end
+				end
+
+				if nape and nape:IsA("BasePart") then
+					napeCache[titan] = nape
+					return nape
+				end
+				return nil
+			end
+
+			-- Multi-Folder Titan Scanner
+			local function getTitansList()
+				local list = {}
+				local char = LocalPlayer and LocalPlayer.Character
+				local root = char and char:FindFirstChild("HumanoidRootPart")
+				if not Workspace then return list end
+
+				local searchFolders = {}
+				for _, fName in ipairs({ "Titans", "Enemies", "Boss", "Bosses", "Raid", "Spawns", "Entities", "Living", "Targets", "Mobs" }) do
+					local f = Workspace:FindFirstChild(fName)
+					if f then table.insert(searchFolders, f) end
+				end
+
+				local map = Workspace:FindFirstChild("Map")
+				if map then
+					for _, sub in ipairs(map:GetChildren()) do
+						local subName = sub.Name
+						if subName == "Titans" or subName == "Enemies" or subName == "Boss" or subName == "Spawns" or subName == "Mobs" then
+							table.insert(searchFolders, sub)
+						end
+					end
+				end
+
+				if #searchFolders == 0 then
+					table.insert(searchFolders, Workspace)
+				end
+
+				local seen = {}
+				for _, folder in ipairs(searchFolders) do
+					for _, titan in ipairs(folder:GetChildren()) do
+						if titan:IsA("Model") and not seen[titan] and titan ~= char then
+							local hum = titan:FindFirstChildOfClass("Humanoid")
+							local nape = findTitanNape(titan)
+							if nape and not isTitanDead(titan, hum, nape) then
+								seen[titan] = true
+								local dist = root and (nape.Position - root.Position).Magnitude or 9999
+								table.insert(list, {
+									model = titan,
+									humanoid = hum,
+									nape = nape,
+									dist = dist
+								})
+							end
+						end
+					end
+				end
+
+				table.sort(list, function(a, b) return a.dist < b.dist end)
+				return list
+			end
+
+			-- 4. Target Acquisition (getClosestValidNape)
+			local function getClosestValidNape()
+				local titans = getTitansList()
+				if #titans > 0 then
+					return titans[1].nape, titans[1].model
+				end
+				return nil, nil
+			end
+
+			-- Multi-Attack Executor (Remotes + Tool + Mobile Touch UI + Input)
+			local function performTitanAttack(nape, titan)
+				if not nape then return end
+				local postRemote, getRemote = getAOTRemotes()
+				local now = os.clock()
+
+				-- 1. Server Remotes: Instant 500 velocity slash & Hitbox registration
+				if postRemote then
+					pcall(function() postRemote:FireServer("Attacks", "Slash", true) end)
+					pcall(function() postRemote:FireServer("Attacks", "Slash_Release") end)
+					pcall(function() postRemote:FireServer("Attacks", "M1") end)
+					pcall(function() postRemote:FireServer("Hitboxes", "Register", nape, 500, 100) end)
+					pcall(function() postRemote:FireServer("Hitboxes", "Register", nape, 500) end)
+				end
+
+				-- 2. Auto Mastery: Fire skill remotes and abilities
+				if AOTConfig.AutoMastery and (now - lastMasteryTime >= 0.8) then
+					lastMasteryTime = now
+					if postRemote then
+						pcall(function()
+							for slot = 1, 4 do
+								postRemote:FireServer("Skills", "Use", slot)
+								postRemote:FireServer("S_Character", "Skill", slot)
+							end
+						end)
+					end
+				end
+
+				-- 3. Tool Activation (if weapon tool is equipped)
+				local char = LocalPlayer and LocalPlayer.Character
+				if char then
+					local tool = char:FindFirstChildOfClass("Tool")
+					if tool then
+						pcall(function() tool:Activate() end)
+					end
+				end
+
+				-- 4. Touch GUI: Click on-screen M1 button if present
+				refreshCachedGuiElements()
+				if cachedGuiState.m1 and cachedGuiState.m1.Parent then
+					clickGuiButtonFast(cachedGuiState.m1)
+				end
+
+				-- 5. VirtualInputManager fallback (click away from UI window to avoid clicking menu)
+				if VirtualInputManager then
+					pcall(function()
+						VirtualInputManager:SendMouseButtonEvent(100, 100, 0, true, game, 0)
+						task.wait(0.02)
+						VirtualInputManager:SendMouseButtonEvent(100, 100, 0, false, game, 0)
+					end)
+				end
 			end
 
 			-- 5. Auto Farm Combat Loop
+			local farmAntiGrav = nil
 			task.spawn(function()
 				while not rayfieldDestroyed do
 					if AOTConfig.AutoFarm or AOTConfig.AutoRaid then
 						pcall(function()
 							local char = LocalPlayer and LocalPlayer.Character
 							local hrp = char and char:FindFirstChild("HumanoidRootPart")
-							if hrp then
+							local hum = char and char:FindFirstChildOfClass("Humanoid")
+							if hrp and hum and hum.Health > 0 then
 								local nape, titan = getClosestValidNape()
-								if nape and titan then
-									local yOffset = AOTConfig.FloatHeight > 100 and 15 or 5
-									if AOTConfig.AutoKillSafe then
-										yOffset = yOffset + 5
+								if nape and titan and nape.Parent and titan.Parent then
+									-- Anti-gravity support to ensure player floats smoothly
+									if not farmAntiGrav or farmAntiGrav.Parent ~= hrp then
+										if farmAntiGrav then farmAntiGrav:Destroy() end
+										farmAntiGrav = Instance.new("BodyVelocity")
+										farmAntiGrav.Name = "HaiAnh_FarmAntiGrav"
+										farmAntiGrav.Velocity = Vector3.zero
+										farmAntiGrav.MaxForce = Vector3.new(9e8, 9e8, 9e8)
+										farmAntiGrav.Parent = hrp
+									else
+										farmAntiGrav.Velocity = Vector3.zero
 									end
-									local targetCFrame = nape.CFrame * CFrame.new(0, yOffset, -10)
-									local currentSpeed = AOTConfig.AutoRaid and AOTConfig.RaidHoverSpeed or AOTConfig.HoverSpeed
+
+									-- Calculate Target Position
+									-- Safer mode raises height to avoid Titan grabs and swipes
+									local yOffset = AOTConfig.AutoKillSafe and 14 or 6
+									local behindDist = 5
+									local titanModel = titan
+									local titanCF = titanModel:GetPivot()
+									local lookVec = titanCF.LookVector
+
+									local goalPos = nape.Position - (lookVec * behindDist) + Vector3.new(0, yOffset, 0)
+									local currentPos = hrp.Position
+									local dist = (goalPos - currentPos).Magnitude
+									local currentSpeed = AOTConfig.AutoRaid and (AOTConfig.RaidHoverSpeed or 250) or (AOTConfig.HoverSpeed or 250)
 
 									if AOTConfig.MoveMode == "Teleport" and not AOTConfig.AutoRaid then
-										hrp.CFrame = targetCFrame
+										-- Teleport Mode: Instant reposition and zero velocity
+										hrp.CFrame = CFrame.lookAt(goalPos, nape.Position)
+										hrp.AssemblyLinearVelocity = Vector3.zero
 									else
-										local dist = (hrp.Position - targetCFrame.Position).Magnitude
-										local travelTime = math.clamp(dist / currentSpeed, 0.05, 1.5)
-										local tween = TweenService:Create(hrp, TweenInfo.new(travelTime, Enum.EasingStyle.Linear), { CFrame = targetCFrame })
-										tween:Play()
-										tween.Completed:Wait()
+										-- Hover Mode: Smooth glide without gravity interference
+										if dist > 8 then
+											local step = math.min(dist, currentSpeed * 0.05)
+											local dir = (goalPos - currentPos).Unit
+											local nextPos = currentPos + dir * step
+											hrp.CFrame = CFrame.lookAt(nextPos, nape.Position)
+										else
+											hrp.CFrame = CFrame.lookAt(goalPos, nape.Position)
+										end
+										hrp.AssemblyLinearVelocity = Vector3.zero
 									end
 
-									-- Attack simulation
-									if VirtualInputManager then
-										VirtualInputManager:SendMouseButtonEvent(500, 500, 0, true, game, 0)
-										task.wait(0.05)
-										VirtualInputManager:SendMouseButtonEvent(500, 500, 0, false, game, 0)
+									-- Attack Target
+									local attackDist = (hrp.Position - nape.Position).Magnitude
+									if attackDist <= 40 or AOTConfig.MoveMode == "Teleport" then
+										performTitanAttack(nape, titan)
+									end
+								else
+									-- No active targets, release anti-grav
+									if farmAntiGrav then
+										farmAntiGrav:Destroy()
+										farmAntiGrav = nil
 									end
 								end
 							end
 						end)
-						task.wait(math.clamp(AOTConfig.StartDelay * 0.1, 0.05, 2.0))
+						local delayVal = math.clamp((AOTConfig.StartDelay or 5) * 0.04, 0.03, 1.0)
+						task.wait(delayVal)
 					else
+						if farmAntiGrav then
+							farmAntiGrav:Destroy()
+							farmAntiGrav = nil
+						end
 						task.wait(0.5)
 					end
 				end
+				if farmAntiGrav then farmAntiGrav:Destroy() end
 			end)
 
 			-- 6. Weapon Check & Auto Reload Blades
+			local function performBladeReload()
+				local postRemote, getRemote = getAOTRemotes()
+				if postRemote then
+					pcall(function() postRemote:FireServer("Attacks", "Reload") end)
+					pcall(function() postRemote:FireServer("S_Equipment", "Reload") end)
+					pcall(function() postRemote:FireServer("Equipment", "Reload") end)
+				end
+				if getRemote then
+					pcall(function() getRemote:InvokeServer("S_Equipment", "Reload") end)
+				end
+
+				refreshCachedGuiElements()
+				if cachedGuiState.reload and cachedGuiState.reload.Parent then
+					clickGuiButtonFast(cachedGuiState.reload)
+				end
+
+				if VirtualInputManager then
+					pcall(function()
+						VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
+						task.wait(0.05)
+						VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
+					end)
+				end
+			end
+
 			task.spawn(function()
 				while not rayfieldDestroyed do
 					task.wait(1.0)
@@ -6583,16 +6882,25 @@ if not libraryOnly then
 						pcall(function()
 							local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
 							local hud = playerGui and playerGui:FindFirstChild("Interface") and playerGui.Interface:FindFirstChild("HUD")
+							local needsReload = false
+
 							if hud and hud:FindFirstChild("Main") and hud.Main:FindFirstChild("Top") then
 								local bladesUI = hud.Main.Top:FindFirstChild("Blades")
 								if bladesUI and bladesUI:FindFirstChild("Sets") then
 									local sets = tonumber(bladesUI.Sets.Text) or 0
-									if sets <= 0 and VirtualInputManager then
-										VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
-										task.wait(0.1)
-										VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
+									if sets <= 0 then
+										needsReload = true
 									end
 								end
+							end
+
+							local char = LocalPlayer.Character
+							if char and (char:GetAttribute("BladeBroken") == true or char:GetAttribute("Blades") == 0) then
+								needsReload = true
+							end
+
+							if needsReload then
+								performBladeReload()
 							end
 						end)
 					end
@@ -6602,11 +6910,23 @@ if not libraryOnly then
 			-- 7. Auto Refill Supplies at Station
 			task.spawn(function()
 				while not rayfieldDestroyed do
-					task.wait(3.0)
+					task.wait(2.5)
 					if AOTConfig.AutoRefill and LocalPlayer and LocalPlayer.Character then
 						pcall(function()
+							local postRemote = getAOTRemotes()
+							if postRemote then
+								pcall(function() postRemote:FireServer("S_Equipment", "Refill") end)
+								pcall(function() postRemote:FireServer("Equipment", "Refill") end)
+								pcall(function() postRemote:FireServer("Character", "Refill") end)
+							end
+
 							local unclimbable = Workspace:FindFirstChild("Unclimbable")
 							local reloads = unclimbable and unclimbable:FindFirstChild("Reloads")
+							if not reloads then
+								local map = Workspace:FindFirstChild("Map")
+								reloads = map and map:FindFirstChild("Reloads", true)
+							end
+
 							if reloads and fireproximityprompt then
 								for _, prompt in ipairs(reloads:GetDescendants()) do
 									if prompt:IsA("ProximityPrompt") then
@@ -6627,11 +6947,15 @@ if not libraryOnly then
 					if AOTConfig.AutoSkipCutscene and LocalPlayer then
 						pcall(function()
 							local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-							local skipBtn = playerGui and playerGui:FindFirstChild("Interface") and playerGui.Interface:FindFirstChild("Skip")
-							if skipBtn and skipBtn.Visible and VirtualInputManager then
-								VirtualInputManager:SendMouseButtonEvent(skipBtn.AbsolutePosition.X + 15, skipBtn.AbsolutePosition.Y + 15, 0, true, game, 0)
-								task.wait(0.1)
-								VirtualInputManager:SendMouseButtonEvent(skipBtn.AbsolutePosition.X + 15, skipBtn.AbsolutePosition.Y + 15, 0, false, game, 0)
+							local iface = playerGui and playerGui:FindFirstChild("Interface")
+							local skipBtn = iface and (iface:FindFirstChild("Skip") or iface:FindFirstChild("SkipCutscene", true))
+							if skipBtn and skipBtn.Visible then
+								clickGuiButtonFast(skipBtn)
+								if VirtualInputManager then
+									VirtualInputManager:SendMouseButtonEvent(skipBtn.AbsolutePosition.X + 15, skipBtn.AbsolutePosition.Y + 15, 0, true, game, 0)
+									task.wait(0.05)
+									VirtualInputManager:SendMouseButtonEvent(skipBtn.AbsolutePosition.X + 15, skipBtn.AbsolutePosition.Y + 15, 0, false, game, 0)
+								end
 							end
 						end)
 					end
@@ -6641,16 +6965,20 @@ if not libraryOnly then
 			-- 9. Auto Open Chests
 			task.spawn(function()
 				while not rayfieldDestroyed do
-					task.wait(1.0)
+					task.wait(0.8)
 					if AOTConfig.AutoOpenChests and LocalPlayer then
 						pcall(function()
 							local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-							local chests = playerGui and playerGui:FindFirstChild("Interface") and playerGui.Interface:FindFirstChild("Chests")
-							if chests and chests:FindFirstChild("Finish") and chests.Finish.Visible and VirtualInputManager then
+							local iface = playerGui and playerGui:FindFirstChild("Interface")
+							local chests = iface and iface:FindFirstChild("Chests")
+							if chests and chests:FindFirstChild("Finish") and chests.Finish.Visible then
 								local finishBtn = chests.Finish
-								VirtualInputManager:SendMouseButtonEvent(finishBtn.AbsolutePosition.X + 20, finishBtn.AbsolutePosition.Y + 20, 0, true, game, 0)
-								task.wait(0.1)
-								VirtualInputManager:SendMouseButtonEvent(finishBtn.AbsolutePosition.X + 20, finishBtn.AbsolutePosition.Y + 20, 0, false, game, 0)
+								clickGuiButtonFast(finishBtn)
+								if VirtualInputManager then
+									VirtualInputManager:SendMouseButtonEvent(finishBtn.AbsolutePosition.X + 20, finishBtn.AbsolutePosition.Y + 20, 0, true, game, 0)
+									task.wait(0.05)
+									VirtualInputManager:SendMouseButtonEvent(finishBtn.AbsolutePosition.X + 20, finishBtn.AbsolutePosition.Y + 20, 0, false, game, 0)
+								end
 							end
 						end)
 					end
@@ -6681,7 +7009,7 @@ if not libraryOnly then
 										SessionStats.CriticalHits = statsFolder.Critical_Hits.Amount.Text
 									end
 									SessionStats.LastUpdated = os.date("%X")
-									updateStatsUI()
+									if updateStatsUI then updateStatsUI() end
 								end
 
 								-- Check Items
@@ -6704,12 +7032,17 @@ if not libraryOnly then
 
 								if AOTConfig.AutoRetry then
 									local retryBtn = rewards.Main.Info.Main.Buttons:FindFirstChild("Retry")
-									if retryBtn and retryBtn.Visible and VirtualInputManager then
-										sendDiscordWebhook("Mission Complete (Auto Retry)", "Cleared stage and retrying!", hasSpecialItem)
-										task.wait(0.5)
-										VirtualInputManager:SendMouseButtonEvent(retryBtn.AbsolutePosition.X + 20, retryBtn.AbsolutePosition.Y + 20, 0, true, game, 0)
-										task.wait(0.1)
-										VirtualInputManager:SendMouseButtonEvent(retryBtn.AbsolutePosition.X + 20, retryBtn.AbsolutePosition.Y + 20, 0, false, game, 0)
+									if retryBtn and retryBtn.Visible then
+										if sendDiscordWebhook then
+											sendDiscordWebhook("Mission Complete (Auto Retry)", "Cleared stage and retrying!", hasSpecialItem)
+										end
+										task.wait(0.4)
+										clickGuiButtonFast(retryBtn)
+										if VirtualInputManager then
+											VirtualInputManager:SendMouseButtonEvent(retryBtn.AbsolutePosition.X + 20, retryBtn.AbsolutePosition.Y + 20, 0, true, game, 0)
+											task.wait(0.05)
+											VirtualInputManager:SendMouseButtonEvent(retryBtn.AbsolutePosition.X + 20, retryBtn.AbsolutePosition.Y + 20, 0, false, game, 0)
+										end
 									end
 								end
 							end
@@ -6731,10 +7064,13 @@ if not libraryOnly then
 								local playerGui = LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")
 								local rewards = playerGui and playerGui:FindFirstChild("Interface") and playerGui.Interface:FindFirstChild("Rewards")
 								local retryBtn = rewards and rewards:FindFirstChild("Main") and rewards.Main.Info.Main.Buttons:FindFirstChild("Retry")
-								if retryBtn and VirtualInputManager then
-									VirtualInputManager:SendMouseButtonEvent(retryBtn.AbsolutePosition.X + 20, retryBtn.AbsolutePosition.Y + 20, 0, true, game, 0)
-									task.wait(0.1)
-									VirtualInputManager:SendMouseButtonEvent(retryBtn.AbsolutePosition.X + 20, retryBtn.AbsolutePosition.Y + 20, 0, false, game, 0)
+								if retryBtn then
+									clickGuiButtonFast(retryBtn)
+									if VirtualInputManager then
+										VirtualInputManager:SendMouseButtonEvent(retryBtn.AbsolutePosition.X + 20, retryBtn.AbsolutePosition.Y + 20, 0, true, game, 0)
+										task.wait(0.05)
+										VirtualInputManager:SendMouseButtonEvent(retryBtn.AbsolutePosition.X + 20, retryBtn.AbsolutePosition.Y + 20, 0, false, game, 0)
+									end
 								end
 							end)
 						end
@@ -6765,26 +7101,37 @@ if not libraryOnly then
 				end
 			end)
 
-			-- 13. Titan ESP
+			-- 13. Titan ESP (Multi-Folder Scanner)
 			local espHighlights = {}
 			task.spawn(function()
 				while not rayfieldDestroyed do
 					if AOTConfig.TitanESP then
 						pcall(function()
-							local titans = Workspace:FindFirstChild("Titans")
-							if titans then
-								for _, titan in ipairs(titans:GetChildren()) do
-									if not espHighlights[titan] and titan:IsA("Model") then
+							local titans = getTitansList()
+							local activeModels = {}
+							for _, entry in ipairs(titans) do
+								local titan = entry.model
+								if titan and titan.Parent then
+									activeModels[titan] = true
+									if not espHighlights[titan] then
 										local hl = Instance.new("Highlight")
+										hl.Name = "HaiAnh_TitanESP"
 										hl.FillColor = AOTConfig.ESPColor
 										hl.OutlineColor = Color3.fromRGB(255, 255, 255)
 										hl.FillTransparency = 0.5
 										hl.Adornee = titan
 										hl.Parent = titan
 										espHighlights[titan] = hl
-									elseif espHighlights[titan] then
+									else
 										espHighlights[titan].FillColor = AOTConfig.ESPColor
 									end
+								end
+							end
+
+							for titan, hl in pairs(espHighlights) do
+								if not activeModels[titan] or not titan.Parent then
+									pcall(function() hl:Destroy() end)
+									espHighlights[titan] = nil
 								end
 							end
 						end)
@@ -6799,8 +7146,7 @@ if not libraryOnly then
 					task.wait(1.0)
 				end
 			end)
-
-		end
+end
 
 
 		-- ============================================================================
