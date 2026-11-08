@@ -5670,9 +5670,9 @@ if not libraryOnly then
 				WeaponMode = "Auto",
 				FarmPosition = "High Sky (Anti-Grab)",
 				TargetPriority = "Closest", -- "Closest", "Bosses First", "Crawlers & Abnormals", "Lowest HP"
-				BehindNapeDistance = 6.0,
-				HoverHeight = 28.0,
-				FlightSpeed = 280,
+				BehindNapeDistance = 2.0,
+				HoverHeight = 20.0,
+				FlightSpeed = 200,
 				InstantTeleport = false,
 				MapNoClip = true,
 				AutoFarmTitan = false,
@@ -5682,7 +5682,7 @@ if not libraryOnly then
 				TitanSkillsBurst = false,
 				AutoReloadWhenBroken = true,
 				ReloadAfterTitanKill = true,
-				SlashesBeforeReload = 6,
+				SlashesBeforeReload = 10,
 				AutoRefillSupplies = true,
 				InfiniteGasDurability = false,
 
@@ -5697,7 +5697,6 @@ if not libraryOnly then
 				KillAura = false,
 				KillAuraRange = 120,
 				HitboxExtender = true,
-				BringNapeToWeapon = true,
 				NapeHitboxSize = 80,
 				Godmode = false,
 				AutoEscapeGrab = true,
@@ -5802,10 +5801,10 @@ if not libraryOnly then
 
 			FarmTab:CreateSlider({
 				Name = "Behind Nape Distance",
-				Range = { 1, 15 },
+				Range = { 0, 15 },
 				Increment = 0.5,
 				Suffix = "Studs",
-				CurrentValue = 6.0,
+				CurrentValue = 2.0,
 				Flag = "AOT_BehindNapeDistance",
 				Callback = function(Value)
 					AOTConfig.BehindNapeDistance = Value
@@ -6898,7 +6897,7 @@ if not libraryOnly then
 			local lastBladeSlashTime = 0
 			local lastSpearFireTime = 0
 
-			-- Kiểm tra độ bền kiếm chuẩn xác 100%
+			-- Kiểm tra độ bền kiếm chuẩn xác 100% (chỉ nạp khi kiếm thực sự cùn/gãy hoặc đủ số nhát chém)
 			isBladeActuallyBroken = function()
 				local lp = Players and Players.LocalPlayer
 				local char = lp and lp.Character
@@ -6909,24 +6908,19 @@ if not libraryOnly then
 					return true
 				end
 				local dur = char:GetAttribute("Durability") or char:GetAttribute("BladeDurability")
-				if dur ~= nil and type(dur) == "number" and dur <= 20 then
+				if dur ~= nil and type(dur) == "number" and dur <= 15 then
 					return true
 				end
 				local tool = char:FindFirstChildOfClass("Tool")
 				if tool then
 					local tDur = tool:GetAttribute("Durability") or tool:GetAttribute("Dur")
-					if tDur ~= nil and type(tDur) == "number" and tDur <= 20 then
+					if tDur ~= nil and type(tDur) == "number" and tDur <= 15 then
 						return true
 					end
 				end
 
-				-- 2. Tự động nạp kiếm định kỳ theo số nhát chém thực tế (mặc định 6 nhát)
-				if consecutiveSlashes >= (AOTConfig.SlashesBeforeReload or 6) then
-					return true
-				end
-
-				-- 3. Nút GUI mobile "Nạp lại" đang hiển thị
-				if cachedGuiState.reload and cachedGuiState.reload.Parent and cachedGuiState.reload.Visible then
+				-- 2. Tự động nạp kiếm định kỳ theo số nhát chém thực tế (mặc định 10 nhát)
+				if consecutiveSlashes >= (AOTConfig.SlashesBeforeReload or 10) then
 					return true
 				end
 
@@ -7145,7 +7139,7 @@ if not libraryOnly then
 					local useSpears = (AOTConfig.WeaponMode == "Thunder Spears") or (AOTConfig.WeaponMode == "Auto")
 					local useBlades = (AOTConfig.WeaponMode == "Blades") or (AOTConfig.WeaponMode == "Auto")
 
-					-- 1. Mở rộng hitbox gáy & Kéo gáy vào tầm chém vũ khí (Cơ chế Violet Hub: chém phát ăn ngay)
+					-- 1. Mở rộng hitbox gáy để chém trúng chuẩn xác (Tuyệt đối không di chuyển CFrame làm nhấc Titan)
 					if nape:IsA("BasePart") then
 						local sz = AOTConfig.NapeHitboxSize or 80
 						nape.CanTouch = true
@@ -7154,10 +7148,6 @@ if not libraryOnly then
 						nape.Massless = true
 						if AOTConfig.HitboxExtender then
 							nape.Size = Vector3.new(sz, sz, sz)
-						end
-
-						if root and (AOTConfig.BringNapeToWeapon or AOTConfig.AutoFarmTitan or AOTConfig.AutoRaid or AOTConfig.KillAura) then
-							nape.CFrame = root.CFrame * CFrame.new(0, -1.5, -3.5)
 						end
 					end
 
@@ -7275,29 +7265,33 @@ if not libraryOnly then
 					if currentTargetTitan and currentTargetTitan.nape and currentTargetTitan.nape.Parent then
 						local napePos = currentTargetTitan.nape.Position
 						local titanCF = currentTargetTitan.model:GetPivot()
-						local hoverHeight = math.max(AOTConfig.HoverHeight or 28.0, 26.0)
-						local behindDist = math.max(AOTConfig.BehindNapeDistance or 6.0, 4.0)
+						local hoverHeight = AOTConfig.HoverHeight or 20.0
+						local behindDist = AOTConfig.BehindNapeDistance or 2.0
 
-						-- Cố định vị trí trên cao an toàn tuyệt đối và lùi sau lưng Titan (không bao giờ rơi xuống đầu)
-						local behindOffset = -titanCF.LookVector * behindDist
+						-- Vị trí tiếp cận Titan bình thường
 						local hoverOffset = Vector3.new(0, hoverHeight, 0)
-						local goalPos = napePos + behindOffset + hoverOffset
-
-						local currentPos = root.Position
-						local diff = goalPos - currentPos
-						local dist = diff.Magnitude
-						local speed = math.max(AOTConfig.FlightSpeed or 280, 160)
-						local step = speed * dt
-
-						local nextPos
-						if dist <= step or dist < 0.5 then
-							nextPos = goalPos
-						else
-							nextPos = currentPos + (diff / dist) * step
+						if AOTConfig.FarmPosition == "Behind Nape" then
+							hoverOffset = (titanCF.LookVector * -behindDist) + Vector3.new(0, hoverHeight, 0)
 						end
+						local goalPos = napePos + hoverOffset
 
-						local targetCF = CFrame.lookAt(nextPos, napePos)
-						root.CFrame = targetCF
+						local currentCF = root.CFrame
+						local currentPos = currentCF.Position
+						local dist = (goalPos - currentPos).Magnitude
+
+						if AOTConfig.InstantTeleport then
+							root.CFrame = CFrame.lookAt(goalPos, napePos)
+						else
+							local speed = math.clamp(AOTConfig.FlightSpeed or 200, 80, 350)
+							local step = speed * dt
+							local targetCF = CFrame.lookAt(goalPos, napePos)
+							if dist <= step or dist < 0.8 then
+								root.CFrame = targetCF
+							else
+								local alpha = math.clamp(step / dist, 0.02, 0.35)
+								root.CFrame = currentCF:Lerp(targetCF, alpha)
+							end
+						end
 					end
 				end)
 			end)
