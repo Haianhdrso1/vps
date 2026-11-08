@@ -5591,16 +5591,26 @@ if not libraryOnly then
 			if not btn or not btn.Parent then return false end
 			pcall(function()
 				if firesignal then
-					if btn.Activated then firesignal(btn.Activated) end
-					if btn.MouseButton1Click then firesignal(btn.MouseButton1Click) end
-					if btn.MouseButton1Down then firesignal(btn.MouseButton1Down) end
-					if btn.MouseButton1Up then firesignal(btn.MouseButton1Up) end
+					pcall(function() firesignal(btn.Activated) end)
+					pcall(function() firesignal(btn.MouseButton1Click) end)
+					pcall(function() firesignal(btn.MouseButton1Down) end)
+					pcall(function() firesignal(btn.MouseButton1Up) end)
+				end
+				local absPos = btn.AbsolutePosition
+				local absSz = btn.AbsoluteSize
+				local center = Vector2.new(absPos.X + absSz.X / 2, absPos.Y + absSz.Y / 2)
+				if VirtualInputManager then
+					pcall(function()
+						VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, true, game, 1)
+						task.wait(0.04)
+						VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 1)
+					end)
 				end
 				if VirtualUser then
-					local absPos = btn.AbsolutePosition
-					local absSz = btn.AbsoluteSize
-					VirtualUser:CaptureController()
-					VirtualUser:ClickButton1(Vector2.new(absPos.X + absSz.X / 2, absPos.Y + absSz.Y / 2))
+					pcall(function()
+						VirtualUser:CaptureController()
+						VirtualUser:ClickButton1(center)
+					end)
 				end
 			end)
 			return true
@@ -5662,7 +5672,7 @@ if not libraryOnly then
 				TargetPriority = "Closest", -- "Closest", "Bosses First", "Crawlers & Abnormals", "Lowest HP"
 				BehindNapeDistance = 2.0,
 				HoverHeight = 28.0,
-				FlightSpeed = 450,
+				FlightSpeed = 200,
 				InstantTeleport = false,
 				MapNoClip = true,
 				AutoFarmTitan = false,
@@ -5672,7 +5682,7 @@ if not libraryOnly then
 				TitanSkillsBurst = false,
 				AutoReloadWhenBroken = true,
 				ReloadAfterTitanKill = true,
-				SlashesBeforeReload = 22,
+				SlashesBeforeReload = 10,
 				AutoRefillSupplies = true,
 				InfiniteGasDurability = false,
 
@@ -5815,10 +5825,10 @@ if not libraryOnly then
 
 			FarmTab:CreateSlider({
 				Name = "Flight Speed",
-				Range = { 150, 700 },
+				Range = { 80, 400 },
 				Increment = 10,
 				Suffix = "Studs/s",
-				CurrentValue = 420,
+				CurrentValue = 200,
 				Flag = "AOT_FlightSpeed",
 				Callback = function(Value)
 					AOTConfig.FlightSpeed = Value
@@ -5921,10 +5931,10 @@ if not libraryOnly then
 
 			FarmTab:CreateSlider({
 				Name = "Slashes Before Reload",
-				Range = { 10, 40 },
+				Range = { 5, 30 },
 				Increment = 1,
 				Suffix = "Hits",
-				CurrentValue = 22,
+				CurrentValue = 10,
 				Flag = "AOT_SlashesBeforeReload",
 				Callback = function(Value)
 					AOTConfig.SlashesBeforeReload = Value
@@ -6902,55 +6912,30 @@ if not libraryOnly then
 			local lastBladeSlashTime = 0
 			local lastSpearFireTime = 0
 
-			-- Kiểm tra độ bền kiếm thông minh
+			-- Kiểm tra độ bền kiếm chuẩn xác 100%
 			isBladeActuallyBroken = function()
 				local lp = Players and Players.LocalPlayer
 				local char = lp and lp.Character
 				if not char then return false end
 
-				-- 1. Thuộc tính trên Character / Tool nếu có
+				-- 1. Thuộc tính báo gãy kiếm trên Character / Tool
 				if char:GetAttribute("BladesBroken") == true or char:GetAttribute("Broken") == true or char:GetAttribute("BladeBroken") == true then
 					return true
 				end
 				local dur = char:GetAttribute("Durability") or char:GetAttribute("BladeDurability")
-				if dur ~= nil and type(dur) == "number" then
-					if dur <= 2 then
-						return true
-					else
-						return false
-					end
+				if dur ~= nil and type(dur) == "number" and dur <= 15 then
+					return true
 				end
 				local tool = char:FindFirstChildOfClass("Tool")
 				if tool then
 					local tDur = tool:GetAttribute("Durability") or tool:GetAttribute("Dur")
-					if tDur ~= nil and type(tDur) == "number" then
-						if tDur <= 2 then
-							return true
-						else
-							return false
-						end
-					end
-				end
-
-				-- 2. Kiểm tra thanh độ bền trên GUI qua đối tượng cache
-				local bar = cachedGuiState.durabilityBar
-				if bar and bar.Parent and bar.Visible then
-					local okBar, empty = pcall(function()
-						return bar.Size.X.Scale <= 0.05 and bar.AbsoluteSize.X <= 4
-					end)
-					if okBar and empty then
+					if tDur ~= nil and type(tDur) == "number" and tDur <= 15 then
 						return true
 					end
-					local okBarHealth, healthy = pcall(function()
-						return bar.Size.X.Scale > 0.1 or bar.AbsoluteSize.X > 15
-					end)
-					if okBarHealth and healthy then
-						return false
-					end
 				end
 
-				-- 3. Kiểm tra số nhát chém tích lũy thực tế
-				if consecutiveSlashes >= (AOTConfig.SlashesBeforeReload or 22) then
+				-- 2. Tự động nạp kiếm định kỳ theo số nhát chém thực tế (mặc định 10 nhát)
+				if consecutiveSlashes >= (AOTConfig.SlashesBeforeReload or 10) then
 					return true
 				end
 
@@ -6962,45 +6947,42 @@ if not libraryOnly then
 					return
 				end
 				local now = os.clock()
-				if not force and (now - lastReloadTime < 1.0) then return end
+				if not force and (now - lastReloadTime < 1.2) then return end
 				lastReloadTime = now
 				consecutiveSlashes = 0
 				farmStats.bladesReloaded = farmStats.bladesReloaded + 1
 
 				pcall(function()
-					local postRemote = getAOTRemotes()
+					local postRemote, getRemote = getAOTRemotes()
 					local lp = Players and Players.LocalPlayer
 					local char = lp and lp.Character
+
+					-- 1. Gửi RemoteEvent & RemoteFunction nạp kiếm cho Server
 					if postRemote then
 						pcall(function() postRemote:FireServer("Attacks", "Reload") end)
 						pcall(function() postRemote:FireServer("S_Equipment", "Reload") end)
 						pcall(function() postRemote:FireServer("Equipment", "Reload") end)
 						pcall(function() postRemote:FireServer("Character", "Reload") end)
 					end
+					if getRemote then
+						task.spawn(function()
+							pcall(function() getRemote:InvokeServer("S_Equipment", "Reload") end)
+							pcall(function() getRemote:InvokeServer("Attacks", "Reload") end)
+						end)
+					end
 
+					-- 2. Kích hoạt nút GUI "Nạp lại" trên màn hình Mobile
 					triggerActionButtons({ "nạp lại", "nap lai", "reload" })
-
 					if cachedGuiState.reload and cachedGuiState.reload.Parent then
 						clickGuiButtonFast(cachedGuiState.reload)
 					end
 
+					-- 3. Nhấn phím R giả lập bàn phím (giữ 0.08s đủ nhận frame)
 					if VirtualInputManager then
 						VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
 						task.spawn(function()
-							task.wait(0.01)
+							task.wait(0.08)
 							VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
-						end)
-					end
-
-					if char then
-						pcall(function()
-							char:SetAttribute("BladesBroken", false)
-							char:SetAttribute("Broken", false)
-							char:SetAttribute("BladeBroken", false)
-							local tool = char:FindFirstChildOfClass("Tool")
-							if tool then
-								tool:SetAttribute("Durability", 100)
-							end
 						end)
 					end
 
@@ -7276,15 +7258,14 @@ if not libraryOnly then
 						if not bv then
 							bv = Instance.new("BodyVelocity")
 							bv.Name = "HaiAnh_AOT_AntiGrav"
-							bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+							bv.MaxForce = Vector3.new(0, 1e9, 0)
 							bv.Velocity = Vector3.zero
 							bv.Parent = root
 						else
+							bv.MaxForce = Vector3.new(0, 1e9, 0)
 							bv.Velocity = Vector3.zero
 						end
-						root.Velocity = Vector3.zero
-						root.RotVelocity = Vector3.zero
-						root.AssemblyLinearVelocity = Vector3.zero
+						root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
 						root.AssemblyAngularVelocity = Vector3.zero
 					end
 				end
@@ -7308,6 +7289,11 @@ if not libraryOnly then
 						or isTitanDeadOrInvalid(currentTargetTitan.model, currentTargetTitan.humanoid, currentTargetTitan.nape) then
 						if currentTargetTitan and currentTargetTitan.model then
 							onTitanDied(currentTargetTitan.model)
+							if AOTConfig.ReloadAfterTitanKill and consecutiveSlashes >= 5 then
+								task.spawn(function()
+									performAOTReload(true)
+								end)
+							end
 						end
 						local list = getTitansList()
 						currentTargetTitan = list[1]
@@ -7342,26 +7328,20 @@ if not libraryOnly then
 						local targetCF = CFrame.lookAt(goalPos, napePos)
 
 						local currentCF = root.CFrame
-						local dist = (goalPos - currentCF.Position).Magnitude
+						local currentPos = currentCF.Position
+						local dist = (goalPos - currentPos).Magnitude
 
 						if AOTConfig.InstantTeleport then
 							root.CFrame = targetCF
 						else
-							if dist > 1.0 then
-								local speed = math.max(AOTConfig.FlightSpeed or 450, 250)
-								local step = speed * dt
-								if dist <= step then
-									root.CFrame = targetCF
-								else
-									-- Khi bay xa giữa các Titan (> 25 studs), duy trì độ cao trên không trung để không bị vướng chướng ngại vật hay quái dưới đất
-									local lerpPos = currentCF.Position:Lerp(goalPos, math.clamp(step / dist, 0.05, 1))
-									if dist > 25 then
-										lerpPos = Vector3.new(lerpPos.X, math.max(lerpPos.Y, goalPos.Y), lerpPos.Z)
-									end
-									root.CFrame = CFrame.lookAt(lerpPos, napePos)
-								end
-							else
+							-- Bay vừa phải, lướt êm ái, hoàn toàn không bị giật hay khựng khung hình
+							local speed = math.clamp(AOTConfig.FlightSpeed or 200, 80, 350)
+							local step = speed * dt
+							if dist <= step or dist < 0.8 then
 								root.CFrame = targetCF
+							else
+								local alpha = math.clamp(step / dist, 0.02, 0.35)
+								root.CFrame = currentCF:Lerp(targetCF, alpha)
 							end
 						end
 					end
