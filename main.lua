@@ -5656,25 +5656,24 @@ if not libraryOnly then
 		-- ============================================================================
 		local function loadAOTRMenu()
 			local AOTConfig = {
-				-- Auto Farm Elite Config
+				-- Auto Farm Elite Config (High Sky Anti-Grab Farm)
 				WeaponMode = "Auto",
-				FarmPosition = "Above Nape (Anti-Grab)",
+				FarmPosition = "High Sky (Anti-Grab)",
 				TargetPriority = "Closest", -- "Closest", "Bosses First", "Crawlers & Abnormals", "Lowest HP"
 				BehindNapeDistance = 2.0,
-				HoverHeight = 10,
-				FlightSpeed = 420,
+				HoverHeight = 28.0,
+				FlightSpeed = 450,
 				InstantTeleport = false,
 				MapNoClip = true,
 				AutoFarmTitan = false,
 				SafeLegitDelay = false,
 				TitanShifterMastery = false,
-				AutoTitanShift = true,
-				TitanSkillsBurst = true,
+				AutoTitanShift = false,
+				TitanSkillsBurst = false,
 				AutoReloadWhenBroken = true,
 				ReloadAfterTitanKill = true,
 				SlashesBeforeReload = 22,
 				AutoRefillSupplies = true,
-				AutoResupplyTeleport = true,
 				InfiniteGasDurability = false,
 
 				-- Multi-Target Combat & Thunder Spears Burst
@@ -5688,7 +5687,7 @@ if not libraryOnly then
 				KillAura = false,
 				KillAuraRange = 120,
 				HitboxExtender = true,
-				NapeHitboxSize = 120,
+				NapeHitboxSize = 80,
 				Godmode = false,
 				AutoEscapeGrab = true,
 				InfiniteHookRange = false,
@@ -5770,8 +5769,8 @@ if not libraryOnly then
 
 			FarmTab:CreateDropdown({
 				Name = "Farm Position",
-				Options = { "Above Nape (Anti-Grab)", "Behind Nape", "High Sky (Anti-Grab)" },
-				CurrentOption = { "Above Nape (Anti-Grab)" },
+				Options = { "High Sky (Anti-Grab)", "Above Nape", "Behind Nape" },
+				CurrentOption = { "High Sky (Anti-Grab)" },
 				MultipleOptions = false,
 				Flag = "AOT_FarmPosition",
 				Callback = function(Option)
@@ -5792,10 +5791,10 @@ if not libraryOnly then
 
 			FarmTab:CreateSlider({
 				Name = "Behind Nape Distance",
-				Range = { 0.5, 12 },
+				Range = { 0, 15 },
 				Increment = 0.5,
 				Suffix = "Studs",
-				CurrentValue = 2.0,
+				CurrentValue = 1.0,
 				Flag = "AOT_BehindNapeDistance",
 				Callback = function(Value)
 					AOTConfig.BehindNapeDistance = Value
@@ -5803,11 +5802,11 @@ if not libraryOnly then
 			})
 
 			FarmTab:CreateSlider({
-				Name = "Hover Height",
-				Range = { 2, 35 },
+				Name = "Hover Height (Sky Height)",
+				Range = { 10, 60 },
 				Increment = 1,
 				Suffix = "Studs",
-				CurrentValue = 10,
+				CurrentValue = 25,
 				Flag = "AOT_HoverHeight",
 				Callback = function(Value)
 					AOTConfig.HoverHeight = Value
@@ -5852,6 +5851,15 @@ if not libraryOnly then
 				Flag = "AOT_AutoFarmTitan",
 				Callback = function(Value)
 					AOTConfig.AutoFarmTitan = Value
+					if not Value then
+						pcall(function()
+							local lp = Players and Players.LocalPlayer
+							local char = lp and lp.Character
+							local root = char and char:FindFirstChild("HumanoidRootPart")
+							local bv = root and root:FindFirstChild("HaiAnh_AOT_AntiGrav")
+							if bv then bv:Destroy() end
+						end)
+					end
 				end,
 			})
 
@@ -5875,7 +5883,7 @@ if not libraryOnly then
 
 			FarmTab:CreateToggle({
 				Name = "Auto Titan Shift",
-				CurrentValue = true,
+				CurrentValue = false,
 				Flag = "AOT_AutoShift",
 				Callback = function(Value)
 					AOTConfig.AutoTitanShift = Value
@@ -5938,20 +5946,11 @@ if not libraryOnly then
 			})
 
 			FarmTab:CreateToggle({
-				Name = "Auto Refill Supplies",
+				Name = "Auto Refill Supplies (Remote / Safe)",
 				CurrentValue = true,
 				Flag = "AOT_AutoRefill",
 				Callback = function(Value)
 					AOTConfig.AutoRefillSupplies = Value
-				end,
-			})
-
-			FarmTab:CreateToggle({
-				Name = "Auto Resupply Teleport (Instant Refill)",
-				CurrentValue = true,
-				Flag = "AOT_ResupplyTeleport",
-				Callback = function(Value)
-					AOTConfig.AutoResupplyTeleport = Value
 				end,
 			})
 
@@ -6087,10 +6086,10 @@ if not libraryOnly then
 
 			CombatTab:CreateSlider({
 				Name = "Nape Hitbox Size",
-				Range = { 30, 300 },
-				Increment = 10,
+				Range = { 30, 200 },
+				Increment = 5,
 				Suffix = "Studs",
-				CurrentValue = 120,
+				CurrentValue = 80,
 				Flag = "AOT_NapeSize",
 				Callback = function(Value)
 					AOTConfig.NapeHitboxSize = Value
@@ -6549,6 +6548,7 @@ if not libraryOnly then
 			local currentTargetTitan = nil
 			local espObjects = {}
 			local deadTitanCache = setmetatable({}, { __mode = "k" })
+			local titanFatalHit = setmetatable({}, { __mode = "k" })
 			local farmStats = {
 				startTime = os.clock(),
 				titansKilled = 0,
@@ -6609,20 +6609,7 @@ if not libraryOnly then
 						end
 					end
 
-					-- Nếu bật AutoResupplyTeleport và trạm ở xa (> 25 studs), teleport tức thì đến trạm, nạp, rồi quay về vị trí farm
-					if AOTConfig.AutoResupplyTeleport and root and nearestPos and nearestPrompt and nearestDist > 25 then
-						local oldCF = root.CFrame
-						task.spawn(function()
-							pcall(function()
-								root.CFrame = CFrame.new(nearestPos + Vector3.new(0, 3, 0))
-								task.wait(0.08)
-								fireproximityprompt(nearestPrompt, 0)
-								fireproximityprompt(nearestPrompt)
-								task.wait(0.08)
-								root.CFrame = oldCF
-							end)
-						end)
-					end
+
 
 					farmStats.bladesReloaded = farmStats.bladesReloaded + 1
 				end)
@@ -6682,6 +6669,8 @@ if not libraryOnly then
 
 			-- Sự kiện khi Titan chết: tăng chỉ số diệt và dọn dẹp visual ngay lập tức
 			local function onTitanDied(titan)
+				if not titan then return end
+				titanFatalHit[titan] = true
 				if not deadTitanCache[titan] then
 					deadTitanCache[titan] = true
 					farmStats.titansKilled = farmStats.titansKilled + 1
@@ -6696,6 +6685,7 @@ if not libraryOnly then
 										p.Transparency = 1
 										p.CanTouch = false
 										p.CanCollide = false
+										p.CanQuery = false
 									end
 								end
 							end)
@@ -6704,33 +6694,46 @@ if not libraryOnly then
 				end
 			end
 
-			-- Kiểm tra chuẩn xác 100% Titan đã chết, đang ragdoll hoặc mất hitbox
+			-- Kiểm tra chuẩn xác 100% Titan đã chết, đang ragdoll hoặc mất hitbox (0 delay chuyển mục tiêu)
 			local function isTitanDeadOrInvalid(titan, hum, nape)
 				if not titan or not titan.Parent or not titan:IsDescendantOf(Workspace) then
 					return true
 				end
-				if deadTitanCache[titan] then
+				if deadTitanCache[titan] or titanFatalHit[titan] then
 					return true
 				end
 				if Players and Players:GetPlayerFromCharacter(titan) then
 					return true
 				end
 
-				-- 1. Thuộc tính báo tử trong AOT:R
-				for _, attrName in ipairs({ "Dead", "Died", "Death", "Killed", "Ragdoll", "Defeated", "Despawn", "Down" }) do
+				-- 1. Thuộc tính báo tử trong AOT:R (Đầy đủ mọi biến thể)
+				for _, attrName in ipairs({ "Dead", "Died", "Death", "Killed", "Ragdoll", "Defeated", "Despawn", "Down", "Dying", "Falling", "Cut", "Sliced" }) do
 					if titan:GetAttribute(attrName) == true then
 						onTitanDied(titan)
 						return true
 					end
 				end
 
-				-- 2. Tag / Child báo tử
-				if titan:FindFirstChild("Dead") or titan:FindFirstChild("Death") or titan:FindFirstChild("Ragdoll") or titan:FindFirstChild("Defeated") then
+				-- 2. Kiểm tra thuộc tính HP / Health dạng số
+				local hpAttr = titan:GetAttribute("Health") or titan:GetAttribute("HP")
+				if hpAttr ~= nil and type(hpAttr) == "number" and hpAttr <= 0 then
 					onTitanDied(titan)
 					return true
 				end
 
-				-- 3. Kiểm tra Humanoid
+				-- 3. Tag / Child báo tử
+				if titan:FindFirstChild("Dead") or titan:FindFirstChild("Death") or titan:FindFirstChild("Ragdoll") or titan:FindFirstChild("Defeated") or titan:FindFirstChild("Cut") then
+					onTitanDied(titan)
+					return true
+				end
+
+				local hpVal = titan:FindFirstChild("Health") or titan:FindFirstChild("HP")
+				if hpVal and hpVal:IsA("ValueBase") and hpVal.Value <= 0 then
+					onTitanDied(titan)
+					return true
+				end
+
+				-- 4. Kiểm tra Humanoid
 				if hum then
 					if hum.Health <= 0 then
 						onTitanDied(titan)
@@ -6743,7 +6746,7 @@ if not libraryOnly then
 					end
 				end
 
-				-- 4. Khi Titan bị chém đứt gáy, thư mục Hitboxes hoặc Nape bị Server xóa ngay lập tức
+				-- 5. Khi Titan bị chém đứt gáy, thư mục Hitboxes hoặc Nape bị Server xóa ngay lập tức
 				local hitboxes = titan:FindFirstChild("Hitboxes")
 				if not hitboxes then
 					local rawName = string.lower(titan.Name)
@@ -6753,8 +6756,12 @@ if not libraryOnly then
 					end
 				end
 
-				-- 5. Part gáy phải còn tồn tại trong Titan
+				-- 6. Part gáy phải còn tồn tại trong Titan
 				if not nape or not nape.Parent or not nape:IsDescendantOf(titan) then
+					onTitanDied(titan)
+					return true
+				end
+				if nape:FindFirstChild("Cut") or nape:FindFirstChild("Slash") or nape:FindFirstChild("Blood") then
 					onTitanDied(titan)
 					return true
 				end
@@ -6913,11 +6920,6 @@ if not libraryOnly then
 						return false
 					end
 				end
-				local blades = char:GetAttribute("Blades")
-				if blades ~= nil and type(blades) == "number" and blades <= 0 then
-					return true
-				end
-
 				local tool = char:FindFirstChildOfClass("Tool")
 				if tool then
 					local tDur = tool:GetAttribute("Durability") or tool:GetAttribute("Dur")
@@ -7002,8 +7004,9 @@ if not libraryOnly then
 						end)
 					end
 
-					-- Nếu hết sạch cả hộp kiếm dự phòng, tự động tiếp tế tại trạm
-					if AOTConfig.AutoRefillSupplies then
+					-- Chỉ tiếp tế tại trạm khi hộp kiếm dự phòng THỰC SỰ hết sạch (0 spare blades)
+					local bladesReserve = char and (char:GetAttribute("Blades") or char:GetAttribute("SpareBlades"))
+					if AOTConfig.AutoRefillSupplies and bladesReserve ~= nil and type(bladesReserve) == "number" and bladesReserve <= 0 then
 						refillSuppliesAtStation()
 					end
 				end)
@@ -7208,8 +7211,8 @@ if not libraryOnly then
 						end
 					end
 
-					-- 3. Chém kiếm (Blades Slash) – Truyền vận tốc chém 500 + 100% crit để kết liễu Titan ngay lập tức
-					local slashCooldown = AOTConfig.SafeLegitDelay and 0.30 or 0.18
+					-- 3. Chém kiếm (Blades Slash) – Truyền vận tốc chém 500 + 100% crit để kết liễu Titan ngay lập tức (ONE-SHOT GÁY)
+					local slashCooldown = AOTConfig.SafeLegitDelay and 0.28 or 0.15
 					if useBlades and (now - lastBladeSlashTime >= slashCooldown) then
 						lastBladeSlashTime = now
 						consecutiveSlashes = consecutiveSlashes + 1
@@ -7224,18 +7227,23 @@ if not libraryOnly then
 							local nape = entry.nape
 							if nape and postRemote then
 								pcall(function() postRemote:FireServer("Hitboxes", "Register", nape, 500, 100) end)
-								pcall(function()
-									postRemote:FireServer("Hitboxes", "Register", nape,
-										math.random(460, 500), 100)
-								end)
 								pcall(function() postRemote:FireServer("Hitboxes", "Register", nape, 500) end)
+							end
+
+							-- Kết liễu Titan thường ngay lập tức (One-Shot): Đánh dấu tử và bay sang mục tiêu tiếp theo ngay (< 40ms)
+							if not entry.isBoss and entry.model then
+								titanFatalHit[entry.model] = true
+								task.spawn(function()
+									task.wait(0.04)
+									onTitanDied(entry.model)
+								end)
 							end
 						end
 
 						if VirtualInputManager then
 							VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
 							task.spawn(function()
-								task.wait(0.012)
+								task.wait(0.01)
 								VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
 							end)
 						end
@@ -7264,6 +7272,16 @@ if not libraryOnly then
 						end
 					end
 					if root then
+						local bv = root:FindFirstChild("HaiAnh_AOT_AntiGrav")
+						if not bv then
+							bv = Instance.new("BodyVelocity")
+							bv.Name = "HaiAnh_AOT_AntiGrav"
+							bv.MaxForce = Vector3.new(1e9, 1e9, 1e9)
+							bv.Velocity = Vector3.zero
+							bv.Parent = root
+						else
+							bv.Velocity = Vector3.zero
+						end
 						root.Velocity = Vector3.zero
 						root.RotVelocity = Vector3.zero
 						root.AssemblyLinearVelocity = Vector3.zero
@@ -7272,7 +7290,7 @@ if not libraryOnly then
 				end
 			end)
 
-			-- 2. Heartbeat Farm Flight: Khóa vị trí TRÊN CAO AN TOÀN (10 studs trên gáy), chống Titan bắt và chém 100% trúng gáy
+			-- 2. Heartbeat Farm Flight: BAY TRÊN TRỜI CAO CHÉM XUỐNG (High Sky Anti-Grab Farm)
 			RunService.Heartbeat:Connect(function(dt)
 				if not (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid) then
 					return
@@ -7304,28 +7322,22 @@ if not libraryOnly then
 						local napePart = currentTargetTitan.nape
 						local napePos = napePart.Position
 
-						local lookVec = titanRoot and titanRoot.CFrame.LookVector or titanPivot.LookVector
-						local behindDist = math.clamp(AOTConfig.BehindNapeDistance or 2.0, 0.5, 12)
-						local heightOffset = math.clamp(AOTConfig.HoverHeight or 10, 2, 35)
+						local titanCF = titanRoot and titanRoot.CFrame or titanPivot
+						local lookVec = titanCF.LookVector
 
-						if AOTConfig.FarmPosition == "High Sky (Anti-Grab)" then
-							behindDist = 1.0
-							heightOffset = 16
+						-- Luôn bay trên cao an toàn tuyệt đối (28-35 studs trên đỉnh gáy Titan, không bao giờ bị tóm)
+						local heightOffset = math.clamp(AOTConfig.HoverHeight or 28.0, 20.0, 60.0)
+						local behindDist = math.clamp(AOTConfig.BehindNapeDistance or 2.0, 0.0, 15.0)
+
+						if AOTConfig.FarmPosition == "Above Nape" then
+							heightOffset = math.clamp(AOTConfig.HoverHeight or 25.0, 20.0, 45.0)
+							behindDist = 2.0
 						elseif AOTConfig.FarmPosition == "Behind Nape" then
-							behindDist = 3.0
-							heightOffset = 6
+							heightOffset = math.clamp(AOTConfig.HoverHeight or 22.0, 18.0, 35.0)
+							behindDist = 4.0
 						end
 
-						-- Auto Dodge: Nếu phát hiện Titan vung tay hoặc chồm tới, bay bổng lên thêm 14 studs để né đòn
-						if AOTConfig.AutoDodge then
-							local isAttacking = titanModel:GetAttribute("Attacking") or
-								titanModel:GetAttribute("Swinging") or titanModel:GetAttribute("Grabbing")
-							if isAttacking then
-								heightOffset = heightOffset + 14
-							end
-						end
-
-						-- Vị trí: Đứng cao an toàn phía trên gáy
+						-- Tọa độ trên cao: Lơ lửng trên trời cao hơn gáy Titan, nhìn chúc xuống gáy
 						local goalPos = napePos - (lookVec * behindDist) + Vector3.new(0, heightOffset, 0)
 						local targetCF = CFrame.lookAt(goalPos, napePos)
 
@@ -7333,40 +7345,33 @@ if not libraryOnly then
 						local dist = (goalPos - currentCF.Position).Magnitude
 
 						if AOTConfig.InstantTeleport then
-							-- Chế độ Teleport tức thì: Snap thẳng đến sau gáy không cần bay
 							root.CFrame = targetCF
 						else
-							if dist > 1.2 then
-								local speed = math.max(AOTConfig.FlightSpeed or 420, 200)
-								-- Adaptive Altitude: Nếu Titan ở xa (> 60 studs), giữ độ cao trên không trung để không bị vướng nhà cửa cây cối
-								if dist > 60 then
-									local highGoal = Vector3.new(goalPos.X,
-										math.max(currentCF.Position.Y, goalPos.Y + 20), goalPos.Z)
-									local highCF = CFrame.lookAt(highGoal, napePos)
-									local alpha = math.clamp((speed * dt) / math.max(dist, 1), 0.35, 1)
-									root.CFrame = currentCF:Lerp(highCF, alpha)
+							if dist > 1.0 then
+								local speed = math.max(AOTConfig.FlightSpeed or 450, 250)
+								local step = speed * dt
+								if dist <= step then
+									root.CFrame = targetCF
 								else
-									local alpha = math.clamp((speed * dt) / math.max(dist, 1), 0.40, 1)
-									root.CFrame = currentCF:Lerp(targetCF, alpha)
+									-- Khi bay xa giữa các Titan (> 25 studs), duy trì độ cao trên không trung để không bị vướng chướng ngại vật hay quái dưới đất
+									local lerpPos = currentCF.Position:Lerp(goalPos, math.clamp(step / dist, 0.05, 1))
+									if dist > 25 then
+										lerpPos = Vector3.new(lerpPos.X, math.max(lerpPos.Y, goalPos.Y), lerpPos.Z)
+									end
+									root.CFrame = CFrame.lookAt(lerpPos, napePos)
 								end
 							else
 								root.CFrame = targetCF
 							end
 						end
-
-						-- Khóa góc nhìn Camera thẳng vào tâm Gáy
-						local cam = Workspace and Workspace.CurrentCamera
-						if cam then
-							cam.CFrame = CFrame.lookAt(cam.CFrame.Position, napePos)
-						end
 					end
 				end)
 			end)
 
-			-- 3. Dedicated Hitbox Extender Engine & Anti-Grab Shield: Vô hiệu hóa hitbox người/bắt và đưa Gáy đến trước kiếm
+			-- 3. Dedicated Hitbox Extender Engine & Anti-Grab Shield: Mở rộng hitbox gáy lên trời để chém từ trên cao trúng 100%
 			RunService.Heartbeat:Connect(function()
 				if not (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid or AOTConfig.HitboxExtender) then return end
-				local sz = AOTConfig.NapeHitboxSize or 120
+				local sz = AOTConfig.NapeHitboxSize or 80
 				pcall(function()
 					local searchFolders = {}
 					for _, fName in ipairs({ "Titans", "Enemies", "Boss", "Bosses", "Raid", "Spawns", "Entities" }) do
@@ -7377,47 +7382,36 @@ if not libraryOnly then
 
 					local lp = Players and Players.LocalPlayer
 					local char = lp and lp.Character
-					local root = char and char:FindFirstChild("HumanoidRootPart")
 
 					for _, folder in ipairs(searchFolders) do
 						for _, titan in ipairs(folder:GetChildren()) do
 							if titan:IsA("Model") and titan ~= char then
-								local hb = titan:FindFirstChild("Hitboxes")
-								if hb then
-									for _, sub in ipairs(hb:GetDescendants()) do
-										if sub:IsA("BasePart") then
-											if sub.Name == "Nape" then
-												sub.CanTouch = true
-												sub.CanCollide = false
-												sub.Massless = true
-												if AOTConfig.HitboxExtender then
-													sub.Size = Vector3.new(sz, sz, sz)
-												end
-												if AOTConfig.ShowNapeHitbox then
-													sub.Transparency = 0.45
-													sub.Color = AOTConfig.ESPColor
-													sub.Material = Enum.Material.Neon
-												else
-													sub.Transparency = 0.88
-												end
-											else
-												-- TRIỆT TIÊU 100% HITBOX NGƯỜI VÀ GRAB: Body, Torso, Arms, Legs, Eyes, Grab
-												sub.CanTouch = false
-												sub.CanCollide = false
-											end
-										end
+								local nape = findTitanNape(titan)
+								if nape and nape:IsA("BasePart") then
+									nape.CanTouch = true
+									nape.CanCollide = false
+									nape.CanQuery = true
+									nape.Massless = true
+									if AOTConfig.HitboxExtender then
+										nape.Size = Vector3.new(sz, sz, sz)
 									end
-								end
-								for _, part in ipairs(titan:GetChildren()) do
-									if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
-										part.CanTouch = false
+									if AOTConfig.ShowNapeHitbox then
+										nape.Transparency = 0.55
+										nape.Color = AOTConfig.ESPColor
+										nape.Material = Enum.Material.Neon
+									else
+										nape.Transparency = 1
 									end
 								end
 
-								-- Bring Nape to Weapon: Đưa Nape của Titan mục tiêu đến ngay trước lưỡi kiếm để 100% chém trúng gáy
-								if currentTargetTitan and currentTargetTitan.model == titan and root and currentTargetTitan.nape and currentTargetTitan.nape.Parent then
-									currentTargetTitan.nape.CanCollide = false
-									currentTargetTitan.nape.CFrame = root.CFrame * CFrame.new(0, -1, -2.5)
+								-- TRIỆT TIÊU 100% HITBOX THÂN, TAY, CHÂN, ĐẦU, BẮT (Anti-Body Hit & Anti-Grab)
+								-- Vô hiệu hóa CanTouch & CanQuery trên mọi part khác trong titan để đòn chém CHỈ TRÚNG GÁY 100%
+								for _, part in ipairs(titan:GetDescendants()) do
+									if part:IsA("BasePart") and part ~= nape and part.Name ~= "HumanoidRootPart" then
+										part.CanTouch = false
+										part.CanCollide = false
+										part.CanQuery = false
+									end
 								end
 							end
 						end
@@ -7425,8 +7419,7 @@ if not libraryOnly then
 				end)
 			end)
 
-			-- 4. Combat Loop: Tấn công liên tục 60 FPS, chém chính diện gáy, tự nạp kiếm thông minh
-			local lastTargetTitan = nil
+			-- 4. Combat Loop: Tấn công liên tục từ trên cao chém xuống gáy, tự nạp kiếm thông minh
 			task.spawn(function()
 				while not rayfieldDestroyed do
 					local delayTime = 0.04
@@ -7435,33 +7428,31 @@ if not libraryOnly then
 					end
 
 					pcall(function()
-						local titans = getTitansList()
-						currentTargetTitan = titans[1]
+						local lp = Players and Players.LocalPlayer
+						local char = lp and lp.Character
+						local root = char and char:FindFirstChild("HumanoidRootPart")
 
-						-- Phát hiện khi Titan vừa chết: Đánh dấu tử và đổi mục tiêu ngay lập tức không bị khựng lại
-						if lastTargetTitan and isTitanDeadOrInvalid(lastTargetTitan.model, lastTargetTitan.humanoid, lastTargetTitan.nape) then
-							onTitanDied(lastTargetTitan.model)
-							currentTargetTitan = nil
-							if AOTConfig.ReloadAfterTitanKill and consecutiveSlashes >= 12 then
-								task.spawn(function()
-									performAOTReload(true)
-								end)
-							end
+						if not currentTargetTitan or not currentTargetTitan.nape or isTitanDeadOrInvalid(currentTargetTitan.model, currentTargetTitan.humanoid, currentTargetTitan.nape) then
+							local titans = getTitansList()
+							currentTargetTitan = titans[1]
 						end
-						lastTargetTitan = currentTargetTitan
 
 						if AOTConfig.AutoTitanShift or AOTConfig.TitanShifterMastery then
 							performAOTAutoShifter()
 						end
 
-						-- Chém mục tiêu
+						-- Chém mục tiêu từ trên cao: Khi đã bay đến phía trên gáy Titan (khoảng cách <= 55 studs)
 						local primaryTarget = nil
-						if (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid) and currentTargetTitan then
-							if currentTargetTitan.dist <= 180 then
+						if (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid) and currentTargetTitan and currentTargetTitan.nape then
+							local distToNape = (root and currentTargetTitan.nape) and
+								(root.Position - currentTargetTitan.nape.Position).Magnitude or 9999
+							if distToNape <= 55 then
 								primaryTarget = currentTargetTitan
 							end
-						elseif AOTConfig.KillAura and currentTargetTitan then
-							if currentTargetTitan.dist <= AOTConfig.KillAuraRange then
+						elseif AOTConfig.KillAura and currentTargetTitan and currentTargetTitan.nape then
+							local distToNape = (root and currentTargetTitan.nape) and
+								(root.Position - currentTargetTitan.nape.Position).Magnitude or 9999
+							if distToNape <= AOTConfig.KillAuraRange then
 								primaryTarget = currentTargetTitan
 							end
 						end
