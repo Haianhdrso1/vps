@@ -5089,38 +5089,38 @@ local function activateEquippedTool()
 end
 
 -- ============================================================================
--- MENU 1: ATTACK ON TITAN: REVOLUTION (HAIANH MENU VIP EDITION)
+-- MENU 1: ATTACK ON TITAN: REVOLUTION (HAIANH MENU VIP PRO EDITION)
 -- ============================================================================
 local function loadAOTRMenu()
 	local AOTConfig = {
-		-- Auto Farm VIP: Bay cao 55 studs an toàn tuyệt đối
+		-- Auto Farm: Tự động khóa vị trí ngay sau gáy (Behind Nape), chém 100% trúng gáy
 		WeaponMode = "Auto",
-		FarmPosition = "Above Head",
-		HoverHeight = 55,
-		FlightSpeed = 320,
+		FarmPosition = "Behind Nape",
+		HoverHeight = 10,
+		FlightSpeed = 350,
 		AutoFarmTitan = false,
 		SafeLegitDelay = false,
 		TitanShifterMastery = false,
 		AutoTitanShift = true,
-		AutoReload = true,
+		AutoReloadWhenBroken = true,
 		AutoRefillSupplies = true,
 		InfiniteGasDurability = false,
 
-		-- Multi-Target Combat VIP: Chém lan 3-6 Titan, Tự dùng Kỹ năng, Hitbox khổng lồ 350 studs
+		-- Multi-Target Combat: Tấn công gáy chuẩn xác, Hitbox 120 studs cực mượt
 		MultiTargetAttack = true,
-		MaxTargets = 6,
-		AttackRadius = 150,
+		MaxTargets = 4,
+		AttackRadius = 85,
 		AutoUseSkills = true,
 		KillAura = false,
-		KillAuraRange = 160,
+		KillAuraRange = 120,
 		HitboxExtender = true,
-		NapeHitboxSize = 350,
+		NapeHitboxSize = 120,
 		Godmode = false,
 		AutoEscapeGrab = true,
 		InfiniteHookRange = false,
 		NoCooldown = false,
 
-		-- Raid & Story VIP: Đột kích Colossal, Tự bắn pháo, Tự nâng cấp căn cứ HQ
+		-- Raid & Story VIP
 		SelectedRaid = "Colossal Titan",
 		SelectedRaidDiff = "Aberrant",
 		AutoRaid = false,
@@ -5182,8 +5182,8 @@ local function loadAOTRMenu()
 
 	FarmTab:CreateDropdown({
 		Name = "Farm Position",
-		Options = {"Above Head", "Behind Nape"},
-		CurrentOption = {"Above Head"},
+		Options = {"Behind Nape", "Above Head"},
+		CurrentOption = {"Behind Nape"},
 		MultipleOptions = false,
 		Flag = "AOT_FarmPosition",
 		Callback = function(Option)
@@ -5193,10 +5193,10 @@ local function loadAOTRMenu()
 
 	FarmTab:CreateSlider({
 		Name = "Hover Height",
-		Range = {20, 150},
-		Increment = 2,
+		Range = {5, 80},
+		Increment = 1,
 		Suffix = "Studs",
-		CurrentValue = 55,
+		CurrentValue = 10,
 		Flag = "AOT_HoverHeight",
 		Callback = function(Value)
 			AOTConfig.HoverHeight = Value
@@ -5208,7 +5208,7 @@ local function loadAOTRMenu()
 		Range = {150, 600},
 		Increment = 10,
 		Suffix = "Studs/s",
-		CurrentValue = 320,
+		CurrentValue = 350,
 		Flag = "AOT_FlightSpeed",
 		Callback = function(Value)
 			AOTConfig.FlightSpeed = Value
@@ -5223,19 +5223,6 @@ local function loadAOTRMenu()
 		Flag = "AOT_AutoFarmTitan",
 		Callback = function(Value)
 			AOTConfig.AutoFarmTitan = Value
-			if not Value and not AOTConfig.TitanShifterMastery and not AOTConfig.AutoRaid then
-				pcall(function()
-					local lp = Players and Players.LocalPlayer
-					local char = lp and lp.Character
-					local root = char and char:FindFirstChild("HumanoidRootPart")
-					if root then
-						local bv = root:FindFirstChild("HaiAnh_AntiGravity")
-						local bg = root:FindFirstChild("HaiAnh_GyroLock")
-						if bv then bv:Destroy() end
-						if bg then bg:Destroy() end
-					end
-				end)
-			end
 		end,
 	})
 
@@ -5268,12 +5255,13 @@ local function loadAOTRMenu()
 
 	FarmTab:CreateSection("Blades & Thunder Spears Reload")
 
+	-- Tính năng thông minh: CHỈ nạp lại khi kiếm thực sự bị gãy hoặc cùn hết độ bền, KHÔNG tự nạp lung tung
 	FarmTab:CreateToggle({
-		Name = "Auto Reload Blades & Spears",
+		Name = "Auto Reload When Broken",
 		CurrentValue = true,
-		Flag = "AOT_AutoReload",
+		Flag = "AOT_AutoReloadWhenBroken",
 		Callback = function(Value)
-			AOTConfig.AutoReload = Value
+			AOTConfig.AutoReloadWhenBroken = Value
 		end,
 	})
 
@@ -5310,10 +5298,10 @@ local function loadAOTRMenu()
 
 	CombatTab:CreateSlider({
 		Name = "Max Attack Targets",
-		Range = {1, 10},
+		Range = {1, 8},
 		Increment = 1,
 		Suffix = "Titans",
-		CurrentValue = 6,
+		CurrentValue = 4,
 		Flag = "AOT_MaxTargets",
 		Callback = function(Value)
 			AOTConfig.MaxTargets = Value
@@ -5322,10 +5310,10 @@ local function loadAOTRMenu()
 
 	CombatTab:CreateSlider({
 		Name = "Attack Radius",
-		Range = {50, 400},
-		Increment = 10,
+		Range = {30, 200},
+		Increment = 5,
 		Suffix = "Studs",
-		CurrentValue = 150,
+		CurrentValue = 85,
 		Flag = "AOT_AttackRadius",
 		Callback = function(Value)
 			AOTConfig.AttackRadius = Value
@@ -5356,10 +5344,10 @@ local function loadAOTRMenu()
 
 	CombatTab:CreateSlider({
 		Name = "Kill Aura Range",
-		Range = {50, 350},
-		Increment = 10,
+		Range = {30, 250},
+		Increment = 5,
 		Suffix = "Studs",
-		CurrentValue = 160,
+		CurrentValue = 120,
 		Flag = "AOT_KillAuraRange",
 		Callback = function(Value)
 			AOTConfig.KillAuraRange = Value
@@ -5377,10 +5365,10 @@ local function loadAOTRMenu()
 
 	CombatTab:CreateSlider({
 		Name = "Nape Hitbox Size",
-		Range = {50, 800},
-		Increment = 25,
+		Range = {30, 300},
+		Increment = 10,
 		Suffix = "Studs",
-		CurrentValue = 350,
+		CurrentValue = 120,
 		Flag = "AOT_NapeSize",
 		Callback = function(Value)
 			AOTConfig.NapeHitboxSize = Value
@@ -5540,6 +5528,59 @@ local function loadAOTRMenu()
 
 	-- TAB 4: Misc / Gacha
 	local MiscTab = Window:CreateTab("Misc / Gacha", 0)
+	MiscTab:CreateSection("Manual Equipment Controls")
+
+	MiscTab:CreateButton({
+		Name = "Reload Blades Now",
+		Callback = function()
+			pcall(function()
+				local postRemote = getAOTRemotes()
+				if postRemote then
+					postRemote:FireServer("Attacks", "Reload")
+					postRemote:FireServer("S_Equipment", "Reload")
+				end
+				triggerActionButtons({"nạp lại", "nap lai", "reload"})
+				if VirtualInputManager then
+					VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
+					task.wait(0.01)
+					VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
+				end
+			end)
+			RayfieldLibrary:Notify({
+				Title = "Reload",
+				Content = "Đã nạp lại kiếm mới thành công!",
+				Duration = 3,
+			})
+		end,
+	})
+
+	MiscTab:CreateButton({
+		Name = "Refill Supplies at Station",
+		Callback = function()
+			pcall(function()
+				local postRemote = getAOTRemotes()
+				if postRemote then
+					postRemote:FireServer("S_Equipment", "Refill")
+				end
+				if fireproximityprompt and Workspace then
+					for _, obj in ipairs(Workspace:GetDescendants()) do
+						if obj:IsA("ProximityPrompt") and obj.Enabled then
+							local text = string.lower(obj.Name .. " " .. obj.ActionText .. " " .. obj.ObjectText)
+							if string.find(text, "refill", 1, true) or string.find(text, "gas", 1, true) or string.find(text, "blade", 1, true) or string.find(text, "supply", 1, true) then
+								fireproximityprompt(obj, 1)
+							end
+						end
+					end
+				end
+			end)
+			RayfieldLibrary:Notify({
+				Title = "Refill Supplies",
+				Content = "Đã nhận tiếp tế Kiếm và Gas từ trạm!",
+				Duration = 3,
+			})
+		end,
+	})
+
 	MiscTab:CreateSection("Family & Perk Gacha")
 
 	MiscTab:CreateDropdown({
@@ -5629,7 +5670,6 @@ local function loadAOTRMenu()
 				Content = "Flagged attributes detected: " .. table.concat(suspiciousFlags, ", "),
 				Duration = 7,
 			})
-			-- Emergency auto-stop to protect account
 			AOTConfig.AutoFarmTitan = false
 			AOTConfig.AutoRaid = false
 		else
@@ -5760,7 +5800,7 @@ local function loadAOTRMenu()
 	})
 
 	-- ========================================================================
-	-- AOT:R CORE LOGIC & ENGINE (VIOLET HUB VIP SPEC)
+	-- AOT:R CORE LOGIC & ENGINE (VIOLET HUB PRO EDITION)
 	-- ========================================================================
 	local currentTargetTitan = nil
 	local espObjects = {}
@@ -5799,6 +5839,25 @@ local function loadAOTRMenu()
 		return raw
 	end
 
+	-- Tìm kiếm chuẩn xác 100% GÁY (Nape) của Titan, KHÔNG BAO GIỜ nhận nhầm Body hay HumanoidRootPart
+	local function findTitanNape(titan)
+		if not titan then return nil end
+		local hitboxes = titan:FindFirstChild("Hitboxes")
+		local hitFolder = hitboxes and hitboxes:FindFirstChild("Hit")
+		local nape = (hitFolder and hitFolder:FindFirstChild("Nape"))
+			or (hitboxes and hitboxes:FindFirstChild("Nape"))
+
+		if not nape or not nape:IsA("BasePart") then
+			for _, part in ipairs(titan:GetDescendants()) do
+				if part:IsA("BasePart") and string.lower(part.Name) == "nape" then
+					nape = part
+					break
+				end
+			end
+		end
+		return nape
+	end
+
 	local function getTitansList()
 		local list = {}
 		local lp = Players and Players.LocalPlayer
@@ -5818,16 +5877,10 @@ local function loadAOTRMenu()
 			for _, titan in ipairs(folder:GetChildren()) do
 				if titan:IsA("Model") and not seen[titan] and titan ~= char then
 					local hum = titan:FindFirstChildOfClass("Humanoid")
-					local hitboxes = titan:FindFirstChild("Hitboxes")
-					local hitFolder = hitboxes and hitboxes:FindFirstChild("Hit")
-					local nape = (hitFolder and hitFolder:FindFirstChild("Nape"))
-						or (hitboxes and hitboxes:FindFirstChild("Nape"))
-						or titan:FindFirstChild("Nape", true)
-						or titan:FindFirstChild("HumanoidRootPart")
-						or titan:FindFirstChild("Head")
+					local nape = findTitanNape(titan)
 
-					local isTitanCandidate = (hum ~= nil) or (hitboxes ~= nil) or (nape ~= nil)
-					if isTitanCandidate and nape and nape:IsA("BasePart") then
+					-- Chỉ xử lý mục tiêu khi tìm thấy đúng Gáy (Nape) thực sự
+					if nape and nape:IsA("BasePart") then
 						local alive = true
 						if hum and hum.Health <= 0 then
 							alive = false
@@ -5852,30 +5905,121 @@ local function loadAOTRMenu()
 		return list
 	end
 
-	-- Auto Use Skills: Tự động dùng kỹ năng chém xoay, bão kiếm khi hồi chiêu
-	local function performAOTAutoSkills()
-		if not AOTConfig.AutoUseSkills then return end
-		pcall(function()
-			local postRemote = getAOTRemotes()
-			if postRemote then
-				for slot = 1, 4 do
-					pcall(function() postRemote:FireServer("Skills", "Use", slot) end)
-					pcall(function() postRemote:FireServer("S_Character", "Skill", slot) end)
-					pcall(function() postRemote:FireServer("Attacks", "Skill", slot) end)
+	-- Kiểm tra độ bền kiếm thông minh: Chỉ báo cần nạp lại khi kiếm THỰC SỰ bị gãy hoặc cùn hết
+	local function isBladeActuallyBroken()
+		local lp = Players and Players.LocalPlayer
+		local char = lp and lp.Character
+		if not char then return false end
+
+		if char:GetAttribute("BladesBroken") == true or char:GetAttribute("Broken") == true then
+			return true
+		end
+		local dur = char:GetAttribute("Durability") or char:GetAttribute("BladeDurability")
+		if dur and dur <= 2 then
+			return true
+		end
+		local blades = char:GetAttribute("Blades")
+		if blades and blades <= 0 then
+			return true
+		end
+
+		local tool = char:FindFirstChildOfClass("Tool")
+		if tool then
+			local tDur = tool:GetAttribute("Durability")
+			if tDur and tDur <= 0 then
+				return true
+			end
+		end
+
+		local pgui = lp:FindFirstChildOfClass("PlayerGui")
+		if pgui then
+			for _, lbl in ipairs(pgui:GetDescendants()) do
+				if lbl:IsA("TextLabel") and lbl.Visible then
+					local txt = string.lower(lbl.Text)
+					if txt == "broken" or txt == "0%" or txt == "gãy" or txt == "gay" then
+						return true
+					end
 				end
 			end
+		end
+
+		return false
+	end
+
+	local lastReloadTime = 0
+	local function performAOTReload(force)
+		-- Nếu không bị ép buộc (force), chỉ nạp khi kiếm thực sự bị gãy
+		if not force and not isBladeActuallyBroken() then
+			return
+		end
+		if os.clock() - lastReloadTime < 3.5 then return end
+		lastReloadTime = os.clock()
+
+		pcall(function()
+			local postRemote, getRemote = getAOTRemotes()
+			if postRemote then
+				pcall(function() postRemote:FireServer("Attacks", "Reload") end)
+				pcall(function() postRemote:FireServer("S_Equipment", "Reload") end)
+			end
+			if getRemote then
+				pcall(function() getRemote:InvokeServer("S_Equipment", "Reload") end)
+			end
+
+			triggerActionButtons({"nạp lại", "nap lai", "reload"})
 
 			if VirtualInputManager then
-				for _, key in ipairs({Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four, Enum.KeyCode.Z, Enum.KeyCode.X, Enum.KeyCode.C, Enum.KeyCode.V}) do
-					pcall(function()
-						VirtualInputManager:SendKeyEvent(true, key, false, game)
-						task.wait(0.003)
-						VirtualInputManager:SendKeyEvent(false, key, false, game)
-					end)
-				end
+				pcall(function()
+					VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
+					task.wait(0.01)
+					VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
+				end)
 			end
 
-			triggerActionButtons({"skill", "kỹ năng", "ky nang", "slot1", "slot2", "slot3", "slot4", "rising", "tornado", "lance", "burst"})
+			-- Nếu hết sạch cả hộp kiếm dự phòng, tự động tiếp tế tại trạm
+			if AOTConfig.AutoRefillSupplies and Workspace then
+				local unclimbable = Workspace:FindFirstChild("Unclimbable")
+				local reloadsFolder = (unclimbable and unclimbable:FindFirstChild("Reloads")) or Workspace
+				for _, obj in ipairs(reloadsFolder:GetDescendants()) do
+					if obj:IsA("ProximityPrompt") and obj.Enabled then
+						local pText = string.lower(obj.Name .. " " .. obj.ActionText .. " " .. obj.ObjectText)
+						if string.find(pText, "gas", 1, true) or string.find(pText, "blade", 1, true) or string.find(pText, "refill", 1, true) or string.find(pText, "supply", 1, true) then
+							if fireproximityprompt then
+								pcall(function() fireproximityprompt(obj, 1) end)
+							end
+						end
+					end
+				end
+			end
+		end)
+	end
+
+	-- Auto Use Skills: Chạy nền độc lập không làm khựng hay giật lag đòn chém M1
+	local lastSkillCast = 0
+	local function performAOTAutoSkills()
+		if not AOTConfig.AutoUseSkills then return end
+		if os.clock() - lastSkillCast < 0.8 then return end
+		lastSkillCast = os.clock()
+
+		task.spawn(function()
+			pcall(function()
+				local postRemote = getAOTRemotes()
+				if postRemote then
+					for slot = 1, 4 do
+						postRemote:FireServer("Skills", "Use", slot)
+						postRemote:FireServer("S_Character", "Skill", slot)
+					end
+				end
+
+				if VirtualInputManager then
+					for _, key in ipairs({Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three, Enum.KeyCode.Four}) do
+						VirtualInputManager:SendKeyEvent(true, key, false, game)
+						task.wait(0.002)
+						VirtualInputManager:SendKeyEvent(false, key, false, game)
+					end
+				end
+
+				triggerActionButtons({"skill", "slot1", "slot2", "slot3", "slot4"})
+			end)
 		end)
 	end
 
@@ -5901,7 +6045,7 @@ local function loadAOTRMenu()
 		end)
 	end
 
-	-- Multi-Target Attack: 1 slash or 1 spear hits 3-6 Titans simultaneously with true equipment damage
+	-- Multi-Target Attack: 1 chém hoặc 1 thương sấm sét trúng thẳng vào gáy của 3-4 Titan xung quanh
 	local function performAOTMultiAttack(primaryTarget)
 		if not primaryTarget or not primaryTarget.nape then return end
 		pcall(function()
@@ -5910,12 +6054,12 @@ local function loadAOTRMenu()
 			local root = char and char:FindFirstChild("HumanoidRootPart")
 			local postRemote, getRemote = getAOTRemotes()
 
-			-- Thu thập danh sách mục tiêu trong bán kính đánh lan
+			-- Thu thập các Titan khác trong bán kính đánh lan
 			local targetEntries = { primaryTarget }
 			if AOTConfig.MultiTargetAttack then
 				local allTitans = getTitansList()
-				local maxT = math.clamp(AOTConfig.MaxTargets or 6, 1, 10)
-				local radius = math.max(AOTConfig.AttackRadius or 150, AOTConfig.NapeHitboxSize or 350)
+				local maxT = math.clamp(AOTConfig.MaxTargets or 4, 1, 8)
+				local radius = AOTConfig.AttackRadius or 85
 				for _, t in ipairs(allTitans) do
 					if t ~= primaryTarget and t.nape and t.humanoid and t.humanoid.Health > 0 then
 						local dToPrimary = (t.nape.Position - primaryTarget.nape.Position).Magnitude
@@ -5930,39 +6074,22 @@ local function loadAOTRMenu()
 				end
 			end
 
-			-- Kiểm tra góc nhìn nếu bật Safe Legit Farm
-			if AOTConfig.SafeLegitDelay and root and primaryTarget.nape then
-				local params = RaycastParams.new()
-				local excludeList = { char }
-				if Workspace:FindFirstChild("Titans") then
-					table.insert(excludeList, Workspace.Titans)
-				end
-				params.FilterDescendantsInstances = excludeList
-				params.FilterType = Enum.RaycastFilterType.Exclude
-				local hit = Workspace:Raycast(root.Position, primaryTarget.nape.Position - root.Position, params)
-				if hit and hit.Instance and hit.Instance.CanCollide and hit.Instance.Transparency < 0.7 then
-					return
-				end
-			end
-
 			local cam = Workspace and Workspace.CurrentCamera
 			local vpSize = cam and cam.ViewportSize or Vector2.new(1280, 720)
 
 			local useSpears = (AOTConfig.WeaponMode == "Thunder Spears") or (AOTConfig.WeaponMode == "Auto")
 			local useBlades = (AOTConfig.WeaponMode == "Blades") or (AOTConfig.WeaponMode == "Auto")
 
-			-- 1. Bắn thương sấm sét (Thunder Spears)
+			-- 1. Bắn thương sấm sét (Thunder Spears) trực tiếp vào Gáy
 			if useSpears then
 				for _, entry in ipairs(targetEntries) do
 					if entry.nape then
 						if postRemote then
 							pcall(function() postRemote:FireServer("S_Equipment", "Spears", "Fire", entry.nape.Position) end)
 							pcall(function() postRemote:FireServer("Attacks", "Spears", entry.nape.Position) end)
-							pcall(function() postRemote:FireServer("S_Equipment", "Spear", entry.nape.Position) end)
 							pcall(function() postRemote:FireServer("Hitboxes", "Register", entry.nape) end)
 						end
 						if getRemote then
-							pcall(function() getRemote:InvokeServer("S_Equipment", "Spears", entry.nape) end)
 							pcall(function() getRemote:InvokeServer("Hitboxes", "Register", entry.nape) end)
 						end
 					end
@@ -5978,27 +6105,22 @@ local function loadAOTRMenu()
 				triggerActionButtons({"spear", "thương", "thuong", "thunder"})
 			end
 
-			-- 2. Chém kiếm (Blades Slash) – Kích hoạt đồng thời chiêu thức và chém M1
+			-- 2. Chém kiếm (Blades Slash) – Chém mượt mà 60 FPS không khựng gián đoạn
 			if useBlades then
 				if postRemote then
 					pcall(function() postRemote:FireServer("Attacks", "Slash", true) end)
 					pcall(function() postRemote:FireServer("Attacks", "Slash_Release") end)
 					pcall(function() postRemote:FireServer("Attacks", "M1") end)
-					pcall(function() postRemote:FireServer("S_Character", "Attack") end)
-					pcall(function() postRemote:FireServer("Attacks", "Blade", true) end)
 				end
 				if getRemote then
 					pcall(function() getRemote:InvokeServer("Attacks", "Slash", true) end)
-					pcall(function() getRemote:InvokeServer("Attacks", "M1") end)
 				end
 
-				-- Đăng ký va chạm lên toàn bộ các gáy Titan trong tầm
+				-- Đăng ký sát thương trực tiếp vào Gáy (Nape) cho toàn bộ mục tiêu
 				for _, entry in ipairs(targetEntries) do
 					if entry.nape then
 						if postRemote then
 							pcall(function() postRemote:FireServer("Hitboxes", "Register", entry.nape) end)
-							pcall(function() postRemote:FireServer("Attacks", "Hit", entry.nape) end)
-							pcall(function() postRemote:FireServer("S_Equipment", "Hit", entry.nape) end)
 						end
 						if getRemote then
 							pcall(function() getRemote:InvokeServer("Hitboxes", "Register", entry.nape) end)
@@ -6006,7 +6128,7 @@ local function loadAOTRMenu()
 					end
 				end
 
-				-- Kích hoạt đòn đánh vũ khí, nút M1 Mobile/PC và chiêu thức tự động
+				-- Kích hoạt đòn đánh chém
 				activateEquippedTool()
 				triggerMobileM1Attack()
 				triggerActionButtons({"m1", "slash", "attack", "chém", "chem"})
@@ -6028,89 +6150,7 @@ local function loadAOTRMenu()
 		end)
 	end
 
-	local lastReloadTime = 0
-	local function performAOTReload()
-		if os.clock() - lastReloadTime < 1.8 then return end
-		lastReloadTime = os.clock()
-		pcall(function()
-			local postRemote, getRemote = getAOTRemotes()
-			if postRemote then
-				pcall(function() postRemote:FireServer("Attacks", "Reload") end)
-				pcall(function() postRemote:FireServer("S_Equipment", "Reload") end)
-				pcall(function() postRemote:FireServer("S_Equipment", "Refill") end)
-			end
-			if getRemote then
-				pcall(function() getRemote:InvokeServer("S_Equipment", "Reload") end)
-			end
-
-			triggerActionButtons({"nạp lại", "nap lai", "reload", "refill", "nạp"})
-
-			if VirtualInputManager then
-				pcall(function()
-					VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
-					task.wait(0.02)
-					VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
-				end)
-			end
-
-			if AOTConfig.AutoRefillSupplies and Workspace then
-				local unclimbable = Workspace:FindFirstChild("Unclimbable")
-				local reloadsFolder = (unclimbable and unclimbable:FindFirstChild("Reloads")) or Workspace
-				for _, obj in ipairs(reloadsFolder:GetDescendants()) do
-					if obj:IsA("ProximityPrompt") then
-						local pText = string.lower(obj.Name .. " " .. obj.ActionText .. " " .. obj.ObjectText)
-						if string.find(pText, "gas", 1, true) or string.find(pText, "blade", 1, true) or string.find(pText, "refill", 1, true) or string.find(pText, "supply", 1, true) then
-							if fireproximityprompt then
-								pcall(function() fireproximityprompt(obj, 1) end)
-							end
-						end
-					end
-				end
-			end
-		end)
-	end
-
-	local function enableHoverLock(rootPart)
-		if not rootPart then return end
-		local bv = rootPart:FindFirstChild("HaiAnh_AntiGravity")
-		if not bv then
-			bv = Instance.new("BodyVelocity")
-			bv.Name = "HaiAnh_AntiGravity"
-			bv.Velocity = Vector3.zero
-			bv.MaxForce = Vector3.new(9e8, 9e8, 9e8)
-			bv.P = 15000
-			bv.Parent = rootPart
-		else
-			bv.Velocity = Vector3.zero
-		end
-
-		local bg = rootPart:FindFirstChild("HaiAnh_GyroLock")
-		if not bg then
-			bg = Instance.new("BodyGyro")
-			bg.Name = "HaiAnh_GyroLock"
-			bg.MaxTorque = Vector3.new(9e8, 9e8, 9e8)
-			bg.P = 18000
-			bg.D = 400
-			bg.Parent = rootPart
-		end
-		return bv, bg
-	end
-
-	local function disableHoverLock()
-		pcall(function()
-			local lp = Players and Players.LocalPlayer
-			local char = lp and lp.Character
-			local root = char and char:FindFirstChild("HumanoidRootPart")
-			if root then
-				local bv = root:FindFirstChild("HaiAnh_AntiGravity")
-				local bg = root:FindFirstChild("HaiAnh_GyroLock")
-				if bv then bv:Destroy() end
-				if bg then bg:Destroy() end
-			end
-		end)
-	end
-
-	-- 1. Anti-Gravity Stepped Loop: Chống rớt, chống ragdoll
+	-- 1. Anti-Gravity Stepped Loop: Giữ nhân vật lơ lửng, triệt tiêu trọng lực
 	local RunService = getService("RunService")
 	RunService.Stepped:Connect(function()
 		if not (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid) then
@@ -6139,7 +6179,7 @@ local function loadAOTRMenu()
 		end
 	end)
 
-	-- 2. Heartbeat Farm Flight & Hover Loop: Bay cao cố định trên đầu Titan
+	-- 2. Heartbeat Farm Flight: Khóa vị trí NGAY SAU GÁY (Behind Nape), bay lượn mượt mà 60 FPS
 	RunService.Heartbeat:Connect(function(dt)
 		if not (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid) then
 			return
@@ -6150,47 +6190,43 @@ local function loadAOTRMenu()
 			local root = char and char:FindFirstChild("HumanoidRootPart")
 			if not root then return end
 
-			local _, bg = enableHoverLock(root)
-
 			if not currentTargetTitan or not currentTargetTitan.nape or not currentTargetTitan.nape.Parent or (currentTargetTitan.humanoid and currentTargetTitan.humanoid.Health <= 0) then
 				local list = getTitansList()
 				currentTargetTitan = list[1]
 			end
 
 			if currentTargetTitan and currentTargetTitan.nape then
-				local napePos = currentTargetTitan.nape.Position
-				local hoverOffset = Vector3.new(0, AOTConfig.HoverHeight, 0)
-				if AOTConfig.FarmPosition == "Behind Nape" then
-					hoverOffset = (currentTargetTitan.nape.CFrame.LookVector * -12) + Vector3.new(0, AOTConfig.HoverHeight * 0.7, 0)
+				local napeCF = currentTargetTitan.nape.CFrame
+				local heightOffset = math.clamp(AOTConfig.HoverHeight, 6, 45)
+				local behindDist = 9
+
+				if AOTConfig.FarmPosition == "Above Head" then
+					behindDist = 2
+					heightOffset = math.max(AOTConfig.HoverHeight, 18)
 				end
 
-				local goalPos = napePos + hoverOffset
-				local currentPos = root.Position
-				local diff = goalPos - currentPos
-				local flatDist = Vector3.new(diff.X, 0, diff.Z).Magnitude
+				-- Tọa độ chuẩn xác: Đứng ngay sau gáy 9 studs và cao hơn gáy một chút, mắt hướng thẳng vào gáy
+				local goalPos = napeCF.Position - (napeCF.LookVector * behindDist) + Vector3.new(0, heightOffset, 0)
+				local targetCF = CFrame.lookAt(goalPos, napeCF.Position)
 
-				local nextPos
-				if flatDist > 20 then
-					local step = math.min(flatDist, math.max(AOTConfig.FlightSpeed, 150) * dt)
-					local dir = Vector3.new(diff.X, 0, diff.Z).Unit
-					nextPos = Vector3.new(currentPos.X + dir.X * step, goalPos.Y, currentPos.Z + dir.Z * step)
+				local currentCF = root.CFrame
+				local dist = (goalPos - currentCF.Position).Magnitude
+
+				if dist > 3 then
+					local speed = math.max(AOTConfig.FlightSpeed, 200)
+					local alpha = math.clamp((speed * dt) / math.max(dist, 1), 0.15, 1)
+					root.CFrame = currentCF:Lerp(targetCF, alpha)
 				else
-					nextPos = goalPos
-				end
-
-				local targetCF = CFrame.lookAt(nextPos, napePos)
-				root.CFrame = targetCF
-				if bg then
-					bg.CFrame = targetCF
+					root.CFrame = targetCF
 				end
 			end
 		end)
 	end)
 
-	-- 3. Dedicated Continuous Hitbox Extender Engine: Giữ gáy Titan luôn khổng lồ 350-800 studs
+	-- 3. Dedicated Hitbox Extender Engine: Phóng to Gáy (Nape) hợp lý 120 studs, không bị server từ chối
 	RunService.Heartbeat:Connect(function()
 		if not AOTConfig.HitboxExtender then return end
-		local sz = AOTConfig.NapeHitboxSize or 350
+		local sz = AOTConfig.NapeHitboxSize or 120
 		pcall(function()
 			local searchFolders = {}
 			for _, fName in ipairs({"Titans", "Enemies", "Boss", "Bosses", "Raid", "Spawns"}) do
@@ -6202,11 +6238,7 @@ local function loadAOTRMenu()
 			for _, folder in ipairs(searchFolders) do
 				for _, titan in ipairs(folder:GetChildren()) do
 					if titan:IsA("Model") then
-						local hitboxes = titan:FindFirstChild("Hitboxes")
-						local hitFolder = hitboxes and hitboxes:FindFirstChild("Hit")
-						local nape = (hitFolder and hitFolder:FindFirstChild("Nape"))
-							or (hitboxes and hitboxes:FindFirstChild("Nape"))
-							or titan:FindFirstChild("Nape", true)
+						local nape = findTitanNape(titan)
 						if nape and nape:IsA("BasePart") then
 							nape.Size = Vector3.new(sz, sz, sz)
 							nape.CanCollide = false
@@ -6225,7 +6257,7 @@ local function loadAOTRMenu()
 		end)
 	end)
 
-	-- 4. Combat Loop: Tấn công liên tục khi ở trên cao và Tự động Biến hình Shifter
+	-- 4. Combat Loop: Tấn công liên tục, chém chính diện gáy, chỉ nạp lại khi kiếm cùn
 	task.spawn(function()
 		while not rayfieldDestroyed do
 			local delayTime = 0.05
@@ -6250,14 +6282,14 @@ local function loadAOTRMenu()
 				end
 
 				if (AOTConfig.AutoFarmTitan or AOTConfig.TitanShifterMastery or AOTConfig.AutoRaid) and currentTargetTitan then
-					local attackDistanceThreshold = math.max(AOTConfig.NapeHitboxSize or 350, AOTConfig.HoverHeight + 120, 220)
-					if currentTargetTitan.dist <= attackDistanceThreshold then
+					if currentTargetTitan.dist <= 180 then
 						performAOTMultiAttack(currentTargetTitan)
 					end
 				end
 
-				if AOTConfig.AutoReload and (AOTConfig.AutoFarmTitan or AOTConfig.AutoRaid or AOTConfig.KillAura) then
-					performAOTReload()
+				-- Chỉ nạp lại khi kiếm thực sự bị gãy hoặc cùn hết
+				if AOTConfig.AutoReloadWhenBroken and isBladeActuallyBroken() then
+					performAOTReload(false)
 				end
 			end)
 			task.wait(delayTime)
@@ -6342,7 +6374,7 @@ local function loadAOTRMenu()
 		end
 	end)
 
-	-- 6. Raid & Story VIP Automation Loop: Tự bắn pháo, Tự nâng cấp HQ, Tự mở rương & Chơi lại
+	-- 6. Raid & Story VIP Automation Loop
 	task.spawn(function()
 		while not rayfieldDestroyed do
 			pcall(function()
@@ -6357,7 +6389,6 @@ local function loadAOTRMenu()
 						triggerActionButtons({"retry", "chơi lại", "choi lai", "replay"})
 					end
 
-					-- Tự tương tác súng pháo và hòm đồ ProximityPrompt
 					if (AOTConfig.AutoFireCannons or AOTConfig.AutoOpenRaidChests) and fireproximityprompt and Workspace then
 						for _, obj in ipairs(Workspace:GetDescendants()) do
 							if obj:IsA("ProximityPrompt") and obj.Enabled then
@@ -6366,7 +6397,6 @@ local function loadAOTRMenu()
 						end
 					end
 
-					-- Tự động nâng cấp căn cứ HQ trong màn Raid
 					if AOTConfig.AutoUpgradeHQ and postRemote then
 						pcall(function() postRemote:FireServer("Shop", "UpgradeHQ") end)
 						pcall(function() postRemote:FireServer("Raid", "Upgrade") end)
@@ -6388,7 +6418,7 @@ local function loadAOTRMenu()
 		end
 	end)
 
-	-- 7. Gacha / Spin Automation Loop: Quay Tộc & Quay Perk (Divine / Kensei / Berserk)
+	-- 7. Gacha / Spin Automation Loop
 	task.spawn(function()
 		while not rayfieldDestroyed do
 			pcall(function()
@@ -6462,10 +6492,8 @@ local function loadAOTRMenu()
 						for attrName, attrVal in pairs(lp:GetAttributes()) do
 							local lower = string.lower(tostring(attrName))
 							if (string.find(lower, "shadowban", 1, true) or string.find(lower, "ban", 1, true) or string.find(lower, "restrict", 1, true)) and attrVal == true then
-								-- Detected! Auto-abort farming
 								AOTConfig.AutoFarmTitan = false
 								AOTConfig.AutoRaid = false
-								disableHoverLock()
 								RayfieldLibrary:Notify({
 									Title = "Emergency Stop",
 									Content = "Shadowban detected! Auto Farm stopped to prevent ban.",
@@ -6523,7 +6551,7 @@ local function loadAOTRMenu()
 
 							local bb = Instance.new("BillboardGui")
 							bb.Name = "TitanInfo"
-							bb.Adornee = t.nape or t.model:FindFirstChild("Head") or t.model:FindFirstChild("HumanoidRootPart")
+							bb.Adornee = t.nape or t.model:FindFirstChild("Head")
 							bb.Size = UDim2.new(0, 180, 0, 45)
 							bb.StudsOffset = Vector3.new(0, 5, 0)
 							bb.AlwaysOnTop = true
