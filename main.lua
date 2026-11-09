@@ -19,14 +19,26 @@ end
 -- Safe UI Parent Resolution (Prototype root/2)
 ---- ============================================================================
 local function get_safe_gui_parent()
-    local success, parent = pcall(function()
+    local okHui, hui = pcall(function()
         if typeof(gethui) == "function" then
             return gethui()
         end
-        return CoreGui
     end)
-    if success and parent then return parent end
-    local playerGui = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui")
+    if okHui and hui then return hui end
+
+    if CoreGui then
+        local okCore, canCore = pcall(function()
+            local test = Instance.new("Folder")
+            test.Parent = CoreGui
+            test:Destroy()
+            return true
+        end)
+        if okCore and canCore then
+            return CoreGui
+        end
+    end
+
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 5)
     return playerGui
 end
 
@@ -289,8 +301,18 @@ local guiParent = get_safe_gui_parent()
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "SymbioteAuth"
 ScreenGui.ResetOnSpawn = false
+ScreenGui.DisplayOrder = 999999
+ScreenGui.IgnoreGuiInset = true
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.Parent = guiParent
+
+local setParentOk = pcall(function()
+    ScreenGui.Parent = guiParent
+end)
+if not setParentOk or not ScreenGui.Parent then
+    pcall(function()
+        ScreenGui.Parent = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 5)
+    end)
+end
 
 local Overlay = Instance.new("Frame")
 Overlay.Name = "Overlay"
@@ -301,10 +323,17 @@ Overlay.BackgroundTransparency = 0.45
 Overlay.BorderSizePixel = 0
 Overlay.Parent = ScreenGui
 
+local screenWidth = 460
+pcall(function()
+    screenWidth = workspace.CurrentCamera.ViewportSize.X
+end)
+local cardWidth = math.clamp(screenWidth - 30, 280, 460)
+local cardHeight = 340
+
 local Card = Instance.new("Frame")
 Card.Name = "Card"
-Card.Size = UDim2.new(0, 460, 0, 0)
-Card.Position = UDim2.new(0.5, -230, 0.5, 0)
+Card.Size = UDim2.new(0, cardWidth, 0, cardHeight)
+Card.Position = UDim2.new(0.5, -math.floor(cardWidth / 2), 0.5, -math.floor(cardHeight / 2))
 Card.BackgroundColor3 = Theme.CardBg
 Card.BorderSizePixel = 0
 Card.ClipsDescendants = true
@@ -810,8 +839,53 @@ ContinueButton.MouseButton1Click:Connect(function()
         end
     end)
 
+    -- ========================================================================
+    -- LIVE PATCHING STAGE 2 LOADER: BYPASS ANTI-DUMP & EXTRACT REAL SOURCE CODE
+    -- ========================================================================
+    local rawLoaderCode = resData.loader
+    local patchedLoader = rawLoaderCode
+
+    -- Vô hiệu hóa bẫy Anti-Tamper và cờ _TAMPERED
+    patchedLoader = patchedLoader:gsub("local%s+isCompromised%s*=%s*.-[\r\n]", "local isCompromised = false; _TAMPERED = false\n")
+    patchedLoader = patchedLoader:gsub("_TAMPERED%s*=%s*true", "-- _TAMPERED = true")
+
+    -- Vô hiệu hóa hàm phát hiện dump iSDUFoZyE
+    patchedLoader = patchedLoader:gsub("local%s+function%s+iSDUFoZyE%s*%b()", "local function iSDUFoZyE(...) return false end local function _old_iSDUFoZyE(...)")
+
+    -- Chèn mã bóc tách Full Game Script thực sự ngay sau khi giải mã rawScript
+    local extractionPayload = [[
+    targetScript = rawScript
+    pcall(function()
+        if targetScript and #targetScript > 80 then
+            print("[SYMBIOTE REAL DUMP] ========================================")
+            print("[SYMBIOTE REAL DUMP] DA TRICH XUAT THANH CONG FULL SOURCE CODE!")
+            print("[SYMBIOTE REAL DUMP] Kich thuoc source: " .. tostring(#targetScript) .. " bytes")
+            print("[SYMBIOTE REAL DUMP] ========================================")
+            
+            if typeof(writefile) == "function" then
+                writefile("symbiote_full_source.lua", targetScript)
+                print("[SYMBIOTE REAL DUMP] Da luu vao file: workspace/symbiote_full_source.lua")
+            end
+            if typeof(setclipboard) == "function" then
+                setclipboard(targetScript)
+                print("[SYMBIOTE REAL DUMP] Da copy 100% full source code vao Clipboard!")
+            end
+        end
+    end)
+    ]]
+
+    if patchedLoader:find("targetScript%s*=%s*rawScript") then
+        patchedLoader = patchedLoader:gsub("targetScript%s*=%s*rawScript", extractionPayload)
+    else
+        patchedLoader = patchedLoader:gsub("(rawScript%s*=%s*c20CdxCGWSmQ%b()[^\r\n]*)", "%1\n" .. extractionPayload)
+        patchedLoader = patchedLoader:gsub("(rawScript%s*=%s*r4CHJOpCtv%b()[^\r\n]*)", "%1\n" .. extractionPayload)
+    end
+
     -- Compile loader (Prototype root/27/5)
-    local loaderFn, compileErr = loadstring(resData.loader, "Load")
+    local loaderFn, compileErr = loadstring(patchedLoader, "SymbiotePatchedLoader")
+    if not loaderFn then
+        loaderFn, compileErr = loadstring(rawLoaderCode, "Load")
+    end
     if not loaderFn then
         StatusLabel.TextColor3 = Theme.Error
         StatusLabel.Text = "Compilation failed: " .. tostring(compileErr)
@@ -862,5 +936,5 @@ ContinueButton.MouseButton1Click:Connect(function()
         end
     end)
 end)
-```
+
 
