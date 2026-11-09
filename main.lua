@@ -121,7 +121,8 @@ local http_request_fn = (typeof(request) == "function" and request)
 
 local function make_request(endpoint, payload, method)
     local headers = {
-        ["Content-Type"] = "application/json"
+        ["Content-Type"] = "application/json",
+        ["User-Agent"] = "Roblox/WinInet"
     }
     if payload then
         headers["X-Payload"] = base64_encode(HttpService:JSONEncode(payload))
@@ -131,8 +132,11 @@ local function make_request(endpoint, payload, method)
     local reqMethod = method or "GET"
     local options = {
         Url = url,
+        url = url,
         Method = reqMethod,
-        Headers = headers
+        method = reqMethod,
+        Headers = headers,
+        headers = headers
     }
 
     if http_request_fn then
@@ -141,7 +145,7 @@ local function make_request(endpoint, payload, method)
         end)
         if success and typeof(res) == "table" then
             local body = res.Body or res.body or ""
-            local status = res.StatusCode or res.status or 200
+            local status = res.StatusCode or res.status or res.status_code or res.Status or 200
             return true, body, status
         end
         return false, tostring(res), 0
@@ -182,7 +186,7 @@ local function setup_session_deactivation(sessionToken)
         if deactivated then return end
         deactivated = true
         pcall(function()
-            make_request("/deactivate", { token = sessionToken }, "POST")
+            make_request("/deactivate", { token = sessionToken }, "GET")
         end)
     end
 
@@ -805,8 +809,9 @@ end)
 -- Button Callback: Continue / Verify Key (Prototype root/27)
 -- ============================================================================
 ContinueButton.MouseButton1Click:Connect(function()
-    local rawKey = KeyInput.Text
+    local rawKey = KeyInput.Text or ""
     local key = rawKey:match("^%s*(.-)%s*$")
+    if key then key = key:gsub("%s+", "") end
     if not key or key == "" then
         StatusLabel.TextColor3 = Theme.Error
         StatusLabel.Text = "Key cannot be empty!"
@@ -844,21 +849,27 @@ ContinueButton.MouseButton1Click:Connect(function()
         executor = tostring(executorName)
     }
 
-    local success, response, statusCode = make_request("/getloader", payload, "POST")
+    print("[Symbiote] Dang gui yeu cau xac thuc key:", key)
+    local success, response, statusCode = make_request("/getloader", payload, "GET")
     if not success or not response then
+        local errDetail = tostring(response or "Khong co phan hoi")
+        print("[Symbiote Error] Loi ket noi:", errDetail, "Status:", tostring(statusCode))
         StatusLabel.TextColor3 = Theme.Error
-        StatusLabel.Text = "Connection Error: Please try again."
+        StatusLabel.Text = "Connection Error (" .. tostring(statusCode or "Fail") .. ")"
         ContinueButton.Active = true
         ContinueButton.Text = "Continue"
         ContinueButton.BackgroundColor3 = Theme.Accent
         return
     end
 
+    print("[Symbiote] Phan hoi tu server:", tostring(response))
+
     local decodeOk, resData = pcall(function()
         return HttpService:JSONDecode(response)
     end)
 
     if not decodeOk or typeof(resData) ~= "table" then
+        print("[Symbiote Error] JSON Parse Error. Raw body:", tostring(response))
         StatusLabel.TextColor3 = Theme.Error
         StatusLabel.Text = "JSON Parse Error: Server returned invalid format."
         ContinueButton.Active = true
@@ -868,6 +879,7 @@ ContinueButton.MouseButton1Click:Connect(function()
     end
 
     if not resData.success then
+        print("[Symbiote Error] Server tu choi key:", tostring(resData.reason))
         StatusLabel.TextColor3 = Theme.Error
         StatusLabel.Text = resData.reason or "Invalid Key"
         ContinueButton.Active = true
