@@ -111,18 +111,27 @@ local function base64_encode(data)
 end
 
 -- ============================================================================
--- Universal HTTP Request Helper (Prototype root/23)
+-- Universal HTTP Request Helper (Tương thích 100% mọi Executor)
 -- ============================================================================
-local http_request_fn = (typeof(request) == "function" and request)
-    or (typeof(http_request) == "function" and http_request)
-    or (typeof(syn) == "table" and typeof(syn.request) == "function" and syn.request)
-    or (typeof(fluxus) == "table" and typeof(fluxus.request) == "function" and fluxus.request)
-    or (typeof(http) == "table" and typeof(http.request) == "function" and http.request)
+local function get_requester()
+    if typeof(request) == "function" then return request end
+    if typeof(http_request) == "function" then return http_request end
+    if typeof(syn) == "table" and typeof(syn.request) == "function" then return syn.request end
+    if typeof(fluxus) == "table" and typeof(fluxus.request) == "function" then return fluxus.request end
+    if typeof(http) == "table" and typeof(http.request) == "function" then return http.request end
+    local genv = (typeof(getgenv) == "function" and getgenv()) or _G
+    if genv then
+        if typeof(genv.request) == "function" then return genv.request end
+        if typeof(genv.http_request) == "function" then return genv.http_request end
+    end
+    return nil
+end
+
+local http_request_fn = get_requester()
 
 local function make_request(endpoint, payload, method)
     local headers = {
-        ["Content-Type"] = "application/json",
-        ["User-Agent"] = "Roblox/WinInet"
+        ["Content-Type"] = "application/json"
     }
     if payload then
         headers["X-Payload"] = base64_encode(HttpService:JSONEncode(payload))
@@ -130,34 +139,44 @@ local function make_request(endpoint, payload, method)
 
     local url = "https://symbiote.cc" .. endpoint
     local reqMethod = method or "GET"
-    local options = {
-        Url = url,
-        url = url,
-        Method = reqMethod,
-        method = reqMethod,
-        Headers = headers,
-        headers = headers
-    }
+
+    if not http_request_fn then
+        http_request_fn = get_requester()
+    end
 
     if http_request_fn then
-        local success, res = pcall(function()
-            return http_request_fn(options)
+        -- Thử 1: Bảng viết hoa chuẩn PC/Synapse
+        local ok, res = pcall(function()
+            return http_request_fn({
+                Url = url,
+                Method = reqMethod,
+                Headers = headers
+            })
         end)
-        if success and typeof(res) == "table" then
+        if ok and typeof(res) == "table" then
             local body = res.Body or res.body or ""
             local status = res.StatusCode or res.status or res.status_code or res.Status or 200
             return true, body, status
         end
-        return false, tostring(res), 0
-    else
-        local success, res = pcall(function()
-            return HttpService:RequestAsync(options)
+
+        -- Thử 2: Bảng viết thường chuẩn Android/Delta X
+        local ok2, res2 = pcall(function()
+            return http_request_fn({
+                url = url,
+                method = reqMethod,
+                headers = headers
+            })
         end)
-        if success and typeof(res) == "table" then
-            return true, res.Body or "", res.StatusCode or 200
+        if ok2 and typeof(res2) == "table" then
+            local body = res2.Body or res2.body or ""
+            local status = res2.StatusCode or res2.status or res2.status_code or res2.Status or 200
+            return true, body, status
         end
-        return false, tostring(res), 0
+
+        return false, tostring(res or res2 or "Request failed"), 0
     end
+
+    return false, "Executor khong ho tro request", 0
 end
 
 -- ============================================================================
@@ -816,185 +835,166 @@ end)
 -- Button Callback: Continue / Verify Key (Prototype root/27)
 -- ============================================================================
 ContinueButton.MouseButton1Click:Connect(function()
-    local rawKey = KeyInput.Text or ""
-    local key = rawKey:match("^%s*(.-)%s*$")
-    if key then
-        key = key:gsub("%s+", "")
-        key = key:gsub("^TextBox", ""):gsub("^textbox", "")
-        KeyInput.Text = key
-    end
-    if not key or key == "" then
-        StatusLabel.TextColor3 = Theme.Error
-        StatusLabel.Text = "Key cannot be empty!"
-        return
-    end
-
-    ContinueButton.Active = false
-    ContinueButton.Text = "Verifying..."
-    ContinueButton.BackgroundColor3 = Theme.AccentDark
-    StatusLabel.TextColor3 = Theme.TextDim
-    StatusLabel.Text = "Authenticating..."
-
-    local clientId = "Unknown"
-    pcall(function()
-        clientId = game:GetService("RbxAnalyticsService"):GetClientId()
-    end)
-
-    local platform = "Unknown"
-    pcall(function()
-        platform = UserInputService:GetPlatform().Name
-    end)
-
-    local executorName = "Unknown"
-    pcall(function()
-        if typeof(identifyexecutor) == "function" then
-            executorName = identifyexecutor()
-        end
-    end)
-
-    local payload = {
-        key = key,
-        userId = tostring(LocalPlayer.UserId),
-        clientId = tostring(clientId),
-        platform = tostring(platform),
-        executor = tostring(executorName)
-    }
-
-    print("[Symbiote] Dang gui yeu cau xac thuc key:", key)
-    local success, response, statusCode = make_request("/getloader", payload, "GET")
-    if not success or not response then
-        local errDetail = tostring(response or "Khong co phan hoi")
-        print("[Symbiote Error] Loi ket noi:", errDetail, "Status:", tostring(statusCode))
-        StatusLabel.TextColor3 = Theme.Error
-        StatusLabel.Text = "Connection Error (" .. tostring(statusCode or "Fail") .. ")"
-        ContinueButton.Active = true
-        ContinueButton.Text = "Continue"
-        ContinueButton.BackgroundColor3 = Theme.Accent
-        return
-    end
-
-    print("[Symbiote] Phan hoi tu server:", tostring(response))
-
-    local decodeOk, resData = pcall(function()
-        return HttpService:JSONDecode(response)
-    end)
-
-    if not decodeOk or typeof(resData) ~= "table" then
-        print("[Symbiote Error] JSON Parse Error. Raw body:", tostring(response))
-        StatusLabel.TextColor3 = Theme.Error
-        StatusLabel.Text = "JSON Parse Error: Server returned invalid format."
-        ContinueButton.Active = true
-        ContinueButton.Text = "Continue"
-        ContinueButton.BackgroundColor3 = Theme.Accent
-        return
-    end
-
-    if not resData.success then
-        print("[Symbiote Error] Server tu choi key:", tostring(resData.reason))
-        StatusLabel.TextColor3 = Theme.Error
-        StatusLabel.Text = resData.reason or "Invalid Key"
-        ContinueButton.Active = true
-        ContinueButton.Text = "Continue"
-        ContinueButton.BackgroundColor3 = Theme.Accent
-        return
-    end
-
-    if not resData.loader or type(resData.loader) ~= "string" or resData.loader == "" then
-        StatusLabel.TextColor3 = Theme.Error
-        StatusLabel.Text = "Server Error: Please try again."
-        ContinueButton.Active = true
-        ContinueButton.Text = "Continue"
-        ContinueButton.BackgroundColor3 = Theme.Accent
-        return
-    end
-
-    -- Save verified key to advanced_key.json (Prototype root/27/3)
-    pcall(function()
-        if typeof(writefile) == "function" then
-            writefile("advanced_key.json", HttpService:JSONEncode({
-                key = key,
-                date = os.date("%x")
-            }))
-        end
-    end)
-
-    -- Setup session deactivation on game close or leave (Prototype root/27/6)
-    setup_session_deactivation(resData.session_token)
-
-    -- [Auto Dump for Delta X] Lưu Stage 2 loader
-    pcall(function()
-        if typeof(writefile) == "function" then
-            writefile("symbiote_aot_dumped.lua", resData.loader)
-            print("[DUMP SUCCESS] Đã lưu Stage 2 loader vào: workspace/symbiote_aot_dumped.lua")
-        end
-    end)
-
-    -- ========================================================================
-    -- [Auto Extract Real AoT Game Script]
-    -- Tự động bẫy mã nguồn AoT thực sự khi Stage 2 loader giải mã xong trong RAM
-    -- ========================================================================
-    local patchCode = "local isCompromised = false; _TAMPERED = false\n"
-        .. "    if rawScript and #rawScript > 50 then\n"
-        .. "        pcall(function()\n"
-        .. "            if typeof(writefile) == 'function' then\n"
-        .. "                writefile('aot_real_source.lua', rawScript)\n"
-        .. "                print('[FINAL DUMP] ĐÃ LƯU 100% MÃ NGUỒN AOT GỐC VÀO: workspace/aot_real_source.lua')\n"
-        .. "            end\n"
-        .. "            if typeof(setclipboard) == 'function' then\n"
-        .. "                setclipboard(rawScript)\n"
-        .. "                print('[FINAL DUMP] ĐÃ COPY 100% MÃ NGUỒN AOT VÀO CLIPBOARD!')\n"
-        .. "            end\n"
-        .. "        end)\n"
-        .. "    end"
-
-    local patchedLoader, replaceCount = resData.loader:gsub("local isCompromised = [^\n]+", patchCode)
-    if replaceCount > 0 then
-        print("[Symbiote] Đã gắn bẫy trích xuất mã nguồn AoT vào Stage 2 Loader!")
-        resData.loader = patchedLoader
-    end
-
-    -- Compile loader (Prototype root/27/5)
-    local loaderFn, compileErr = loadstring(resData.loader, "Load")
-    if not loaderFn then
-        StatusLabel.TextColor3 = Theme.Error
-        StatusLabel.Text = "Compilation failed: " .. tostring(compileErr)
-        ContinueButton.Active = true
-        ContinueButton.Text = "Continue"
-        ContinueButton.BackgroundColor3 = Theme.Accent
-        local warnMsg = "[Symbiote] Loader compilation failed: " .. tostring(compileErr)
-        if typeof(rconsolewarn) == "function" then
-            rconsolewarn(warnMsg)
-        elseif typeof(warn) == "function" then
-            warn(warnMsg)
-        else
-            print(warnMsg)
-        end
-        return
-    end
-
-    -- Animate out UI and Destroy
-    pcall(function()
-        TweenService:Create(Card, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
-            Size = UDim2.new(0, 460, 0, 0),
-            Position = UDim2.new(0.5, -230, 0.5, 0)
-        }):Play()
-        TweenService:Create(Overlay, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
-            BackgroundTransparency = 1
-        }):Play()
-        task.wait(0.38)
-        ScreenGui:Destroy()
-    end)
-
-    -- Key Expiry Toast Notification (Prototype root/27/2)
     task.spawn(function()
-        show_key_expiry_toast(resData)
-    end)
+        local rawKey = KeyInput.Text or ""
+        local key = rawKey:match("^%s*(.-)%s*$")
+        if key then
+            key = key:gsub("%s+", "")
+            key = key:gsub("^TextBox", ""):gsub("^textbox", "")
+            KeyInput.Text = key
+        end
+        if not key or key == "" then
+            StatusLabel.TextColor3 = Theme.Error
+            StatusLabel.Text = "Key cannot be empty!"
+            return
+        end
 
-    -- Execute loader
-    task.spawn(function()
-        local runOk, runErr = pcall(loaderFn)
-        if not runOk then
-            local warnMsg = "[Symbiote] Loader error: " .. tostring(runErr)
+        ContinueButton.Active = false
+        ContinueButton.Text = "Verifying..."
+        ContinueButton.BackgroundColor3 = Theme.AccentDark
+        StatusLabel.TextColor3 = Theme.TextDim
+        StatusLabel.Text = "Authenticating..."
+
+        local clientId = "Unknown"
+        pcall(function()
+            clientId = game:GetService("RbxAnalyticsService"):GetClientId()
+        end)
+
+        local platform = "Unknown"
+        pcall(function()
+            platform = UserInputService:GetPlatform().Name
+        end)
+
+        local executorName = "Unknown"
+        pcall(function()
+            if typeof(identifyexecutor) == "function" then
+                executorName = identifyexecutor()
+            end
+        end)
+
+        local payload = {
+            key = key,
+            userId = tostring(LocalPlayer.UserId),
+            clientId = tostring(clientId),
+            platform = tostring(platform),
+            executor = tostring(executorName)
+        }
+
+        print("[Symbiote] Dang gui yeu cau xac thuc key:", key)
+
+        local isFinished = false
+        task.delay(12, function()
+            if not isFinished then
+                StatusLabel.TextColor3 = Theme.Error
+                StatusLabel.Text = "Network Timeout: Vui long thu lai!"
+                ContinueButton.Active = true
+                ContinueButton.Text = "Continue"
+                ContinueButton.BackgroundColor3 = Theme.Accent
+            end
+        end)
+
+        local success, response, statusCode = make_request("/getloader", payload, "GET")
+        isFinished = true
+        if not success or not response then
+            local errDetail = tostring(response or "Khong co phan hoi")
+            print("[Symbiote Error] Loi ket noi:", errDetail, "Status:", tostring(statusCode))
+            StatusLabel.TextColor3 = Theme.Error
+            StatusLabel.Text = "Connection Error (" .. tostring(statusCode or "Fail") .. ")"
+            ContinueButton.Active = true
+            ContinueButton.Text = "Continue"
+            ContinueButton.BackgroundColor3 = Theme.Accent
+            return
+        end
+
+        print("[Symbiote] Phan hoi tu server:", tostring(response))
+
+        local decodeOk, resData = pcall(function()
+            return HttpService:JSONDecode(response)
+        end)
+
+        if not decodeOk or typeof(resData) ~= "table" then
+            print("[Symbiote Error] JSON Parse Error. Raw body:", tostring(response))
+            StatusLabel.TextColor3 = Theme.Error
+            StatusLabel.Text = "JSON Parse Error: Server returned invalid format."
+            ContinueButton.Active = true
+            ContinueButton.Text = "Continue"
+            ContinueButton.BackgroundColor3 = Theme.Accent
+            return
+        end
+
+        if not resData.success then
+            print("[Symbiote Error] Server tu choi key:", tostring(resData.reason))
+            StatusLabel.TextColor3 = Theme.Error
+            StatusLabel.Text = resData.reason or "Invalid Key"
+            ContinueButton.Active = true
+            ContinueButton.Text = "Continue"
+            ContinueButton.BackgroundColor3 = Theme.Accent
+            return
+        end
+
+        if not resData.loader or type(resData.loader) ~= "string" or resData.loader == "" then
+            StatusLabel.TextColor3 = Theme.Error
+            StatusLabel.Text = "Server Error: Please try again."
+            ContinueButton.Active = true
+            ContinueButton.Text = "Continue"
+            ContinueButton.BackgroundColor3 = Theme.Accent
+            return
+        end
+
+        -- Save verified key to advanced_key.json (Prototype root/27/3)
+        pcall(function()
+            if typeof(writefile) == "function" then
+                writefile("advanced_key.json", HttpService:JSONEncode({
+                    key = key,
+                    date = os.date("%x")
+                }))
+            end
+        end)
+
+        -- Setup session deactivation on game close or leave (Prototype root/27/6)
+        setup_session_deactivation(resData.session_token)
+
+        -- [Auto Dump for Delta X] Lưu Stage 2 loader
+        pcall(function()
+            if typeof(writefile) == "function" then
+                writefile("symbiote_aot_dumped.lua", resData.loader)
+                print("[DUMP SUCCESS] Đã lưu Stage 2 loader vào: workspace/symbiote_aot_dumped.lua")
+            end
+        end)
+
+        -- ========================================================================
+        -- [Auto Extract Real AoT Game Script]
+        -- Tự động bẫy mã nguồn AoT thực sự khi Stage 2 loader giải mã xong trong RAM
+        -- ========================================================================
+        local patchCode = "local isCompromised = false; _TAMPERED = false\n"
+            .. "    if rawScript and #rawScript > 50 then\n"
+            .. "        pcall(function()\n"
+            .. "            if typeof(writefile) == 'function' then\n"
+            .. "                writefile('aot_real_source.lua', rawScript)\n"
+            .. "                print('[FINAL DUMP] ĐÃ LƯU 100% MÃ NGUỒN AOT GỐC VÀO: workspace/aot_real_source.lua')\n"
+            .. "            end\n"
+            .. "            if typeof(setclipboard) == 'function' then\n"
+            .. "                setclipboard(rawScript)\n"
+            .. "                print('[FINAL DUMP] ĐÃ COPY 100% MÃ NGUỒN AOT VÀO CLIPBOARD!')\n"
+            .. "            end\n"
+            .. "        end)\n"
+            .. "    end"
+
+        local patchedLoader, replaceCount = resData.loader:gsub("local isCompromised = [^\n]+", patchCode)
+        if replaceCount > 0 then
+            print("[Symbiote] Đã gắn bẫy trích xuất mã nguồn AoT vào Stage 2 Loader!")
+            resData.loader = patchedLoader
+        end
+
+        -- Compile loader (Prototype root/27/5)
+        local loaderFn, compileErr = loadstring(resData.loader, "Load")
+        if not loaderFn then
+            StatusLabel.TextColor3 = Theme.Error
+            StatusLabel.Text = "Compilation failed: " .. tostring(compileErr)
+            ContinueButton.Active = true
+            ContinueButton.Text = "Continue"
+            ContinueButton.BackgroundColor3 = Theme.Accent
+            local warnMsg = "[Symbiote] Loader compilation failed: " .. tostring(compileErr)
             if typeof(rconsolewarn) == "function" then
                 rconsolewarn(warnMsg)
             elseif typeof(warn) == "function" then
@@ -1002,7 +1002,41 @@ ContinueButton.MouseButton1Click:Connect(function()
             else
                 print(warnMsg)
             end
+            return
         end
+
+        -- Animate out UI and Destroy
+        pcall(function()
+            TweenService:Create(Card, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
+                Size = UDim2.new(0, 460, 0, 0),
+                Position = UDim2.new(0.5, -230, 0.5, 0)
+            }):Play()
+            TweenService:Create(Overlay, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
+                BackgroundTransparency = 1
+            }):Play()
+            task.wait(0.38)
+            ScreenGui:Destroy()
+        end)
+
+        -- Key Expiry Toast Notification (Prototype root/27/2)
+        task.spawn(function()
+            show_key_expiry_toast(resData)
+        end)
+
+        -- Execute loader
+        task.spawn(function()
+            local runOk, runErr = pcall(loaderFn)
+            if not runOk then
+                local warnMsg = "[Symbiote] Loader error: " .. tostring(runErr)
+                if typeof(rconsolewarn) == "function" then
+                    rconsolewarn(warnMsg)
+                elseif typeof(warn) == "function" then
+                    warn(warnMsg)
+                else
+                    print(warnMsg)
+                end
+            end
+        end)
     end)
 end)
 
