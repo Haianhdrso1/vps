@@ -555,6 +555,7 @@ InputFrame.Parent = Content
 local InputStroke = create_stroke(InputFrame, Theme.Border, 1)
 
 local KeyInput = Instance.new("TextBox")
+KeyInput.Text = ""
 KeyInput.Size = UDim2.new(1, -20, 1, 0)
 KeyInput.Position = UDim2.new(0, 10, 0, 0)
 KeyInput.BackgroundTransparency = 1
@@ -566,6 +567,12 @@ KeyInput.Font = Enum.Font.Code
 KeyInput.ClearTextOnFocus = false
 KeyInput.ZIndex = 4
 KeyInput.Parent = InputFrame
+
+KeyInput.Focused:Connect(function()
+    if KeyInput.Text == "TextBox" then
+        KeyInput.Text = ""
+    end
+end)
 
 -- Autoload saved key from advanced_key.json
 pcall(function()
@@ -811,7 +818,11 @@ end)
 ContinueButton.MouseButton1Click:Connect(function()
     local rawKey = KeyInput.Text or ""
     local key = rawKey:match("^%s*(.-)%s*$")
-    if key then key = key:gsub("%s+", "") end
+    if key then
+        key = key:gsub("%s+", "")
+        key = key:gsub("^TextBox", ""):gsub("^textbox", "")
+        KeyInput.Text = key
+    end
     if not key or key == "" then
         StatusLabel.TextColor3 = Theme.Error
         StatusLabel.Text = "Key cannot be empty!"
