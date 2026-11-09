@@ -113,25 +113,10 @@ end
 -- ============================================================================
 -- Universal HTTP Request Helper (Tương thích 100% mọi Executor)
 -- ============================================================================
-local function get_requester()
-    if typeof(request) == "function" then return request end
-    if typeof(http_request) == "function" then return http_request end
-    if typeof(syn) == "table" and typeof(syn.request) == "function" then return syn.request end
-    if typeof(fluxus) == "table" and typeof(fluxus.request) == "function" then return fluxus.request end
-    if typeof(http) == "table" and typeof(http.request) == "function" then return http.request end
-    local genv = (typeof(getgenv) == "function" and getgenv()) or _G
-    if genv then
-        if typeof(genv.request) == "function" then return genv.request end
-        if typeof(genv.http_request) == "function" then return genv.http_request end
-    end
-    return nil
-end
-
-local http_request_fn = get_requester()
-
 local function make_request(endpoint, payload, method)
     local headers = {
-        ["Content-Type"] = "application/json"
+        ["Content-Type"] = "application/json",
+        ["User-Agent"] = "Roblox/WinInet"
     }
     if payload then
         headers["X-Payload"] = base64_encode(HttpService:JSONEncode(payload))
@@ -140,43 +125,36 @@ local function make_request(endpoint, payload, method)
     local url = "https://symbiote.cc" .. endpoint
     local reqMethod = method or "GET"
 
-    if not http_request_fn then
-        http_request_fn = get_requester()
+    local req = (typeof(request) == "function" and request)
+        or (typeof(http_request) == "function" and http_request)
+        or (typeof(syn) == "table" and typeof(syn.request) == "function" and syn.request)
+        or (typeof(fluxus) == "table" and typeof(fluxus.request) == "function" and fluxus.request)
+        or (typeof(http) == "table" and typeof(http.request) == "function" and http.request)
+
+    if not req then
+        return false, "Executor khong ho tro request", 0
     end
 
-    if http_request_fn then
-        -- Thử 1: Bảng viết hoa chuẩn PC/Synapse
-        local ok, res = pcall(function()
-            return http_request_fn({
-                Url = url,
-                Method = reqMethod,
-                Headers = headers
-            })
-        end)
-        if ok and typeof(res) == "table" then
-            local body = res.Body or res.body or ""
-            local status = res.StatusCode or res.status or res.status_code or res.Status or 200
-            return true, body, status
-        end
+    local options = {
+        Url = url,
+        url = url,
+        Method = reqMethod,
+        method = reqMethod,
+        Headers = headers,
+        headers = headers
+    }
 
-        -- Thử 2: Bảng viết thường chuẩn Android/Delta X
-        local ok2, res2 = pcall(function()
-            return http_request_fn({
-                url = url,
-                method = reqMethod,
-                headers = headers
-            })
-        end)
-        if ok2 and typeof(res2) == "table" then
-            local body = res2.Body or res2.body or ""
-            local status = res2.StatusCode or res2.status or res2.status_code or res2.Status or 200
-            return true, body, status
-        end
+    local success, res = pcall(function()
+        return req(options)
+    end)
 
-        return false, tostring(res or res2 or "Request failed"), 0
+    if success and typeof(res) == "table" then
+        local body = res.Body or res.body or ""
+        local status = res.StatusCode or res.status or res.status_code or res.Status or 200
+        return true, body, status
     end
 
-    return false, "Executor khong ho tro request", 0
+    return false, tostring(res or "Request failed"), 0
 end
 
 -- ============================================================================
