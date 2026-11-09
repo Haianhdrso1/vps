@@ -25,16 +25,40 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
 local Mouse = LocalPlayer:GetMouse()
 
--- Remotes
-local Assets = ReplicatedStorage:WaitForChild("Assets")
-local Remotes = Assets:WaitForChild("Remotes")
-local PostRemote = Remotes:WaitForChild("POST")
-local GetRemote = Remotes:WaitForChild("GET")
+-- Remotes & Assets (Resilient lookup with timeout so UI never freezes in lobby/loading)
+local Assets = ReplicatedStorage:WaitForChild("Assets", 3) or ReplicatedStorage:FindFirstChild("Assets")
+local Remotes = Assets and (Assets:WaitForChild("Remotes", 3) or Assets:FindFirstChild("Remotes"))
+local PostRemote = Remotes and (Remotes:WaitForChild("POST", 3) or Remotes:FindFirstChild("POST"))
+local GetRemote = Remotes and (Remotes:WaitForChild("GET", 3) or Remotes:FindFirstChild("GET"))
 
--- Ensure Config Folders exist
-if not isfolder("AstraHub") then makefolder("AstraHub") end
-if not isfolder("AstraHub/aotr") then makefolder("AstraHub/aotr") end
-if not isfolder("AstraHub/aotr/configs") then makefolder("AstraHub/aotr/configs") end
+local function getPostRemote()
+    if PostRemote then return PostRemote end
+    pcall(function()
+        local a = ReplicatedStorage:FindFirstChild("Assets")
+        local r = a and a:FindFirstChild("Remotes")
+        PostRemote = r and r:FindFirstChild("POST")
+    end)
+    return PostRemote
+end
+
+local function getGetRemote()
+    if GetRemote then return GetRemote end
+    pcall(function()
+        local a = ReplicatedStorage:FindFirstChild("Assets")
+        local r = a and a:FindFirstChild("Remotes")
+        GetRemote = r and r:FindFirstChild("GET")
+    end)
+    return GetRemote
+end
+
+-- Ensure Config Folders exist safely
+pcall(function()
+    if isfolder and makefolder then
+        if not isfolder("AstraHub") then makefolder("AstraHub") end
+        if not isfolder("AstraHub/aotr") then makefolder("AstraHub/aotr") end
+        if not isfolder("AstraHub/aotr/configs") then makefolder("AstraHub/aotr/configs") end
+    end
+end)
 
 -- State / Settings Table (Mapped 1:1 to Prometheus decompiled flags)
 local Settings = {
@@ -214,9 +238,12 @@ end
 local function performAttack()
     -- 1. Game server remote
     pcall(function()
-        PostRemote:FireServer("Attacks", "M1")
-        PostRemote:FireServer("Slash")
-        PostRemote:FireServer("Slash_Release")
+        local post = getPostRemote()
+        if post then
+            post:FireServer("Attacks", "M1")
+            post:FireServer("Slash")
+            post:FireServer("Slash_Release")
+        end
     end)
 
     -- 2. Mobile touch button support
@@ -227,7 +254,7 @@ local function performAttack()
             local touchControlFrame = touchGui:FindFirstChild("TouchControlFrame")
             if touchControlFrame then
                 local m1Btn = touchControlFrame:FindFirstChild("M1") or touchControlFrame:FindFirstChild("Attack")
-                if m1Btn and m1Btn.Visible then
+                if m1Btn and m1Btn.Visible and getconnections then
                     for _, conn in ipairs(getconnections(m1Btn.Activated) or {}) do conn:Fire() end
                     for _, conn in ipairs(getconnections(m1Btn.MouseButton1Down) or {}) do conn:Fire() end
                 end
@@ -301,7 +328,8 @@ task.spawn(function()
             local char = LocalPlayer.Character
             if char:GetAttribute("Grabbed") == true or char:FindFirstChild("Grabbed") then
                 pcall(function()
-                    PostRemote:FireServer("Escape")
+                    local post = getPostRemote()
+                    if post then post:FireServer("Escape") end
                     VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
                     task.wait(0.05)
                     VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
@@ -321,7 +349,7 @@ task.spawn(function()
         -- Skip Cutscene
         if Settings.AutoSkip and interface then
             local skipBtn = interface:FindFirstChild("Skip", true)
-            if skipBtn and skipBtn.Visible then
+            if skipBtn and skipBtn.Visible and getconnections then
                 pcall(function()
                     for _, c in ipairs(getconnections(skipBtn.Activated) or {}) do c:Fire() end
                 end)
@@ -331,7 +359,7 @@ task.spawn(function()
         -- Auto Open Chests
         if Settings.AutoChest and interface then
             local chests = interface:FindFirstChild("Chests")
-            if chests and chests.Visible then
+            if chests and chests.Visible and getconnections then
                 local finishBtn = chests:FindFirstChild("Finish", true)
                 if finishBtn then
                     pcall(function()
@@ -344,7 +372,7 @@ task.spawn(function()
         -- Auto Retry
         if Settings.AutoRetry and interface then
             local rewards = interface:FindFirstChild("Rewards")
-            if rewards and rewards.Visible then
+            if rewards and rewards.Visible and getconnections then
                 local retryBtn = rewards:FindFirstChild("Retry", true)
                 if retryBtn then
                     pcall(function()
@@ -367,7 +395,8 @@ task.spawn(function()
                 local bladesLabel = hud:FindFirstChild("Blades", true)
                 if bladesLabel and bladesLabel:IsA("TextLabel") and bladesLabel.Text == "0" then
                     pcall(function()
-                        PostRemote:FireServer("Reload")
+                        local post = getPostRemote()
+                        if post then post:FireServer("Reload") end
                         VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
                         task.wait(0.05)
                         VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
@@ -438,11 +467,22 @@ if not success or not Luna then
     Luna = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 end
 
+-- Ensure Notification / Notify method compatibility
+if Luna and not Luna.Notify and Luna.Notification then
+    Luna.Notify = function(self, data)
+        return Luna:Notification(data)
+    end
+end
+
 local Window = Luna:CreateWindow({
     Name = "Astra Hub | Attack on Titan: Revolution",
     Subtitle = "AOT:R Fully Unlocked",
     LoadingTitle = "Astra Hub",
     LoadingSubtitle = "Key System Bypassed (Direct Access)",
+    ConfigSettings = {
+        RootFolder = nil,
+        ConfigFolder = "AstraHubConfig"
+    },
     ConfigurationSaving = {
         Enabled = true,
         FolderName = "AstraHubConfig",
@@ -456,7 +496,7 @@ local Window = Luna:CreateWindow({
 -- ============================================================================
 
 -- TAB 1: Main Farm
-local TabMain = Window:CreateTab({ Name = "Main Farm", Icon = "swords" })
+local TabMain = Window:CreateTab({ Name = "Main Farm", Icon = "play_arrow" })
 TabMain:CreateSection("Core Auto Farm")
 TabMain:CreateToggle({
     Name = "Auto Farm",
@@ -566,7 +606,7 @@ TabMain:CreateToggle({
 })
 
 -- TAB 2: Titans
-local TabTitans = Window:CreateTab({ Name = "Titans", Icon = "eye" })
+local TabTitans = Window:CreateTab({ Name = "Titans", Icon = "visibility" })
 TabTitans:CreateSection("Titan ESP")
 TabTitans:CreateToggle({
     Name = "Titan ESP",
@@ -628,7 +668,7 @@ TabTitans:CreateSlider({
 })
 
 -- TAB 3: Waves
-local TabWaves = Window:CreateTab({ Name = "Waves", Icon = "activity" })
+local TabWaves = Window:CreateTab({ Name = "Waves", Icon = "trending_up" })
 TabWaves:CreateSection("Waves Auto Farm")
 TabWaves:CreateToggle({
     Name = "Auto Waves",
@@ -650,7 +690,7 @@ TabWaves:CreateToggle({
 })
 
 -- TAB 4: Upgrades & Skills
-local TabUpgrades = Window:CreateTab({ Name = "Upgrades & Skills", Icon = "zap" })
+local TabUpgrades = Window:CreateTab({ Name = "Upgrades & Skills", Icon = "upgrade" })
 TabUpgrades:CreateSection("Auto Systems")
 TabUpgrades:CreateToggle({
     Name = "Auto Upgrade",
@@ -708,7 +748,7 @@ TabUpgrades:CreateToggle({
 })
 
 -- TAB 5: Advanced / Safety
-local TabSafety = Window:CreateTab({ Name = "Advanced / Safety", Icon = "shield" })
+local TabSafety = Window:CreateTab({ Name = "Advanced / Safety", Icon = "security" })
 TabSafety:CreateSection("Movement & Misc")
 TabSafety:CreateToggle({
     Name = "Noclip",
@@ -759,7 +799,7 @@ TabSafety:CreateInput({
 })
 
 -- TAB 6: Mastery
-local TabMastery = Window:CreateTab({ Name = "Mastery", Icon = "award" })
+local TabMastery = Window:CreateTab({ Name = "Mastery", Icon = "stars" })
 TabMastery:CreateSection("Mastery Farm")
 TabMastery:CreateToggle({
     Name = "Mastery Farm",
@@ -776,7 +816,7 @@ TabMastery:CreateDropdown({
 })
 
 -- TAB 7: Global / Rolls
-local TabRolls = Window:CreateTab({ Name = "Global / Rolls", Icon = "gift" })
+local TabRolls = Window:CreateTab({ Name = "Global / Rolls", Icon = "card_giftcard" })
 TabRolls:CreateSection("Auto Roll")
 TabRolls:CreateToggle({
     Name = "Auto Roll",
@@ -807,13 +847,18 @@ TabRolls:CreateToggle({
 })
 
 -- TAB 8: Utils
-local TabUtils = Window:CreateTab({ Name = "Utils", Icon = "tool" })
+local TabUtils = Window:CreateTab({ Name = "Utils", Icon = "build" })
 TabUtils:CreateSection("Utilities")
 TabUtils:CreateButton({
     Name = "Teleport to Lobby",
     Callback = function()
         pcall(function()
-            GetRemote:InvokeServer("Functions", "Teleport", "Lobby")
+            local getRem = getGetRemote()
+            if getRem then
+                getRem:InvokeServer("Functions", "Teleport", "Lobby")
+            else
+                TeleportService:Teleport(13941423408, LocalPlayer)
+            end
         end)
     end
 })
@@ -849,30 +894,40 @@ TabConfigs:CreateButton({
     Callback = function()
         local path = "AstraHub/aotr/configs/" .. currentConfigName .. ".json"
         pcall(function()
-            writefile(path, HttpService:JSONEncode(Settings))
-            Luna:Notify({ Title = "Astra Hub", Content = "Config saved: " .. currentConfigName })
+            if writefile then
+                writefile(path, HttpService:JSONEncode(Settings))
+            end
+            Luna:Notification({ Title = "Astra Hub", Content = "Config saved: " .. currentConfigName })
         end)
     end
 })
 TabConfigs:CreateButton({
     Name = "Set Auto Load",
     Callback = function()
-        writefile("AstraHub/aotr/autoload.txt", currentConfigName)
-        Luna:Notify({ Title = "Astra Hub", Content = "Auto load set: " .. currentConfigName })
+        pcall(function()
+            if writefile then
+                writefile("AstraHub/aotr/autoload.txt", currentConfigName)
+            end
+            Luna:Notification({ Title = "Astra Hub", Content = "Auto load set: " .. currentConfigName })
+        end)
     end
 })
 TabConfigs:CreateButton({
     Name = "Clear Auto Load",
     Callback = function()
-        if isfile("AstraHub/aotr/autoload.txt") then delfile("AstraHub/aotr/autoload.txt") end
-        Luna:Notify({ Title = "Astra Hub", Content = "Auto load cleared" })
+        pcall(function()
+            if isfile and isfile("AstraHub/aotr/autoload.txt") and delfile then
+                delfile("AstraHub/aotr/autoload.txt")
+            end
+            Luna:Notification({ Title = "Astra Hub", Content = "Auto load cleared" })
+        end)
     end
 })
 
 -- TAB 10: Stats Tracker
-local TabStats = Window:CreateTab({ Name = "Stats Tracker", Icon = "bar-chart-2" })
+local TabStats = Window:CreateTab({ Name = "Stats Tracker", Icon = "analytics" })
 TabStats:CreateSection("Session Stats")
-local statsLabel = TabStats:CreateLabel("Loading session stats...")
+local statsLabel = TabStats:CreateLabel({ Text = "Loading session stats...", Style = 1 })
 
 task.spawn(function()
     while true do
@@ -894,15 +949,19 @@ TabStats:CreateButton({
         SessionData.GemsEarned = 0
         SessionData.XPEarned = 0
         SessionData.StartTime = tick()
-        writefile("AstraHub/aotr/s_games.txt", "0")
-        writefile("AstraHub/aotr/s_gold.txt", "0")
-        writefile("AstraHub/aotr/s_gems.txt", "0")
-        writefile("AstraHub/aotr/s_xp.txt", "0")
-        Luna:Notify({ Title = "Astra Hub", Content = "Session stats reset!" })
+        pcall(function()
+            if writefile then
+                writefile("AstraHub/aotr/s_games.txt", "0")
+                writefile("AstraHub/aotr/s_gold.txt", "0")
+                writefile("AstraHub/aotr/s_gems.txt", "0")
+                writefile("AstraHub/aotr/s_xp.txt", "0")
+            end
+        end)
+        Luna:Notification({ Title = "Astra Hub", Content = "Session stats reset!" })
     end
 })
 
-Luna:Notify({
+Luna:Notification({
     Title = "Astra Hub",
     Content = "Script loaded successfully! Key System bypassed.",
     Duration = 5
