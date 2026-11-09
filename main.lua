@@ -5654,7 +5654,7 @@ if not libraryOnly then
 			end
 		end
 
-		-- ============================================================================
+				-- ============================================================================
 		-- MENU 1: ATTACK ON TITAN: REVOLUTION (FULL 6-TAB EDITION)
 		-- 100% Rayfield UI - Exactly matching all requested features & tab structures
 		-- ============================================================================
@@ -5683,15 +5683,829 @@ if not libraryOnly then
 			end)
 
 			-- Master Configuration Table
-			-- Forward declarations for Auto Farm engine (guarantees local scope closure)
 			local startAutoFarm = nil
 			local getClosestValidNape = nil
-			
-			-- ========================================================================
-			-- AOT:R BULLETPROOF TARGETING & NAPE RESOLUTION
-			-- ========================================================================
+			local autoFarmActive = false
+			local isRefillingStation = false
 			local deadTitanCache = setmetatable({}, { __mode = "k" })
 
+			local AOTConfig = {
+				-- Tab 1: Main (Auto Farm)
+				AutoFarm = false,
+				AutoKillSafe = false,
+				AutoMastery = false,
+				MoveMode = "Teleport", -- "Teleport" or "Hover"
+				StartDelay = 5,
+				HoverSpeed = 250,
+				FloatHeight = 250,
+
+				-- Tab 1: Main (Misc)
+				AutoEscape = false,
+				AntiInjuries = false,
+				AutoRetry = false,
+				AutoReload = false,
+				AutoRefill = false,
+				RemoveDmgText = false,
+				AutoHideUI = false,
+				FailSafe = false,
+				Noclip = false,
+
+				-- Tab 2: Raids
+				AutoRaid = false,
+				RaidHoverSpeed = 250,
+				AutoSkipCutscene = false,
+				AutoOpenChests = false,
+
+				-- Tab 4: Webhook
+				SendWebhook = false,
+				DisplayUsername = true,
+				PingSpecialOnly = false,
+				WebhookURL = "",
+
+				-- Tab 5: Visual
+				TitanESP = false,
+				ESPColor = Color3.fromRGB(255, 0, 0),
+				OptimizeGame = false,
+				DeleteMap = false,
+
+				-- Tab 6: Config
+				CurrentConfigName = "Default",
+			}
+
+			-- Real-time Session Stats Table
+			local SessionStats = {
+				Gold = "0",
+				XP = "0",
+				Gems = "0",
+				BP_XP = "0",
+				TotalDamage = "0",
+				TitansKilled = "0",
+				CriticalHits = "0",
+				MissionsCompleted = "0",
+				CommonPerks = "0",
+				RarePerks = "0",
+				EpicPerks = "0",
+				LegendaryPerks = "0",
+				PrestigeScrolls = "0",
+				MythicalPerks = "0",
+				Serum = "0",
+				Scarfs = "0",
+				LastUpdated = "Never"
+			}
+
+			-- Forward declarations
+			local updateStatsUI
+			local sendDiscordWebhook
+			local updateConfigDropdown
+			local configDropdownRef
+
+			-- Create Rayfield Window
+			local Window = RayfieldLibrary:CreateWindow({
+				Name = "HaiAnh Menu | Attack on Titan: Revolution",
+				LoadingTitle = "HaiAnh Menu",
+				LoadingSubtitle = "Attack on Titan: Revolution",
+				ConfigurationSaving = {
+					Enabled = true,
+					FolderName = "HaiAnhMenuConfig",
+					FileName = "AOTRevolution"
+				},
+				KeySystem = false,
+			})
+
+			createFloatingToggle()
+
+			-- ========================================================================
+			-- 1. ⚔️ TAB MAIN (Auto Farm & Tiện ích sinh tồn)
+			-- ========================================================================
+			local MainTab = Window:CreateTab("Main (Farm & Tiện ích)", "swords")
+
+			MainTab:CreateSection("Nhóm Auto Farm")
+
+			MainTab:CreateToggle({
+				Name = "Auto Farm",
+				CurrentValue = false,
+				Flag = "Lunar_AutoFarm",
+				Callback = function(Value)
+					AOTConfig.AutoFarm = Value
+					if Value and startAutoFarm then startAutoFarm() end
+				end,
+			})
+
+			MainTab:CreateToggle({
+				Name = "Auto Farm [Safer]",
+				CurrentValue = false,
+				Flag = "Lunar_AutoKillSafe",
+				Callback = function(Value)
+					AOTConfig.AutoKillSafe = Value
+				end,
+			})
+
+			MainTab:CreateToggle({
+				Name = "Auto Mastery",
+				CurrentValue = false,
+				Flag = "Lunar_AutoMastery",
+				Callback = function(Value)
+					AOTConfig.AutoMastery = Value
+				end,
+			})
+
+			MainTab:CreateDropdown({
+				Name = "Movement Mode",
+				Options = { "Teleport", "Hover" },
+				CurrentOption = { "Teleport" },
+				MultipleOptions = false,
+				Flag = "Lunar_MoveMode",
+				Callback = function(Option)
+					AOTConfig.MoveMode = type(Option) == "table" and Option[1] or Option
+				end,
+			})
+
+			MainTab:CreateSlider({
+				Name = "Farm Delay",
+				Range = { 1, 50 },
+				Increment = 1,
+				Suffix = "s",
+				CurrentValue = 5,
+				Flag = "Lunar_FarmDelay",
+				Callback = function(Value)
+					AOTConfig.StartDelay = Value
+				end,
+			})
+
+			MainTab:CreateSlider({
+				Name = "Hover Speed",
+				Range = { 50, 500 },
+				Increment = 10,
+				Suffix = "Speed",
+				CurrentValue = 250,
+				Flag = "Lunar_HoverSpeed",
+				Callback = function(Value)
+					AOTConfig.HoverSpeed = Value
+				end,
+			})
+
+			MainTab:CreateSlider({
+				Name = "Float Height",
+				Range = { 50, 300 },
+				Increment = 10,
+				Suffix = "Studs",
+				CurrentValue = 250,
+				Flag = "Lunar_FloatHeight",
+				Callback = function(Value)
+					AOTConfig.FloatHeight = Value
+				end,
+			})
+
+			MainTab:CreateSection("Nhóm Tiện ích sinh tồn (Misc)")
+
+			MainTab:CreateToggle({
+				Name = "Auto Escape",
+				CurrentValue = false,
+				Flag = "Lunar_AutoEscape",
+				Callback = function(Value)
+					AOTConfig.AutoEscape = Value
+				end,
+			})
+
+			MainTab:CreateToggle({
+				Name = "Anti Injuries",
+				CurrentValue = false,
+				Flag = "Lunar_AntiInjuries",
+				Callback = function(Value)
+					AOTConfig.AntiInjuries = Value
+				end,
+			})
+
+			MainTab:CreateToggle({
+				Name = "Auto Retry",
+				CurrentValue = false,
+				Flag = "Lunar_AutoRetry",
+				Callback = function(Value)
+					AOTConfig.AutoRetry = Value
+				end,
+			})
+
+			MainTab:CreateToggle({
+				Name = "Auto Reload Blades",
+				CurrentValue = false,
+				Flag = "Lunar_AutoReload",
+				Callback = function(Value)
+					AOTConfig.AutoReload = Value
+				end,
+			})
+
+			MainTab:CreateToggle({
+				Name = "Auto Refill",
+				CurrentValue = false,
+				Flag = "Lunar_AutoRefill",
+				Callback = function(Value)
+					AOTConfig.AutoRefill = Value
+				end,
+			})
+
+			MainTab:CreateToggle({
+				Name = "Remove Dmg Text",
+				CurrentValue = false,
+				Flag = "Lunar_RemoveDmgText",
+				Callback = function(Value)
+					AOTConfig.RemoveDmgText = Value
+				end,
+			})
+
+			MainTab:CreateToggle({
+				Name = "Auto Hide UI (15s)",
+				CurrentValue = false,
+				Flag = "Lunar_AutoHideUI",
+				Callback = function(Value)
+					AOTConfig.AutoHideUI = Value
+					if Value then
+						task.delay(15, function()
+							if AOTConfig.AutoHideUI and RayfieldLibrary and RayfieldLibrary.Toggle then
+								RayfieldLibrary:Toggle()
+							end
+						end)
+					end
+				end,
+			})
+
+			MainTab:CreateToggle({
+				Name = "Fail Safe (180s Retry)",
+				CurrentValue = false,
+				Flag = "Lunar_FailSafe",
+				Callback = function(Value)
+					AOTConfig.FailSafe = Value
+				end,
+			})
+
+			MainTab:CreateToggle({
+				Name = "Noclip",
+				CurrentValue = false,
+				Flag = "Lunar_Noclip",
+				Callback = function(Value)
+					AOTConfig.Noclip = Value
+				end,
+			})
+
+			-- ========================================================================
+			-- 2. 🏰 TAB RAIDS (Chế độ Đột kích / Đánh Boss)
+			-- ========================================================================
+			local RaidTab = Window:CreateTab("Raids (Đột kích & Boss)", "skull")
+
+			RaidTab:CreateSection("Raid [VERY RISKY USE NEW ACC/ALT]")
+
+			RaidTab:CreateToggle({
+				Name = "Auto Raid [Blade]",
+				CurrentValue = false,
+				Flag = "Lunar_AutoRaid",
+				Callback = function(Value)
+					AOTConfig.AutoRaid = Value
+					if Value and startAutoFarm then startAutoFarm() end
+				end,
+			})
+
+			RaidTab:CreateSlider({
+				Name = "Hover Speed",
+				Range = { 50, 300 },
+				Increment = 10,
+				Suffix = "Speed",
+				CurrentValue = 250,
+				Flag = "Lunar_RaidHoverSpeed",
+				Callback = function(Value)
+					AOTConfig.RaidHoverSpeed = Value
+				end,
+			})
+
+			RaidTab:CreateSection("Misc & Điều hướng")
+
+			RaidTab:CreateToggle({
+				Name = "Auto Skip Cutscene",
+				CurrentValue = false,
+				Flag = "Lunar_AutoSkipCutscene",
+				Callback = function(Value)
+					AOTConfig.AutoSkipCutscene = Value
+				end,
+			})
+
+			RaidTab:CreateToggle({
+				Name = "Auto Open Chests",
+				CurrentValue = false,
+				Flag = "Lunar_AutoOpenChests",
+				Callback = function(Value)
+					AOTConfig.AutoOpenChests = Value
+				end,
+			})
+
+			RaidTab:CreateButton({
+				Name = "Return to Lobby",
+				Callback = function()
+					if TeleportService and LocalPlayer then
+						TeleportService:Teleport(14214532675, LocalPlayer)
+					end
+				end,
+			})
+
+			RaidTab:CreateButton({
+				Name = "Return to Main Menu",
+				Callback = function()
+					pcall(function()
+						local Assets = ReplicatedStorage:FindFirstChild("Assets")
+						local Remotes = Assets and Assets:FindFirstChild("Remotes")
+						local MenuRemote = Remotes and (Remotes:FindFirstChild("Menu") or Remotes:FindFirstChild("ReturnToMenu"))
+						if MenuRemote and MenuRemote:IsA("RemoteEvent") then
+							MenuRemote:FireServer()
+						end
+					end)
+				end,
+			})
+
+			RaidTab:CreateButton({
+				Name = "Force Retry",
+				Callback = function()
+					pcall(function()
+						local playerGui = LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")
+						local rewards = playerGui and playerGui:FindFirstChild("Interface") and playerGui.Interface:FindFirstChild("Rewards")
+						if rewards and rewards:FindFirstChild("Main") then
+							local retryBtn = rewards.Main.Info.Main.Buttons:FindFirstChild("Retry")
+							if retryBtn and VirtualInputManager then
+								VirtualInputManager:SendMouseButtonEvent(retryBtn.AbsolutePosition.X + 20, retryBtn.AbsolutePosition.Y + 20, 0, true, game, 0)
+								task.wait(0.1)
+								VirtualInputManager:SendMouseButtonEvent(retryBtn.AbsolutePosition.X + 20, retryBtn.AbsolutePosition.Y + 20, 0, false, game, 0)
+							end
+						end
+					end)
+				end,
+			})
+
+			-- ========================================================================
+			-- 3. 📊 TAB STATS (Bảng thống kê phiên treo máy)
+			-- ========================================================================
+			local StatsTab = Window:CreateTab("Stats (Thống kê Live)", "bar-chart")
+
+			StatsTab:CreateSection("Earnings (Thu nhập)")
+			local goldLabel = StatsTab:CreateLabel("Gold: 0")
+			local xpLabel = StatsTab:CreateLabel("XP: 0")
+			local gemsLabel = StatsTab:CreateLabel("Gems: 0")
+			local bpXpLabel = StatsTab:CreateLabel("BP XP: 0")
+
+			StatsTab:CreateSection("Performance (Hiệu suất)")
+			local dmgLabel = StatsTab:CreateLabel("Total Damage: 0")
+			local killsLabel = StatsTab:CreateLabel("Titans Killed: 0")
+			local critsLabel = StatsTab:CreateLabel("Critical Hits: 0")
+			local missionsLabel = StatsTab:CreateLabel("Missions/Raids Completed: 0")
+
+			StatsTab:CreateSection("Perks & Special Items (Vật phẩm hiếm rơi ra)")
+			local commonPerksLabel = StatsTab:CreateLabel("Common Perks: 0")
+			local rarePerksLabel = StatsTab:CreateLabel("Rare Perks: 0")
+			local epicPerksLabel = StatsTab:CreateLabel("Epic Perks: 0")
+			local legPerksLabel = StatsTab:CreateLabel("Legendary Perks: 0")
+			local presScrollsLabel = StatsTab:CreateLabel("Prestige Scrolls: 0")
+			local mythPerksLabel = StatsTab:CreateLabel("Mythical Perks: 0")
+			local serumLabel = StatsTab:CreateLabel("Serum: 0")
+			local scarfsLabel = StatsTab:CreateLabel("Scarfs: 0")
+			local lastUpdatedLabel = StatsTab:CreateLabel("Last Updated: Never")
+
+			updateStatsUI = function()
+				pcall(function()
+					goldLabel:Set("Gold: " .. tostring(SessionStats.Gold))
+					xpLabel:Set("XP: " .. tostring(SessionStats.XP))
+					gemsLabel:Set("Gems: " .. tostring(SessionStats.Gems))
+					bpXpLabel:Set("BP XP: " .. tostring(SessionStats.BP_XP))
+					dmgLabel:Set("Total Damage: " .. tostring(SessionStats.TotalDamage))
+					killsLabel:Set("Titans Killed: " .. tostring(SessionStats.TitansKilled))
+					critsLabel:Set("Critical Hits: " .. tostring(SessionStats.CriticalHits))
+					missionsLabel:Set("Missions/Raids Completed: " .. tostring(SessionStats.MissionsCompleted))
+					commonPerksLabel:Set("Common Perks: " .. tostring(SessionStats.CommonPerks))
+					rarePerksLabel:Set("Rare Perks: " .. tostring(SessionStats.RarePerks))
+					epicPerksLabel:Set("Epic Perks: " .. tostring(SessionStats.EpicPerks))
+					legPerksLabel:Set("Legendary Perks: " .. tostring(SessionStats.LegendaryPerks))
+					presScrollsLabel:Set("Prestige Scrolls: " .. tostring(SessionStats.PrestigeScrolls))
+					mythPerksLabel:Set("Mythical Perks: " .. tostring(SessionStats.MythicalPerks))
+					serumLabel:Set("Serum: " .. tostring(SessionStats.Serum))
+					scarfsLabel:Set("Scarfs: " .. tostring(SessionStats.Scarfs))
+					lastUpdatedLabel:Set("Last Updated: " .. tostring(SessionStats.LastUpdated))
+				end)
+			end
+
+			StatsTab:CreateButton({
+				Name = "Reset Stats (Đặt lại bộ đếm)",
+				Callback = function()
+					SessionStats.Gold = "0"
+					SessionStats.XP = "0"
+					SessionStats.Gems = "0"
+					SessionStats.BP_XP = "0"
+					SessionStats.TotalDamage = "0"
+					SessionStats.TitansKilled = "0"
+					SessionStats.CriticalHits = "0"
+					SessionStats.MissionsCompleted = "0"
+					SessionStats.CommonPerks = "0"
+					SessionStats.RarePerks = "0"
+					SessionStats.EpicPerks = "0"
+					SessionStats.LegendaryPerks = "0"
+					SessionStats.PrestigeScrolls = "0"
+					SessionStats.MythicalPerks = "0"
+					SessionStats.Serum = "0"
+					SessionStats.Scarfs = "0"
+					SessionStats.LastUpdated = "Reset"
+					updateStatsUI()
+				end,
+			})
+
+			StatsTab:CreateButton({
+				Name = "Force Update Stats (Làm mới dữ liệu)",
+				Callback = function()
+					updateStatsUI()
+				end,
+			})
+
+			-- ========================================================================
+			-- 4. 🔔 TAB WEBHOOK (Báo cáo kết quả về Discord)
+			-- ========================================================================
+			local WebhookTab = Window:CreateTab("Webhook (Báo cáo Discord)", "send")
+
+			WebhookTab:CreateSection("Discord Webhook")
+
+			WebhookTab:CreateToggle({
+				Name = "Notify Webhook",
+				CurrentValue = false,
+				Flag = "Lunar_SendWebhook",
+				Callback = function(Value)
+					AOTConfig.SendWebhook = Value
+				end,
+			})
+
+			WebhookTab:CreateToggle({
+				Name = "Display Roblox Username",
+				CurrentValue = true,
+				Flag = "Lunar_DisplayUsername",
+				Callback = function(Value)
+					AOTConfig.DisplayUsername = Value
+				end,
+			})
+
+			WebhookTab:CreateToggle({
+				Name = "Ping on Serum/Mythic Only",
+				CurrentValue = false,
+				Flag = "Lunar_PingSpecialOnly",
+				Callback = function(Value)
+					AOTConfig.PingSpecialOnly = Value
+				end,
+			})
+
+			WebhookTab:CreateInput({
+				Name = "Webhook URL",
+				PlaceholderText = "https://discord.com/api/webhooks/...",
+				RemoveTextAfterFocusLost = false,
+				Callback = function(Text)
+					AOTConfig.WebhookURL = Text
+				end,
+			})
+
+			sendDiscordWebhook = function(title, description, isSpecialItem)
+				if not AOTConfig.SendWebhook or AOTConfig.WebhookURL == "" then return end
+				if AOTConfig.PingSpecialOnly and not isSpecialItem then return end
+
+				local content = isSpecialItem and "@everyone Rare Item Dropped!" or ""
+				local playerName = AOTConfig.DisplayUsername and (LocalPlayer and LocalPlayer.Name or "Unknown") or "Anonymous"
+
+				local embed = {
+					title = title or "AOT:R Mission Complete",
+					description = description or "Session Update",
+					color = isSpecialItem and 16766720 or 65280,
+					fields = {
+						{ name = "Player", value = playerName, inline = true },
+						{ name = "Titans Killed", value = tostring(SessionStats.TitansKilled), inline = true },
+						{ name = "Total Damage", value = tostring(SessionStats.TotalDamage), inline = true },
+						{ name = "Gold", value = tostring(SessionStats.Gold), inline = true },
+						{ name = "Gems", value = tostring(SessionStats.Gems), inline = true },
+						{ name = "Prestige Scrolls", value = tostring(SessionStats.PrestigeScrolls), inline = true },
+						{ name = "Serum", value = tostring(SessionStats.Serum), inline = true },
+					},
+					footer = { text = "HaiAnh Menu | Attack on Titan: Revolution" },
+					timestamp = DateTime and DateTime.now():ToIsoDate() or ""
+				}
+
+				local payload = {
+					content = content,
+					embeds = { embed }
+				}
+
+				pcall(function()
+					local jsonBody = HttpService:JSONEncode(payload)
+					if requestFunc then
+						requestFunc({
+							Url = AOTConfig.WebhookURL,
+							Method = "POST",
+							Headers = { ["Content-Type"] = "application/json" },
+							Body = jsonBody
+						})
+					end
+				end)
+			end
+
+			WebhookTab:CreateButton({
+				Name = "Test Webhook",
+				Callback = function()
+					sendDiscordWebhook("LunarZ Hub Webhook Test", "Test ping from HaiAnh Menu AOT:R!", false)
+				end,
+			})
+
+			-- ========================================================================
+			-- 5. 👁️ TAB VISUAL (Hình ảnh & Tối ưu hóa FPS)
+			-- ========================================================================
+			local VisualTab = Window:CreateTab("Visual (Hình ảnh & FPS)", "eye")
+
+			VisualTab:CreateSection("Visuals & Optimization")
+
+			VisualTab:CreateToggle({
+				Name = "Titan ESP",
+				CurrentValue = false,
+				Flag = "Lunar_TitanESP",
+				Callback = function(Value)
+					AOTConfig.TitanESP = Value
+				end,
+			})
+
+			VisualTab:CreateColorPicker({
+				Name = "ESP Color",
+				Color = Color3.fromRGB(255, 0, 0),
+				Flag = "Lunar_ESPColor",
+				Callback = function(color)
+					AOTConfig.ESPColor = color
+				end,
+			})
+
+			VisualTab:CreateToggle({
+				Name = "Optimize Game (Potato PC Mode)",
+				CurrentValue = false,
+				Flag = "Lunar_OptimizeGame",
+				Callback = function(Value)
+					AOTConfig.OptimizeGame = Value
+					if Value then
+						pcall(function()
+							for _, obj in ipairs(Workspace:GetDescendants()) do
+								if obj:IsA("BasePart") then
+									obj.Material = Enum.Material.SmoothPlastic
+								elseif obj:IsA("Decal") or obj:IsA("Texture") then
+									obj.Transparency = 1
+								end
+							end
+							local Lighting = getService("Lighting")
+							if Lighting then Lighting.GlobalShadows = false end
+						end)
+					end
+				end,
+			})
+
+			VisualTab:CreateToggle({
+				Name = "Delete Map",
+				CurrentValue = false,
+				Flag = "Lunar_DeleteMap",
+				Callback = function(Value)
+					AOTConfig.DeleteMap = Value
+					if Value then
+						pcall(function()
+							local unclimbable = Workspace:FindFirstChild("Unclimbable")
+							if unclimbable then
+								for _, obj in ipairs(unclimbable:GetChildren()) do
+									if obj.Name ~= "Objective" and obj.Name ~= "Reloads" then
+										obj:Destroy()
+									end
+								end
+							end
+						end)
+					end
+				end,
+			})
+
+			-- ========================================================================
+			-- 6. ⚙️ TAB SETTINGS (Hệ thống Quản lý Cấu hình)
+			-- ========================================================================
+			local SettingsTab = Window:CreateTab("Settings (Quản lý Cấu hình)", "settings")
+
+			SettingsTab:CreateSection("Hệ thống Quản lý Cấu hình")
+
+			SettingsTab:CreateInput({
+				Name = "Config Name",
+				PlaceholderText = "Tên cấu hình (ví dụ: AfkNight)",
+				RemoveTextAfterFocusLost = false,
+				Callback = function(Text)
+					AOTConfig.CurrentConfigName = Text ~= "" and Text or "Default"
+				end,
+			})
+
+			local function getConfigList()
+				local list = { "Default" }
+				pcall(function()
+					if isfolder and isfolder(configFolder) and listfiles then
+						for _, f in ipairs(listfiles(configFolder)) do
+							local fname = string.match(f, "([^/\\\\]+)%.json$")
+							if fname and fname ~= "Default" then
+								table.insert(list, fname)
+							end
+						end
+					end
+				end)
+				return list
+			end
+
+			local configDropdown = SettingsTab:CreateDropdown({
+				Name = "Select Config",
+				Options = getConfigList(),
+				CurrentOption = { "Default" },
+				MultipleOptions = false,
+				Flag = "Lunar_SelectConfig",
+				Callback = function(Option)
+					AOTConfig.CurrentConfigName = type(Option) == "table" and Option[1] or Option
+				end,
+			})
+
+			local autoloadLabel = SettingsTab:CreateLabel("Autoload config: None")
+
+			SettingsTab:CreateButton({
+				Name = "Create Config (Tạo cấu hình mới)",
+				Callback = function()
+					pcall(function()
+						local cfgName = AOTConfig.CurrentConfigName or "Default"
+						local path = configFolder .. "/" .. cfgName .. ".json"
+						local data = HttpService:JSONEncode(AOTConfig)
+						writefile(path, data)
+						RayfieldLibrary:Notify({
+							Title = "Config Manager",
+							Content = "Đã lưu cấu hình: " .. cfgName,
+							Duration = 3,
+						})
+						if configDropdown and configDropdown.Set then
+							configDropdown:Set(getConfigList())
+						end
+					end)
+				end,
+			})
+
+			SettingsTab:CreateButton({
+				Name = "Load Config (Tải cấu hình)",
+				Callback = function()
+					pcall(function()
+						local cfgName = AOTConfig.CurrentConfigName or "Default"
+						local path = configFolder .. "/" .. cfgName .. ".json"
+						if isfile and isfile(path) then
+							local data = readfile(path)
+							local decoded = HttpService:JSONDecode(data)
+							if type(decoded) == "table" then
+								for k, v in pairs(decoded) do
+									AOTConfig[k] = v
+								end
+								RayfieldLibrary:Notify({
+									Title = "Config Manager",
+									Content = "Đã nạp thành công cấu hình: " .. cfgName,
+									Duration = 3,
+								})
+							end
+						end
+					end)
+				end,
+			})
+
+			SettingsTab:CreateButton({
+				Name = "Overwrite Config (Ghi đè cấu hình)",
+				Callback = function()
+					pcall(function()
+						local cfgName = AOTConfig.CurrentConfigName or "Default"
+						local path = configFolder .. "/" .. cfgName .. ".json"
+						local data = HttpService:JSONEncode(AOTConfig)
+						writefile(path, data)
+						RayfieldLibrary:Notify({
+							Title = "Config Manager",
+							Content = "Đã ghi đè cấu hình: " .. cfgName,
+							Duration = 3,
+						})
+					end)
+				end,
+			})
+
+			SettingsTab:CreateButton({
+				Name = "Refresh Config List (Làm mới danh sách)",
+				Callback = function()
+					pcall(function()
+						if configDropdown and configDropdown.Set then
+							configDropdown:Set(getConfigList())
+						end
+					end)
+				end,
+			})
+
+			SettingsTab:CreateButton({
+				Name = "Set as autoload (Đặt làm mặc định)",
+				Callback = function()
+					pcall(function()
+						local cfgName = AOTConfig.CurrentConfigName or "Default"
+						writefile(configFolder .. "/autoload.txt", cfgName)
+						autoloadLabel:Set("Autoload config: " .. cfgName)
+						RayfieldLibrary:Notify({
+							Title = "Config Manager",
+							Content = "Đã đặt " .. cfgName .. " làm autoload!",
+							Duration = 3,
+						})
+					end)
+				end,
+			})
+
+			-- Kiểm tra Autoload khi mở menu
+			pcall(function()
+				local autoPath = configFolder .. "/autoload.txt"
+				if isfile and isfile(autoPath) then
+					local autoName = readfile(autoPath)
+					if autoName and autoName ~= "" then
+						autoloadLabel:Set("Autoload config: " .. autoName)
+						local cfgPath = configFolder .. "/" .. autoName .. ".json"
+						if isfile(cfgPath) then
+							local d = HttpService:JSONDecode(readfile(cfgPath))
+							if type(d) == "table" then
+								for k, v in pairs(d) do AOTConfig[k] = v end
+							end
+						end
+					end
+				end
+			end)
+
+			-- ========================================================================
+			-- CORE GAMEPLAY LOGIC & BACKGROUND TASKS
+			-- ========================================================================
+
+			-- 1. Noclip Handler
+			local noclipConn = nil
+			task.spawn(function()
+				while not rayfieldDestroyed do
+					if AOTConfig.Noclip then
+						if not noclipConn then
+							noclipConn = RunService.Stepped:Connect(function()
+								pcall(function()
+									if LocalPlayer and LocalPlayer.Character then
+										for _, p in ipairs(LocalPlayer.Character:GetDescendants()) do
+											if p:IsA("BasePart") and p.CanCollide then
+												p.CanCollide = false
+											end
+										end
+									end
+								end)
+							end)
+						end
+					else
+						if noclipConn then
+							noclipConn:Disconnect()
+							noclipConn = nil
+						end
+					end
+					task.wait(0.5)
+				end
+				if noclipConn then noclipConn:Disconnect() end
+			end)
+
+			-- 2. Anti Injuries Handler
+			local function setupAntiInjuries(char)
+				if not char then return end
+				pcall(function()
+					local injuries = char:WaitForChild("Injuries", 3)
+					if injuries then
+						for _, child in ipairs(injuries:GetChildren()) do
+							child:Destroy()
+						end
+						injuries.ChildAdded:Connect(function(child)
+							if AOTConfig.AntiInjuries then
+								task.defer(function()
+									pcall(function() child:Destroy() end)
+								end)
+							end
+						end)
+					end
+				end)
+			end
+
+			if LocalPlayer and LocalPlayer.Character then
+				setupAntiInjuries(LocalPlayer.Character)
+			end
+			LocalPlayer.CharacterAdded:Connect(setupAntiInjuries)
+
+			-- 3. Auto Escape Grab
+			task.spawn(function()
+				while not rayfieldDestroyed do
+					task.wait(0.2)
+					if AOTConfig.AutoEscape and LocalPlayer and LocalPlayer.Character then
+						pcall(function()
+							local char = LocalPlayer.Character
+							local isGrabbed = char:FindFirstChild("Grabbed") or char:GetAttribute("Grabbed") or char:GetAttribute("State") == "Grabbed"
+							if isGrabbed and VirtualInputManager then
+								VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+								task.wait(0.05)
+								VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+							end
+						end)
+					end
+				end
+			end)
+
+			-- ========================================================================
+			-- BULLETPROOF NAPE RESOLUTION & OVERHEAD DIVE-SLASH ENGINE
+			-- ========================================================================
 			local function resolveBasePart(obj)
 				if not obj then return nil end
 				if obj:IsA("BasePart") then return obj end
@@ -5731,6 +6545,92 @@ if not libraryOnly then
 				local hum = titan:FindFirstChildOfClass("Humanoid")
 				if hum and hum.Health <= 0 and hum.MaxHealth > 0 then return false end
 				return true
+			end
+
+			-- Mobile Touch / GUI Detection Helper
+			local cachedGuiState = {
+				m1 = nil,
+				reload = nil,
+				lastScan = 0
+			}
+
+			local function refreshCachedGuiElements(force)
+				local now = os.clock()
+				if not force and (now - cachedGuiState.lastScan < 3.0) and cachedGuiState.m1 and cachedGuiState.m1.Parent then
+					return
+				end
+				cachedGuiState.lastScan = now
+				local pgui = LocalPlayer and LocalPlayer:FindFirstChildOfClass("PlayerGui")
+				if not pgui then return end
+
+				-- Scan TouchGui & Interface for M1 & Reload buttons
+				local iface = pgui:FindFirstChild("Interface")
+				local touchGui = pgui:FindFirstChild("TouchGui")
+
+				if iface then
+					local mobile = iface:FindFirstChild("Mobile") or iface:FindFirstChild("Buttons")
+					if mobile then
+						cachedGuiState.m1 = mobile:FindFirstChild("M1") or mobile:FindFirstChild("Attack") or cachedGuiState.m1
+						cachedGuiState.reload = mobile:FindFirstChild("Reload") or mobile:FindFirstChild("Nạp lại") or cachedGuiState.reload
+					end
+				end
+
+				if touchGui and not cachedGuiState.m1 then
+					local tcf = touchGui:FindFirstChild("TouchControlFrame")
+					if tcf then
+						cachedGuiState.m1 = tcf:FindFirstChild("M1") or tcf:FindFirstChild("Attack")
+					end
+				end
+			end
+
+			local function clickGuiButtonFast(btn)
+				if not btn then return end
+				pcall(function()
+					if getconnections then
+						for _, conn in ipairs(getconnections(btn.Activated) or {}) do conn:Fire() end
+						for _, conn in ipairs(getconnections(btn.MouseButton1Down) or {}) do conn:Fire() end
+						for _, conn in ipairs(getconnections(btn.MouseButton1Click) or {}) do conn:Fire() end
+					end
+				end)
+			end
+
+			-- Remotes detection helper
+			local function getAOTRemotes()
+				local assets = ReplicatedStorage:FindFirstChild("Assets")
+				local remotes = (assets and assets:FindFirstChild("Remotes"))
+					or ReplicatedStorage:FindFirstChild("Remotes")
+					or ReplicatedStorage:FindFirstChild("Remotes", true)
+				local post = (remotes and remotes:FindFirstChild("POST"))
+					or ReplicatedStorage:FindFirstChild("POST", true)
+				local get = (remotes and remotes:FindFirstChild("GET"))
+					or ReplicatedStorage:FindFirstChild("GET", true)
+				return post, get
+			end
+
+			-- Station detection helper
+			local function getClosestRefillStation()
+				local unclimbable = Workspace:FindFirstChild("Unclimbable")
+				local reloads = unclimbable and unclimbable:FindFirstChild("Reloads")
+				if not reloads then
+					local map = Workspace:FindFirstChild("Map")
+					reloads = map and map:FindFirstChild("Reloads", true)
+				end
+				if not reloads then return nil end
+				local char = LocalPlayer and LocalPlayer.Character
+				local hrp = char and char:FindFirstChild("HumanoidRootPart")
+				if not hrp then return nil end
+				local closest, closestDist = nil, math.huge
+				for _, station in ipairs(reloads:GetChildren()) do
+					local part = resolveBasePart(station)
+					if part then
+						local d = (hrp.Position - part.Position).Magnitude
+						if d < closestDist then
+							closestDist = d
+							closest = station
+						end
+					end
+				end
+				return closest
 			end
 
 			getClosestValidNape = function()
@@ -5804,24 +6704,7 @@ if not libraryOnly then
 				return targetNape, closestTitan
 			end
 
-			-- Noclip connection (smoothly glides through terrain, walls, and Titan models)
-			RunService.Stepped:Connect(function()
-				if rayfieldDestroyed then return end
-				if AOTConfig.AutoFarm or AOTConfig.AutoRaid or AOTConfig.Noclip then
-					local char = LocalPlayer and LocalPlayer.Character
-					if char then
-						for _, part in ipairs(char:GetDescendants()) do
-							if part:IsA("BasePart") and part.CanCollide then
-								part.CanCollide = false
-							end
-						end
-					end
-				end
-			end)
-
-			-- ========================================================================
-			-- 5. OVERHEAD HOVER & DIVE-SLASH COMBAT ENGINE (BAY TREN DAU - LAO XUONG CHEM PHAT MOT)
-			-- ========================================================================
+			-- 5. Overhead Hover & Dive-Slash Engine
 			startAutoFarm = function()
 				if autoFarmActive then return end
 				autoFarmActive = true
@@ -5888,7 +6771,7 @@ if not libraryOnly then
 										end)
 									end
 
-									-- Vi tri chem: ngay tren gay Titan 1.2 studs, huong theo mat sau gay
+									-- Vi tri chem: ngay tren gay Titan 1.2 studs
 									local titanCF = titan:GetPivot()
 									local titanLook = titanCF.LookVector
 									local divePos = nape.Position - (titanLook * 2.2) + Vector3.new(0, 1.2, 0)
@@ -5956,7 +6839,7 @@ if not libraryOnly then
 									-- Neu Titan da chet, danh dau vao cache de khong danh lai
 									deadTitanCache[titan] = true
 
-									-- Do tre nhip nhang giua cac muc tieu (Farm Delay slider: 0.05s - 0.3s)
+									-- Do tre nhip nhang giua cac muc tieu (Farm Delay slider: 0.05s - 0.25s)
 									local delayTime = math.clamp((AOTConfig.StartDelay or 5) * 0.02, 0.05, 0.25)
 									task.wait(delayTime)
 								else
@@ -5978,31 +6861,6 @@ if not libraryOnly then
 			end
 
 			-- 6. Weapon Check & Auto Reload Blades
-			local function performBladeReload()
-				local postRemote, getRemote = getAOTRemotes()
-				if postRemote then
-					pcall(function() postRemote:FireServer("Attacks", "Reload") end)
-					pcall(function() postRemote:FireServer("S_Equipment", "Reload") end)
-					pcall(function() postRemote:FireServer("Equipment", "Reload") end)
-				end
-				if getRemote then
-					pcall(function() getRemote:InvokeServer("S_Equipment", "Reload") end)
-				end
-
-				refreshCachedGuiElements()
-				if cachedGuiState.reload and cachedGuiState.reload.Parent then
-					clickGuiButtonFast(cachedGuiState.reload)
-				end
-
-				if VirtualInputManager then
-					pcall(function()
-						VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
-						task.wait(0.05)
-						VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
-					end)
-				end
-			end
-
 			task.spawn(function()
 				while not rayfieldDestroyed do
 					task.wait(1.0)
@@ -6010,76 +6868,37 @@ if not libraryOnly then
 						pcall(function()
 							local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
 							local hud = playerGui and playerGui:FindFirstChild("Interface") and playerGui.Interface:FindFirstChild("HUD")
-							local needsReload = false
-
 							if hud and hud:FindFirstChild("Main") and hud.Main:FindFirstChild("Top") then
 								local bladesUI = hud.Main.Top:FindFirstChild("Blades")
 								if bladesUI and bladesUI:FindFirstChild("Sets") then
 									local sets = tonumber(bladesUI.Sets.Text) or 0
-									if sets <= 0 then
-										needsReload = true
+									if sets <= 0 and VirtualInputManager then
+										VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.R, false, game)
+										task.wait(0.1)
+										VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.R, false, game)
 									end
 								end
-							end
-
-							local char = LocalPlayer.Character
-							if char and (char:GetAttribute("BladeBroken") == true or char:GetAttribute("Blades") == 0) then
-								needsReload = true
-							end
-
-							if needsReload then
-								performBladeReload()
 							end
 						end)
 					end
 				end
 			end)
 
-			-- 7. Auto Refill Supplies at Station (from menau.txt)
+			-- 7. Auto Refill Supplies at Station
 			task.spawn(function()
 				while not rayfieldDestroyed do
-					task.wait(1.5)
+					task.wait(3.0)
 					if AOTConfig.AutoRefill and LocalPlayer and LocalPlayer.Character then
 						pcall(function()
-							local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-							local hud = playerGui and playerGui:FindFirstChild("Interface") and playerGui.Interface:FindFirstChild("HUD")
-							local needsRefill = false
-
-							if hud and hud:FindFirstChild("Main") and hud.Main:FindFirstChild("Top") then
-								local bladesUI = hud.Main.Top:FindFirstChild("Blades")
-								if bladesUI and bladesUI:FindFirstChild("Sets") then
-									local sets = tonumber(bladesUI.Sets.Text) or 0
-									if sets <= 0 then
-										needsRefill = true
-									end
-								end
-							end
-
-							local char = LocalPlayer.Character
-							if char and (char:GetAttribute("BladeBroken") == true or char:GetAttribute("Blades") == 0) then
-								needsRefill = true
-							end
-
-							if needsRefill then
-								isRefillingStation = true
-								local station = getClosestRefillStation()
-								if station then
-									local prompt = station:FindFirstChildWhichIsA("ProximityPrompt", true)
-									if prompt and fireproximityprompt then
+							local unclimbable = Workspace:FindFirstChild("Unclimbable")
+							local reloads = unclimbable and unclimbable:FindFirstChild("Reloads")
+							if reloads and fireproximityprompt then
+								for _, prompt in ipairs(reloads:GetDescendants()) do
+									if prompt:IsA("ProximityPrompt") then
 										fireproximityprompt(prompt, 0)
 										fireproximityprompt(prompt)
 									end
 								end
-								local postRemote = getAOTRemotes()
-								if postRemote then
-									pcall(function() postRemote:FireServer("S_Equipment", "Refill") end)
-									pcall(function() postRemote:FireServer("Equipment", "Refill") end)
-									pcall(function() postRemote:FireServer("Character", "Refill") end)
-								end
-								task.wait(0.8)
-								isRefillingStation = false
-							else
-								isRefillingStation = false
 							end
 						end)
 					end
@@ -6093,15 +6912,11 @@ if not libraryOnly then
 					if AOTConfig.AutoSkipCutscene and LocalPlayer then
 						pcall(function()
 							local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-							local iface = playerGui and playerGui:FindFirstChild("Interface")
-							local skipBtn = iface and (iface:FindFirstChild("Skip") or iface:FindFirstChild("SkipCutscene", true))
-							if skipBtn and skipBtn.Visible then
-								clickGuiButtonFast(skipBtn)
-								if VirtualInputManager then
-									VirtualInputManager:SendMouseButtonEvent(skipBtn.AbsolutePosition.X + 15, skipBtn.AbsolutePosition.Y + 15, 0, true, game, 0)
-									task.wait(0.05)
-									VirtualInputManager:SendMouseButtonEvent(skipBtn.AbsolutePosition.X + 15, skipBtn.AbsolutePosition.Y + 15, 0, false, game, 0)
-								end
+							local skipBtn = playerGui and playerGui:FindFirstChild("Interface") and playerGui.Interface:FindFirstChild("Skip")
+							if skipBtn and skipBtn.Visible and VirtualInputManager then
+								VirtualInputManager:SendMouseButtonEvent(skipBtn.AbsolutePosition.X + 15, skipBtn.AbsolutePosition.Y + 15, 0, true, game, 0)
+								task.wait(0.1)
+								VirtualInputManager:SendMouseButtonEvent(skipBtn.AbsolutePosition.X + 15, skipBtn.AbsolutePosition.Y + 15, 0, false, game, 0)
 							end
 						end)
 					end
@@ -6111,20 +6926,16 @@ if not libraryOnly then
 			-- 9. Auto Open Chests
 			task.spawn(function()
 				while not rayfieldDestroyed do
-					task.wait(0.8)
+					task.wait(1.0)
 					if AOTConfig.AutoOpenChests and LocalPlayer then
 						pcall(function()
 							local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
-							local iface = playerGui and playerGui:FindFirstChild("Interface")
-							local chests = iface and iface:FindFirstChild("Chests")
-							if chests and chests:FindFirstChild("Finish") and chests.Finish.Visible then
+							local chests = playerGui and playerGui:FindFirstChild("Interface") and playerGui.Interface:FindFirstChild("Chests")
+							if chests and chests:FindFirstChild("Finish") and chests.Finish.Visible and VirtualInputManager then
 								local finishBtn = chests.Finish
-								clickGuiButtonFast(finishBtn)
-								if VirtualInputManager then
-									VirtualInputManager:SendMouseButtonEvent(finishBtn.AbsolutePosition.X + 20, finishBtn.AbsolutePosition.Y + 20, 0, true, game, 0)
-									task.wait(0.05)
-									VirtualInputManager:SendMouseButtonEvent(finishBtn.AbsolutePosition.X + 20, finishBtn.AbsolutePosition.Y + 20, 0, false, game, 0)
-								end
+								VirtualInputManager:SendMouseButtonEvent(finishBtn.AbsolutePosition.X + 20, finishBtn.AbsolutePosition.Y + 20, 0, true, game, 0)
+								task.wait(0.1)
+								VirtualInputManager:SendMouseButtonEvent(finishBtn.AbsolutePosition.X + 20, finishBtn.AbsolutePosition.Y + 20, 0, false, game, 0)
 							end
 						end)
 					end
@@ -6155,7 +6966,7 @@ if not libraryOnly then
 										SessionStats.CriticalHits = statsFolder.Critical_Hits.Amount.Text
 									end
 									SessionStats.LastUpdated = os.date("%X")
-									if updateStatsUI then updateStatsUI() end
+									updateStatsUI()
 								end
 
 								-- Check Items
@@ -6178,17 +6989,12 @@ if not libraryOnly then
 
 								if AOTConfig.AutoRetry then
 									local retryBtn = rewards.Main.Info.Main.Buttons:FindFirstChild("Retry")
-									if retryBtn and retryBtn.Visible then
-										if sendDiscordWebhook then
-											sendDiscordWebhook("Mission Complete (Auto Retry)", "Cleared stage and retrying!", hasSpecialItem)
-										end
-										task.wait(0.4)
-										clickGuiButtonFast(retryBtn)
-										if VirtualInputManager then
-											VirtualInputManager:SendMouseButtonEvent(retryBtn.AbsolutePosition.X + 20, retryBtn.AbsolutePosition.Y + 20, 0, true, game, 0)
-											task.wait(0.05)
-											VirtualInputManager:SendMouseButtonEvent(retryBtn.AbsolutePosition.X + 20, retryBtn.AbsolutePosition.Y + 20, 0, false, game, 0)
-										end
+									if retryBtn and retryBtn.Visible and VirtualInputManager then
+										sendDiscordWebhook("Mission Complete (Auto Retry)", "Cleared stage and retrying!", hasSpecialItem)
+										task.wait(0.5)
+										VirtualInputManager:SendMouseButtonEvent(retryBtn.AbsolutePosition.X + 20, retryBtn.AbsolutePosition.Y + 20, 0, true, game, 0)
+										task.wait(0.1)
+										VirtualInputManager:SendMouseButtonEvent(retryBtn.AbsolutePosition.X + 20, retryBtn.AbsolutePosition.Y + 20, 0, false, game, 0)
 									end
 								end
 							end
@@ -6210,13 +7016,10 @@ if not libraryOnly then
 								local playerGui = LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")
 								local rewards = playerGui and playerGui:FindFirstChild("Interface") and playerGui.Interface:FindFirstChild("Rewards")
 								local retryBtn = rewards and rewards:FindFirstChild("Main") and rewards.Main.Info.Main.Buttons:FindFirstChild("Retry")
-								if retryBtn then
-									clickGuiButtonFast(retryBtn)
-									if VirtualInputManager then
-										VirtualInputManager:SendMouseButtonEvent(retryBtn.AbsolutePosition.X + 20, retryBtn.AbsolutePosition.Y + 20, 0, true, game, 0)
-										task.wait(0.05)
-										VirtualInputManager:SendMouseButtonEvent(retryBtn.AbsolutePosition.X + 20, retryBtn.AbsolutePosition.Y + 20, 0, false, game, 0)
-									end
+								if retryBtn and VirtualInputManager then
+									VirtualInputManager:SendMouseButtonEvent(retryBtn.AbsolutePosition.X + 20, retryBtn.AbsolutePosition.Y + 20, 0, true, game, 0)
+									task.wait(0.1)
+									VirtualInputManager:SendMouseButtonEvent(retryBtn.AbsolutePosition.X + 20, retryBtn.AbsolutePosition.Y + 20, 0, false, game, 0)
 								end
 							end)
 						end
@@ -6247,38 +7050,26 @@ if not libraryOnly then
 				end
 			end)
 
-			-- 13. Titan ESP & Shifter Objective Radar (from menau.txt Closure w)
+			-- 13. Titan ESP
 			local espHighlights = {}
 			task.spawn(function()
 				while not rayfieldDestroyed do
 					if AOTConfig.TitanESP then
 						pcall(function()
-							local titans = getTitansList()
-							local activeModels = {}
-							for _, entry in ipairs(titans) do
-								local titan = entry.model
-								if titan and titan.Parent then
-									activeModels[titan] = true
-									local isShifter = titan:GetAttribute("Shifter") == true
-									if not espHighlights[titan] then
+							local titans = Workspace:FindFirstChild("Titans")
+							if titans then
+								for _, titan in ipairs(titans:GetChildren()) do
+									if not espHighlights[titan] and titan:IsA("Model") then
 										local hl = Instance.new("Highlight")
-										hl.Name = "HaiAnh_TitanESP"
-										hl.FillColor = isShifter and Color3.fromRGB(255, 200, 60) or AOTConfig.ESPColor
+										hl.FillColor = AOTConfig.ESPColor
 										hl.OutlineColor = Color3.fromRGB(255, 255, 255)
-										hl.FillTransparency = 0.4
+										hl.FillTransparency = 0.5
 										hl.Adornee = titan
 										hl.Parent = titan
 										espHighlights[titan] = hl
-									else
-										espHighlights[titan].FillColor = isShifter and Color3.fromRGB(255, 200, 60) or AOTConfig.ESPColor
+									elseif espHighlights[titan] then
+										espHighlights[titan].FillColor = AOTConfig.ESPColor
 									end
-								end
-							end
-
-							for titan, hl in pairs(espHighlights) do
-								if not activeModels[titan] or not titan.Parent then
-									pcall(function() hl:Destroy() end)
-									espHighlights[titan] = nil
 								end
 							end
 						end)
@@ -6290,10 +7081,12 @@ if not libraryOnly then
 							espHighlights = {}
 						end)
 					end
-					task.wait(0.8)
+					task.wait(1.0)
 				end
 			end)
+
 		end
+
 
 		-- ============================================================================
 		-- MENU 2: BLOX FRUITS (HAIANH MENU VIP EDITION)
