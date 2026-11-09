@@ -1001,8 +1001,26 @@ local function main()
     else
         return 
     end
+
+    -- ========================================================================
+    -- [EXTRACTOR HOOK] Tự động xuất 100% mã nguồn AoT thực sự
+    -- ========================================================================
+    if rawScript and #rawScript > 50 then
+        pcall(function()
+            if typeof(writefile) == 'function' then
+                writefile('aot_real_source.lua', rawScript)
+                print('[FINAL DUMP] Đã lưu mã nguồn AoT gốc vào: workspace/aot_real_source.lua')
+            end
+            if typeof(setclipboard) == 'function' then
+                setclipboard(rawScript)
+                print('[FINAL DUMP] Đã copy toàn bộ mã nguồn AoT vào Clipboard!')
+            end
+        end)
+    end
+
     local safeLoadstring = gSLSeBGkSfGlM(_TLSRYofNKulxQ)
-    local isCompromised = _TAMPERED or (not tLSIKRNRGAWQn(safeLoadstring)) or (not tMMICulbJcsG())
+    local isCompromised = false
+    _TAMPERED = false
     if isCompromised then
         _TAMPERED = true
     end
