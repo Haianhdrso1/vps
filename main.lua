@@ -111,46 +111,67 @@ local http_request_fn = (typeof(request) == "function" and request)
     or (typeof(http) == "table" and typeof(http.request) == "function" and http.request)
 
 local function make_request(endpoint, payload, method)
+    local endpoints = {
+        "https://symbiote.cc" .. endpoint,
+        "https://symbiote.up.railway.app" .. endpoint
+    }
+    
     local headers = {
-        ["Content-Type"] = "application/json",
-        ["User-Agent"] = "Roblox/WinInet"
+        ["Content-Type"] = "application/json"
     }
     if payload then
         headers["X-Payload"] = base64_encode(HttpService:JSONEncode(payload))
     end
 
-    local url = "https://symbiote.cc" .. endpoint
     local reqMethod = method or "GET"
-    local options = {
-        Url = url,
-        url = url,
-        Method = reqMethod,
-        method = reqMethod,
-        Headers = headers,
-        headers = headers
-    }
 
-    if http_request_fn then
-        local success, res = pcall(function()
-            return http_request_fn(options)
-        end)
-        if success and typeof(res) == "table" then
-            local body = res.Body or res.body or ""
-            local status = res.StatusCode or res.status or res.status_code or res.Status or 200
-            return true, body, status
+    -- Find available request function
+    local reqFn = (typeof(request) == "function" and request)
+        or (typeof(http_request) == "function" and http_request)
+        or (typeof(syn) == "table" and typeof(syn.request) == "function" and syn.request)
+        or (typeof(fluxus) == "table" and typeof(fluxus.request) == "function" and fluxus.request)
+        or (typeof(http) == "table" and typeof(http.request) == "function" and http.request)
+
+    for _, targetUrl in ipairs(endpoints) do
+        local options = {
+            Url = targetUrl,
+            url = targetUrl,
+            Method = reqMethod,
+            method = reqMethod,
+            Headers = headers,
+            headers = headers,
+            Timeout = 10,
+            timeout = 10
+        }
+
+        if reqFn then
+            local success, res = pcall(function()
+                return reqFn(options)
+            end)
+            if success and typeof(res) == "table" then
+                local body = res.Body or res.body or ""
+                local status = res.StatusCode or res.status or res.status_code or res.Status or 200
+                if status == 200 and #body > 0 then
+                    return true, body, status
+                end
+            end
         end
-        return false, tostring(res), 0
-    else
-        local success, res = pcall(function()
+
+        -- Fallback to HttpService:RequestAsync if possible
+        local hsOk, hsRes = pcall(function()
             return HttpService:RequestAsync(options)
         end)
-        if success and typeof(res) == "table" then
-            return true, res.Body or "", res.StatusCode or 200
+        if hsOk and typeof(hsRes) == "table" then
+            local body = hsRes.Body or ""
+            local status = hsRes.StatusCode or 200
+            if status == 200 and #body > 0 then
+                return true, body, status
+            end
         end
-        return false, tostring(res), 0
     end
-end
 
+    return false, "Connection failed to all endpoints", 0
+end
 ---- ============================================================================
 -- UI Helper: Create UIStroke (Prototype root/7)
 ---- ============================================================================
@@ -722,9 +743,12 @@ end)
 -- Button Callback: Continue / Verify Key & AUTO-DUMP (Prototype root/27)
 ---- ============================================================================
 ContinueButton.MouseButton1Click:Connect(function()
-    local rawKey = KeyInput.Text or ""
+    task.spawn(function()
+        local rawKey = KeyInput.Text or ""
     local key = rawKey:match("^%s*(.-)%s*$")
-    if key then key = key:gsub("%s+", "") end
+    if key then 
+        key = key:gsub("%s+", ""):gsub("-", "")
+    end
 
     if not key or key == "" then
         StatusLabel.TextColor3 = Theme.Error
@@ -736,7 +760,7 @@ ContinueButton.MouseButton1Click:Connect(function()
     ContinueButton.Text = "Verifying..."
     ContinueButton.BackgroundColor3 = Theme.AccentDark
     StatusLabel.TextColor3 = Theme.TextDim
-    StatusLabel.Text = "Authenticating..."
+    StatusLabel.Text = "Dang ket noi toi server..."
 
     local clientId = "Unknown"
     pcall(function()
@@ -935,6 +959,5 @@ ContinueButton.MouseButton1Click:Connect(function()
             end
         end
     end)
+    end)
 end)
-
-
