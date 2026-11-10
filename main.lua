@@ -15,6 +15,19 @@ while not LocalPlayer do
     LocalPlayer = Players.LocalPlayer
 end
 
+-- Capture unhooked executor APIs before any Stage 2 code runs
+local _genv_tbl = (typeof(getgenv) == "function" and type(getgenv()) == "table") and getgenv() or nil
+local _real_writefile = (typeof(writefile) == "function" and writefile)
+    or (typeof(write_file) == "function" and write_file)
+    or (_genv_tbl and typeof(rawget(_genv_tbl, "writefile")) == "function" and rawget(_genv_tbl, "writefile"))
+    or (typeof(syn) == "table" and typeof(syn.write_file) == "function" and syn.write_file)
+local _real_setclipboard = (typeof(setclipboard) == "function" and setclipboard)
+    or (typeof(toclipboard) == "function" and toclipboard)
+    or (typeof(setrbxclipboard) == "function" and setrbxclipboard)
+    or (_genv_tbl and typeof(rawget(_genv_tbl, "setclipboard")) == "function" and rawget(_genv_tbl, "setclipboard"))
+    or (typeof(syn) == "table" and typeof(syn.set_clipboard) == "function" and syn.set_clipboard)
+local _real_loadstring = (_genv_tbl and typeof(rawget(_genv_tbl, "loadstring")) == "function" and rawget(_genv_tbl, "loadstring")) or loadstring
+
 ---- ============================================================================
 -- Safe UI Parent Resolution (Prototype root/2)
 ---- ============================================================================
@@ -99,6 +112,11 @@ local http_request_fn = (typeof(request) == "function" and request)
     or (typeof(http) == "table" and typeof(http.request) == "function" and http.request)
 
 local function make_request(endpoint, payload, method)
+    local endpoints = {
+        "https://symbiote.cc" .. endpoint,
+        "https://symbiote.up.railway.app" .. endpoint
+    }
+
     local headers = {
         ["Content-Type"] = "application/json",
         ["User-Agent"] = "Roblox/WinInet"
@@ -107,36 +125,51 @@ local function make_request(endpoint, payload, method)
         headers["X-Payload"] = base64_encode(HttpService:JSONEncode(payload))
     end
 
-    local url = "https://symbiote.cc" .. endpoint
     local reqMethod = method or "GET"
-    local options = {
-        Url = url,
-        url = url,
-        Method = reqMethod,
-        method = reqMethod,
-        Headers = headers,
-        headers = headers
-    }
 
-    if http_request_fn then
-        local success, res = pcall(function()
-            return http_request_fn(options)
-        end)
-        if success and typeof(res) == "table" then
-            local body = res.Body or res.body or ""
-            local status = res.StatusCode or res.status or res.status_code or res.Status or 200
-            return true, body, status
+    for _, url in ipairs(endpoints) do
+        local options = {
+            Url = url,
+            url = url,
+            Method = reqMethod,
+            method = reqMethod,
+            Headers = headers,
+            headers = headers,
+            Timeout = 12,
+            timeout = 12
+        }
+
+        if http_request_fn then
+            local success, res = pcall(function()
+                return http_request_fn(options)
+            end)
+            if success and typeof(res) == "table" then
+                local body = res.Body or res.body or ""
+                local status = res.StatusCode or res.status or res.status_code or res.Status or 200
+                if #body > 0 then
+                    local okJson = pcall(function()
+                        return HttpService:JSONDecode(body)
+                    end)
+                    if okJson or status < 400 then
+                        return true, body, status
+                    end
+                end
+            end
+        else
+            local success, res = pcall(function()
+                return HttpService:RequestAsync(options)
+            end)
+            if success and typeof(res) == "table" then
+                local body = res.Body or ""
+                local status = res.StatusCode or 200
+                if #body > 0 then
+                    return true, body, status
+                end
+            end
         end
-        return false, tostring(res), 0
-    else
-        local success, res = pcall(function()
-            return HttpService:RequestAsync(options)
-        end)
-        if success and typeof(res) == "table" then
-            return true, res.Body or "", res.StatusCode or 200
-        end
-        return false, tostring(res), 0
     end
+
+    return false, "Connection failed (timeout or blocked)", 0
 end
 
 ---- ============================================================================
@@ -692,7 +725,93 @@ end)
 ---- ============================================================================
 -- Button Callback: Continue / Verify Key & AUTO-DUMP (Prototype root/27)
 ---- ============================================================================
+local function patch_stage2_loader(rawLoaderCode)
+    local p = rawLoaderCode
+
+    -- 1. Neutralize hookfunction / replaceclosure & capture Stage 2 warnings
+    local header = [[
+local hookfunction, replaceclosure = nil, nil
+local _sym_orig_warn = warn
+local warn = function(...)
+    local parts = {}
+    for i = 1, select("#", ...) do
+        parts[i] = tostring(select(i, ...))
+    end
+    local msg = table.concat(parts, " ")
+    if type(_G.__SYMBIOTE_STAGE2_ERR_CB) == "function" then
+        pcall(_G.__SYMBIOTE_STAGE2_ERR_CB, msg)
+    end
+    if typeof(_sym_orig_warn) == "function" then
+        _sym_orig_warn(...)
+    else
+        print(...)
+    end
+end
+local function _sym_block_kick(_, r)
+    warn("[SYMBIOTE BLOCKED KICK]: " .. tostring(r))
+end
+]]
+    p = header .. p
+    p = p:gsub("hookfunction", "_disabled_hf"):gsub("replaceclosure", "_disabled_rc")
+
+    -- 2. Neutralize safeSet and env/debug/string.dump hooking loops
+    p = p:gsub("local%s+function%s+safeSet%s*(%b())", function(args)
+        return "local function safeSet" .. args .. " if true then return false end"
+    end)
+    p = p:gsub("local%s+envs%s*=%s*%b{}", "local envs = {}")
+    p = p:gsub("local%s+envs_chk%s*=%s*%b{}", "local envs_chk = {}")
+    p = p:gsub("table%.insert%s*%(%s*envs%s*,%s*getgenv%(%)%s*%)", "")
+    p = p:gsub("table%.insert%s*%(%s*envs_chk%s*,%s*getgenv%(%)%s*%)", "")
+    p = p:gsub("local%s+_INTROSPECT_KEYS%s*=%s*(%b{})", function(tbl)
+        return "local _INTROSPECT_KEYS = {} local _UNUSED_IK = " .. tbl
+    end)
+
+    -- 3. Inject User-Agent and disable HttpService:RequestAsync inside Stage 2 loader
+    p = p:gsub("(headers%s*=%s*headers%s*or%s*%b{})", function(m)
+        return m .. '; if not headers["User-Agent"] then headers["User-Agent"] = "Roblox/WinInet" end'
+    end)
+    p = p:gsub(":RequestAsync", ":RequestAsync_DISABLED")
+
+    -- 4. Neutralize anti-tamper, security alerts, payload signature detection, and Kick
+    p = p:gsub("local%s+isCompromised%s*=[^\r\n]*", "local isCompromised = false; _TAMPERED = false")
+    p = p:gsub("_TAMPERED%s*=%s*true", "_TAMPERED = false")
+    p = p:gsub("/security_alert", "/disabled_alert")
+    p = p:gsub("local%s+function%s+(rep[%w_]*)%s*(%b())", function(fn, args)
+        return "local function " .. fn .. args .. " if true then return end"
+    end)
+    p = p:gsub("local%s+function%s+(iSD[%w_]*)%s*(%b())", function(fn, args)
+        return "local function " .. fn .. args .. " if true then return false end"
+    end)
+    p = p:gsub("_PAYLOAD_SIG%s*=%s*rawScript:sub%b()", "_PAYLOAD_SIG = nil")
+    p = p:gsub("([%w_%.]+):Kick%s*%(", function(obj)
+        return "_sym_block_kick(" .. obj .. ", "
+    end)
+
+    -- 5. Dual extraction hook: safeLoadstring wrapper + direct rawScript capture
+    p = p:gsub("local%s+safeLoadstring%s*=([^\r\n]+)", function(rhs)
+        return "local safeLoadstring =" .. rhs .. "\n    do local _orig_sls = safeLoadstring; safeLoadstring = function(c, l) if type(c) == 'string' and #c > 60 and not c:find('^return %d+ %%+ %d+$') and not c:find('local _SD =', 1, true) then if type(_G.__SYMBIOTE_CAPTURE_CB) == 'function' then pcall(_G.__SYMBIOTE_CAPTURE_CB, c, 'safeLoadstring') end end; return _orig_sls(c, l) end end"
+    end)
+
+    if p:find("targetScript%s*=%s*rawScript") then
+        p = p:gsub("targetScript%s*=%s*rawScript", function()
+            return "targetScript = rawScript\n    if type(_G.__SYMBIOTE_CAPTURE_CB) == 'function' then pcall(_G.__SYMBIOTE_CAPTURE_CB, rawScript, 'targetScript') end"
+        end)
+    else
+        p = p:gsub("(rawScript%s*=%s*c20[%w_]*%b()[^\r\n]*)", function(line)
+            return line .. "\n    if type(_G.__SYMBIOTE_CAPTURE_CB) == 'function' then pcall(_G.__SYMBIOTE_CAPTURE_CB, rawScript, 'c20') end"
+        end)
+        p = p:gsub("(rawScript%s*=%s*r4[%w_]*%b()[^\r\n]*)", function(line)
+            return line .. "\n    if type(_G.__SYMBIOTE_CAPTURE_CB) == 'function' then pcall(_G.__SYMBIOTE_CAPTURE_CB, rawScript, 'r4') end"
+        end)
+    end
+
+    return p
+end
+
+local isVerifying = false
 ContinueButton.MouseButton1Click:Connect(function()
+    if isVerifying then return end
+
     local rawKey = KeyInput.Text or ""
     local key = rawKey:match("^%s*(.-)%s*$")
     if key then key = key:gsub("%s+", "") end
@@ -703,11 +822,19 @@ ContinueButton.MouseButton1Click:Connect(function()
         return
     end
 
+    isVerifying = true
     ContinueButton.Active = false
     ContinueButton.Text = "Verifying..."
     ContinueButton.BackgroundColor3 = Theme.AccentDark
     StatusLabel.TextColor3 = Theme.TextDim
     StatusLabel.Text = "Authenticating..."
+
+    local function reset_button()
+        isVerifying = false
+        ContinueButton.Active = true
+        ContinueButton.Text = "Continue"
+        ContinueButton.BackgroundColor3 = Theme.Accent
+    end
 
     local clientId = "Unknown"
     pcall(function()
@@ -741,13 +868,9 @@ ContinueButton.MouseButton1Click:Connect(function()
         print("[Symbiote Error] Loi ket noi:", errDetail, "Status:", tostring(statusCode))
         StatusLabel.TextColor3 = Theme.Error
         StatusLabel.Text = "Connection Error (" .. tostring(statusCode or "Fail") .. ")"
-        ContinueButton.Active = true
-        ContinueButton.Text = "Continue"
-        ContinueButton.BackgroundColor3 = Theme.Accent
+        reset_button()
         return
     end
-
-    print("[Symbiote] Phan hoi tu server:", tostring(response))
 
     local decodeOk, resData = pcall(function()
         return HttpService:JSONDecode(response)
@@ -757,9 +880,7 @@ ContinueButton.MouseButton1Click:Connect(function()
         print("[Symbiote Error] JSON Parse Error. Raw body:", tostring(response))
         StatusLabel.TextColor3 = Theme.Error
         StatusLabel.Text = "JSON Parse Error: Server returned invalid format."
-        ContinueButton.Active = true
-        ContinueButton.Text = "Continue"
-        ContinueButton.BackgroundColor3 = Theme.Accent
+        reset_button()
         return
     end
 
@@ -767,25 +888,21 @@ ContinueButton.MouseButton1Click:Connect(function()
         print("[Symbiote Error] Server tu choi key:", tostring(resData.reason))
         StatusLabel.TextColor3 = Theme.Error
         StatusLabel.Text = resData.reason or "Invalid Key"
-        ContinueButton.Active = true
-        ContinueButton.Text = "Continue"
-        ContinueButton.BackgroundColor3 = Theme.Accent
+        reset_button()
         return
     end
 
     if not resData.loader or type(resData.loader) ~= "string" or resData.loader == "" then
         StatusLabel.TextColor3 = Theme.Error
         StatusLabel.Text = "Server Error: Please try again."
-        ContinueButton.Active = true
-        ContinueButton.Text = "Continue"
-        ContinueButton.BackgroundColor3 = Theme.Accent
+        reset_button()
         return
     end
 
     -- Save verified key to advanced_key.json (Prototype root/27/3)
     pcall(function()
-        if typeof(writefile) == "function" then
-            writefile("advanced_key.json", HttpService:JSONEncode({
+        if typeof(_real_writefile) == "function" then
+            _real_writefile("advanced_key.json", HttpService:JSONEncode({
                 key = key,
                 date = os.date("%x")
             }))
@@ -795,56 +912,26 @@ ContinueButton.MouseButton1Click:Connect(function()
     -- Setup session deactivation on game close or leave (Prototype root/27/6)
     setup_session_deactivation(resData.session_token)
 
-    -- ========================================================================
-    -- [Auto Dump for Delta X] Tự động lưu file & copy toàn bộ mã nguồn AoT
-    -- ========================================================================
-    print("[Symbiote Success] Key hop le! Dang trich xuat ma nguon AoT...")
+    -- Save Stage 2 loader backup only (do NOT overwrite clipboard with Stage 2 loader)
+    print("[Symbiote] Key hop le! Da nhan Stage 2 loader, dang giai ma scr goc...")
     pcall(function()
-        if typeof(writefile) == "function" then
-            writefile("symbiote_aot_dumped.lua", resData.loader)
-            print("[DUMP SUCCESS] Da luu toan bo ma nguon vao: workspace/symbiote_aot_dumped.lua")
-        end
-        if typeof(setclipboard) == "function" then
-            setclipboard(resData.loader)
-            print("[CLIPBOARD] Da copy toan bo ma nguon vao khay nho tam (chi can paste ra)!")
+        if typeof(_real_writefile) == "function" then
+            _real_writefile("symbiote_aot_dumped.lua", resData.loader)
+            print("[Stage 2] Da luu Stage 2 loader vao: workspace/symbiote_aot_dumped.lua")
         end
     end)
 
-    -- ========================================================================
-    -- [Hook Real Game Code] Tự động trích xuất Full Source Code thật của game
-    -- ========================================================================
-    local loaderCode = resData.loader
-    pcall(function()
-        local hook = [[targetScript = rawScript
-    pcall(function()
-        if rawScript and #rawScript > 50 then
-            print("[SYMBIOTE] >>> DA BAT DUOC FULL REAL CODE: " .. tostring(#rawScript) .. " BYTES <<<")
-            if typeof(writefile) == "function" then
-                writefile("full_real_script.lua", rawScript)
-                print("[SYMBIOTE] Da luu vao file: workspace/full_real_script.lua")
-            end
-            if typeof(setclipboard) == "function" then
-                setclipboard(rawScript)
-                print("[SYMBIOTE] Da copy Full Source Code vao Clipboard!")
-            end
-        end
-    end)]]
-        if loaderCode:find("targetScript%s*=%s*rawScript") then
-            loaderCode = loaderCode:gsub("targetScript%s*=%s*rawScript", hook)
-        end
-    end)
+    StatusLabel.TextColor3 = Theme.Yellow
+    StatusLabel.Text = "Da lay Stage 2, dang xac thuc & giai ma scr goc..."
+    ContinueButton.Text = "Decrypting..."
 
-    -- Compile loader (Prototype root/27/5)
-    local loaderFn, compileErr = loadstring(loaderCode, "Load")
-    if not loaderFn then
-        loaderFn, compileErr = loadstring(resData.loader, "Load")
-    end
+    -- Live-patch Stage 2 loader to bypass anti-dump, hookfunction crash, Cloudflare 403 & Kick
+    local loaderCode = patch_stage2_loader(resData.loader)
+    local loaderFn, compileErr = _real_loadstring(loaderCode, "SymbiotePatchedLoader")
     if not loaderFn then
         StatusLabel.TextColor3 = Theme.Error
         StatusLabel.Text = "Compilation failed: " .. tostring(compileErr)
-        ContinueButton.Active = true
-        ContinueButton.Text = "Continue"
-        ContinueButton.BackgroundColor3 = Theme.Accent
+        reset_button()
         local warnMsg = "[Symbiote] Loader compilation failed: " .. tostring(compileErr)
         if typeof(rconsolewarn) == "function" then
             rconsolewarn(warnMsg)
@@ -856,27 +943,85 @@ ContinueButton.MouseButton1Click:Connect(function()
         return
     end
 
-    -- Animate out UI and Destroy
-    pcall(function()
-        TweenService:Create(Card, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
-            Size = UDim2.new(0, 460, 0, 0),
-            Position = UDim2.new(0.5, -230, 0.5, 0)
-        }):Play()
-        TweenService:Create(Overlay, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
-            BackgroundTransparency = 1
-        }):Play()
-        task.wait(0.38)
-        ScreenGui:Destroy()
-    end)
+    local capturedSource = nil
+    local lastStage2Err = nil
+    local uiClosed = false
 
-    -- Key Expiry Toast Notification (Prototype root/27/2)
-    task.spawn(function()
-        show_key_expiry_toast(resData)
-    end)
+    local function close_auth_ui()
+        if uiClosed then return end
+        uiClosed = true
+        pcall(function()
+            TweenService:Create(Card, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
+                Size = UDim2.new(0, 460, 0, 0),
+                Position = UDim2.new(0.5, -230, 0.5, 0)
+            }):Play()
+            TweenService:Create(Overlay, TweenInfo.new(0.35, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {
+                BackgroundTransparency = 1
+            }):Play()
+            task.wait(0.38)
+            ScreenGui:Destroy()
+        end)
+        task.spawn(function()
+            show_key_expiry_toast(resData)
+        end)
+    end
 
-    -- Execute loader
+    _G.__SYMBIOTE_STAGE2_ERR_CB = function(msg)
+        lastStage2Err = tostring(msg)
+    end
+
+    _G.__SYMBIOTE_CAPTURE_CB = function(rawScript, via)
+        if type(rawScript) ~= "string" or #rawScript <= 50 then return end
+        if rawScript == "This file is protected by Symbiote." then return end
+        if rawScript:find("local _SD =", 1, true) and #rawScript < 250 then return end
+        if capturedSource then return end
+
+        capturedSource = rawScript
+        print("==================================================")
+        print("[SYMBIOTE] >>> DA LAY DUOC SCR GOC (" .. tostring(via) .. "): " .. tostring(#rawScript) .. " BYTES <<<")
+        print("==================================================")
+
+        if typeof(_real_writefile) == "function" then
+            local okWf, errWf = pcall(_real_writefile, "full_real_script.lua", rawScript)
+            if okWf then
+                print("[SYMBIOTE] Da luu scr goc vao: workspace/full_real_script.lua")
+            else
+                warn("[SYMBIOTE] Loi ghi file full_real_script.lua: " .. tostring(errWf))
+            end
+        end
+
+        if typeof(_real_setclipboard) == "function" then
+            if not rawScript:find("%z") then
+                pcall(_real_setclipboard, rawScript)
+                print("[SYMBIOTE] Da copy Full Source Code vao Clipboard!")
+            else
+                print("[SYMBIOTE] Code chua byte nhi phan/bytecode -> chi luu ra file workspace/full_real_script.lua")
+            end
+        end
+
+        pcall(function()
+            StatusLabel.TextColor3 = Theme.Success
+            StatusLabel.Text = "Thanh cong! Da luu scr goc (" .. tostring(#rawScript) .. "B) -> full_real_script.lua"
+        end)
+
+        task.delay(0.8, close_auth_ui)
+    end
+
+    -- Execute patched Stage 2 loader
     task.spawn(function()
         local runOk, runErr = pcall(loaderFn)
+        _G.__SYMBIOTE_CAPTURE_CB = nil
+        _G.__SYMBIOTE_STAGE2_ERR_CB = nil
+
+        if not capturedSource then
+            local errMsg = (not runOk and tostring(runErr)) or lastStage2Err or "Khong giai ma duoc scr goc (/verify that bai)"
+            pcall(function()
+                StatusLabel.TextColor3 = Theme.Error
+                StatusLabel.Text = errMsg
+                reset_button()
+            end)
+        end
+
         if not runOk then
             local warnMsg = "[Symbiote] Loader error: " .. tostring(runErr)
             if typeof(rconsolewarn) == "function" then
