@@ -3940,58 +3940,22 @@ local function v172_2(p1)
     return nil
 end
 local v173_2 = {}
-local v175_3 = v154_8:AddLabel("PLAYER STATS:").Row.Parent
 do
-    local function v176_4()
-        local v1_2 = Instance.new("Frame")
-        v1_2.Size = UDim2.new(1, -8, 0, 0)
-        v1_2.AutomaticSize = Enum.AutomaticSize.Y
-        v1_2.BackgroundColor3 = Color3.fromRGB(24, 22, 34)
-        v1_2.BackgroundTransparency = 0.2
-        v1_2.BorderSizePixel = 0
-        v1_2.Parent = v175_3
-        local v2_12 = Instance.new("UICorner")
-        v2_12.CornerRadius = UDim.new(0, 6)
-        v2_12.Parent = v1_2
-        local v3_11 = Instance.new("UIStroke")
-        v3_11.Color = Color3.fromRGB(48, 40, 70)
-        v3_11.Thickness = 1
-        v3_11.Parent = v1_2
-        local v4_12 = Instance.new("UIPadding")
-        v4_12.PaddingTop = UDim.new(0, 10)
-        v4_12.PaddingBottom = UDim.new(0, 10)
-        v4_12.PaddingLeft = UDim.new(0, 14)
-        v4_12.PaddingRight = UDim.new(0, 14)
-        v4_12.Parent = v1_2
-        local v5 = Instance.new("TextLabel")
-        v5.Size = UDim2.new(1, 0, 0, 0)
-        v5.AutomaticSize = Enum.AutomaticSize.Y
-        v5.BackgroundTransparency = 1
-        v5.TextColor3 = Color3.fromRGB(225, 220, 240)
-        local v8_4 = Enum
-        v5.Font = v8_4.Font.RobotoMono
-        v5.TextSize = 13
-        v5.TextXAlignment = v8_4.TextXAlignment.Left
-        v5.TextYAlignment = v8_4.TextYAlignment.Top
-        v5.TextWrapped = true
-        v5.Parent = v1_2
-        return v5
+    local function v176_4(title)
+        return v154_8:AddParagraph(title, "Đang tải...")
     end
-    v173_2.Player = v176_4()
-    v154_8:AddLabel("MISSION STATS (LIVE):")
-    v173_2.LiveMission = v176_4()
-    v154_8:AddLabel("LAST ROUND STATS:")
-    v173_2.LastRound = v176_4()
-    v154_8:AddLabel("TOTAL SESSION STATS:")
-    v173_2.Session = v176_4()
+    v173_2.Player = v176_4("PLAYER STATS:")
+    v173_2.LiveMission = v176_4("MISSION STATS (LIVE):")
+    v173_2.LastRound = v176_4("LAST ROUND STATS:")
+    v173_2.Session = v176_4("TOTAL SESSION STATS:")
 end
 local function v174_5()
     local v6 = v156_4
     local v7 = v6
     local v8 = v7
     local v9_2 = v8
-    v173_2.Player.Text = string.format("Prestige: %s\nLevel: %s\nGems: %s\nGold: %s\nPumpkins: %s", v165_3(v6.Player.Prestige), v165_3(v7.Player.Level), v165_3(v8.Player.Gems), v165_3(v9_2.Player.Gold), v165_3(v9_2.Player.Pumpkins or 0))
-    v173_2.LiveMission.Text = string.format("Status: %s\nTime: %s\nDifficulty: %s", v158_4.Status, v166_2(v158_4.Seconds), v158_4.Difficulty)
+    v173_2.Player:Set(string.format("Prestige: %s\nLevel: %s\nGems: %s\nGold: %s\nPumpkins: %s", v165_3(v6.Player.Prestige), v165_3(v7.Player.Level), v165_3(v8.Player.Gems), v165_3(v9_2.Player.Gold), v165_3(v9_2.Player.Pumpkins or 0)))
+    v173_2.LiveMission:Set(string.format("Status: %s\nTime: %s\nDifficulty: %s", v158_4.Status, v166_2(v158_4.Seconds), v158_4.Difficulty))
     local v1_3 = v156_4.LastRound
     local v2_3 = v1_3.Items and #v1_3.Items or 0
     local v4_4 = {}
@@ -4026,7 +3990,7 @@ local function v174_5()
     else
         table.insert(v3_6, "  None")
     end
-    v173_2.LastRound.Text = table.concat(v3_6, "\n")
+    v173_2.LastRound:Set(table.concat(v3_6, "\n"))
     local v4_10 = v156_4.Session
     local v5_13 = v4_10.MissionsCompleted or 0
     local v6_17 = v4_10.FastestSeconds and 0 < v4_10.FastestSeconds and v166_2(v4_10.FastestSeconds) or "00:00"
@@ -4072,7 +4036,7 @@ local function v174_5()
     v11_13[11] = v22_7
     v11_13[12] = v24_6 .. v25_5
     v11_13[13] = "Rarity Breakdown:\n  " .. v26_6
-    v173_2.Session.Text = table.concat(v11_13, "\n")
+    v173_2.Session:Set(table.concat(v11_13, "\n"))
     return
 end
 local function v175_4(p1)
