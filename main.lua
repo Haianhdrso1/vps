@@ -1,36 +1,4 @@
---[[
-  Symbiote Attack on Titan: Revolution (Stage 3) — Full Clean Decompilation
-  Extracted from Luraph VM (962 active handlers, 319 prototypes, 25,611 instructions)
-  All 5,260 VM state expressions & 344 encrypted runtime constants decrypted; dead key seeds eliminated.
-]]--
 
-local v1, v2 = ...
-local v3_3 = game:GetService("Players")
-do
-    local v4_2 = v3_3.LocalPlayer
-    if type(v1) ~= "string" or #v1 < 20 or not v4_2 or v3_3:GetPlayerByUserId(v4_2.UserId) ~= v4_2 or not v1:find(tostring(v4_2.UserId), 1, true) or not v1:find(v4_2.Name, 1, true) or type(v2) ~= "table" or type(v2.IsAlive) ~= "function" or not v2.IsAlive() then
-        return
-    end
-    task.spawn(function()
-        local v1 = 0
-        while task.wait(15) do
-            if not v2.IsAlive() then
-                v1 = v1 + 1
-                if 3 <= v1 then
-                    if v4_2 then
-                        pcall(function()
-                            v4_2:Kick("Session lost.")
-                            return
-                        end)
-                    end
-                    break
-                end
-            else
-                v1 = 0
-            end
-        end
-        return
-    end)
 end
 local v5_6 = game:GetService("HttpService")
 local v6_21 = game:GetService("Players")
