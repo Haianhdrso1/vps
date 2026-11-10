@@ -970,6 +970,7 @@ ContinueButton.MouseButton1Click:Connect(function()
         lastStage2Err = tostring(msg)
     end
 
+    local loaderFailed = false
     _G.__SYMBIOTE_CAPTURE_CB = function(rawScript, via)
         if type(rawScript) ~= "string" or #rawScript <= 50 then return end
         if rawScript == "This file is protected by Symbiote." then return end
@@ -990,12 +991,15 @@ ContinueButton.MouseButton1Click:Connect(function()
             end
         end
 
+        local MAX_CLIPBOARD_BYTES = 200000
         if typeof(_real_setclipboard) == "function" then
-            if not rawScript:find("%z") then
+            if rawScript:find("%z") then
+                print("[SYMBIOTE] Code chua byte nhi phan/bytecode -> chi luu ra file workspace/full_real_script.lua")
+            elseif #rawScript > MAX_CLIPBOARD_BYTES then
+                print("[SYMBIOTE] Code qua lon (" .. tostring(#rawScript) .. "B > " .. tostring(MAX_CLIPBOARD_BYTES) .. "B) -> bo qua setclipboard de tranh crash Delta X/Android, chi luu workspace/full_real_script.lua")
+            else
                 pcall(_real_setclipboard, rawScript)
                 print("[SYMBIOTE] Da copy Full Source Code vao Clipboard!")
-            else
-                print("[SYMBIOTE] Code chua byte nhi phan/bytecode -> chi luu ra file workspace/full_real_script.lua")
             end
         end
 
@@ -1004,7 +1008,11 @@ ContinueButton.MouseButton1Click:Connect(function()
             StatusLabel.Text = "Thanh cong! Da luu scr goc (" .. tostring(#rawScript) .. "B) -> full_real_script.lua"
         end)
 
-        task.delay(0.8, close_auth_ui)
+        task.delay(0.8, function()
+            if not loaderFailed then
+                close_auth_ui()
+            end
+        end)
     end
 
     -- Execute patched Stage 2 loader
@@ -1013,8 +1021,18 @@ ContinueButton.MouseButton1Click:Connect(function()
         _G.__SYMBIOTE_CAPTURE_CB = nil
         _G.__SYMBIOTE_STAGE2_ERR_CB = nil
 
-        if not capturedSource then
-            local errMsg = (not runOk and tostring(runErr)) or lastStage2Err or "Khong giai ma duoc scr goc (/verify that bai)"
+        if not runOk then
+            loaderFailed = true
+            local errMsg = capturedSource
+                and ("Da luu full_real_script.lua, loi khi chay scr goc: " .. tostring(runErr))
+                or tostring(runErr)
+            pcall(function()
+                StatusLabel.TextColor3 = Theme.Error
+                StatusLabel.Text = errMsg
+                reset_button()
+            end)
+        elseif not capturedSource then
+            local errMsg = lastStage2Err or "Khong giai ma duoc scr goc (/verify that bai)"
             pcall(function()
                 StatusLabel.TextColor3 = Theme.Error
                 StatusLabel.Text = errMsg
