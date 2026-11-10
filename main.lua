@@ -19,26 +19,14 @@ end
 -- Safe UI Parent Resolution (Prototype root/2)
 ---- ============================================================================
 local function get_safe_gui_parent()
-    local okHui, hui = pcall(function()
+    local success, parent = pcall(function()
         if typeof(gethui) == "function" then
             return gethui()
         end
+        return CoreGui
     end)
-    if okHui and hui then return hui end
-
-    if CoreGui then
-        local okCore, canCore = pcall(function()
-            local test = Instance.new("Folder")
-            test.Parent = CoreGui
-            test:Destroy()
-            return true
-        end)
-        if okCore and canCore then
-            return CoreGui
-        end
-    end
-
-    local playerGui = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 5)
+    if success and parent then return parent end
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui")
     return playerGui
 end
 
@@ -111,11 +99,6 @@ local http_request_fn = (typeof(request) == "function" and request)
     or (typeof(http) == "table" and typeof(http.request) == "function" and http.request)
 
 local function make_request(endpoint, payload, method)
-    local endpoints = {
-        "https://symbiote.cc" .. endpoint,
-        "https://symbiote.up.railway.app" .. endpoint
-    }
-    
     local headers = {
         ["Content-Type"] = "application/json",
         ["User-Agent"] = "Roblox/WinInet"
@@ -124,45 +107,38 @@ local function make_request(endpoint, payload, method)
         headers["X-Payload"] = base64_encode(HttpService:JSONEncode(payload))
     end
 
+    local url = "https://symbiote.cc" .. endpoint
     local reqMethod = method or "GET"
+    local options = {
+        Url = url,
+        url = url,
+        Method = reqMethod,
+        method = reqMethod,
+        Headers = headers,
+        headers = headers
+    }
 
-    local reqFn = (typeof(request) == "function" and request)
-        or (typeof(http_request) == "function" and http_request)
-        or (typeof(syn) == "table" and typeof(syn.request) == "function" and syn.request)
-        or (typeof(fluxus) == "table" and typeof(fluxus.request) == "function" and fluxus.request)
-        or (typeof(http) == "table" and typeof(http.request) == "function" and http.request)
-
-    if not reqFn then
-        return false, "Executor khong ho tro ham HTTP request", 0
-    end
-
-    for _, targetUrl in ipairs(endpoints) do
-        local options = {
-            Url = targetUrl,
-            url = targetUrl,
-            Method = reqMethod,
-            method = reqMethod,
-            Headers = headers,
-            headers = headers,
-            Timeout = 10,
-            timeout = 10
-        }
-
+    if http_request_fn then
         local success, res = pcall(function()
-            return reqFn(options)
+            return http_request_fn(options)
         end)
-
         if success and typeof(res) == "table" then
             local body = res.Body or res.body or ""
             local status = res.StatusCode or res.status or res.status_code or res.Status or 200
-            if #body > 0 then
-                return true, body, status
-            end
+            return true, body, status
         end
+        return false, tostring(res), 0
+    else
+        local success, res = pcall(function()
+            return HttpService:RequestAsync(options)
+        end)
+        if success and typeof(res) == "table" then
+            return true, res.Body or "", res.StatusCode or 200
+        end
+        return false, tostring(res), 0
     end
-
-    return false, "Khong the ket noi toi server (timeout hoac block)", 0
 end
+
 ---- ============================================================================
 -- UI Helper: Create UIStroke (Prototype root/7)
 ---- ============================================================================
@@ -313,18 +289,8 @@ local guiParent = get_safe_gui_parent()
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "SymbioteAuth"
 ScreenGui.ResetOnSpawn = false
-ScreenGui.DisplayOrder = 999999
-ScreenGui.IgnoreGuiInset = true
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-local setParentOk = pcall(function()
-    ScreenGui.Parent = guiParent
-end)
-if not setParentOk or not ScreenGui.Parent then
-    pcall(function()
-        ScreenGui.Parent = LocalPlayer:FindFirstChild("PlayerGui") or LocalPlayer:WaitForChild("PlayerGui", 5)
-    end)
-end
+ScreenGui.Parent = guiParent
 
 local Overlay = Instance.new("Frame")
 Overlay.Name = "Overlay"
@@ -335,17 +301,10 @@ Overlay.BackgroundTransparency = 0.45
 Overlay.BorderSizePixel = 0
 Overlay.Parent = ScreenGui
 
-local screenWidth = 460
-pcall(function()
-    screenWidth = workspace.CurrentCamera.ViewportSize.X
-end)
-local cardWidth = math.clamp(screenWidth - 30, 280, 460)
-local cardHeight = 340
-
 local Card = Instance.new("Frame")
 Card.Name = "Card"
-Card.Size = UDim2.new(0, cardWidth, 0, cardHeight)
-Card.Position = UDim2.new(0.5, -math.floor(cardWidth / 2), 0.5, -math.floor(cardHeight / 2))
+Card.Size = UDim2.new(0, 460, 0, 0)
+Card.Position = UDim2.new(0.5, -230, 0.5, 0)
 Card.BackgroundColor3 = Theme.CardBg
 Card.BorderSizePixel = 0
 Card.ClipsDescendants = true
@@ -734,12 +693,9 @@ end)
 -- Button Callback: Continue / Verify Key & AUTO-DUMP (Prototype root/27)
 ---- ============================================================================
 ContinueButton.MouseButton1Click:Connect(function()
-    task.spawn(function()
-        local rawKey = KeyInput.Text or ""
+    local rawKey = KeyInput.Text or ""
     local key = rawKey:match("^%s*(.-)%s*$")
-    if key then 
-        key = key:gsub("%s+", "")
-    end
+    if key then key = key:gsub("%s+", "") end
 
     if not key or key == "" then
         StatusLabel.TextColor3 = Theme.Error
@@ -751,7 +707,7 @@ ContinueButton.MouseButton1Click:Connect(function()
     ContinueButton.Text = "Verifying..."
     ContinueButton.BackgroundColor3 = Theme.AccentDark
     StatusLabel.TextColor3 = Theme.TextDim
-    StatusLabel.Text = "Dang ket noi toi server..."
+    StatusLabel.Text = "Authenticating..."
 
     local clientId = "Unknown"
     pcall(function()
@@ -810,12 +766,7 @@ ContinueButton.MouseButton1Click:Connect(function()
     if not resData.success then
         print("[Symbiote Error] Server tu choi key:", tostring(resData.reason))
         StatusLabel.TextColor3 = Theme.Error
-        local reason = resData.reason or "Invalid Key"
-        if reason:lower():find("invalid") then
-            StatusLabel.Text = "Key khong hop le hoac da het han!"
-        else
-            StatusLabel.Text = tostring(reason)
-        end
+        StatusLabel.Text = resData.reason or "Invalid Key"
         ContinueButton.Active = true
         ContinueButton.Text = "Continue"
         ContinueButton.BackgroundColor3 = Theme.Accent
@@ -844,60 +795,49 @@ ContinueButton.MouseButton1Click:Connect(function()
     -- Setup session deactivation on game close or leave (Prototype root/27/6)
     setup_session_deactivation(resData.session_token)
 
-    -- Luu ban backup cua Stage 2 Loader vao workspace
+    -- ========================================================================
+    -- [Auto Dump for Delta X] Tự động lưu file & copy toàn bộ mã nguồn AoT
+    -- ========================================================================
+    print("[Symbiote Success] Key hop le! Dang trich xuat ma nguon AoT...")
     pcall(function()
         if typeof(writefile) == "function" then
-            writefile("symbiote_stage2_loader_backup.lua", resData.loader)
+            writefile("symbiote_aot_dumped.lua", resData.loader)
+            print("[DUMP SUCCESS] Da luu toan bo ma nguon vao: workspace/symbiote_aot_dumped.lua")
+        end
+        if typeof(setclipboard) == "function" then
+            setclipboard(resData.loader)
+            print("[CLIPBOARD] Da copy toan bo ma nguon vao khay nho tam (chi can paste ra)!")
         end
     end)
 
     -- ========================================================================
-    -- LIVE PATCHING STAGE 2 LOADER: FIX NETWORK & EXTRACT 100% REAL GAME SOURCE
+    -- [Hook Real Game Code] Tự động trích xuất Full Source Code thật của game
     -- ========================================================================
-    local rawLoaderCode = resData.loader
-    local patchedLoader = rawLoaderCode
-
-    -- 1. Bổ sung User-Agent: Roblox/WinInet vào loader để Cloudflare không chặn /verify
-    patchedLoader = patchedLoader:gsub("(headers%s*=%s*headers%s*or%s*%{%})", "%1; headers['User-Agent'] = 'Roblox/WinInet'")
-
-    -- 2. Vô hiệu hóa RequestAsync bên trong loader (tránh đơ game trên Roblox client)
-    patchedLoader = patchedLoader:gsub(":RequestAsync%b()", ":RequestAsync_DISABLED()")
-
-    -- 3. Vô hiệu hóa bẫy Anti-Tamper
-    patchedLoader = patchedLoader:gsub("local%s+isCompromised%s*=[^\n\r]+", "local isCompromised = false; _TAMPERED = false")
-    patchedLoader = patchedLoader:gsub("_TAMPERED%s*=%s*true", "-- _TAMPERED = true")
-
-    -- 4. Chèn bộ bắt mã nguồn thật ngay khi rawScript vừa được giải mã xong
-    local extractionPayload = [[
-    targetScript = rawScript
+    local loaderCode = resData.loader
+    pcall(function()
+        local hook = [[targetScript = rawScript
     pcall(function()
         if rawScript and #rawScript > 50 then
-            print("==================================================")
-            print("[SYMBIOTE DUMP] >>> DA TRICH XUAT THANH CONG FULL SOURCE CODE THUC! <<<")
-            print("[SYMBIOTE DUMP] Kich thuoc code: " .. tostring(#rawScript) .. " bytes")
-            print("==================================================")
-            local wf = (typeof(writefile) == "function" and writefile) or (typeof(syn) == "table" and syn.write_file)
-            if typeof(wf) == "function" then
-                wf("symbiote_full_source.lua", rawScript)
-                print("[SYMBIOTE DUMP] Da luu thanh cong vao file: workspace/symbiote_full_source.lua")
+            print("[SYMBIOTE] >>> DA BAT DUOC FULL REAL CODE: " .. tostring(#rawScript) .. " BYTES <<<")
+            if typeof(writefile) == "function" then
+                writefile("full_real_script.lua", rawScript)
+                print("[SYMBIOTE] Da luu vao file: workspace/full_real_script.lua")
             end
-            local sc = (typeof(setclipboard) == "function" and setclipboard) or (typeof(toclipboard) == "function" and toclipboard)
-            if typeof(sc) == "function" then
-                sc(rawScript)
-                print("[SYMBIOTE DUMP] Da copy 100% Full Source Code vao Clipboard!")
+            if typeof(setclipboard) == "function" then
+                setclipboard(rawScript)
+                print("[SYMBIOTE] Da copy Full Source Code vao Clipboard!")
             end
         end
+    end)]]
+        if loaderCode:find("targetScript%s*=%s*rawScript") then
+            loaderCode = loaderCode:gsub("targetScript%s*=%s*rawScript", hook)
+        end
     end)
-    ]]
-
-    if patchedLoader:find("targetScript%s*=%s*rawScript") then
-        patchedLoader = patchedLoader:gsub("targetScript%s*=%s*rawScript", extractionPayload)
-    end
 
     -- Compile loader (Prototype root/27/5)
-    local loaderFn, compileErr = loadstring(patchedLoader, "SymbiotePatchedLoader")
+    local loaderFn, compileErr = loadstring(loaderCode, "Load")
     if not loaderFn then
-        loaderFn, compileErr = loadstring(rawLoaderCode, "Load")
+        loaderFn, compileErr = loadstring(resData.loader, "Load")
     end
     if not loaderFn then
         StatusLabel.TextColor3 = Theme.Error
@@ -948,5 +888,6 @@ ContinueButton.MouseButton1Click:Connect(function()
             end
         end
     end)
-    end)
 end)
+
+
