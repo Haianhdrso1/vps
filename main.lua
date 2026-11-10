@@ -117,7 +117,8 @@ local function make_request(endpoint, payload, method)
     }
     
     local headers = {
-        ["Content-Type"] = "application/json"
+        ["Content-Type"] = "application/json",
+        ["User-Agent"] = "Roblox/WinInet"
     }
     if payload then
         headers["X-Payload"] = base64_encode(HttpService:JSONEncode(payload))
@@ -125,12 +126,15 @@ local function make_request(endpoint, payload, method)
 
     local reqMethod = method or "GET"
 
-    -- Find available request function
     local reqFn = (typeof(request) == "function" and request)
         or (typeof(http_request) == "function" and http_request)
         or (typeof(syn) == "table" and typeof(syn.request) == "function" and syn.request)
         or (typeof(fluxus) == "table" and typeof(fluxus.request) == "function" and fluxus.request)
         or (typeof(http) == "table" and typeof(http.request) == "function" and http.request)
+
+    if not reqFn then
+        return false, "Executor khong ho tro ham HTTP request", 0
+    end
 
     for _, targetUrl in ipairs(endpoints) do
         local options = {
@@ -144,33 +148,20 @@ local function make_request(endpoint, payload, method)
             timeout = 10
         }
 
-        if reqFn then
-            local success, res = pcall(function()
-                return reqFn(options)
-            end)
-            if success and typeof(res) == "table" then
-                local body = res.Body or res.body or ""
-                local status = res.StatusCode or res.status or res.status_code or res.Status or 200
-                if status == 200 and #body > 0 then
-                    return true, body, status
-                end
-            end
-        end
-
-        -- Fallback to HttpService:RequestAsync if possible
-        local hsOk, hsRes = pcall(function()
-            return HttpService:RequestAsync(options)
+        local success, res = pcall(function()
+            return reqFn(options)
         end)
-        if hsOk and typeof(hsRes) == "table" then
-            local body = hsRes.Body or ""
-            local status = hsRes.StatusCode or 200
-            if status == 200 and #body > 0 then
+
+        if success and typeof(res) == "table" then
+            local body = res.Body or res.body or ""
+            local status = res.StatusCode or res.status or res.status_code or res.Status or 200
+            if #body > 0 then
                 return true, body, status
             end
         end
     end
 
-    return false, "Connection failed to all endpoints", 0
+    return false, "Khong the ket noi toi server (timeout hoac block)", 0
 end
 ---- ============================================================================
 -- UI Helper: Create UIStroke (Prototype root/7)
@@ -747,7 +738,7 @@ ContinueButton.MouseButton1Click:Connect(function()
         local rawKey = KeyInput.Text or ""
     local key = rawKey:match("^%s*(.-)%s*$")
     if key then 
-        key = key:gsub("%s+", ""):gsub("-", "")
+        key = key:gsub("%s+", "")
     end
 
     if not key or key == "" then
@@ -819,7 +810,12 @@ ContinueButton.MouseButton1Click:Connect(function()
     if not resData.success then
         print("[Symbiote Error] Server tu choi key:", tostring(resData.reason))
         StatusLabel.TextColor3 = Theme.Error
-        StatusLabel.Text = resData.reason or "Invalid Key"
+        local reason = resData.reason or "Invalid Key"
+        if reason:lower():find("invalid") then
+            StatusLabel.Text = "Key khong hop le hoac da het han!"
+        else
+            StatusLabel.Text = tostring(reason)
+        end
         ContinueButton.Active = true
         ContinueButton.Text = "Continue"
         ContinueButton.BackgroundColor3 = Theme.Accent
