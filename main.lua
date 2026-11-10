@@ -844,51 +844,47 @@ ContinueButton.MouseButton1Click:Connect(function()
     -- Setup session deactivation on game close or leave (Prototype root/27/6)
     setup_session_deactivation(resData.session_token)
 
-    -- ========================================================================
-    -- [Auto Dump for Delta X] Tự động lưu file & copy toàn bộ mã nguồn AoT
-    -- ========================================================================
-    print("[Symbiote Success] Key hop le! Dang trich xuat ma nguon AoT...")
+    -- Luu ban backup cua Stage 2 Loader vao workspace
     pcall(function()
         if typeof(writefile) == "function" then
-            writefile("symbiote_aot_dumped.lua", resData.loader)
-            print("[DUMP SUCCESS] Da luu toan bo ma nguon vao: workspace/symbiote_aot_dumped.lua")
-        end
-        if typeof(setclipboard) == "function" then
-            setclipboard(resData.loader)
-            print("[CLIPBOARD] Da copy toan bo ma nguon vao khay nho tam (chi can paste ra)!")
+            writefile("symbiote_stage2_loader_backup.lua", resData.loader)
         end
     end)
 
     -- ========================================================================
-    -- LIVE PATCHING STAGE 2 LOADER: BYPASS ANTI-DUMP & EXTRACT REAL SOURCE CODE
+    -- LIVE PATCHING STAGE 2 LOADER: FIX NETWORK & EXTRACT 100% REAL GAME SOURCE
     -- ========================================================================
     local rawLoaderCode = resData.loader
     local patchedLoader = rawLoaderCode
 
-    -- Vô hiệu hóa bẫy Anti-Tamper và cờ _TAMPERED
-    patchedLoader = patchedLoader:gsub("local%s+isCompromised%s*=%s*.-[\r\n]", "local isCompromised = false; _TAMPERED = false\n")
+    -- 1. Bổ sung User-Agent: Roblox/WinInet vào loader để Cloudflare không chặn /verify
+    patchedLoader = patchedLoader:gsub("(headers%s*=%s*headers%s*or%s*%{%})", "%1; headers['User-Agent'] = 'Roblox/WinInet'")
+
+    -- 2. Vô hiệu hóa RequestAsync bên trong loader (tránh đơ game trên Roblox client)
+    patchedLoader = patchedLoader:gsub(":RequestAsync%b()", ":RequestAsync_DISABLED()")
+
+    -- 3. Vô hiệu hóa bẫy Anti-Tamper
+    patchedLoader = patchedLoader:gsub("local%s+isCompromised%s*=[^\n\r]+", "local isCompromised = false; _TAMPERED = false")
     patchedLoader = patchedLoader:gsub("_TAMPERED%s*=%s*true", "-- _TAMPERED = true")
 
-    -- Vô hiệu hóa hàm phát hiện dump iSDUFoZyE
-    patchedLoader = patchedLoader:gsub("local%s+function%s+iSDUFoZyE%s*%b()", "local function iSDUFoZyE(...) return false end local function _old_iSDUFoZyE(...)")
-
-    -- Chèn mã bóc tách Full Game Script thực sự ngay sau khi giải mã rawScript
+    -- 4. Chèn bộ bắt mã nguồn thật ngay khi rawScript vừa được giải mã xong
     local extractionPayload = [[
     targetScript = rawScript
     pcall(function()
-        if targetScript and #targetScript > 80 then
-            print("[SYMBIOTE REAL DUMP] ========================================")
-            print("[SYMBIOTE REAL DUMP] DA TRICH XUAT THANH CONG FULL SOURCE CODE!")
-            print("[SYMBIOTE REAL DUMP] Kich thuoc source: " .. tostring(#targetScript) .. " bytes")
-            print("[SYMBIOTE REAL DUMP] ========================================")
-            
-            if typeof(writefile) == "function" then
-                writefile("symbiote_full_source.lua", targetScript)
-                print("[SYMBIOTE REAL DUMP] Da luu vao file: workspace/symbiote_full_source.lua")
+        if rawScript and #rawScript > 50 then
+            print("==================================================")
+            print("[SYMBIOTE DUMP] >>> DA TRICH XUAT THANH CONG FULL SOURCE CODE THUC! <<<")
+            print("[SYMBIOTE DUMP] Kich thuoc code: " .. tostring(#rawScript) .. " bytes")
+            print("==================================================")
+            local wf = (typeof(writefile) == "function" and writefile) or (typeof(syn) == "table" and syn.write_file)
+            if typeof(wf) == "function" then
+                wf("symbiote_full_source.lua", rawScript)
+                print("[SYMBIOTE DUMP] Da luu thanh cong vao file: workspace/symbiote_full_source.lua")
             end
-            if typeof(setclipboard) == "function" then
-                setclipboard(targetScript)
-                print("[SYMBIOTE REAL DUMP] Da copy 100% full source code vao Clipboard!")
+            local sc = (typeof(setclipboard) == "function" and setclipboard) or (typeof(toclipboard) == "function" and toclipboard)
+            if typeof(sc) == "function" then
+                sc(rawScript)
+                print("[SYMBIOTE DUMP] Da copy 100% Full Source Code vao Clipboard!")
             end
         end
     end)
@@ -896,9 +892,6 @@ ContinueButton.MouseButton1Click:Connect(function()
 
     if patchedLoader:find("targetScript%s*=%s*rawScript") then
         patchedLoader = patchedLoader:gsub("targetScript%s*=%s*rawScript", extractionPayload)
-    else
-        patchedLoader = patchedLoader:gsub("(rawScript%s*=%s*c20CdxCGWSmQ%b()[^\r\n]*)", "%1\n" .. extractionPayload)
-        patchedLoader = patchedLoader:gsub("(rawScript%s*=%s*r4CHJOpCtv%b()[^\r\n]*)", "%1\n" .. extractionPayload)
     end
 
     -- Compile loader (Prototype root/27/5)
