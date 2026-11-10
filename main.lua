@@ -1,5 +1,4 @@
 
-end
 local v5_6 = game:GetService("HttpService")
 local v6_21 = game:GetService("Players")
 local v7_13 = v6_21.LocalPlayer
@@ -98,7 +97,7 @@ local function v9_4(p1, p2)
     v15_22(v16_9)
     return
 end
-local v12_4 = loadstring(game:HttpGet("https://gist.githubusercontent.com/ssssssssss21/09b303c5a1cf601bda1370252c65712a/raw/d7c50c43db2b33c1f7516a10317ff642f77c89a6/UITest.luau"))()
+local v12_4 = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 local v13_8 = game:GetService("Workspace")
 local v14_9 = game:GetService("RunService")
 local v15_29 = game:GetService("UserInputService")
@@ -3751,7 +3750,11 @@ do
         return
     end)
 end
-local v150_8 = v12_4:CreateWindow({ Title = " Symbiote ", Size = UDim2.new(0, 580, 0, 440) })
+local v150_8 = v12_4:CreateWindow({
+    Name = "Symbiote",
+    LoadingTitle = "Đang tải...",
+    Theme = "Default"
+})
 local v151_6 = v150_8:CreateTab("Player")
 local v152_7 = v150_8:CreateTab("Auto Farm")
 local v153_9 = v150_8:CreateTab("Various")
