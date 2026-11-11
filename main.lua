@@ -46,6 +46,14 @@ local v13_2 = {
     AutoGetRetrieveSkillCrate = false,
     AutoOpenRaidChests = false,
     AutoResetStreak = false,
+    KaitunEnabled = false,
+    KaitunAutoUpgradeWeapon = true,
+    KaitunWeaponType = "Auto",
+    KaitunMap = "Auto (Best)",
+    KaitunAutoMap = true,
+    KaitunAutoPrestige = true,
+    KaitunMaxPrestige = 10,
+    AutoLoadGlobalConfig = true,
     Language = "English"
 }
 local function v10_3(p1)
@@ -77,20 +85,37 @@ local function v15_22(p1)
     end)
     if v2_2 and v3_2 then
         v11(v12, v3_2)
+        if p1.AutoLoadGlobalConfig ~= false then
+            v11("Symbiote_GlobalSettings.json", v3_2)
+        end
     end
     return
 end
 local v16_9 = (function()
-    local v1 = v10_3(v12)
-    if v1 then
-        local v2_3, v3_2 = pcall(function()
-            return v5_6:JSONDecode(v1)
+    local merged = {}
+    local rawPlace = v10_3(v12)
+    if rawPlace then
+        local okP, tblP = pcall(function()
+            return v5_6:JSONDecode(rawPlace)
         end)
-        if v2_3 and type(v3_2) == "table" then
-            return v3_2
+        if okP and type(tblP) == "table" then
+            for k, v in pairs(tblP) do
+                merged[k] = v
+            end
         end
     end
-    return {}
+    local rawGlobal = v10_3("Symbiote_GlobalSettings.json")
+    if rawGlobal then
+        local okG, tblG = pcall(function()
+            return v5_6:JSONDecode(rawGlobal)
+        end)
+        if okG and type(tblG) == "table" and tblG.AutoLoadGlobalConfig ~= false and merged.AutoLoadGlobalConfig ~= false then
+            for k, v in pairs(tblG) do
+                merged[k] = v
+            end
+        end
+    end
+    return merged
 end)()
 local function v8_6(p1)
     if v16_9[p1] ~= nil then
@@ -1379,10 +1404,14 @@ do
             if v3_3.Visible then
                 task.wait(1)
                 if v38_2 then
-                    pcall(function()
-                        v69_2:InvokeServer("Functions", "Retry", "Add")
-                        return
-                    end)
+                    if v150_10.ShouldKaitunReturnToLobby and v150_10.ShouldKaitunReturnToLobby() then
+                        pcall(v150_10.KaitunReturnToLobby)
+                    else
+                        pcall(function()
+                            v69_2:InvokeServer("Functions", "Retry", "Add")
+                            return
+                        end)
+                    end
                 end
             end
             v112_2 = v3_3:GetPropertyChangedSignal("Visible"):Connect(function()
@@ -1391,10 +1420,14 @@ do
                 end
                 task.wait(1)
                 if v38_2 then
-                    pcall(function()
-                        v69_2:InvokeServer("Functions", "Retry", "Add")
-                        return
-                    end)
+                    if v150_10.ShouldKaitunReturnToLobby and v150_10.ShouldKaitunReturnToLobby() then
+                        pcall(v150_10.KaitunReturnToLobby)
+                    else
+                        pcall(function()
+                            v69_2:InvokeServer("Functions", "Retry", "Add")
+                            return
+                        end)
+                    end
                 end
                 return
             end)
@@ -2223,6 +2256,15 @@ do
             Titles = true,
             Achievements = true,
             Prestiges = true,
+            Prestige = true,
+            Progression = true,
+            Missions = true,
+            S_Missions = true,
+            Mission = true,
+            Lobby = true,
+            S_Lobby = true,
+            Memories = true,
+            Memory = true,
             Battlepass = true,
             Leaderboard = true,
             Clans = true
@@ -3352,6 +3394,10 @@ do
             return v1_2 and v2_2 ~= nil and v2_2 ~= false
         end)
     end
+    v150_10.UpgradeCostTable = v134_3
+    v150_10.GetWeaponMinLevel = v135_3
+    v150_10.UpgradeWeaponStep = v145_2
+    v150_10.GetHudGold = v129_5
     v63_9 = function()
         if not v61_2.AutoGetRetrieveSkillCrate then
             return
@@ -4501,7 +4547,27 @@ do
         ["In Progress"] = "Đang Chơi",
         ["Ended"] = "Đã Kết Thúc",
         ["Completed"] = "Hoàn Thành",
-        ["None"] = "Không có"
+        ["None"] = "Không có",
+        ["Kaitun"] = "Kaitun (Cày Cấp)",
+        ["Settings"] = "Cài Đặt",
+        ["KAITUN STATUS:"] = "TRẠNG THÁI KAITUN:",
+        ["KAITUN AUTOMATION"] = "TỰ ĐỘNG HÓA KAITUN",
+        ["WEAPON & MAP PROGRESSION"] = "NÂNG KIẾM & CHUYỂN MAP (E- -> S)",
+        ["AUTO PRESTIGE (REBIRTH)"] = "TỰ ĐỘNG TÁI SINH (PRESTIGE)",
+        ["Enable Kaitun (Auto Level & Prestige)"] = "Bật Kaitun (Tự Cày Cấp & Tái Sinh)",
+        ["Auto Upgrade Weapon (E- -> S)"] = "Tự Nâng Hạng Kiếm (E- -> S)",
+        ["Kaitun Weapon"] = "Vũ Khí Kaitun",
+        ["Auto Select Map & Difficulty (E- -> S)"] = "Tự Chuyển Map & Độ Khó (E- -> S)",
+        ["Kaitun Map"] = "Bản Đồ Kaitun",
+        ["Auto Prestige (Rebirth)"] = "Tự Động Tái Sinh (Prestige)",
+        ["Target Max Prestige"] = "Giới Hạn Cấp Tái Sinh Tối Đa",
+        ["Upgrade Weapon Now"] = "Nâng Hạng Vũ Khí Ngay",
+        ["CONFIG & SETTINGS"] = "LƯU TRỮ & ĐỒNG BỘ CÀI ĐẶT",
+        ["CONFIG STATUS:"] = "TRẠNG THÁI CẤU HÌNH:",
+        ["Auto Load Global Settings"] = "Tự Tải Cấu Hình Chung Khi Đổi Map",
+        ["Save Settings Now"] = "Lưu Cài Đặt Ngay",
+        ["Load Saved Settings"] = "Tải Cài Đặt Đã Lưu",
+        ["Reset Default Settings"] = "Đặt Lại Mặc Định"
     }
     local REVERSE_KEY = {}
     for en, vi in pairs(VI_MAP) do
@@ -4896,6 +4962,8 @@ local v151_6 = v150_8:CreateTab("Player")
 local v152_7 = v150_8:CreateTab("Auto Farm")
 local v153_9 = v150_8:CreateTab("Various")
 local v154_8 = v150_8:CreateTab("Stats")
+v56_2.KaitunTab = v150_8:CreateTab("Kaitun")
+v56_2.SettingsTab = v150_8:CreateTab("Settings")
 local v157_2 = (function()
     local v1_2 = v10_3("Symbiote_AOTR_Stats.json")
     if not v1_2 then
@@ -5162,6 +5230,12 @@ local function v174_5()
         (isVi and "Thống Kê Độ Hiếm:\n  " or "Rarity Breakdown:\n  ") .. table.concat(v9_12, "\n  ")
     }
     v173_2.Session:Set(table.concat(v11_13, "\n"))
+    if v150_10.UpdateKaitunParagraph then
+        pcall(v150_10.UpdateKaitunParagraph)
+    end
+    if v150_10.UpdateConfigParagraph then
+        pcall(v150_10.UpdateConfigParagraph)
+    end
     return
 end
 v150_9.OnLanguageChanged = v174_5
@@ -6861,6 +6935,1067 @@ do
         end)
         return
     end)
+    do
+        local GRADE_LETTERS = {
+            [0] = "E-",
+            [1] = "E",
+            [2] = "E+",
+            [3] = "D-",
+            [4] = "D",
+            [5] = "D+",
+            [6] = "C-",
+            [7] = "C",
+            [8] = "C+",
+            [9] = "B-",
+            [10] = "B",
+            [11] = "B+",
+            [12] = "A-",
+            [13] = "A",
+            [14] = "A+",
+            [15] = "S-"
+        }
+        local LETTER_TO_LEVEL = {
+            ["E-"] = 0,
+            ["E"] = 1,
+            ["E+"] = 2,
+            ["D-"] = 3,
+            ["D"] = 4,
+            ["D+"] = 5,
+            ["C-"] = 6,
+            ["C"] = 7,
+            ["C+"] = 8,
+            ["B-"] = 9,
+            ["B"] = 10,
+            ["B+"] = 11,
+            ["A-"] = 12,
+            ["A"] = 13,
+            ["A+"] = 14,
+            ["S-"] = 15,
+            ["S"] = 15
+        }
+        local GRADE_ORDER = {
+            ["E-"] = 1,
+            ["E+"] = 2,
+            ["D+"] = 3,
+            ["B"] = 4,
+            ["A"] = 5,
+            ["S"] = 6
+        }
+        local cachedXPPercent = 0
+        local kaitunActionState = "Idle"
+        local kaitunLoopThread = nil
+
+        local function getDifficultyBracket(minLvl)
+            local lvl = math.max(0, math.min(15, math.floor(tonumber(minLvl) or 0)))
+            if lvl <= 1 then
+                return {
+                    Grade = "E-",
+                    DiffEN = "Easy",
+                    DiffVI = "Dễ (E- Grade)",
+                    NextMinLvl = 2,
+                    NextGrade = "E+",
+                    Order = 1
+                }
+            elseif lvl <= 4 then
+                return {
+                    Grade = "E+",
+                    DiffEN = "Normal",
+                    DiffVI = "Bình thường (E+ Grade)",
+                    NextMinLvl = 5,
+                    NextGrade = "D+",
+                    Order = 2
+                }
+            elseif lvl <= 9 then
+                return {
+                    Grade = "D+",
+                    DiffEN = "Hard",
+                    DiffVI = "Khó (D+ Grade)",
+                    NextMinLvl = 10,
+                    NextGrade = "B",
+                    Order = 3
+                }
+            elseif lvl <= 12 then
+                return {
+                    Grade = "B",
+                    DiffEN = "Severe",
+                    DiffVI = "Khốc liệt (B Grade)",
+                    NextMinLvl = 13,
+                    NextGrade = "A",
+                    Order = 4
+                }
+            elseif lvl <= 14 then
+                return {
+                    Grade = "A",
+                    DiffEN = "Aberrant",
+                    DiffVI = "Dị thường (A Grade)",
+                    NextMinLvl = 15,
+                    NextGrade = "S",
+                    Order = 5
+                }
+            else
+                return {
+                    Grade = "S",
+                    DiffEN = "Aberrant",
+                    DiffVI = "Cấp S (S Grade)",
+                    NextMinLvl = nil,
+                    NextGrade = nil,
+                    Order = 6
+                }
+            end
+        end
+
+        local function getGoldNeededForLevel(fromLvl, toLvl)
+            if not toLvl or toLvl <= fromLvl then
+                return 0
+            end
+            local costTbl = v150_10.UpgradeCostTable or {}
+            local total = 0
+            for step = math.max(1, fromLvl + 1), math.min(15, toLvl) do
+                total = total + 8 * (tonumber(costTbl[step]) or 169420)
+            end
+            return total
+        end
+
+        function v150_10.ClickGuiButton(btn)
+            if not btn then
+                return false
+            end
+            local clicked = false
+            if type(firesignal) == "function" then
+                pcall(function()
+                    firesignal(btn.MouseButton1Click)
+                    clicked = true
+                end)
+                pcall(function()
+                    firesignal(btn.Activated)
+                    clicked = true
+                end)
+                pcall(function()
+                    firesignal(btn.MouseButton1Down)
+                    firesignal(btn.MouseButton1Up)
+                end)
+            end
+            if type(getconnections) == "function" then
+                pcall(function()
+                    for _, conn in ipairs(getconnections(btn.MouseButton1Click)) do
+                        if conn.Fire then
+                            conn:Fire()
+                            clicked = true
+                        end
+                    end
+                end)
+                pcall(function()
+                    for _, conn in ipairs(getconnections(btn.Activated)) do
+                        if conn.Fire then
+                            conn:Fire()
+                            clicked = true
+                        end
+                    end
+                end)
+            end
+            pcall(function()
+                if btn.AbsolutePosition and btn.AbsoluteSize and btn.AbsoluteSize.X > 0 and btn.AbsoluteSize.Y > 0 then
+                    local center = btn.AbsolutePosition + (btn.AbsoluteSize / 2)
+                    v17_6:SendMouseButtonEvent(center.X, center.Y, 0, true, game, 0)
+                    task.wait(0.04)
+                    v17_6:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 0)
+                    clicked = true
+                end
+            end)
+            return clicked
+        end
+
+        local function isTrulyVisible(obj, root)
+            local cur = obj
+            while cur and cur ~= root do
+                if cur:IsA("GuiObject") and cur.Visible == false then
+                    return false
+                end
+                cur = cur.Parent
+            end
+            return obj ~= nil
+        end
+
+        function v150_10.GetKaitunPlayerState()
+            local prestige = tonumber(v7_13 and v7_13:GetAttribute("Prestige")) or tonumber(v156_4.Player.Prestige) or 0
+            local level = tonumber(v7_13 and v7_13:GetAttribute("Level")) or tonumber(v156_4.Player.Level) or 1
+            local gold = tonumber(v156_4.Player.Gold) or 0
+            local hudGold = v150_10.GetHudGold and v150_10.GetHudGold() or 0
+            if hudGold > 0 then
+                gold = hudGold
+                v156_4.Player.Gold = hudGold
+            end
+
+            local minLvl = tonumber(v150_10.GetWeaponMinLevel and v150_10.GetWeaponMinLevel())
+                or tonumber(v61_2.CachedWeaponMinLevel)
+                or 0
+
+            pcall(function()
+                local host = _G.__CachedDataHost or _G.__CachedCustHost or _G.__CachedHost
+                if type(host) == "table" and type(rawget(host, "Cache")) == "table" and type(rawget(host.Cache, "Data")) == "table" then
+                    local data = host.Cache.Data
+                    local slot = type(data.Slots) == "table" and data.Current_Slot and data.Slots[data.Current_Slot]
+                    if type(slot) == "table" then
+                        if type(slot.Progression) == "table" then
+                            if tonumber(slot.Progression.Prestige) then
+                                prestige = tonumber(slot.Progression.Prestige)
+                                v156_4.Player.Prestige = prestige
+                            end
+                            if tonumber(slot.Progression.Level) then
+                                level = tonumber(slot.Progression.Level)
+                                v156_4.Player.Level = level
+                            end
+                        end
+                        if type(slot.Currency) == "table" and tonumber(slot.Currency.Gold) then
+                            gold = tonumber(slot.Currency.Gold)
+                            v156_4.Player.Gold = gold
+                        end
+                        if type(slot.Upgrades) == "table" then
+                            local wName = tostring(slot.Weapon or (v73_2() and "Spears" or "Blades"))
+                            local upgs = slot.Upgrades[wName]
+                            if type(upgs) == "table" then
+                                local m = 999
+                                for _, lv in pairs(upgs) do
+                                    if type(lv) == "number" and lv < m then
+                                        m = lv
+                                    end
+                                end
+                                if m < 999 then
+                                    minLvl = m
+                                    v61_2.CachedWeaponMinLevel = m
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+
+            local bonusMapDetected = nil
+            pcall(function()
+                local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+                local iface = pgui and pgui:FindFirstChild("Interface")
+                if not iface then
+                    return
+                end
+                local topbar = iface:FindFirstChild("Topbar")
+                local curr = topbar and topbar:FindFirstChild("Main") and topbar.Main:FindFirstChild("Currencies")
+                local goldLbl = curr and curr:FindFirstChild("Gold") and curr.Gold:FindFirstChild("Amount")
+                if goldLbl and goldLbl:IsA("TextLabel") and type(goldLbl.Text) == "string" then
+                    local parsedG = tonumber(goldLbl.Text:gsub(",", ""):gsub("%s+", ""))
+                    if parsedG and parsedG >= 0 then
+                        gold = parsedG
+                        v156_4.Player.Gold = parsedG
+                    end
+                end
+                for _, obj in ipairs(iface:GetDescendants()) do
+                    if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+                        local txt = tostring(obj.Text or "")
+                        if txt ~= "" then
+                            local xpMatch = txt:match("XP:%s*(%d+)%%")
+                            if xpMatch then
+                                cachedXPPercent = tonumber(xpMatch) or cachedXPPercent
+                            end
+                            local lvMatch = txt:match("^LV%.?%s*(%d+)$") or txt:match("^LEVEL%s*(%d+)$")
+                            if lvMatch then
+                                local parsedLv = tonumber(lvMatch)
+                                if parsedLv and parsedLv > 0 then
+                                    level = parsedLv
+                                    v156_4.Player.Level = parsedLv
+                                end
+                            end
+                            local gradeMatch = txt:upper():match("%[([E%-%+DCBAS]+)%s*GRADE%]")
+                            if gradeMatch and LETTER_TO_LEVEL[gradeMatch] ~= nil then
+                                minLvl = LETTER_TO_LEVEL[gradeMatch]
+                                v61_2.CachedWeaponMinLevel = minLvl
+                            end
+                            local upTxt = txt:upper()
+                            if (upTxt:find("TĂNG PHẦN THƯỞNG", 1, true) or upTxt:find("BONUS", 1, true)) and obj.Parent then
+                                local pTxt = tostring((obj.Parent:FindFirstChild("Title") and obj.Parent.Title.Text) or obj.Parent.Name or ""):upper()
+                                if pTxt:find("SHIGANSHINA", 1, true) then
+                                    bonusMapDetected = "Shiganshina"
+                                elseif pTxt:find("TROST", 1, true) then
+                                    bonusMapDetected = "Trost"
+                                elseif pTxt:find("OUTSKIRTS", 1, true) or pTxt:find("ĐỒ LỐT", 1, true) then
+                                    bonusMapDetected = "Outskirts"
+                                elseif pTxt:find("FOREST", 1, true) or pTxt:find("RỪNG", 1, true) then
+                                    bonusMapDetected = "Giant Forest"
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+
+            minLvl = math.max(0, math.min(15, math.floor(tonumber(minLvl) or 0)))
+            local gradeLetter = GRADE_LETTERS[minLvl] or "E-"
+            local bracket = getDifficultyBracket(minLvl)
+            local maxLevelCap = 100 + (prestige * 25)
+            local maxPrestigeTarget = tonumber(v8_6("KaitunMaxPrestige")) or 10
+            local readyToPrestige = (prestige < maxPrestigeTarget)
+                and ((level > maxLevelCap) or (level == maxLevelCap and cachedXPPercent >= 100))
+
+            local costTbl = v150_10.UpgradeCostTable or {}
+            local nextStepCost = (minLvl < 15) and (tonumber(costTbl[minLvl + 1]) or 169420) or nil
+            local goldForNextBracket = bracket.NextMinLvl and getGoldNeededForLevel(minLvl, bracket.NextMinLvl) or nil
+            local readyForNextBracket = (v8_6("KaitunAutoUpgradeWeapon") ~= false)
+                and (goldForNextBracket ~= nil and goldForNextBracket > 0 and gold >= goldForNextBracket)
+
+            local chosenMap = tostring(v8_6("KaitunMap") or "Auto (Best)")
+            local resolvedMap = chosenMap
+            if chosenMap == "Auto (Best)" then
+                if bonusMapDetected then
+                    resolvedMap = bonusMapDetected
+                elseif bracket.Order <= 2 then
+                    resolvedMap = "Shiganshina"
+                elseif bracket.Order == 3 then
+                    resolvedMap = "Trost"
+                elseif bracket.Order == 4 then
+                    resolvedMap = "Outskirts"
+                else
+                    resolvedMap = "Giant Forest"
+                end
+            end
+
+            return {
+                Prestige = prestige,
+                MaxPrestigeTarget = maxPrestigeTarget,
+                Level = level,
+                MaxLevelCap = maxLevelCap,
+                XPPercent = cachedXPPercent,
+                Gold = gold,
+                WeaponMinLevel = minLvl,
+                WeaponGradeLetter = gradeLetter,
+                Bracket = bracket,
+                NextStepCost = nextStepCost,
+                CanUpgradeStep = (v8_6("KaitunAutoUpgradeWeapon") ~= false) and (nextStepCost ~= nil and gold >= nextStepCost),
+                GoldForNextBracket = goldForNextBracket,
+                ReadyForNextBracket = readyForNextBracket,
+                ReadyToPrestige = readyToPrestige,
+                TargetMap = resolvedMap
+            }
+        end
+
+        function v150_10.KaitunUpgradeWeapon()
+            local state = v150_10.GetKaitunPlayerState()
+            if state.WeaponMinLevel >= 15 then
+                return false
+            end
+            local weaponPref = tostring(v8_6("KaitunWeaponType") or "Auto")
+            local useSpears = false
+            if weaponPref == "Spears" then
+                useSpears = true
+            elseif weaponPref == "Blades" then
+                useSpears = false
+            else
+                useSpears = v73_2() == true
+            end
+            local weaponCategory = useSpears and "Spears" or "Blades"
+            local statBranches = useSpears and {
+                "Crit_Damage",
+                "TS_Damage",
+                "Crit_Chance",
+                "Blast_Radius",
+                "TS_Speed",
+                "TS_Gas",
+                "TS_Control",
+                "TS_Range"
+            } or {
+                "Crit_Damage",
+                "ODM_Damage",
+                "Crit_Chance",
+                "Blade_Durability",
+                "ODM_Speed",
+                "ODM_Gas",
+                "ODM_Control",
+                "ODM_Range"
+            }
+
+            local upgradedAny = false
+            local costTbl = v150_10.UpgradeCostTable or {}
+
+            for _ = 1, 15 do
+                local curMin = math.max(0, math.min(15, math.floor(tonumber(v61_2.CachedWeaponMinLevel) or state.WeaponMinLevel or 0)))
+                if curMin >= 15 then
+                    break
+                end
+                local stepCost = tonumber(costTbl[curMin + 1]) or 169420
+                local curGold = tonumber(v156_4.Player.Gold) or state.Gold or 0
+                if curGold < stepCost then
+                    break
+                end
+                kaitunActionState = "Upgrading Weapon [" .. (GRADE_LETTERS[curMin] or "E-") .. " -> " .. (GRADE_LETTERS[math.min(15, curMin + 1)] or "S-") .. "]"
+                if v150_10.UpdateKaitunParagraph then
+                    pcall(v150_10.UpdateKaitunParagraph)
+                end
+
+                local stepSuccess = false
+                if v13_8:FindFirstChild("Waves") and v150_10.UpgradeWeaponStep then
+                    local okW, resW = pcall(v150_10.UpgradeWeaponStep)
+                    if okW and resW then
+                        stepSuccess = true
+                    end
+                end
+                if not stepSuccess and v69_2 then
+                    local okBatch, resBatch = pcall(function()
+                        return v69_2:InvokeServer("Equipment", "Upgrade", statBranches)
+                    end)
+                    if okBatch and resBatch ~= nil and resBatch ~= false then
+                        stepSuccess = true
+                    end
+                    for _, statName in ipairs(statBranches) do
+                        pcall(function()
+                            local r1 = v69_2:InvokeServer("S_Equipment", "Upgrade", weaponCategory, statName)
+                            if r1 ~= nil and r1 ~= false then
+                                stepSuccess = true
+                            end
+                        end)
+                        pcall(function()
+                            local r2 = v69_2:InvokeServer("Equipment", "Upgrade", statName)
+                            if r2 ~= nil and r2 ~= false then
+                                stepSuccess = true
+                            end
+                        end)
+                    end
+                end
+                pcall(function()
+                    local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+                    local iface = pgui and pgui:FindFirstChild("Interface")
+                    local equip = iface and iface:FindFirstChild("Equipment")
+                    if equip and equip.Visible then
+                        local statPanel = equip:FindFirstChild("Stat")
+                        local costBtn = statPanel and statPanel:FindFirstChild("Cost")
+                        if costBtn and costBtn:IsA("GuiButton") then
+                            v150_10.ClickGuiButton(costBtn)
+                            stepSuccess = true
+                        end
+                    end
+                end)
+
+                if stepSuccess then
+                    upgradedAny = true
+                    v61_2.CachedWeaponMinLevel = math.min(15, curMin + 1)
+                    v156_4.Player.Gold = math.max(0, curGold - (stepCost * 8))
+                    task.wait(0.12)
+                else
+                    break
+                end
+            end
+
+            if upgradedAny and v150_10.UpdateKaitunParagraph then
+                pcall(v150_10.UpdateKaitunParagraph)
+            end
+            return upgradedAny
+        end
+
+        function v150_10.KaitunPerformPrestige()
+            local state = v150_10.GetKaitunPlayerState()
+            if not state.ReadyToPrestige then
+                return false
+            end
+            kaitunActionState = "Performing Prestige (Rebirth)..."
+            if v150_10.UpdateKaitunParagraph then
+                pcall(v150_10.UpdateKaitunParagraph)
+            end
+
+            local prestiged = false
+            if v69_2 then
+                for _, args in ipairs({
+                    { "S_Equipment", "Prestige" },
+                    { "Equipment", "Prestige" },
+                    { "Progression", "Prestige" },
+                    { "Functions", "Prestige" }
+                }) do
+                    pcall(function()
+                        local res = v69_2:InvokeServer(args[1], args[2])
+                        if res ~= nil and res ~= false then
+                            prestiged = true
+                        end
+                    end)
+                end
+            end
+            if v68_2 then
+                pcall(function()
+                    v68_2:FireServer("Functions", "Prestige")
+                end)
+            end
+
+            pcall(function()
+                local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+                local iface = pgui and pgui:FindFirstChild("Interface")
+                if not iface then
+                    return
+                end
+                local equip = iface:FindFirstChild("Equipment")
+                if equip and not equip.Visible then
+                    for _, btn in ipairs(iface:GetDescendants()) do
+                        if btn:IsA("GuiButton") and btn.Visible then
+                            local t = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or ""):upper()
+                            if t:find("TRANG BỊ", 1, true) or t:find("EQUIPMENT", 1, true) then
+                                v150_10.ClickGuiButton(btn)
+                                task.wait(0.25)
+                                break
+                            end
+                        end
+                    end
+                end
+                for _, btn in ipairs(iface:GetDescendants()) do
+                    if btn:IsA("GuiButton") and btn.Visible then
+                        local t = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or ""):upper()
+                        if t:find("LINH MỤC", 1, true) or t:find("PRESTIGE", 1, true) or t:find("TÁI SINH", 1, true) then
+                            v150_10.ClickGuiButton(btn)
+                            prestiged = true
+                            task.wait(0.3)
+                        end
+                    end
+                end
+                for _, btn in ipairs(iface:GetDescendants()) do
+                    if btn:IsA("GuiButton") and btn.Visible then
+                        local t = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or ""):upper()
+                        if t == "CONFIRM" or t == "XÁC NHẬN" or t == "YES" or t == "ĐỒNG Ý" or t == "SELECT" or t == "CHỌN" then
+                            v150_10.ClickGuiButton(btn)
+                            prestiged = true
+                            task.wait(0.25)
+                        end
+                    end
+                end
+            end)
+
+            if v69_2 then
+                pcall(function()
+                    v69_2:InvokeServer("S_Equipment", "Memory", 1)
+                end)
+                pcall(function()
+                    v69_2:InvokeServer("Progression", "Memory", 1)
+                end)
+            end
+
+            if prestiged then
+                v156_4.Player.Prestige = (tonumber(v156_4.Player.Prestige) or 0) + 1
+                v156_4.Player.Level = 1
+                cachedXPPercent = 0
+                v61_2.CachedWeaponMinLevel = 0
+                if v8_6("KaitunAutoUpgradeWeapon") ~= false then
+                    v150_10.KaitunUpgradeWeapon()
+                end
+            end
+            return prestiged
+        end
+
+        function v150_10.KaitunCreateAndStartMission()
+            local state = v150_10.GetKaitunPlayerState()
+            local targetMap = state.TargetMap
+            local targetGrade = state.Bracket.Grade
+            local targetDiffEN = state.Bracket.DiffEN
+            local targetOrder = state.Bracket.Order
+
+            kaitunActionState = "Starting Map: " .. targetMap .. " [" .. targetGrade .. " GRADE]"
+            if v150_10.UpdateKaitunParagraph then
+                pcall(v150_10.UpdateKaitunParagraph)
+            end
+
+            local started = false
+            pcall(function()
+                local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+                local iface = pgui and pgui:FindFirstChild("Interface")
+                if not iface then
+                    return
+                end
+
+                local function scanMissionUi()
+                    local info = {
+                        createBtn = nil,
+                        playBtn = nil,
+                        missionOpenBtn = nil,
+                        mapButtons = {},
+                        diffLabel = nil,
+                        nextDiffBtn = nil,
+                        prevDiffBtn = nil
+                    }
+                    for _, obj in ipairs(iface:GetDescendants()) do
+                        if isTrulyVisible(obj, iface) then
+                            local txt = ""
+                            if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+                                txt = tostring(obj.Text or "")
+                            elseif obj:FindFirstChild("Title") and (obj.Title:IsA("TextLabel") or obj.Title:IsA("TextButton")) then
+                                txt = tostring(obj.Title.Text or "")
+                            end
+                            local up = txt:upper()
+                            if obj:IsA("GuiButton") then
+                                if up == "NHIỆM VỤ" or up == "MISSIONS" then
+                                    info.missionOpenBtn = obj
+                                elseif up == "TẠO" or up == "CREATE" then
+                                    info.createBtn = obj
+                                elseif up == "CHƠI" or up == "PLAY" or up == "START" then
+                                    info.playBtn = obj
+                                elseif up == ">" or obj.Name == "Next" or obj.Name == "Right" then
+                                    info.nextDiffBtn = obj
+                                elseif up == "<" or obj.Name == "Prev" or obj.Name == "Previous" or obj.Name == "Left" then
+                                    info.prevDiffBtn = obj
+                                elseif up:find("SHIGANSHINA", 1, true) then
+                                    info.mapButtons["Shiganshina"] = obj
+                                elseif up:find("TROST", 1, true) then
+                                    info.mapButtons["Trost"] = obj
+                                elseif up:find("OUTSKIRTS", 1, true) or up:find("ĐỒ LỐT", 1, true) then
+                                    info.mapButtons["Outskirts"] = obj
+                                elseif up:find("FOREST", 1, true) or up:find("RỪNG", 1, true) then
+                                    info.mapButtons["Giant Forest"] = obj
+                                end
+                            end
+                            if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and up:find("GRADE)", 1, true) then
+                                info.diffLabel = obj
+                            end
+                        end
+                    end
+                    return info
+                end
+
+                local ui = scanMissionUi()
+                if not ui.createBtn and ui.missionOpenBtn then
+                    v150_10.ClickGuiButton(ui.missionOpenBtn)
+                    task.wait(0.35)
+                    ui = scanMissionUi()
+                end
+
+                local mapBtn = ui.mapButtons[targetMap] or ui.mapButtons["Shiganshina"]
+                if mapBtn then
+                    v150_10.ClickGuiButton(mapBtn)
+                    task.wait(0.25)
+                    ui = scanMissionUi()
+                end
+
+                if ui.diffLabel and (ui.nextDiffBtn or ui.prevDiffBtn) then
+                    for _ = 1, 5 do
+                        local dTxt = tostring(ui.diffLabel.Text or ""):upper()
+                        local curG = dTxt:match("%(([E%-%+DBAS]+)%s*GRADE%)")
+                        local curOrder = curG and GRADE_ORDER[curG] or nil
+                        if not curOrder or curOrder == targetOrder then
+                            break
+                        elseif curOrder < targetOrder and ui.nextDiffBtn and isTrulyVisible(ui.nextDiffBtn, iface) then
+                            v150_10.ClickGuiButton(ui.nextDiffBtn)
+                            task.wait(0.18)
+                        elseif curOrder > targetOrder and ui.prevDiffBtn and isTrulyVisible(ui.prevDiffBtn, iface) then
+                            v150_10.ClickGuiButton(ui.prevDiffBtn)
+                            task.wait(0.18)
+                        else
+                            break
+                        end
+                    end
+                end
+
+                ui = scanMissionUi()
+                if ui.createBtn then
+                    v150_10.ClickGuiButton(ui.createBtn)
+                    started = true
+                    task.wait(0.4)
+                    ui = scanMissionUi()
+                end
+                if ui.playBtn then
+                    v150_10.ClickGuiButton(ui.playBtn)
+                    started = true
+                end
+            end)
+
+            if v69_2 then
+                pcall(function()
+                    v69_2:InvokeServer("S_Missions", "Create", {
+                        Map = targetMap,
+                        Difficulty = targetDiffEN,
+                        Objective = "Skirmish"
+                    })
+                end)
+                pcall(function()
+                    v69_2:InvokeServer("S_Missions", "Start")
+                end)
+            end
+            return started
+        end
+
+        function v150_10.ShouldKaitunReturnToLobby()
+            if not v8_6("KaitunEnabled") then
+                return false
+            end
+            local state = v150_10.GetKaitunPlayerState()
+            if v8_6("KaitunAutoPrestige") ~= false and state.ReadyToPrestige then
+                return true
+            end
+            if v8_6("KaitunAutoUpgradeWeapon") ~= false and v8_6("KaitunAutoMap") ~= false and state.ReadyForNextBracket then
+                return true
+            end
+            return false
+        end
+
+        function v150_10.KaitunReturnToLobby()
+            kaitunActionState = "Returning to Lobby (Upgrade / Prestige)..."
+            if v150_10.UpdateKaitunParagraph then
+                pcall(v150_10.UpdateKaitunParagraph)
+            end
+            if v69_2 then
+                pcall(function()
+                    v69_2:InvokeServer("Functions", "Teleport")
+                end)
+                pcall(function()
+                    v69_2:InvokeServer("S_Missions", "Leave")
+                end)
+            end
+            pcall(function()
+                local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+                local iface = pgui and pgui:FindFirstChild("Interface")
+                local rewards = iface and iface:FindFirstChild("Rewards")
+                if rewards then
+                    for _, btn in ipairs(rewards:GetDescendants()) do
+                        if btn:IsA("GuiButton") and btn.Visible then
+                            local t = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or ""):upper()
+                            if t:find("LOBBY", 1, true) or t:find("TRỞ LẠI", 1, true) or t:find("RETURN", 1, true) or btn.Name == "Lobby" then
+                                v150_10.ClickGuiButton(btn)
+                                break
+                            end
+                        end
+                    end
+                end
+            end)
+            return true
+        end
+
+        function v150_10.UpdateKaitunParagraph()
+            if not v56_2.KaitunStatusParagraph then
+                return
+            end
+            local isVi = v150_9.IsVietnamese()
+            local st = v150_10.GetKaitunPlayerState()
+            local enabledStr = v8_6("KaitunEnabled") and (isVi and "ĐANG BẬT (ON)" or "ACTIVE (ON)") or (isVi and "ĐANG TẮT (OFF)" or "DISABLED (OFF)")
+            local nextBracketTxt = st.Bracket.NextGrade
+                and string.format("%s (%s Gold)", st.Bracket.NextGrade, v165_3(st.GoldForNextBracket or 0))
+                or (isVi and "Đã tối đa (MAX S)" or "MAXED (S Grade)")
+            local prestigeReadyTxt = st.ReadyToPrestige
+                and (isVi and "SẴN SÀNG TÁI SINH!" or "READY TO PRESTIGE!")
+                or string.format("Lv.%d/%d (XP: %d%%)", st.Level, st.MaxLevelCap, st.XPPercent)
+
+            if isVi then
+                v56_2.KaitunStatusParagraph:Set(string.format(
+                    "Trạng Thái Kaitun: %s\nHành Động: %s\nCấp Độ: Lv.%s / %s (Prestige %s/%s)\nTiến Độ Tái Sinh: %s\nGold Hiện Tại: %s\nHạng Vũ Khí: [%s GRADE] (Cấp %d/15)\nMap & Độ Khó Mục Tiêu: %s - %s\nMốc Mở Khóa Độ Khó Tiếp: %s",
+                    enabledStr,
+                    kaitunActionState,
+                    v165_3(st.Level),
+                    v165_3(st.MaxLevelCap),
+                    tostring(st.Prestige),
+                    tostring(st.MaxPrestigeTarget),
+                    prestigeReadyTxt,
+                    v165_3(st.Gold),
+                    st.WeaponGradeLetter,
+                    st.WeaponMinLevel,
+                    st.TargetMap,
+                    st.Bracket.DiffVI,
+                    nextBracketTxt
+                ))
+            else
+                v56_2.KaitunStatusParagraph:Set(string.format(
+                    "Kaitun Mode: %s\nAction: %s\nLevel: Lv.%s / %s (Prestige %s/%s)\nPrestige Progress: %s\nCurrent Gold: %s\nWeapon Grade: [%s GRADE] (Lv.%d/15)\nTarget Map & Difficulty: %s - %s (%s GRADE)\nNext Difficulty Unlock: %s",
+                    enabledStr,
+                    kaitunActionState,
+                    v165_3(st.Level),
+                    v165_3(st.MaxLevelCap),
+                    tostring(st.Prestige),
+                    tostring(st.MaxPrestigeTarget),
+                    prestigeReadyTxt,
+                    v165_3(st.Gold),
+                    st.WeaponGradeLetter,
+                    st.WeaponMinLevel,
+                    st.TargetMap,
+                    st.Bracket.DiffEN,
+                    st.Bracket.Grade,
+                    nextBracketTxt
+                ))
+            end
+        end
+
+        function v150_10.UpdateConfigParagraph()
+            if not v56_2.ConfigStatusParagraph then
+                return
+            end
+            local isVi = v150_9.IsVietnamese()
+            local globalSync = v8_6("AutoLoadGlobalConfig") ~= false
+            local kaitunOn = v8_6("KaitunEnabled") == true
+            if isVi then
+                v56_2.ConfigStatusParagraph:Set(string.format(
+                    "File Cấu Hình Map: %s\nFile Đồng Bộ Chung: Symbiote_GlobalSettings.json\nTự Tải Cấu Hình Khi Đổi Map: %s\nChế Độ Kaitun: %s",
+                    tostring(v12),
+                    globalSync and "Đang Bật" or "Đang Tắt",
+                    kaitunOn and "Đang Bật" or "Đang Tắt"
+                ))
+            else
+                v56_2.ConfigStatusParagraph:Set(string.format(
+                    "Place Config File: %s\nGlobal Sync File: Symbiote_GlobalSettings.json\nAuto-Load Global Config: %s\nKaitun Mode: %s",
+                    tostring(v12),
+                    globalSync and "Enabled" or "Disabled",
+                    kaitunOn and "Enabled" or "Disabled"
+                ))
+            end
+        end
+
+        function v150_10.StopKaitunLoop()
+            kaitunActionState = "Idle"
+            if kaitunLoopThread then
+                pcall(function()
+                    task.cancel(kaitunLoopThread)
+                end)
+                kaitunLoopThread = nil
+            end
+            v150_10.UpdateKaitunParagraph()
+        end
+
+        function v150_10.StartKaitunLoop()
+            if kaitunLoopThread then
+                return
+            end
+            if not v18_4 then
+                v18_4 = true
+                v22_2 = true
+                v9_4("AutoFarm", true)
+                v116_4(v23_2)
+                v150_10.StartAutoGas()
+                task.spawn(v148_4)
+                if v56_2.AutoFarm then
+                    v56_2.AutoFarm:SetState(true)
+                end
+            end
+            if not v25_2 then
+                v25_2 = true
+                v9_4("AutoReload", true)
+                if v56_2.AutoReload then
+                    v56_2.AutoReload:SetState(true)
+                end
+            end
+            if not v38_2 then
+                v38_2 = true
+                v9_4("AutoRetry", true)
+                v110_3()
+                if v56_2.AutoRetry then
+                    v56_2.AutoRetry:SetState(true)
+                end
+            end
+            if not v39_2 then
+                v39_2 = true
+                v9_4("AutoSkipCutscenes", true)
+                v112_3()
+                if v56_2.AutoSkipCutscenes then
+                    v56_2.AutoSkipCutscenes:SetState(true)
+                end
+            end
+
+            kaitunLoopThread = task.spawn(function()
+                while v8_6("KaitunEnabled") do
+                    local st = v150_10.GetKaitunPlayerState()
+                    local inLobby = (game.PlaceId == 14916516914 or game.PlaceId == 13379208636)
+                        or (v13_8:FindFirstChild("Titans") == nil and v13_8:FindFirstChild("Waves") == nil)
+
+                    if inLobby then
+                        if v8_6("KaitunAutoPrestige") ~= false and st.ReadyToPrestige then
+                            v150_10.KaitunPerformPrestige()
+                            st = v150_10.GetKaitunPlayerState()
+                        end
+                        if v8_6("KaitunAutoUpgradeWeapon") ~= false and st.CanUpgradeStep then
+                            v150_10.KaitunUpgradeWeapon()
+                            st = v150_10.GetKaitunPlayerState()
+                        end
+                        if v8_6("KaitunAutoMap") ~= false then
+                            v150_10.KaitunCreateAndStartMission()
+                        else
+                            kaitunActionState = "In Lobby (Waiting)"
+                        end
+                    else
+                        if not v18_4 then
+                            v18_4 = true
+                            v22_2 = true
+                            v116_4(v23_2)
+                            v150_10.StartAutoGas()
+                            task.spawn(v148_4)
+                        end
+                        local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+                        local iface = pgui and pgui:FindFirstChild("Interface")
+                        local rewards = iface and iface:FindFirstChild("Rewards")
+                        if rewards and rewards.Visible then
+                            if v150_10.ShouldKaitunReturnToLobby() then
+                                v150_10.KaitunReturnToLobby()
+                            else
+                                kaitunActionState = "Retrying Mission [" .. st.Bracket.Grade .. " GRADE]"
+                                if v69_2 then
+                                    pcall(function()
+                                        v69_2:InvokeServer("Functions", "Retry", "Add")
+                                    end)
+                                end
+                            end
+                        else
+                            if v8_6("KaitunAutoUpgradeWeapon") ~= false and v13_8:FindFirstChild("Waves") and st.CanUpgradeStep then
+                                v150_10.KaitunUpgradeWeapon()
+                            end
+                            kaitunActionState = "Farming Titans [" .. st.Bracket.Grade .. " GRADE]"
+                        end
+                    end
+
+                    v150_10.UpdateKaitunParagraph()
+                    task.wait(1.2)
+                end
+                kaitunLoopThread = nil
+                kaitunActionState = "Idle"
+                v150_10.UpdateKaitunParagraph()
+            end)
+        end
+
+        function v150_10.SaveAllSettings()
+            for k, defVal in pairs(v13_2) do
+                if v16_9[k] == nil then
+                    v16_9[k] = defVal
+                end
+            end
+            v15_22(v16_9)
+            local raw = v5_6:JSONEncode(v16_9)
+            v11("Symbiote_GlobalSettings.json", raw)
+            v150_10.UpdateConfigParagraph()
+            local isVi = v150_9.IsVietnamese()
+            pcall(function()
+                v12_4:Notify({
+                    Title = isVi and "Đã Lưu Cài Đặt" or "Settings Saved",
+                    Content = isVi and "Đã lưu toàn bộ cấu hình Kaitun & Menu!" or "Saved all Kaitun & Menu settings!",
+                    Duration = 3
+                })
+            end)
+        end
+
+        function v150_10.LoadAllSettings()
+            local rawG = v10_3("Symbiote_GlobalSettings.json") or v10_3(v12)
+            if rawG then
+                local ok, decoded = pcall(function()
+                    return v5_6:JSONDecode(rawG)
+                end)
+                if ok and type(decoded) == "table" then
+                    for k, v in pairs(decoded) do
+                        v16_9[k] = v
+                    end
+                    v15_22(v16_9)
+                end
+            end
+            if v56_2.KaitunEnabledToggle then
+                v56_2.KaitunEnabledToggle:SetState(v8_6("KaitunEnabled") == true)
+            end
+            if v56_2.KaitunAutoUpgradeToggle then
+                v56_2.KaitunAutoUpgradeToggle:SetState(v8_6("KaitunAutoUpgradeWeapon") ~= false)
+            end
+            if v56_2.KaitunWeaponDropdown then
+                v56_2.KaitunWeaponDropdown:SetSelected(tostring(v8_6("KaitunWeaponType") or "Auto"))
+            end
+            if v56_2.KaitunAutoMapToggle then
+                v56_2.KaitunAutoMapToggle:SetState(v8_6("KaitunAutoMap") ~= false)
+            end
+            if v56_2.KaitunMapDropdown then
+                v56_2.KaitunMapDropdown:SetSelected(tostring(v8_6("KaitunMap") or "Auto (Best)"))
+            end
+            if v56_2.KaitunAutoPrestigeToggle then
+                v56_2.KaitunAutoPrestigeToggle:SetState(v8_6("KaitunAutoPrestige") ~= false)
+            end
+            if v56_2.KaitunMaxPrestigeSlider then
+                v56_2.KaitunMaxPrestigeSlider:SetValue(tonumber(v8_6("KaitunMaxPrestige")) or 10)
+            end
+            if v56_2.AutoLoadGlobalToggle then
+                v56_2.AutoLoadGlobalToggle:SetState(v8_6("AutoLoadGlobalConfig") ~= false)
+            end
+            v150_10.UpdateKaitunParagraph()
+            v150_10.UpdateConfigParagraph()
+            local isVi = v150_9.IsVietnamese()
+            pcall(function()
+                v12_4:Notify({
+                    Title = isVi and "Đã Tải Cài Đặt" or "Settings Loaded",
+                    Content = isVi and "Đã tải cấu hình đã lưu thành công!" or "Loaded saved configuration successfully!",
+                    Duration = 3
+                })
+            end)
+        end
+
+        function v150_10.ResetAllSettings()
+            for k, defVal in pairs(v13_2) do
+                if type(defVal) == "table" then
+                    v16_9[k] = {}
+                else
+                    v16_9[k] = defVal
+                end
+            end
+            v15_22(v16_9)
+            local raw = v5_6:JSONEncode(v16_9)
+            v11("Symbiote_GlobalSettings.json", raw)
+            v150_10.StopKaitunLoop()
+            v150_10.LoadAllSettings()
+        end
+
+        local kTab = v56_2.KaitunTab
+        if kTab then
+            v56_2.KaitunStatusParagraph = kTab:AddParagraph("KAITUN STATUS:", v150_9.T("Loading..."))
+            kTab:AddLabel("KAITUN AUTOMATION")
+            v56_2.KaitunEnabledToggle = kTab:AddToggle("Enable Kaitun (Auto Level & Prestige)", function(p1)
+                v9_4("KaitunEnabled", p1)
+                if p1 then
+                    v150_10.StartKaitunLoop()
+                else
+                    v150_10.StopKaitunLoop()
+                end
+            end)
+            kTab:AddLabel("WEAPON & MAP PROGRESSION")
+            v56_2.KaitunAutoUpgradeToggle = kTab:AddToggle("Auto Upgrade Weapon (E- -> S)", function(p1)
+                v9_4("KaitunAutoUpgradeWeapon", p1)
+                v150_10.UpdateKaitunParagraph()
+            end)
+            v56_2.KaitunWeaponDropdown = kTab:AddSingleDropdown("Kaitun Weapon", { "Auto", "Blades", "Spears" },
+                tostring(v8_6("KaitunWeaponType") or "Auto"), function(p1)
+                v9_4("KaitunWeaponType", p1)
+                v150_10.UpdateKaitunParagraph()
+            end)
+            v56_2.KaitunAutoMapToggle = kTab:AddToggle("Auto Select Map & Difficulty (E- -> S)", function(p1)
+                v9_4("KaitunAutoMap", p1)
+                v150_10.UpdateKaitunParagraph()
+            end)
+            v56_2.KaitunMapDropdown = kTab:AddSingleDropdown("Kaitun Map",
+                { "Auto (Best)", "Shiganshina", "Trost", "Outskirts", "Giant Forest" },
+                tostring(v8_6("KaitunMap") or "Auto (Best)"), function(p1)
+                v9_4("KaitunMap", p1)
+                v150_10.UpdateKaitunParagraph()
+            end)
+            kTab:AddButton("Upgrade Weapon Now", function()
+                task.spawn(function()
+                    v150_10.KaitunUpgradeWeapon()
+                    v150_10.UpdateKaitunParagraph()
+                end)
+            end)
+            kTab:AddLabel("AUTO PRESTIGE (REBIRTH)")
+            v56_2.KaitunAutoPrestigeToggle = kTab:AddToggle("Auto Prestige (Rebirth)", function(p1)
+                v9_4("KaitunAutoPrestige", p1)
+                v150_10.UpdateKaitunParagraph()
+            end)
+            v56_2.KaitunMaxPrestigeSlider = kTab:AddSlider("Target Max Prestige", 1, 10,
+                tonumber(v8_6("KaitunMaxPrestige")) or 10, function(p1)
+                v9_4("KaitunMaxPrestige", p1)
+                v150_10.UpdateKaitunParagraph()
+            end)
+            v150_10.UpdateKaitunParagraph()
+        end
+
+        local sTab = v56_2.SettingsTab
+        if sTab then
+            v56_2.ConfigStatusParagraph = sTab:AddParagraph("CONFIG STATUS:", v150_9.T("Loading..."))
+            sTab:AddLabel("CONFIG & SETTINGS")
+            v56_2.AutoLoadGlobalToggle = sTab:AddToggle("Auto Load Global Settings", function(p1)
+                v9_4("AutoLoadGlobalConfig", p1)
+                v150_10.UpdateConfigParagraph()
+            end)
+            sTab:AddButton("Save Settings Now", function()
+                v150_10.SaveAllSettings()
+            end)
+            sTab:AddButton("Load Saved Settings", function()
+                v150_10.LoadAllSettings()
+            end)
+            sTab:AddButton("Reset Default Settings", function()
+                v150_10.ResetAllSettings()
+            end)
+            v150_10.UpdateConfigParagraph()
+        end
+    end
     task.spawn(function()
         v28_2 = v8_6("WalkSpeedAmount")
         v30_2 = v8_6("LaggyRunDistance")
@@ -7138,6 +8273,24 @@ do
                 if v56_2.ExpandNapeHitbox then
                     v56_2.ExpandNapeHitbox:SetState(true)
                 end
+            end
+            if v56_2.KaitunAutoUpgradeToggle then
+                v56_2.KaitunAutoUpgradeToggle:SetState(v8_6("KaitunAutoUpgradeWeapon") ~= false)
+            end
+            if v56_2.KaitunAutoMapToggle then
+                v56_2.KaitunAutoMapToggle:SetState(v8_6("KaitunAutoMap") ~= false)
+            end
+            if v56_2.KaitunAutoPrestigeToggle then
+                v56_2.KaitunAutoPrestigeToggle:SetState(v8_6("KaitunAutoPrestige") ~= false)
+            end
+            if v56_2.AutoLoadGlobalToggle then
+                v56_2.AutoLoadGlobalToggle:SetState(v8_6("AutoLoadGlobalConfig") ~= false)
+            end
+            if v8_6("KaitunEnabled") then
+                if v56_2.KaitunEnabledToggle then
+                    v56_2.KaitunEnabledToggle:SetState(true)
+                end
+                v150_10.StartKaitunLoop()
             end
             return
         end)
