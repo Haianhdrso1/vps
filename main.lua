@@ -3750,15 +3750,203 @@ do
         return
     end)
 end
+local v150_9 = {}
+do
+    local function clampNum(val, minVal, maxVal)
+        local n = tonumber(val) or minVal
+        if n < minVal then
+            return minVal
+        elseif n > maxVal then
+            return maxVal
+        end
+        return n
+    end
+
+    local function toOptionSet(tbl)
+        local set = {}
+        if type(tbl) ~= "table" then
+            return set
+        end
+        for k, v in pairs(tbl) do
+            if type(k) == "number" then
+                if type(v) == "string" and v ~= "" then
+                    set[v] = true
+                end
+            elseif v == true and type(k) == "string" and k ~= "" then
+                set[k] = true
+            end
+        end
+        return set
+    end
+
+    local function toOptionList(tbl)
+        local list = {}
+        local seen = {}
+        if type(tbl) ~= "table" then
+            return list
+        end
+        for _, v in ipairs(tbl) do
+            if type(v) == "string" and v ~= "" and not seen[v] then
+                seen[v] = true
+                table.insert(list, v)
+            end
+        end
+        for k, v in pairs(tbl) do
+            if type(k) == "string" and k ~= "" and v == true and not seen[k] then
+                seen[k] = true
+                table.insert(list, k)
+            end
+        end
+        table.sort(list)
+        return list
+    end
+
+    function v150_9.wrapTab(rayfieldTab)
+        local wrapped = {}
+
+        function wrapped:AddLabel(text)
+            return rayfieldTab:CreateSection(tostring(text or ""))
+        end
+
+        function wrapped:AddParagraph(title, content)
+            local titleStr = tostring(title or "")
+            local paragraph = rayfieldTab:CreateParagraph({
+                Title = titleStr,
+                Content = tostring(content or "")
+            })
+            return {
+                Set = function(_, newContent)
+                    paragraph:Set({
+                        Title = titleStr,
+                        Content = tostring(newContent or "")
+                    })
+                end
+            }
+        end
+
+        function wrapped:AddButton(name, callback)
+            return rayfieldTab:CreateButton({
+                Name = tostring(name or ""),
+                Callback = function()
+                    if callback then
+                        callback()
+                    end
+                end
+            })
+        end
+
+        function wrapped:AddToggle(name, callback)
+            local suppressing = false
+            local toggle = rayfieldTab:CreateToggle({
+                Name = tostring(name or ""),
+                CurrentValue = false,
+                Callback = function(value)
+                    if suppressing then
+                        return
+                    end
+                    if callback then
+                        callback(value)
+                    end
+                end
+            })
+            function toggle:SetState(state)
+                local nextState = state == true
+                if self.CurrentValue == nextState then
+                    return
+                end
+                suppressing = true
+                local ok, err = pcall(function()
+                    self:Set(nextState)
+                end)
+                suppressing = false
+                if not ok then
+                    warn("[Symbiote] SetState error:", err)
+                end
+            end
+            return toggle
+        end
+
+        function wrapped:AddSlider(name, minVal, maxVal, defaultVal, callback)
+            local suppressing = false
+            local initialVal = clampNum(defaultVal, minVal, maxVal)
+            local slider = rayfieldTab:CreateSlider({
+                Name = tostring(name or ""),
+                Range = { minVal, maxVal },
+                Increment = 1,
+                CurrentValue = initialVal,
+                Callback = function(value)
+                    if suppressing then
+                        return
+                    end
+                    if callback then
+                        callback(value)
+                    end
+                end
+            })
+            function slider:SetValue(val)
+                local clamped = clampNum(val, minVal, maxVal)
+                if self.CurrentValue == clamped then
+                    return
+                end
+                suppressing = true
+                local ok, err = pcall(function()
+                    self:Set(clamped)
+                end)
+                suppressing = false
+                if not ok then
+                    warn("[Symbiote] SetValue error:", err)
+                end
+            end
+            return slider
+        end
+
+        function wrapped:AddDropdown(name, options, callback)
+            local suppressing = false
+            local dropdown = rayfieldTab:CreateDropdown({
+                Name = tostring(name or ""),
+                Options = options or {},
+                CurrentOption = {},
+                MultipleOptions = true,
+                Callback = function(selectedList)
+                    if suppressing then
+                        return
+                    end
+                    if callback then
+                        callback(toOptionSet(selectedList))
+                    end
+                end
+            })
+            function dropdown:SetSelected(selectedTbl)
+                local optionList = toOptionList(selectedTbl)
+                suppressing = true
+                local ok, err = pcall(function()
+                    self:Set(optionList)
+                end)
+                suppressing = false
+                if not ok then
+                    warn("[Symbiote] SetSelected error:", err)
+                end
+            end
+            return dropdown
+        end
+
+        return wrapped
+    end
+
+    v150_9.toOptionSet = toOptionSet
+end
 local v150_8 = v12_4:CreateWindow({
     Name = "Symbiote",
     LoadingTitle = "Đang tải...",
-    Theme = "Default"
+    Theme = "Default",
+    ConfigurationSaving = {
+        Enabled = false
+    }
 })
-local v151_6 = v150_8:CreateTab("Player")
-local v152_7 = v150_8:CreateTab("Auto Farm")
-local v153_9 = v150_8:CreateTab("Various")
-local v154_8 = v150_8:CreateTab("Stats")
+local v151_6 = v150_9.wrapTab(v150_8:CreateTab("Player"))
+local v152_7 = v150_9.wrapTab(v150_8:CreateTab("Auto Farm"))
+local v153_9 = v150_9.wrapTab(v150_8:CreateTab("Various"))
+local v154_8 = v150_9.wrapTab(v150_8:CreateTab("Stats"))
 local v157_2 = (function()
     local v1_2 = v10_3("Symbiote_AOTR_Stats.json")
     if not v1_2 then
@@ -5728,22 +5916,22 @@ do
         end
         local v1_35 = v8_6("FamiliesToStop")
         if type(v1_35) == "table" and v56_2.FamiliesDropdown then
-            v43_2 = v1_35
+            v43_2 = v150_9.toOptionSet(v1_35)
             v56_2.FamiliesDropdown:SetSelected(v1_35)
         end
         local v2_35 = v8_6("FamilyTiersToStop")
         if type(v2_35) == "table" and v56_2.FamilyTiersDropdown then
-            v44_3 = v2_35
+            v44_3 = v150_9.toOptionSet(v2_35)
             v56_2.FamilyTiersDropdown:SetSelected(v2_35)
         end
         local v3_26 = v8_6("PerkTiersToSell")
         if type(v3_26) == "table" and v56_2.PerkTiersDropdown then
-            v46_2 = v3_26
+            v46_2 = v150_9.toOptionSet(v3_26)
             v56_2.PerkTiersDropdown:SetSelected(v3_26)
         end
         local v4_27 = v8_6("SpecificPerksToSell")
         if type(v4_27) == "table" and v56_2.SpecificPerksDropdown then
-            v47_3 = v4_27
+            v47_3 = v150_9.toOptionSet(v4_27)
             v56_2.SpecificPerksDropdown:SetSelected(v4_27)
         end
         if v8_6("ChangeCursor") then
