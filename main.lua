@@ -103,6 +103,21 @@ local v14_9 = game:GetService("RunService")
 local v15_29 = game:GetService("UserInputService")
 local v16_15 = game:GetService("ReplicatedStorage")
 local v17_6 = game:GetService("VirtualInputManager")
+local v150_10 = {
+    Caps = {
+        hookmetamethod = type(hookmetamethod) == "function",
+        getnamecallmethod = type(getnamecallmethod) == "function",
+        checkcaller = type(checkcaller) == "function",
+        getconnections = type(getconnections) == "function",
+        newcclosure = type(newcclosure) == "function"
+    },
+    OriginalSizes = setmetatable({}, { __mode = "k" }),
+    HooksInstalled = false,
+    BlockedRemotes = 0,
+    BlockedKicks = 0,
+    IsolatedScripts = 0,
+    AutoGasThread = nil
+}
 local v18_4 = false
 local v19_3 = false
 local v20_2 = nil
@@ -855,6 +870,9 @@ do
         local v11_9 = v8_8 and v8_8.Size
         local v12_10 = math.max(100, (55 + v60_2) * 2 + 30)
         if v8_8 and v8_8:IsA("BasePart") then
+            if not v150_10.OriginalSizes[v8_8] then
+                v150_10.OriginalSizes[v8_8] = v11_9
+            end
             v8_8.CollisionGroup = "Default"
             v8_8.CanTouch = true
             v8_8.Size = Vector3.new(v12_10, v12_10, v12_10)
@@ -1670,6 +1688,9 @@ do
                 if not v119_4[v8] then
                     v119_4[v8] = v9.Size
                 end
+                if not v150_10.OriginalSizes[v9] then
+                    v150_10.OriginalSizes[v9] = v119_4[v8]
+                end
                 if 0.01 < math.abs(math.max(v9.Size.X, v9.Size.Y, v9.Size.Z) - v2) then
                     v9.Size = Vector3.new(v2, v2, v2)
                 end
@@ -1701,6 +1722,7 @@ do
                     local v9_5 = v119_4
                     v7.Size = v9_5[v6]
                     v9_5[v6] = nil
+                    v150_10.OriginalSizes[v7] = nil
                 end
             end
         end
@@ -1771,7 +1793,7 @@ do
         end
         v122_2 = v1_2
         if v22_2 then
-            v116_4(v18_4 and 100 or v23_2)
+            v116_4(v23_2)
         end
         if v24_2 then
             v121_3()
@@ -2130,6 +2152,250 @@ do
             return
         end)
         return
+    end
+    do
+        local SAFE_REMOTE_CATEGORIES = {
+            Attacks = true, Hitboxes = true, Spears = true, Blades = true,
+            Functions = true, S_Rewards = true, S_Equipment = true, Family = true,
+            Skills = true, Upgrades = true, ODMG = true, Shift = true,
+            Movement = true, Combat = true, Stats = true, Lobby = true,
+            Mission = true, Waves = true, Cutscene = true, Dialogue = true,
+            Shop = true, Customisation = true, Settings = true, Interact = true,
+            Inventory = true, Profile = true, Party = true, Quest = true,
+            Quests = true, Raid = true, Rewards = true, Titans = true,
+            Carry = true, Emote = true, Chat = true
+        }
+        local SUSPICIOUS_TOKENS = {
+            "anticheat", "anti_cheat", "antiexploit", "cheat", "exploit",
+            "shadowban", "violation", "tamper", "speedhack", "noclip",
+            "hitbox", "kicklog", "banplayer", "flagplayer", "reportexploit"
+        }
+        local CORE_SCRIPT_WHITELIST = {
+            actor = true, animate = true, playermodule = true, controlmodule = true,
+            cameramodule = true, chat = true, rbxcharactersounds = true
+        }
+        local function containsToken(str, tokens)
+            if type(str) ~= "string" or str == "" then
+                return false
+            end
+            local lower = string.lower(str)
+            for _, tok in ipairs(tokens) do
+                if string.find(lower, tok, 1, true) then
+                    return true
+                end
+            end
+            return false
+        end
+        local function isAntiCheatName(name)
+            if type(name) ~= "string" or name == "" then
+                return false
+            end
+            local lower = string.lower(name)
+            if CORE_SCRIPT_WHITELIST[lower] then
+                return false
+            end
+            return containsToken(lower, {
+                "anticheat", "anti_cheat", "antiexploit", "cheatdetect",
+                "securitycheck", "tamper", "ac_client", "ac_check"
+            })
+        end
+        local function isSuspiciousRemoteCall(remote, arg1, arg2)
+            if typeof(remote) ~= "Instance" then
+                return false
+            end
+            local rName = remote.Name
+            if remote == v68_2 or remote == v69_2 or rName == "POST" or rName == "GET" then
+                if type(arg1) == "string" then
+                    if SAFE_REMOTE_CATEGORIES[arg1] then
+                        return false
+                    end
+                    local combined = arg1 .. " " .. (type(arg2) == "string" and arg2 or "")
+                    if containsToken(combined, SUSPICIOUS_TOKENS) or string.find(string.lower(combined), "flag", 1, true) then
+                        return true
+                    end
+                end
+                return false
+            end
+            if containsToken(rName, SUSPICIOUS_TOKENS) then
+                return true
+            end
+            return false
+        end
+
+        function v150_10.InstallHooks()
+            if v150_10.HooksInstalled then
+                return true
+            end
+            if not (v150_10.Caps.hookmetamethod and v150_10.Caps.getnamecallmethod and v150_10.Caps.checkcaller) then
+                return false
+            end
+            local wrapC = type(newcclosure) == "function" and newcclosure or function(fn) return fn end
+            local ok = pcall(function()
+                local origNamecall
+                origNamecall = hookmetamethod(game, "__namecall", wrapC(function(self, ...)
+                    if checkcaller() then
+                        return origNamecall(self, ...)
+                    end
+                    local method = getnamecallmethod()
+                    if method == "Kick" and self == v7_13 then
+                        v150_10.BlockedKicks = v150_10.BlockedKicks + 1
+                        return nil
+                    end
+                    if method == "FireServer" or method == "InvokeServer" then
+                        local arg1, arg2 = ...
+                        if isSuspiciousRemoteCall(self, arg1, arg2) then
+                            v150_10.BlockedRemotes = v150_10.BlockedRemotes + 1
+                            return nil
+                        end
+                    end
+                    return origNamecall(self, ...)
+                end))
+
+                local origIndex
+                origIndex = hookmetamethod(game, "__index", wrapC(function(self, key)
+                    if checkcaller() then
+                        return origIndex(self, key)
+                    end
+                    if key == "Size" then
+                        local origSize = v150_10.OriginalSizes[self]
+                        if origSize ~= nil then
+                            return origSize
+                        end
+                    elseif key == "CanCollide" and v19_3 then
+                        local char = v7_13 and v7_13.Character
+                        if char and typeof(self) == "Instance" and self:IsDescendantOf(char) then
+                            return true
+                        end
+                    end
+                    return origIndex(self, key)
+                end))
+            end)
+            if ok then
+                v150_10.HooksInstalled = true
+            end
+            return ok
+        end
+
+        function v150_10.IsolateLocalAntiCheat()
+            local isolated = 0
+            pcall(function()
+                local containers = {
+                    v7_13 and v7_13:FindFirstChild("PlayerScripts"),
+                    v7_13 and v7_13:FindFirstChild("PlayerGui"),
+                    v7_13 and v7_13.Character
+                }
+                for _, root in ipairs(containers) do
+                    if root then
+                        for _, inst in ipairs(root:GetDescendants()) do
+                            if inst:IsA("LocalScript") and isAntiCheatName(inst.Name) and not inst.Disabled then
+                                inst.Disabled = true
+                                isolated = isolated + 1
+                            end
+                        end
+                    end
+                end
+                if type(getconnections) == "function" and v7_13 and v7_13.Character then
+                    local char = v7_13.Character
+                    local hum = char:FindFirstChild("Humanoid")
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    local signals = {}
+                    if hum then
+                        table.insert(signals, hum:GetPropertyChangedSignal("WalkSpeed"))
+                        table.insert(signals, hum:GetPropertyChangedSignal("JumpPower"))
+                    end
+                    if hrp then
+                        table.insert(signals, hrp:GetPropertyChangedSignal("CFrame"))
+                        table.insert(signals, hrp:GetPropertyChangedSignal("Size"))
+                    end
+                    for _, sig in ipairs(signals) do
+                        for _, conn in ipairs(getconnections(sig)) do
+                            if conn.Function and type(getfenv) == "function" then
+                                local okEnv, env = pcall(getfenv, conn.Function)
+                                local src = okEnv and type(env) == "table" and rawget(env, "script")
+                                if typeof(src) == "Instance" and isAntiCheatName(src.Name) then
+                                    pcall(function() conn:Disable() end)
+                                    isolated = isolated + 1
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+            if isolated > 0 then
+                v150_10.IsolatedScripts = v150_10.IsolatedScripts + isolated
+            end
+            return isolated
+        end
+
+        local gasLoopRunning = false
+        local function pulseMobileGasButton()
+            local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+            local iface = pgui and pgui:FindFirstChild("Interface")
+            if not iface then
+                return
+            end
+            for _, rootName in ipairs({ "Mobile", "HUD" }) do
+                local root = iface:FindFirstChild(rootName)
+                if root then
+                    for _, obj in ipairs(root:GetDescendants()) do
+                        if obj:IsA("GuiButton") and obj.Visible then
+                            local lname = string.lower(obj.Name)
+                            if lname == "gas" or lname == "boost" or lname == "odmg_boost" then
+                                if type(firesignal) == "function" then
+                                    pcall(function() firesignal(obj.MouseButton1Down) end)
+                                    pcall(function() firesignal(obj.Activated) end)
+                                    task.delay(0.25, function()
+                                        pcall(function() firesignal(obj.MouseButton1Up) end)
+                                    end)
+                                end
+                                return
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        function v150_10.StopAutoGas()
+            gasLoopRunning = false
+            pcall(function()
+                v17_6:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+            end)
+        end
+
+        function v150_10.StartAutoGas()
+            if gasLoopRunning then
+                return
+            end
+            gasLoopRunning = true
+            task.spawn(function()
+                while v18_4 and gasLoopRunning do
+                    if v13_8:FindFirstChild("Titans") ~= nil and v87_2() then
+                        pcall(function()
+                            v17_6:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                        end)
+                        pcall(pulseMobileGasButton)
+                        task.wait(0.25)
+                        pcall(function()
+                            v17_6:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                        end)
+                    end
+                    task.wait(0.55)
+                end
+                gasLoopRunning = false
+                pcall(function()
+                    v17_6:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                end)
+            end)
+        end
+
+        v150_10.InstallHooks()
+        v150_10.IsolateLocalAntiCheat()
+        v7_13.CharacterAdded:Connect(function()
+            task.delay(0.5, function()
+                v150_10.IsolateLocalAntiCheat()
+            end)
+        end)
     end
     v13_8.DescendantAdded:Connect(function(p1)
         if not v48_3 then
@@ -3866,13 +4132,13 @@ do
             return toggle
         end
 
-        function wrapped:AddSlider(name, minVal, maxVal, defaultVal, callback)
+        function wrapped:AddSlider(name, minVal, maxVal, defaultVal, callback, increment)
             local suppressing = false
             local initialVal = clampNum(defaultVal, minVal, maxVal)
             local slider = rayfieldTab:CreateSlider({
                 Name = tostring(name or ""),
                 Range = { minVal, maxVal },
-                Increment = 1,
+                Increment = increment or 1,
                 CurrentValue = initialVal,
                 Callback = function(value)
                     if suppressing then
@@ -4962,12 +5228,19 @@ v56_2.AutoFarm = v152_7:AddToggle("Auto Farm", function(p1)
     if p1 then
         v18_4 = true
         v22_2 = true
-        v23_2 = 100
-        v116_4(100)
+        if v16_9["HitboxSize"] == nil then
+            v23_2 = 100
+            if v56_2.HitboxSizeSlider then
+                v56_2.HitboxSizeSlider:SetValue(100)
+            end
+        end
+        v116_4(v23_2)
+        v150_10.StartAutoGas()
         task.spawn(v148_4)
     else
         v18_4 = false
         v20_2 = nil
+        v150_10.StopAutoGas()
         v128_2()
     end
     return
@@ -6141,8 +6414,14 @@ do
             if v8_6("AutoFarm") then
                 v18_4 = true
                 v22_2 = true
-                v23_2 = 100
-                v116_4(100)
+                if v16_9["HitboxSize"] == nil then
+                    v23_2 = 100
+                    if v56_2.HitboxSizeSlider then
+                        v56_2.HitboxSizeSlider:SetValue(100)
+                    end
+                end
+                v116_4(v23_2)
+                v150_10.StartAutoGas()
                 task.spawn(v148_4)
                 if v56_2.AutoFarm then
                     v56_2.AutoFarm:SetState(true)
