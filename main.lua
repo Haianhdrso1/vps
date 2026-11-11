@@ -1,6 +1,11 @@
+if type(game.IsLoaded) == "function" and not game:IsLoaded() then
+    pcall(function()
+        game.Loaded:Wait()
+    end)
+end
 local v5_6 = game:GetService("HttpService")
 local v6_21 = game:GetService("Players")
-local v7_13 = v6_21.LocalPlayer
+local v7_13 = v6_21.LocalPlayer or (v6_21.PlayerAdded and v6_21.PlayerAdded:Wait())
 local v12 = "SymbioteSettings_" .. tostring(game.PlaceId) .. ".json"
 local v13_2 = {
     NoClip = false,
@@ -207,7 +212,7 @@ do
         end
         return v68_2 ~= nil and v69_2 ~= nil
     end
-    v70_2()
+    task.spawn(v70_2)
     v71_3 = function()
         local v1_3 = v13_8:FindFirstChild("Characters")
         return v1_3 and v1_3:FindFirstChild(v7_13.Name) or v7_13.Character
@@ -2180,6 +2185,15 @@ do
             Blades = true,
             S_Rewards = true,
             S_Equipment = true,
+            S_Data = true,
+            Data = true,
+            Slots = true,
+            Slot = true,
+            Main_Menu = true,
+            MainMenu = true,
+            Menu = true,
+            Title = true,
+            Teleport = true,
             Family = true,
             Skills = true,
             Upgrades = true,
@@ -2201,7 +2215,17 @@ do
             Titans = true,
             Carry = true,
             Emote = true,
-            Chat = true
+            Chat = true,
+            Codes = true,
+            Market = true,
+            Banners = true,
+            Cosmetics = true,
+            Titles = true,
+            Achievements = true,
+            Prestiges = true,
+            Battlepass = true,
+            Leaderboard = true,
+            Clans = true
         }
         local INSPECTED_SAFE_CATEGORIES = {
             Functions = true,
@@ -2265,7 +2289,7 @@ do
             end
             local t = type(val)
             if t == "string" then
-                if containsToken(val, SUSPICIOUS_TOKENS) or string.find(string.lower(val), "flag", 1, true) then
+                if containsToken(val, SUSPICIOUS_TOKENS) then
                     return true
                 end
             elseif t == "table" then
@@ -2291,34 +2315,36 @@ do
                 "sanitycheck", "flagcheck", "telemetry"
             })
         end
-        local function isSuspiciousRemoteCall(remote, ...)
+        local function isSuspiciousRemoteCall(remote, arg1, arg2, arg3, arg4)
             if typeof(remote) ~= "Instance" then
                 return false
             end
             local rName = remote.Name
-            local nArgs = select("#", ...)
-            local arg1 = nArgs >= 1 and select(1, ...) or nil
-            local arg2 = nArgs >= 2 and select(2, ...) or nil
             if remote == v68_2 or remote == v69_2 or rName == "POST" or rName == "GET" then
                 if type(arg1) == "string" then
                     if ALWAYS_SAFE_CATEGORIES[arg1] then
                         return false
                     end
                     if INSPECTED_SAFE_CATEGORIES[arg1] then
-                        if type(arg2) == "string" and SAFE_SUBACTIONS[arg2] and nArgs <= 3 and type(select(3, ...)) ~= "table" then
-                            return false
-                        end
-                        for i = 2, nArgs do
-                            if valueContainsSuspiciousToken(select(i, ...), 0) then
-                                return true
+                        if type(arg2) == "string" and SAFE_SUBACTIONS[arg2] and type(arg3) ~= "table" and type(arg4) ~= "table" then
+                            if not valueContainsSuspiciousToken(arg3, 0) and not valueContainsSuspiciousToken(arg4, 0) then
+                                return false
                             end
+                        end
+                        if valueContainsSuspiciousToken(arg2, 0)
+                            or valueContainsSuspiciousToken(arg3, 0)
+                            or valueContainsSuspiciousToken(arg4, 0)
+                        then
+                            return true
                         end
                         return false
                     end
-                    for i = 1, nArgs do
-                        if valueContainsSuspiciousToken(select(i, ...), 0) then
-                            return true
-                        end
+                    if valueContainsSuspiciousToken(arg1, 0)
+                        or valueContainsSuspiciousToken(arg2, 0)
+                        or valueContainsSuspiciousToken(arg3, 0)
+                        or valueContainsSuspiciousToken(arg4, 0)
+                    then
+                        return true
                     end
                 end
                 return false
@@ -2326,10 +2352,11 @@ do
             if containsToken(rName, SUSPICIOUS_TOKENS) then
                 return true
             end
-            for i = 1, math.min(nArgs, 3) do
-                if valueContainsSuspiciousToken(select(i, ...), 0) then
-                    return true
-                end
+            if valueContainsSuspiciousToken(arg1, 0)
+                or valueContainsSuspiciousToken(arg2, 0)
+                or valueContainsSuspiciousToken(arg3, 0)
+            then
+                return true
             end
             return false
         end
@@ -2354,7 +2381,9 @@ do
                         return nil
                     end
                     if method == "FireServer" or method == "InvokeServer" or method == "fireServer" or method == "invokeServer" then
-                        if isSuspiciousRemoteCall(self, ...) then
+                        local a1, a2, a3, a4 = ...
+                        local okCheck, shouldBlock = pcall(isSuspiciousRemoteCall, self, a1, a2, a3, a4)
+                        if okCheck and shouldBlock then
                             v150_10.BlockedRemotes = v150_10.BlockedRemotes + 1
                             return nil
                         end
@@ -2381,18 +2410,27 @@ do
                             return "Default"
                         end
                     elseif key == "CanCollide" and v19_3 then
-                        local char = v7_13 and v7_13.Character
-                        if char and typeof(self) == "Instance" and self:IsDescendantOf(char) then
+                        local okCol, isCharPart = pcall(function()
+                            local char = v7_13 and v7_13.Character
+                            return char ~= nil and typeof(self) == "Instance" and self:IsDescendantOf(char)
+                        end)
+                        if okCol and isCharPart then
                             return true
                         end
                     elseif key == "PlatformStand" and (v18_4 or v48_3) then
-                        local char = v7_13 and v7_13.Character
-                        if char and typeof(self) == "Instance" and self == char:FindFirstChild("Humanoid") then
+                        local okPs, isHum = pcall(function()
+                            local char = v7_13 and v7_13.Character
+                            return char ~= nil and typeof(self) == "Instance" and self == char:FindFirstChild("Humanoid")
+                        end)
+                        if okPs and isHum then
                             return false
                         end
                     elseif (key == "AssemblyLinearVelocity" or key == "Velocity") and v18_4 then
-                        local char = v7_13 and v7_13.Character
-                        if char and typeof(self) == "Instance" and self == char:FindFirstChild("HumanoidRootPart") then
+                        local okVel, isHrp = pcall(function()
+                            local char = v7_13 and v7_13.Character
+                            return char ~= nil and typeof(self) == "Instance" and self == char:FindFirstChild("HumanoidRootPart")
+                        end)
+                        if okVel and isHrp then
                             local realVel = origIndex(self, key)
                             if typeof(realVel) == "Vector3" and realVel.Magnitude > 80 then
                                 return realVel.Unit * 80
@@ -2401,20 +2439,6 @@ do
                         end
                     end
                     return origIndex(self, key)
-                end))
-
-                local origNewIndex
-                origNewIndex = hookmetamethod(game, "__newindex", wrapC(function(self, key, val)
-                    if checkcaller() then
-                        return origNewIndex(self, key, val)
-                    end
-                    if key == "Size" and v150_10.OriginalSizes[self] ~= nil and (v22_2 or v18_4) then
-                        if typeof(val) == "Vector3" then
-                            v150_10.OriginalSizes[self] = val
-                        end
-                        return
-                    end
-                    return origNewIndex(self, key, val)
                 end))
 
                 if v150_10.Caps.hookfunction and v7_13 and type(v7_13.Kick) == "function" then
@@ -2436,94 +2460,14 @@ do
             return ok
         end
 
-        function v150_10.InjectActorBypass()
-            if type(v67_2) ~= "function" then
-                return false
-            end
-            local actorScript = [[
-                if _G.__SymbioteActorShield then return end
-                _G.__SymbioteActorShield = true
-                local Players = game:GetService("Players")
-                local lp = Players.LocalPlayer
-                if type(hookmetamethod) == "function" and type(getnamecallmethod) == "function" and type(checkcaller) == "function" then
-                    local wrapC = type(newcclosure) == "function" and newcclosure or function(fn) return fn end
-                    local SUSPICIOUS = {
-                        "anticheat", "anti_cheat", "antiexploit", "cheat", "exploit",
-                        "shadowban", "violation", "tamper", "speedhack", "noclip",
-                        "hitbox", "kicklog", "banplayer", "flagplayer", "reportexploit",
-                        "sanity", "detected", "macro", "traceback"
-                    }
-                    local SAFE = {
-                        Attacks = true, Hitboxes = true, Spears = true, Blades = true,
-                        S_Rewards = true, S_Equipment = true, Family = true, Skills = true,
-                        Upgrades = true, ODMG = true, Shift = true, Waves = true
-                    }
-                    local function hasToken(s)
-                        if type(s) ~= "string" then return false end
-                        local l = string.lower(s)
-                        for _, t in ipairs(SUSPICIOUS) do
-                            if string.find(l, t, 1, true) then return true end
-                        end
-                        return false
-                    end
-                    pcall(function()
-                        local oldNc
-                        oldNc = hookmetamethod(game, "__namecall", wrapC(function(self, ...)
-                            if checkcaller() then return oldNc(self, ...) end
-                            local m = getnamecallmethod()
-                            if (m == "Kick" or m == "kick") and self == lp then
-                                return nil
-                            end
-                            if m == "FireServer" or m == "InvokeServer" then
-                                local a1, a2 = ...
-                                if type(a1) == "string" and not SAFE[a1] then
-                                    if hasToken(a1) or hasToken(a2) then
-                                        return nil
-                                    end
-                                end
-                            end
-                            return oldNc(self, ...)
-                        end))
-                    end)
-                end
-            ]]
-            local injected = false
-            pcall(function()
-                local char = v7_13 and v7_13.Character
-                local charActor = char and char:FindFirstChild("Actor")
-                if charActor then
-                    v67_2(charActor, actorScript)
-                    injected = true
-                end
-                if type(v66) == "function" then
-                    local okActors, actors = pcall(v66)
-                    if okActors and type(actors) == "table" then
-                        for _, act in ipairs(actors) do
-                            if act ~= charActor then
-                                pcall(v67_2, act, actorScript)
-                                injected = true
-                            end
-                        end
-                    end
-                end
-            end)
-            if injected then
-                v150_10.ActorShielded = true
-            end
-            return injected
-        end
-
         function v150_10.IsolateLocalAntiCheat()
             local isolated = 0
             local silenced = 0
             pcall(function()
-                local repFirst = nil
-                pcall(function() repFirst = game:GetService("ReplicatedFirst") end)
                 local containers = {
                     v7_13 and v7_13:FindFirstChild("PlayerScripts"),
                     v7_13 and v7_13:FindFirstChild("PlayerGui"),
-                    v7_13 and v7_13.Character,
-                    repFirst
+                    v7_13 and v7_13.Character
                 }
                 for _, root in ipairs(containers) do
                     if root then
@@ -2535,55 +2479,38 @@ do
                         end
                     end
                 end
-                if type(getconnections) == "function" then
-                    if v7_13 and v7_13.Character then
-                        local char = v7_13.Character
-                        local hum = char:FindFirstChild("Humanoid")
-                        local hrp = char:FindFirstChild("HumanoidRootPart")
-                        local signals = {}
-                        if hum then
-                            table.insert(signals, hum:GetPropertyChangedSignal("WalkSpeed"))
-                            table.insert(signals, hum:GetPropertyChangedSignal("JumpPower"))
-                            table.insert(signals, hum:GetPropertyChangedSignal("PlatformStand"))
-                            if hum.StateChanged then
-                                table.insert(signals, hum.StateChanged)
-                            end
+                if type(getconnections) == "function" and v7_13 and v7_13.Character then
+                    local char = v7_13.Character
+                    local hum = char:FindFirstChild("Humanoid")
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    local signals = {}
+                    if hum then
+                        table.insert(signals, hum:GetPropertyChangedSignal("WalkSpeed"))
+                        table.insert(signals, hum:GetPropertyChangedSignal("JumpPower"))
+                        table.insert(signals, hum:GetPropertyChangedSignal("PlatformStand"))
+                        if hum.StateChanged then
+                            table.insert(signals, hum.StateChanged)
                         end
-                        if hrp then
-                            table.insert(signals, hrp:GetPropertyChangedSignal("CFrame"))
-                            table.insert(signals, hrp:GetPropertyChangedSignal("Size"))
-                            table.insert(signals, hrp:GetPropertyChangedSignal("Velocity"))
-                            table.insert(signals, hrp:GetPropertyChangedSignal("AssemblyLinearVelocity"))
-                        end
-                        for _, sig in ipairs(signals) do
-                            for _, conn in ipairs(getconnections(sig)) do
-                                if conn.Function and type(getfenv) == "function" then
-                                    local okEnv, env = pcall(getfenv, conn.Function)
-                                    local src = okEnv and type(env) == "table" and rawget(env, "script")
-                                    if typeof(src) == "Instance" and isAntiCheatName(src.Name) then
-                                        pcall(function() conn:Disable() end)
-                                        isolated = isolated + 1
-                                        silenced = silenced + 1
-                                    end
+                    end
+                    if hrp then
+                        table.insert(signals, hrp:GetPropertyChangedSignal("CFrame"))
+                        table.insert(signals, hrp:GetPropertyChangedSignal("Size"))
+                        table.insert(signals, hrp:GetPropertyChangedSignal("Velocity"))
+                        table.insert(signals, hrp:GetPropertyChangedSignal("AssemblyLinearVelocity"))
+                    end
+                    for _, sig in ipairs(signals) do
+                        for _, conn in ipairs(getconnections(sig)) do
+                            if conn.Function and type(getfenv) == "function" then
+                                local okEnv, env = pcall(getfenv, conn.Function)
+                                local src = okEnv and type(env) == "table" and rawget(env, "script")
+                                if typeof(src) == "Instance" and isAntiCheatName(src.Name) then
+                                    pcall(function() conn:Disable() end)
+                                    isolated = isolated + 1
+                                    silenced = silenced + 1
                                 end
                             end
                         end
                     end
-                    pcall(function()
-                        local sc = game:GetService("ScriptContext")
-                        if sc and sc.Error then
-                            for _, conn in ipairs(getconnections(sc.Error)) do
-                                if conn.Function and type(getfenv) == "function" then
-                                    local okEnv, env = pcall(getfenv, conn.Function)
-                                    local src = okEnv and type(env) == "table" and rawget(env, "script")
-                                    if typeof(src) == "Instance" and isAntiCheatName(src.Name) then
-                                        pcall(function() conn:Disable() end)
-                                        silenced = silenced + 1
-                                    end
-                                end
-                            end
-                        end
-                    end)
                 end
             end)
             if isolated > 0 then
@@ -2866,11 +2793,9 @@ do
 
         v150_10.InstallHooks()
         v150_10.IsolateLocalAntiCheat()
-        v150_10.InjectActorBypass()
         v7_13.CharacterAdded:Connect(function()
             task.delay(0.5, function()
                 v150_10.IsolateLocalAntiCheat()
-                v150_10.InjectActorBypass()
             end)
         end)
     end
