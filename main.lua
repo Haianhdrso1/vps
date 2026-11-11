@@ -39,7 +39,9 @@ local v13_2 = {
     AutoUpgradeWeapon = false,
     UpgradeDelay = 0,
     AutoGetRetrieveSkillCrate = false,
-    AutoOpenRaidChests = false
+    AutoOpenRaidChests = false,
+    AutoResetStreak = false,
+    Language = "English"
 }
 local function v10_3(p1)
     local v2_2, v3_2 = pcall(function()
@@ -105,17 +107,25 @@ local v17_6 = game:GetService("VirtualInputManager")
 local v150_10 = {
     Caps = {
         hookmetamethod = type(hookmetamethod) == "function",
+        hookfunction = type(hookfunction) == "function",
         getnamecallmethod = type(getnamecallmethod) == "function",
         checkcaller = type(checkcaller) == "function",
         getconnections = type(getconnections) == "function",
-        newcclosure = type(newcclosure) == "function"
+        newcclosure = type(newcclosure) == "function",
+        run_on_actor = type(run_on_actor) == "function" or (type(syn) == "table" and type(syn.run_on_actor) == "function")
     },
     OriginalSizes = setmetatable({}, { __mode = "k" }),
     HooksInstalled = false,
+    ActorShielded = false,
     BlockedRemotes = 0,
     BlockedKicks = 0,
     IsolatedScripts = 0,
-    AutoGasThread = nil
+    SilencedConnections = 0,
+    AutoGasThread = nil,
+    AutoResetStreak = false,
+    BreakingStreak = false,
+    CurrentKillStreak = 0,
+    StreakThreshold = 1000
 }
 local v18_4 = false
 local v19_3 = false
@@ -504,7 +514,7 @@ do
         return
     end
     v87_2 = function()
-        if v26_2 or v35_2 or v61_2.IsUpgrading or v61_2.IsRetrievingSkillCrate then
+        if v26_2 or v35_2 or v150_10.BreakingStreak or v61_2.IsUpgrading or v61_2.IsRetrievingSkillCrate then
             return false
         end
         local v1_4 = v71_3()
@@ -1962,6 +1972,9 @@ do
         local v3_2 = v2 and v2:FindFirstChild("Hitbox")
         if v3_2 and v3_2:IsA("BasePart") then
             pcall(function()
+                if not v150_10.OriginalSizes[v3_2] then
+                    v150_10.OriginalSizes[v3_2] = v3_2.Size
+                end
                 v3_2.Size = Vector3.new(1984, 1984, 1984)
                 return
             end)
@@ -2043,7 +2056,7 @@ do
         if not p1 or not v91_2(p1) then
             return
         end
-        if v53_2 or v61_2.IsUpgrading or v61_2.IsRetrievingSkillCrate or v48_3 and v52_2 then
+        if v150_10.BreakingStreak or v53_2 or v61_2.IsUpgrading or v61_2.IsRetrievingSkillCrate or v48_3 and v52_2 then
             return
         end
         local v2_4 = v71_3()
@@ -2089,7 +2102,7 @@ do
                 end
                 return
             end
-            if v53_2 or v61_2.IsRetrievingSkillCrate then
+            if v150_10.BreakingStreak or v53_2 or v61_2.IsRetrievingSkillCrate then
                 return
             end
             local v2_11 = v71_3()
@@ -2160,12 +2173,11 @@ do
         return
     end
     do
-        local SAFE_REMOTE_CATEGORIES = {
+        local ALWAYS_SAFE_CATEGORIES = {
             Attacks = true,
             Hitboxes = true,
             Spears = true,
             Blades = true,
-            Functions = true,
             S_Rewards = true,
             S_Equipment = true,
             Family = true,
@@ -2173,17 +2185,11 @@ do
             Upgrades = true,
             ODMG = true,
             Shift = true,
-            Movement = true,
-            Combat = true,
-            Stats = true,
-            Lobby = true,
-            Mission = true,
             Waves = true,
             Cutscene = true,
             Dialogue = true,
             Shop = true,
             Customisation = true,
-            Settings = true,
             Interact = true,
             Inventory = true,
             Profile = true,
@@ -2197,10 +2203,38 @@ do
             Emote = true,
             Chat = true
         }
+        local INSPECTED_SAFE_CATEGORIES = {
+            Functions = true,
+            Movement = true,
+            Combat = true,
+            Stats = true,
+            Lobby = true,
+            Mission = true,
+            Settings = true
+        }
+        local SAFE_SUBACTIONS = {
+            Retry = true,
+            Finished = true,
+            Teleport = true,
+            Start = true,
+            Join = true,
+            Leave = true,
+            Select = true,
+            Equip = true,
+            Unequip = true,
+            Upgrade = true,
+            Claim = true,
+            Roll = true,
+            Spin = true,
+            Save = true,
+            Load = true
+        }
         local SUSPICIOUS_TOKENS = {
             "anticheat", "anti_cheat", "antiexploit", "cheat", "exploit",
             "shadowban", "violation", "tamper", "speedhack", "noclip",
-            "hitbox", "kicklog", "banplayer", "flagplayer", "reportexploit"
+            "hitbox", "kicklog", "banplayer", "flagplayer", "reportexploit",
+            "sanity", "detected", "macro", "autoclick", "traceback",
+            "memorycheck", " spoof"
         }
         local CORE_SCRIPT_WHITELIST = {
             actor = true,
@@ -2209,7 +2243,9 @@ do
             controlmodule = true,
             cameramodule = true,
             chat = true,
-            rbxcharactersounds = true
+            rbxcharactersounds = true,
+            health = true,
+            sound = true
         }
         local function containsToken(str, tokens)
             if type(str) ~= "string" or str == "" then
@@ -2219,6 +2255,24 @@ do
             for _, tok in ipairs(tokens) do
                 if string.find(lower, tok, 1, true) then
                     return true
+                end
+            end
+            return false
+        end
+        local function valueContainsSuspiciousToken(val, depth)
+            if (depth or 0) > 2 then
+                return false
+            end
+            local t = type(val)
+            if t == "string" then
+                if containsToken(val, SUSPICIOUS_TOKENS) or string.find(string.lower(val), "flag", 1, true) then
+                    return true
+                end
+            elseif t == "table" then
+                for k, v in pairs(val) do
+                    if valueContainsSuspiciousToken(k, (depth or 0) + 1) or valueContainsSuspiciousToken(v, (depth or 0) + 1) then
+                        return true
+                    end
                 end
             end
             return false
@@ -2233,28 +2287,49 @@ do
             end
             return containsToken(lower, {
                 "anticheat", "anti_cheat", "antiexploit", "cheatdetect",
-                "securitycheck", "tamper", "ac_client", "ac_check"
+                "securitycheck", "tamper", "ac_client", "ac_check",
+                "sanitycheck", "flagcheck", "telemetry"
             })
         end
-        local function isSuspiciousRemoteCall(remote, arg1, arg2)
+        local function isSuspiciousRemoteCall(remote, ...)
             if typeof(remote) ~= "Instance" then
                 return false
             end
             local rName = remote.Name
+            local nArgs = select("#", ...)
+            local arg1 = nArgs >= 1 and select(1, ...) or nil
+            local arg2 = nArgs >= 2 and select(2, ...) or nil
             if remote == v68_2 or remote == v69_2 or rName == "POST" or rName == "GET" then
                 if type(arg1) == "string" then
-                    if SAFE_REMOTE_CATEGORIES[arg1] then
+                    if ALWAYS_SAFE_CATEGORIES[arg1] then
                         return false
                     end
-                    local combined = arg1 .. " " .. (type(arg2) == "string" and arg2 or "")
-                    if containsToken(combined, SUSPICIOUS_TOKENS) or string.find(string.lower(combined), "flag", 1, true) then
-                        return true
+                    if INSPECTED_SAFE_CATEGORIES[arg1] then
+                        if type(arg2) == "string" and SAFE_SUBACTIONS[arg2] and nArgs <= 3 and type(select(3, ...)) ~= "table" then
+                            return false
+                        end
+                        for i = 2, nArgs do
+                            if valueContainsSuspiciousToken(select(i, ...), 0) then
+                                return true
+                            end
+                        end
+                        return false
+                    end
+                    for i = 1, nArgs do
+                        if valueContainsSuspiciousToken(select(i, ...), 0) then
+                            return true
+                        end
                     end
                 end
                 return false
             end
             if containsToken(rName, SUSPICIOUS_TOKENS) then
                 return true
+            end
+            for i = 1, math.min(nArgs, 3) do
+                if valueContainsSuspiciousToken(select(i, ...), 0) then
+                    return true
+                end
             end
             return false
         end
@@ -2274,13 +2349,12 @@ do
                         return origNamecall(self, ...)
                     end
                     local method = getnamecallmethod()
-                    if method == "Kick" and self == v7_13 then
+                    if (method == "Kick" or method == "kick") and self == v7_13 then
                         v150_10.BlockedKicks = v150_10.BlockedKicks + 1
                         return nil
                     end
-                    if method == "FireServer" or method == "InvokeServer" then
-                        local arg1, arg2 = ...
-                        if isSuspiciousRemoteCall(self, arg1, arg2) then
+                    if method == "FireServer" or method == "InvokeServer" or method == "fireServer" or method == "invokeServer" then
+                        if isSuspiciousRemoteCall(self, ...) then
                             v150_10.BlockedRemotes = v150_10.BlockedRemotes + 1
                             return nil
                         end
@@ -2298,14 +2372,63 @@ do
                         if origSize ~= nil then
                             return origSize
                         end
+                    elseif key == "CanTouch" then
+                        if v150_10.OriginalSizes[self] ~= nil then
+                            return true
+                        end
+                    elseif key == "CollisionGroup" then
+                        if v150_10.OriginalSizes[self] ~= nil then
+                            return "Default"
+                        end
                     elseif key == "CanCollide" and v19_3 then
                         local char = v7_13 and v7_13.Character
                         if char and typeof(self) == "Instance" and self:IsDescendantOf(char) then
                             return true
                         end
+                    elseif key == "PlatformStand" and (v18_4 or v48_3) then
+                        local char = v7_13 and v7_13.Character
+                        if char and typeof(self) == "Instance" and self == char:FindFirstChild("Humanoid") then
+                            return false
+                        end
+                    elseif (key == "AssemblyLinearVelocity" or key == "Velocity") and v18_4 then
+                        local char = v7_13 and v7_13.Character
+                        if char and typeof(self) == "Instance" and self == char:FindFirstChild("HumanoidRootPart") then
+                            local realVel = origIndex(self, key)
+                            if typeof(realVel) == "Vector3" and realVel.Magnitude > 80 then
+                                return realVel.Unit * 80
+                            end
+                            return realVel
+                        end
                     end
                     return origIndex(self, key)
                 end))
+
+                local origNewIndex
+                origNewIndex = hookmetamethod(game, "__newindex", wrapC(function(self, key, val)
+                    if checkcaller() then
+                        return origNewIndex(self, key, val)
+                    end
+                    if key == "Size" and v150_10.OriginalSizes[self] ~= nil and (v22_2 or v18_4) then
+                        if typeof(val) == "Vector3" then
+                            v150_10.OriginalSizes[self] = val
+                        end
+                        return
+                    end
+                    return origNewIndex(self, key, val)
+                end))
+
+                if v150_10.Caps.hookfunction and v7_13 and type(v7_13.Kick) == "function" then
+                    pcall(function()
+                        local origKick
+                        origKick = hookfunction(v7_13.Kick, wrapC(function(self, ...)
+                            if not checkcaller() and self == v7_13 then
+                                v150_10.BlockedKicks = v150_10.BlockedKicks + 1
+                                return nil
+                            end
+                            return origKick(self, ...)
+                        end))
+                    end)
+                end
             end)
             if ok then
                 v150_10.HooksInstalled = true
@@ -2313,13 +2436,94 @@ do
             return ok
         end
 
+        function v150_10.InjectActorBypass()
+            if type(v67_2) ~= "function" then
+                return false
+            end
+            local actorScript = [[
+                if _G.__SymbioteActorShield then return end
+                _G.__SymbioteActorShield = true
+                local Players = game:GetService("Players")
+                local lp = Players.LocalPlayer
+                if type(hookmetamethod) == "function" and type(getnamecallmethod) == "function" and type(checkcaller) == "function" then
+                    local wrapC = type(newcclosure) == "function" and newcclosure or function(fn) return fn end
+                    local SUSPICIOUS = {
+                        "anticheat", "anti_cheat", "antiexploit", "cheat", "exploit",
+                        "shadowban", "violation", "tamper", "speedhack", "noclip",
+                        "hitbox", "kicklog", "banplayer", "flagplayer", "reportexploit",
+                        "sanity", "detected", "macro", "traceback"
+                    }
+                    local SAFE = {
+                        Attacks = true, Hitboxes = true, Spears = true, Blades = true,
+                        S_Rewards = true, S_Equipment = true, Family = true, Skills = true,
+                        Upgrades = true, ODMG = true, Shift = true, Waves = true
+                    }
+                    local function hasToken(s)
+                        if type(s) ~= "string" then return false end
+                        local l = string.lower(s)
+                        for _, t in ipairs(SUSPICIOUS) do
+                            if string.find(l, t, 1, true) then return true end
+                        end
+                        return false
+                    end
+                    pcall(function()
+                        local oldNc
+                        oldNc = hookmetamethod(game, "__namecall", wrapC(function(self, ...)
+                            if checkcaller() then return oldNc(self, ...) end
+                            local m = getnamecallmethod()
+                            if (m == "Kick" or m == "kick") and self == lp then
+                                return nil
+                            end
+                            if m == "FireServer" or m == "InvokeServer" then
+                                local a1, a2 = ...
+                                if type(a1) == "string" and not SAFE[a1] then
+                                    if hasToken(a1) or hasToken(a2) then
+                                        return nil
+                                    end
+                                end
+                            end
+                            return oldNc(self, ...)
+                        end))
+                    end)
+                end
+            ]]
+            local injected = false
+            pcall(function()
+                local char = v7_13 and v7_13.Character
+                local charActor = char and char:FindFirstChild("Actor")
+                if charActor then
+                    v67_2(charActor, actorScript)
+                    injected = true
+                end
+                if type(v66) == "function" then
+                    local okActors, actors = pcall(v66)
+                    if okActors and type(actors) == "table" then
+                        for _, act in ipairs(actors) do
+                            if act ~= charActor then
+                                pcall(v67_2, act, actorScript)
+                                injected = true
+                            end
+                        end
+                    end
+                end
+            end)
+            if injected then
+                v150_10.ActorShielded = true
+            end
+            return injected
+        end
+
         function v150_10.IsolateLocalAntiCheat()
             local isolated = 0
+            local silenced = 0
             pcall(function()
+                local repFirst = nil
+                pcall(function() repFirst = game:GetService("ReplicatedFirst") end)
                 local containers = {
                     v7_13 and v7_13:FindFirstChild("PlayerScripts"),
                     v7_13 and v7_13:FindFirstChild("PlayerGui"),
-                    v7_13 and v7_13.Character
+                    v7_13 and v7_13.Character,
+                    repFirst
                 }
                 for _, root in ipairs(containers) do
                     if root then
@@ -2331,35 +2535,62 @@ do
                         end
                     end
                 end
-                if type(getconnections) == "function" and v7_13 and v7_13.Character then
-                    local char = v7_13.Character
-                    local hum = char:FindFirstChild("Humanoid")
-                    local hrp = char:FindFirstChild("HumanoidRootPart")
-                    local signals = {}
-                    if hum then
-                        table.insert(signals, hum:GetPropertyChangedSignal("WalkSpeed"))
-                        table.insert(signals, hum:GetPropertyChangedSignal("JumpPower"))
-                    end
-                    if hrp then
-                        table.insert(signals, hrp:GetPropertyChangedSignal("CFrame"))
-                        table.insert(signals, hrp:GetPropertyChangedSignal("Size"))
-                    end
-                    for _, sig in ipairs(signals) do
-                        for _, conn in ipairs(getconnections(sig)) do
-                            if conn.Function and type(getfenv) == "function" then
-                                local okEnv, env = pcall(getfenv, conn.Function)
-                                local src = okEnv and type(env) == "table" and rawget(env, "script")
-                                if typeof(src) == "Instance" and isAntiCheatName(src.Name) then
-                                    pcall(function() conn:Disable() end)
-                                    isolated = isolated + 1
+                if type(getconnections) == "function" then
+                    if v7_13 and v7_13.Character then
+                        local char = v7_13.Character
+                        local hum = char:FindFirstChild("Humanoid")
+                        local hrp = char:FindFirstChild("HumanoidRootPart")
+                        local signals = {}
+                        if hum then
+                            table.insert(signals, hum:GetPropertyChangedSignal("WalkSpeed"))
+                            table.insert(signals, hum:GetPropertyChangedSignal("JumpPower"))
+                            table.insert(signals, hum:GetPropertyChangedSignal("PlatformStand"))
+                            if hum.StateChanged then
+                                table.insert(signals, hum.StateChanged)
+                            end
+                        end
+                        if hrp then
+                            table.insert(signals, hrp:GetPropertyChangedSignal("CFrame"))
+                            table.insert(signals, hrp:GetPropertyChangedSignal("Size"))
+                            table.insert(signals, hrp:GetPropertyChangedSignal("Velocity"))
+                            table.insert(signals, hrp:GetPropertyChangedSignal("AssemblyLinearVelocity"))
+                        end
+                        for _, sig in ipairs(signals) do
+                            for _, conn in ipairs(getconnections(sig)) do
+                                if conn.Function and type(getfenv) == "function" then
+                                    local okEnv, env = pcall(getfenv, conn.Function)
+                                    local src = okEnv and type(env) == "table" and rawget(env, "script")
+                                    if typeof(src) == "Instance" and isAntiCheatName(src.Name) then
+                                        pcall(function() conn:Disable() end)
+                                        isolated = isolated + 1
+                                        silenced = silenced + 1
+                                    end
                                 end
                             end
                         end
                     end
+                    pcall(function()
+                        local sc = game:GetService("ScriptContext")
+                        if sc and sc.Error then
+                            for _, conn in ipairs(getconnections(sc.Error)) do
+                                if conn.Function and type(getfenv) == "function" then
+                                    local okEnv, env = pcall(getfenv, conn.Function)
+                                    local src = okEnv and type(env) == "table" and rawget(env, "script")
+                                    if typeof(src) == "Instance" and isAntiCheatName(src.Name) then
+                                        pcall(function() conn:Disable() end)
+                                        silenced = silenced + 1
+                                    end
+                                end
+                            end
+                        end
+                    end)
                 end
             end)
             if isolated > 0 then
                 v150_10.IsolatedScripts = v150_10.IsolatedScripts + isolated
+            end
+            if silenced > 0 then
+                v150_10.SilencedConnections = (v150_10.SilencedConnections or 0) + silenced
             end
             return isolated
         end
@@ -2426,11 +2657,220 @@ do
             end)
         end
 
+        local lastGcScan = -100
+        local lastResetAttempt = 0
+        local streakNotified = false
+        local streakResetting = false
+
+        local function isLobbyPlace()
+            return game.PlaceId == 14916516914 or game.PlaceId == 13379208636
+        end
+
+        local function readNumericField(tbl, keys)
+            if type(tbl) ~= "table" then
+                return nil
+            end
+            for _, k in ipairs(keys) do
+                local v = rawget(tbl, k)
+                if type(v) == "number" then
+                    return v
+                end
+            end
+            return nil
+        end
+
+        local function parseHudNumber(text)
+            if type(text) ~= "string" or text == "" or text:find("/", 1, true) then
+                return nil
+            end
+            local num = tonumber((text:gsub(",", "")):match("(%d+)"))
+            return num
+        end
+
+        function v150_10.GetKillStreak()
+            local best = 0
+            local function bump(val)
+                if type(val) == "number" and val > best then
+                    best = val
+                end
+            end
+
+            pcall(function()
+                local char = v71_3()
+                for _, src in ipairs({ v7_13, char }) do
+                    if src then
+                        for _, attr in ipairs({ "Streak", "KillStreak", "Kill_Streak", "TitansStreak" }) do
+                            bump(tonumber(src:GetAttribute(attr)))
+                        end
+                    end
+                end
+                local ls = v7_13 and v7_13:FindFirstChild("leaderstats")
+                if ls then
+                    for _, cname in ipairs({ "Streak", "KillStreak", "Kill Streak" }) do
+                        local st = ls:FindFirstChild(cname)
+                        if st and st.Value ~= nil then
+                            bump(tonumber(st.Value))
+                        end
+                    end
+                end
+            end)
+
+            pcall(function()
+                local host = _G.__CachedCustHost or _G.__CachedHost
+                if type(host) ~= "table" and type(getgc) == "function" and os.clock() - lastGcScan >= 12 then
+                    lastGcScan = os.clock()
+                    for _, obj in ipairs(getgc(true)) do
+                        if type(obj) == "table" and type(rawget(obj, "Cache")) == "table" and type(rawget(obj, "Modules")) == "table" then
+                            host = obj
+                            _G.__CachedHost = obj
+                            break
+                        end
+                    end
+                end
+                if type(host) == "table" then
+                    local data, slot = nil, nil
+                    local mods = rawget(host, "Modules")
+                    local upd = type(mods) == "table" and rawget(mods, "Update")
+                    if type(upd) == "table" and type(upd.Get_Data) == "function" then
+                        local okD, d, s = pcall(upd.Get_Data, host, true)
+                        if okD then
+                            data, slot = d, s
+                        end
+                    end
+                    if not data and type(rawget(host, "Cache")) == "table" then
+                        data = rawget(host.Cache, "Data")
+                    end
+                    if not slot and type(data) == "table" and type(data.Slots) == "table" and data.Current_Slot then
+                        slot = data.Slots[data.Current_Slot]
+                    end
+                    local streakKeys = { "Streak", "Kill_Streak", "KillStreak" }
+                    bump(readNumericField(data, streakKeys))
+                    bump(readNumericField(slot, streakKeys))
+                    if type(slot) == "table" then
+                        bump(readNumericField(rawget(slot, "Stats"), streakKeys))
+                        bump(readNumericField(rawget(slot, "Records"), streakKeys))
+                    end
+                end
+            end)
+
+            pcall(function()
+                local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+                local iface = pgui and pgui:FindFirstChild("Interface")
+                local hud = iface and iface:FindFirstChild("HUD")
+                if not hud then
+                    return
+                end
+                for _, obj in ipairs(hud:GetDescendants()) do
+                    if obj:IsA("TextLabel") and obj.Visible ~= false then
+                        local lname = string.lower(obj.Name)
+                        local pname = obj.Parent and string.lower(obj.Parent.Name) or ""
+                        local ltext = string.lower(obj.Text or "")
+                        local isIgnored = ltext:find("best", 1, true) or ltext:find("max", 1, true) or
+                        ltext:find("high", 1, true) or pname:find("best", 1, true)
+                        if not isIgnored then
+                            if lname:find("streak", 1, true) or pname:find("streak", 1, true) or ltext:find("streak", 1, true) then
+                                bump(parseHudNumber(obj.Text))
+                            elseif (lname == "amount" and pname == "kills") or lname == "kills" or ltext:match("^kills%s*:") then
+                                bump(parseHudNumber(obj.Text))
+                            end
+                        end
+                    end
+                end
+            end)
+
+            v150_10.CurrentKillStreak = best
+            return best
+        end
+
+        function v150_10.PerformStreakReset()
+            if streakResetting then
+                return
+            end
+            streakResetting = true
+            lastResetAttempt = os.clock()
+            task.spawn(function()
+                pcall(function()
+                    local char = v71_3()
+                    local hum = char and char:FindFirstChild("Humanoid")
+                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                    if not (char and hum and hum.Health > 0) then
+                        return
+                    end
+                    v150_10.StopAutoGas()
+                    v128_2()
+                    v96_6(true)
+                    local hb = char:FindFirstChild("Hitbox")
+                    if hb and hb:IsA("BasePart") then
+                        hb.CanTouch = true
+                    end
+                    hum.PlatformStand = false
+                    pcall(function()
+                        hum:ChangeState(Enum.HumanoidStateType.Dead)
+                    end)
+                    hum.Health = 0
+                    pcall(function()
+                        char:BreakJoints()
+                    end)
+                    task.wait(0.3)
+                    if v150_10.AutoResetStreak and v150_10.BreakingStreak and hum.Health > 0 and hrp then
+                        local titan = v121_4()
+                        local tPart = titan and
+                        (titan.PrimaryPart or titan:FindFirstChild("HumanoidRootPart") or titan:FindFirstChildWhichIsA("BasePart"))
+                        if tPart then
+                            hrp.CFrame = tPart.CFrame * CFrame.new(0, 2, -5)
+                        end
+                    end
+                end)
+                streakResetting = false
+            end)
+        end
+
+        function v150_10.CheckAutoResetStreak()
+            if not v150_10.AutoResetStreak then
+                v150_10.BreakingStreak = false
+                streakNotified = false
+                return false
+            end
+            local streak = v150_10.GetKillStreak()
+            if isLobbyPlace() or streak <= v150_10.StreakThreshold then
+                v150_10.BreakingStreak = false
+                streakNotified = false
+                return false
+            end
+            local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+            local iface = pgui and pgui:FindFirstChild("Interface")
+            local rewards = iface and iface:FindFirstChild("Rewards")
+            if rewards and rewards.Visible == true then
+                return false
+            end
+            v150_10.BreakingStreak = true
+            v150_10.StopAutoGas()
+            if not streakNotified then
+                streakNotified = true
+                local isVi = v8_6("Language") == "Tiếng Việt"
+                pcall(function()
+                    v12_4:Notify({
+                        Title = isVi and "Hủy Chuỗi Giết" or "Auto Reset Streak",
+                        Content = isVi
+                            and ("Chuỗi giết (" .. tostring(streak) .. ") vượt quá 1000 — đang tự hủy chuỗi để tránh bị quét!")
+                            or ("Kill streak (" .. tostring(streak) .. ") exceeded 1000 — resetting streak to avoid scan!"),
+                        Duration = 5
+                    })
+                end)
+            end
+            if os.clock() - lastResetAttempt >= 2 then
+                v150_10.PerformStreakReset()
+            end
+            return true
+        end
+
         v150_10.InstallHooks()
         v150_10.IsolateLocalAntiCheat()
+        v150_10.InjectActorBypass()
         v7_13.CharacterAdded:Connect(function()
             task.delay(0.5, function()
                 v150_10.IsolateLocalAntiCheat()
+                v150_10.InjectActorBypass()
             end)
         end)
     end
@@ -2445,6 +2885,9 @@ do
             end)
         elseif p1.Name == "Hitbox" and p1.Parent and p1.Parent.Name == "Circle" and p1.Parent.Parent and p1.Parent.Parent.Name:find("WatchTower") then
             pcall(function()
+                if not v150_10.OriginalSizes[p1] then
+                    v150_10.OriginalSizes[p1] = p1.Size
+                end
                 p1.Size = Vector3.new(1984, 1984, 1984)
                 return
             end)
@@ -2496,6 +2939,9 @@ do
                 local v11_8 = v10_7:FindFirstChild("Hitbox") or v10_7:FindFirstChild("Hitbox", true)
                 if v11_8 and v11_8:IsA("BasePart") then
                     pcall(function()
+                        if not v150_10.OriginalSizes[v11_8] then
+                            v150_10.OriginalSizes[v11_8] = v11_8.Size
+                        end
                         v11_8.Size = Vector3.new(1984, 1984, 1984)
                         return
                     end)
@@ -4067,6 +4513,86 @@ do
 end
 local v150_9 = {}
 do
+    local currentLang = v8_6("Language") == "Tiếng Việt" and "Tiếng Việt" or "English"
+    local VI_MAP = {
+        ["Loading..."] = "Đang tải...",
+        ["Player"] = "Người Chơi",
+        ["Auto Farm"] = "Tự Động Farm",
+        ["Various"] = "Tiện Ích",
+        ["Stats"] = "Thống Kê",
+        ["WAVES"] = "CHẾ ĐỘ WAVES",
+        ["VARIOUS"] = "TIỆN ÍCH",
+        ["LANGUAGE / SETTINGS"] = "NGÔN NGỮ / CÀI ĐẶT",
+        ["AUTO FAMILY ROLL"] = "TỰ QUAY GIA TỘC",
+        ["AUTO SELL PERKS"] = "TỰ BÁN PERK",
+        ["THUNDER SPEARS"] = "LÔI THƯƠNG (THUNDER SPEARS)",
+        ["Language / Ngôn Ngữ"] = "Ngôn Ngữ / Language",
+        ["NoClip"] = "Xuyên Tường (NoClip)",
+        ["Walk Speed"] = "Tăng Tốc Chạy",
+        ["Walk Speed Amount"] = "Mức Tốc Độ Chạy",
+        ["Laggy Run"] = "Chạy Giật Tầm Xa (Laggy Run)",
+        ["Laggy Run Distance"] = "Khoảng Cách Chạy Giật",
+        ["Laggy Run Delay"] = "Độ Trễ Chạy Giật",
+        ["CTRL + Click to TP"] = "CTRL + Click Để Dịch Chuyển",
+        ["Infinite Jump"] = "Nhảy Vô Hạn",
+        ["Auto Reset Kill Streak (>1000)"] = "Tự Hủy Chuỗi Giết (>1000 Kill)",
+        ["Hit All"] = "Đánh Tất Cả (Hit All)",
+        ["Distance to Titan"] = "Khoảng Cách Tới Titan",
+        ["Auto Reload"] = "Tự Nạp Kiếm",
+        ["Delay To Kill"] = "Chờ Trước Khi Giết",
+        ["Delay(s)"] = "Thời Gian Chờ (giây)",
+        ["Expand Nape Hitbox"] = "Mở Rộng Gáy Titan",
+        ["Hitbox Size"] = "Kích Thước Hitbox",
+        ["Visualize Hitbox"] = "Hiện Khung Hitbox",
+        ["TP To Base"] = "Dịch Chuyển Về Căn Cứ",
+        ["Auto Vote Ready"] = "Tự Bấm Sẵn Sàng",
+        ["Auto Upgrade Max HQ HP"] = "Tự Nâng Máu Tối Đa HQ",
+        ["Auto Upgrade HQ Health Regen"] = "Tự Nâng Hồi Máu HQ",
+        ["Auto Upgrade Refill Limit"] = "Tự Nâng Giới Hạn Tiếp Tế",
+        ["Auto Upgrade Weapon"] = "Tự Nâng Cấp Vũ Khí",
+        ["Upgrade Delay"] = "Độ Trễ Nâng Cấp",
+        ["Auto Get & Retrieve Skill Crate"] = "Tự Nhặt & Mở Rương Kỹ Năng",
+        ["Titan ESP"] = "Định Vị Titan (ESP)",
+        ["Change Cursor"] = "Đổi Con Trỏ Chuột",
+        ["Auto Refill"] = "Tự Tiếp Tế (Gas & Kiếm)",
+        ["Auto Retry"] = "Tự Chơi Lại (Auto Retry)",
+        ["Auto Skip Cutscenes"] = "Tự Bỏ Qua Cắt Cảnh",
+        ["Auto Open Raid Chests"] = "Tự Mở Rương Raid",
+        ["Auto Family Spin"] = "Tự Quay Gia Tộc",
+        ["Families To Stop"] = "Gia Tộc Muốn Dừng",
+        ["Family Tiers To Stop"] = "Bậc Gia Tộc Muốn Dừng",
+        ["Auto Sell Selected Tier Perks"] = "Tự Bán Perk Đã Chọn",
+        ["Perk Tiers To Sell"] = "Bậc Perk Muốn Bán",
+        ["Select Perks To Sell"] = "Chọn Perk Cụ Thể Để Bán",
+        ["Auto Create Towers(Outskirts)"] = "Tự Tạo Tháp (Outskirts)",
+        ["Auto Retrieve Supply Crates(Forest)"] = "Tự Lấy Thùng Tiếp Tế (Forest)",
+        ["PLAYER STATS:"] = "THỐNG KÊ NGƯỜI CHƠI:",
+        ["MISSION STATS (LIVE):"] = "NHIỆM VỤ HIỆN TẠI (LIVE):",
+        ["LAST ROUND STATS:"] = "THỐNG KÊ TRẬN VỪA RỒI:",
+        ["TOTAL SESSION STATS:"] = "TỔNG THỐNG KÊ PHIÊN CHƠI:",
+        ["Reset Session Stats"] = "Đặt Lại Thống Kê Phiên",
+        ["Refresh Stats"] = "Làm Mới Thống Kê",
+        ["In Lobby"] = "Ở Sảnh",
+        ["In Progress"] = "Đang Chơi",
+        ["Ended"] = "Đã Kết Thúc",
+        ["Completed"] = "Hoàn Thành",
+        ["None"] = "Không có"
+    }
+    local REVERSE_KEY = {}
+    for en, vi in pairs(VI_MAP) do
+        REVERSE_KEY[en] = en
+        REVERSE_KEY[vi] = en
+    end
+    local registeredRecords = {}
+
+    local function tr(key)
+        local s = tostring(key or "")
+        if currentLang == "Tiếng Việt" then
+            return VI_MAP[s] or s
+        end
+        return s
+    end
+
     local function clampNum(val, minVal, maxVal)
         local n = tonumber(val) or minVal
         if n < minVal then
@@ -4116,44 +4642,183 @@ do
         return list
     end
 
+    local function syncRayfieldDomLanguage()
+        local roots = {}
+        if type(gethui) == "function" then
+            local ok, uiRoot = pcall(gethui)
+            if ok and uiRoot then
+                table.insert(roots, uiRoot)
+            end
+        end
+        pcall(function()
+            local cg = game:GetService("CoreGui")
+            if cg then
+                table.insert(roots, cg)
+                local rg = cg:FindFirstChild("RobloxGui")
+                if rg then
+                    table.insert(roots, rg)
+                end
+            end
+        end)
+        for _, root in ipairs(roots) do
+            pcall(function()
+                for _, gui in ipairs(root:GetChildren()) do
+                    local main = gui:FindFirstChild("Main")
+                    local topbar = main and main:FindFirstChild("Topbar")
+                    local topTitle = topbar and topbar:FindFirstChild("Title")
+                    if topTitle and topTitle.Text == "Symbiote" then
+                        local tabList = main:FindFirstChild("TabList")
+                        if tabList then
+                            for _, btn in ipairs(tabList:GetChildren()) do
+                                local t = btn:FindFirstChild("Title")
+                                if t and type(t.Text) == "string" and REVERSE_KEY[t.Text] then
+                                    local nextTxt = tr(REVERSE_KEY[t.Text])
+                                    t.Text = nextTxt
+                                    btn.Name = nextTxt
+                                    pcall(function()
+                                        if t.TextBounds and t.TextBounds.X then
+                                            local img = btn:FindFirstChild("Image")
+                                            local pad = (img and img.Visible) and 52 or 30
+                                            btn.Size = UDim2.new(0, t.TextBounds.X + pad, 0, 30)
+                                        end
+                                    end)
+                                end
+                            end
+                        end
+                        local elements = main:FindFirstChild("Elements")
+                        if elements then
+                            for _, page in ipairs(elements:GetChildren()) do
+                                for _, el in ipairs(page:GetChildren()) do
+                                    local t = el:FindFirstChild("Title")
+                                    if t and type(t.Text) == "string" and REVERSE_KEY[t.Text] then
+                                        local nextTxt = tr(REVERSE_KEY[t.Text])
+                                        t.Text = nextTxt
+                                        if el.Name ~= "SectionTitle" and el.Name ~= "Placeholder" and REVERSE_KEY[el.Name] then
+                                            el.Name = nextTxt
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+
+    function v150_9.T(key)
+        return tr(key)
+    end
+
+    function v150_9.GetLanguage()
+        return currentLang
+    end
+
+    function v150_9.IsVietnamese()
+        return currentLang == "Tiếng Việt"
+    end
+
+    function v150_9.SetLanguage(lang)
+        local norm = lang == "Tiếng Việt" and "Tiếng Việt" or "English"
+        local changed = currentLang ~= norm
+        currentLang = norm
+        v9_4("Language", norm)
+        for _, rec in ipairs(registeredRecords) do
+            local nextTxt = tr(rec.key)
+            if rec.kind == "Section" or rec.kind == "Button" then
+                pcall(function()
+                    rec.obj:Set(nextTxt)
+                end)
+            elseif rec.kind == "Paragraph" then
+                pcall(function()
+                    rec.obj:Set({
+                        Title = nextTxt,
+                        Content = rec.lastContent or ""
+                    })
+                end)
+            elseif rec.kind == "Tab" and type(rec.tabData) == "table" then
+                rec.tabData.Name = nextTxt
+            elseif type(rec.obj) == "table" then
+                rec.obj.Name = nextTxt
+                rec.obj.Title = nextTxt
+            end
+        end
+        syncRayfieldDomLanguage()
+        if type(v150_9.OnLanguageChanged) == "function" then
+            pcall(v150_9.OnLanguageChanged)
+        end
+        if changed then
+            pcall(function()
+                v12_4:Notify({
+                    Title = norm == "Tiếng Việt" and "Ngôn Ngữ" or "Language",
+                    Content = norm == "Tiếng Việt" and "Đã chuyển sang Tiếng Việt." or "Switched language to English.",
+                    Duration = 3
+                })
+            end)
+        end
+    end
+
+    function v150_9.wrapWindow(win)
+        local wrappedWin = {}
+        function wrappedWin:CreateTab(name, ...)
+            local key = tostring(name or "")
+            local tab = win:CreateTab(tr(key), ...)
+            table.insert(registeredRecords, { kind = "Tab", key = key, tabData = tab })
+            return v150_9.wrapTab(tab)
+        end
+
+        return wrappedWin
+    end
+
     function v150_9.wrapTab(rayfieldTab)
         local wrapped = {}
 
         function wrapped:AddLabel(text)
-            return rayfieldTab:CreateSection(tostring(text or ""))
+            local key = tostring(text or "")
+            local sec = rayfieldTab:CreateSection(tr(key))
+            table.insert(registeredRecords, { kind = "Section", key = key, obj = sec })
+            return sec
         end
 
         function wrapped:AddParagraph(title, content)
-            local titleStr = tostring(title or "")
+            local key = tostring(title or "")
+            local rec = { kind = "Paragraph", key = key, lastContent = tostring(content or "") }
             local paragraph = rayfieldTab:CreateParagraph({
-                Title = titleStr,
-                Content = tostring(content or "")
+                Title = tr(key),
+                Content = rec.lastContent
             })
+            rec.obj = paragraph
+            table.insert(registeredRecords, rec)
             return {
                 Set = function(_, newContent)
+                    rec.lastContent = tostring(newContent or "")
                     paragraph:Set({
-                        Title = titleStr,
-                        Content = tostring(newContent or "")
+                        Title = tr(rec.key),
+                        Content = rec.lastContent
                     })
                 end
             }
         end
 
         function wrapped:AddButton(name, callback)
-            return rayfieldTab:CreateButton({
-                Name = tostring(name or ""),
+            local key = tostring(name or "")
+            local btn = rayfieldTab:CreateButton({
+                Name = tr(key),
                 Callback = function()
                     if callback then
                         callback()
                     end
                 end
             })
+            table.insert(registeredRecords, { kind = "Button", key = key, obj = btn })
+            return btn
         end
 
         function wrapped:AddToggle(name, callback)
+            local key = tostring(name or "")
             local suppressing = false
             local toggle = rayfieldTab:CreateToggle({
-                Name = tostring(name or ""),
+                Name = tr(key),
                 CurrentValue = false,
                 Callback = function(value)
                     if suppressing then
@@ -4164,6 +4829,7 @@ do
                     end
                 end
             })
+            table.insert(registeredRecords, { kind = "Toggle", key = key, obj = toggle })
             function toggle:SetState(state)
                 local nextState = state == true
                 if self.CurrentValue == nextState then
@@ -4183,10 +4849,11 @@ do
         end
 
         function wrapped:AddSlider(name, minVal, maxVal, defaultVal, callback, increment)
+            local key = tostring(name or "")
             local suppressing = false
             local initialVal = clampNum(defaultVal, minVal, maxVal)
             local slider = rayfieldTab:CreateSlider({
-                Name = tostring(name or ""),
+                Name = tr(key),
                 Range = { minVal, maxVal },
                 Increment = increment or 1,
                 CurrentValue = initialVal,
@@ -4199,6 +4866,7 @@ do
                     end
                 end
             })
+            table.insert(registeredRecords, { kind = "Slider", key = key, obj = slider })
             function slider:SetValue(val)
                 local clamped = clampNum(val, minVal, maxVal)
                 if self.CurrentValue == clamped then
@@ -4218,9 +4886,10 @@ do
         end
 
         function wrapped:AddDropdown(name, options, callback)
+            local key = tostring(name or "")
             local suppressing = false
             local dropdown = rayfieldTab:CreateDropdown({
-                Name = tostring(name or ""),
+                Name = tr(key),
                 Options = options or {},
                 CurrentOption = {},
                 MultipleOptions = true,
@@ -4233,6 +4902,7 @@ do
                     end
                 end
             })
+            table.insert(registeredRecords, { kind = "Dropdown", key = key, obj = dropdown })
             function dropdown:SetSelected(selectedTbl)
                 local optionList = toOptionList(selectedTbl)
                 suppressing = true
@@ -4248,24 +4918,59 @@ do
             return dropdown
         end
 
+        function wrapped:AddSingleDropdown(name, options, defaultOpt, callback)
+            local key = tostring(name or "")
+            local suppressing = false
+            local dropdown = rayfieldTab:CreateDropdown({
+                Name = tr(key),
+                Options = options or {},
+                CurrentOption = { defaultOpt },
+                MultipleOptions = false,
+                Callback = function(selected)
+                    if suppressing then
+                        return
+                    end
+                    local chosen = type(selected) == "table" and selected[1] or selected
+                    if callback and type(chosen) == "string" then
+                        callback(chosen)
+                    end
+                end
+            })
+            table.insert(registeredRecords, { kind = "Dropdown", key = key, obj = dropdown })
+            function dropdown:SetSelected(optStr)
+                if type(optStr) ~= "string" then
+                    return
+                end
+                suppressing = true
+                local ok, err = pcall(function()
+                    self:Set({ optStr })
+                end)
+                suppressing = false
+                if not ok then
+                    warn("[Symbiote] SetSelected error:", err)
+                end
+            end
+
+            return dropdown
+        end
+
         return wrapped
     end
 
     v150_9.toOptionSet = toOptionSet
 end
-local v150_8 = v12_4:CreateWindow({
-    Name = "HAIANHHUB",
-    LoadingTitle = "HAIANHHUB",
-    LoadingSubtitle = "Phiên bản 0.0.1",
+local v150_8 = v150_9.wrapWindow(v12_4:CreateWindow({
+    Name = "Symbiote",
+    LoadingTitle = v150_9.T("Loading..."),
     Theme = "Default",
     ConfigurationSaving = {
         Enabled = false
     }
-})
-local v151_6 = v150_9.wrapTab(v150_8:CreateTab("Player"))
-local v152_7 = v150_9.wrapTab(v150_8:CreateTab("Auto Farm"))
-local v153_9 = v150_9.wrapTab(v150_8:CreateTab("Various"))
-local v154_8 = v150_9.wrapTab(v150_8:CreateTab("Stats"))
+}))
+local v151_6 = v150_8:CreateTab("Player")
+local v152_7 = v150_8:CreateTab("Auto Farm")
+local v153_9 = v150_8:CreateTab("Various")
+local v154_8 = v150_8:CreateTab("Stats")
 local v157_2 = (function()
     local v1_2 = v10_3("Symbiote_AOTR_Stats.json")
     if not v1_2 then
@@ -4452,7 +5157,7 @@ end
 local v173_2 = {}
 do
     local function v176_4(title)
-        return v154_8:AddParagraph(title, "Đang tải...")
+        return v154_8:AddParagraph(title, v150_9.T("Loading..."))
     end
     v173_2.Player = v176_4("PLAYER STATS:")
     v173_2.LiveMission = v176_4("MISSION STATS (LIVE):")
@@ -4460,48 +5165,46 @@ do
     v173_2.Session = v176_4("TOTAL SESSION STATS:")
 end
 local function v174_5()
+    local isVi = v150_9.IsVietnamese()
     local v6 = v156_4
-    local v7 = v6
-    local v8 = v7
-    local v9_2 = v8
-    v173_2.Player:Set(string.format("Prestige: %s\nLevel: %s\nGems: %s\nGold: %s\nPumpkins: %s",
-        v165_3(v6.Player.Prestige), v165_3(v7.Player.Level), v165_3(v8.Player.Gems), v165_3(v9_2.Player.Gold),
-        v165_3(v9_2.Player.Pumpkins or 0)))
-    v173_2.LiveMission:Set(string.format("Status: %s\nTime: %s\nDifficulty: %s", v158_4.Status, v166_2(v158_4.Seconds),
-        v158_4.Difficulty))
+    v173_2.Player:Set(string.format(
+        isVi and "Prestige: %s\nCấp Độ (Level): %s\nGems: %s\nGold: %s\nPumpkins: %s"
+        or "Prestige: %s\nLevel: %s\nGems: %s\nGold: %s\nPumpkins: %s",
+        v165_3(v6.Player.Prestige),
+        v165_3(v6.Player.Level),
+        v165_3(v6.Player.Gems),
+        v165_3(v6.Player.Gold),
+        v165_3(v6.Player.Pumpkins or 0)
+    ))
+    v173_2.LiveMission:Set(string.format(
+        isVi and "Trạng Thái: %s\nThời Gian: %s\nĐộ Khó: %s\nChuỗi Giết (Streak): %s"
+        or "Status: %s\nTime: %s\nDifficulty: %s\nKill Streak: %s",
+        v150_9.T(v158_4.Status),
+        v166_2(v158_4.Seconds),
+        v158_4.Difficulty,
+        v165_3(v150_10.CurrentKillStreak or 0)
+    ))
     local v1_3 = v156_4.LastRound
     local v2_3 = v1_3.Items and #v1_3.Items or 0
-    local v4_4 = {}
-    local v5_8 = "Time Taken: " .. tostring(v1_3.TimeTaken)
-    local v6_11 = "Difficulty: " .. tostring(v1_3.Difficulty)
-    local v7_9 = "Titans Killed: " .. v165_3(v1_3.TitansKilled or 0)
-    local v8_10 = "Damage Dealt: " .. v165_3(v1_3.DamageDealt or 0)
-    local v9_8 = "Gold: " .. v165_3(v1_3.Gold)
-    local v10_6 = "Gems: " .. v165_3(v1_3.Gems)
-    local v11_5 = "Pumpkins: " .. v165_3(v1_3.Pumpkins or 0)
-    local v12_5 = "Divine Fragments: " .. v165_3(v1_3.DivineFragments or 0)
-    local v14_4 = "BP XP: "
-    local v15_3 = v165_3(v1_3.BP_XP or 0)
-    local v16_3 = v165_3(v1_3.XP)
-    local v18_2 = tostring(v2_3)
-    v4_4[1] = v5_8
-    v4_4[2] = v6_11
-    v4_4[3] = v7_9
-    v4_4[4] = v8_10
-    v4_4[5] = v9_8
-    v4_4[6] = v10_6
-    v4_4[7] = v11_5
-    v4_4[8] = v12_5
-    v4_4[9] = v14_4 .. v15_3
-    v4_4[10] = "XP: " .. v16_3
-    v4_4[11] = "Drops (" .. v18_2 .. "):"
-    local v3_6 = v4_4
+    local v3_6 = {
+        (isVi and "Thời Gian Hoàn Thành: " or "Time Taken: ") .. tostring(v1_3.TimeTaken),
+        (isVi and "Độ Khó: " or "Difficulty: ") .. tostring(v1_3.Difficulty),
+        (isVi and "Titan Đã Giết: " or "Titans Killed: ") .. v165_3(v1_3.TitansKilled or 0),
+        (isVi and "Sát Thương Gây Ra: " or "Damage Dealt: ") .. v165_3(v1_3.DamageDealt or 0),
+        "Gold: " .. v165_3(v1_3.Gold),
+        "Gems: " .. v165_3(v1_3.Gems),
+        "Pumpkins: " .. v165_3(v1_3.Pumpkins or 0),
+        "Divine Fragments: " .. v165_3(v1_3.DivineFragments or 0),
+        "BP XP: " .. v165_3(v1_3.BP_XP or 0),
+        "XP: " .. v165_3(v1_3.XP),
+        (isVi and "Vật Phẩm Rơi (" or "Drops (") .. tostring(v2_3) .. "):"
+    }
     if 0 < v2_3 then
-        for v7_10, v8_11 in ipairs(v1_3.Items) do
+        for _, v8_11 in ipairs(v1_3.Items) do
             table.insert(v3_6, "  " .. v8_11)
         end
     else
-        table.insert(v3_6, "  None")
+        table.insert(v3_6, "  " .. v150_9.T("None"))
     end
     v173_2.LastRound:Set(table.concat(v3_6, "\n"))
     local v4_10 = v156_4.Session
@@ -4509,50 +5212,34 @@ local function v174_5()
     local v6_17 = v4_10.FastestSeconds and 0 < v4_10.FastestSeconds and v166_2(v4_10.FastestSeconds) or "00:00"
     local v7_16 = v167_2(v4_10.TotalSeconds or 0, v5_13)
     local v8_14 = v4_10.RarityCounts or {}
-    local v10_9 = {}
-    local v11_9 = string.format("Common: %s | Uncommon: %s | Rare: %s", v165_3(v8_14.Common or 0),
-        v165_3(v8_14.Uncommon or 0), v165_3(v8_14.Rare or 0))
-    local v12_8 = string.format
-    local v14_10 = v165_3(v8_14.Epic or 0)
-    local v15_11 = v165_3(v8_14.Legendary or 0)
-    local v16_8 = v165_3(v8_14.Mythic or 0)
-    v10_9[1] = v11_9
-    v10_9[2] = v12_8("Epic: %s | Legendary: %s | Mythic: %s", v14_10, v15_11, v16_8)
-    local v9_12 = v10_9
+    local v9_12 = {
+        string.format("Common: %s | Uncommon: %s | Rare: %s", v165_3(v8_14.Common or 0), v165_3(v8_14.Uncommon or 0),
+            v165_3(v8_14.Rare or 0)),
+        string.format("Epic: %s | Legendary: %s | Mythic: %s", v165_3(v8_14.Epic or 0), v165_3(v8_14.Legendary or 0),
+            v165_3(v8_14.Mythic or 0))
+    }
     if 0 < (v8_14.Secret or 0) then
         table.insert(v9_12, string.format("Secret: %s", v165_3(v8_14.Secret)))
     end
-    local v11_13 = {}
-    local v12_12 = "Missions Completed: " .. v165_3(v5_13)
-    local v13_15 = "Fastest Time: " .. v6_17
-    local v14_18 = "Average Time: " .. v7_16
-    local v15_17 = "Titans Killed: " .. v165_3(v4_10.TitansKilled or 0)
-    local v16_12 = "Damage Dealt: " .. v165_3(v4_10.DamageDealt or 0)
-    local v17_9 = "Gold: " .. v165_3(v4_10.Gold or 0)
-    local v18_9 = "Gems: " .. v165_3(v4_10.Gems or 0)
-    local v19_9 = "Pumpkins: " .. v165_3(v4_10.Pumpkins or 0)
-    local v20_7 = "Divine Fragments: " .. v165_3(v4_10.DivineFragments or 0)
-    local v21_7 = "BP XP: " .. v165_3(v4_10.BP_XP or 0)
-    local v22_7 = "XP: " .. v165_3(v4_10.XP or 0)
-    local v24_6 = "Total Drops: "
-    local v25_5 = tostring(#(v4_10.Items or {}))
-    local v26_6 = table.concat(v9_12, "\n  ")
-    v11_13[1] = v12_12
-    v11_13[2] = v13_15
-    v11_13[3] = v14_18
-    v11_13[4] = v15_17
-    v11_13[5] = v16_12
-    v11_13[6] = v17_9
-    v11_13[7] = v18_9
-    v11_13[8] = v19_9
-    v11_13[9] = v20_7
-    v11_13[10] = v21_7
-    v11_13[11] = v22_7
-    v11_13[12] = v24_6 .. v25_5
-    v11_13[13] = "Rarity Breakdown:\n  " .. v26_6
+    local v11_13 = {
+        (isVi and "Số Trận Hoàn Thành: " or "Missions Completed: ") .. v165_3(v5_13),
+        (isVi and "Trận Nhanh Nhất: " or "Fastest Time: ") .. v6_17,
+        (isVi and "Thời Gian Trung Bình: " or "Average Time: ") .. v7_16,
+        (isVi and "Tổng Titan Đã Giết: " or "Titans Killed: ") .. v165_3(v4_10.TitansKilled or 0),
+        (isVi and "Tổng Sát Thương: " or "Damage Dealt: ") .. v165_3(v4_10.DamageDealt or 0),
+        "Gold: " .. v165_3(v4_10.Gold or 0),
+        "Gems: " .. v165_3(v4_10.Gems or 0),
+        "Pumpkins: " .. v165_3(v4_10.Pumpkins or 0),
+        "Divine Fragments: " .. v165_3(v4_10.DivineFragments or 0),
+        "BP XP: " .. v165_3(v4_10.BP_XP or 0),
+        "XP: " .. v165_3(v4_10.XP or 0),
+        (isVi and "Tổng Vật Phẩm Rơi: " or "Total Drops: ") .. tostring(#(v4_10.Items or {})),
+        (isVi and "Thống Kê Độ Hiếm:\n  " or "Rarity Breakdown:\n  ") .. table.concat(v9_12, "\n  ")
+    }
     v173_2.Session:Set(table.concat(v11_13, "\n"))
     return
 end
+v150_9.OnLanguageChanged = v174_5
 local function v175_4(p1)
     if type(p1) ~= "table" then
         return false
@@ -5221,6 +5908,7 @@ do
                     end
                 end
             end
+            v150_10.CheckAutoResetStreak()
             if 15 <= v2_4 then
                 v2_4 = 0
                 v176_5()
@@ -5314,6 +6002,16 @@ v56_2.AutoFarm = v152_7:AddToggle("Auto Farm", function(p1)
         v20_2 = nil
         v150_10.StopAutoGas()
         v128_2()
+    end
+    return
+end)
+v56_2.AutoResetStreak = v152_7:AddToggle("Auto Reset Kill Streak (>1000)", function(p1)
+    v150_10.AutoResetStreak = p1
+    v9_4("AutoResetStreak", p1)
+    if not p1 then
+        v150_10.BreakingStreak = false
+    else
+        task.spawn(v150_10.CheckAutoResetStreak)
     end
     return
 end)
@@ -5430,6 +6128,12 @@ v56_2.AutoGetRetrieveSkillCrate = v152_7:AddToggle("Auto Get & Retrieve Skill Cr
         v62_3()
         task.spawn(v63_9)
     end
+    return
+end)
+v153_9:AddLabel("LANGUAGE / SETTINGS")
+v56_2.LanguageDropdown = v153_9:AddSingleDropdown("Language / Ngôn Ngữ", { "English", "Tiếng Việt" },
+    v150_9.GetLanguage(), function(p1)
+    v150_9.SetLanguage(p1)
     return
 end)
 v153_9:AddLabel("VARIOUS")
@@ -6484,6 +7188,12 @@ do
                 end
                 v62_3()
                 task.spawn(v63_9)
+            end
+            if v8_6("AutoResetStreak") then
+                v150_10.AutoResetStreak = true
+                if v56_2.AutoResetStreak then
+                    v56_2.AutoResetStreak:SetState(true)
+                end
             end
             if v8_6("AutoFarm") then
                 v18_4 = true
