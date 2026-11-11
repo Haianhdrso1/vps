@@ -1,4 +1,3 @@
-
 local v5_6 = game:GetService("HttpService")
 local v6_21 = game:GetService("Players")
 local v7_13 = v6_21.LocalPlayer
@@ -182,7 +181,8 @@ do
     v64_2 = false
     local v65_2 = nil
     v66 = getactors or syn and syn.getactors
-    v67_2 = run_on_actor or runonactor or syn and (syn.run_on_actor or syn.runonactor) or getgenv and (getgenv().run_on_actor or getgenv().runonactor)
+    v67_2 = run_on_actor or runonactor or syn and (syn.run_on_actor or syn.runonactor) or
+    getgenv and (getgenv().run_on_actor or getgenv().runonactor)
     v68_2 = nil
     v69_2 = nil
     v70_2 = function()
@@ -611,7 +611,8 @@ do
             local v1_2 = v71_3()
             local v2 = v1_2 and v1_2:FindFirstChild("Actor") or v66 and v66()[1]
             if v2 and v67_2 then
-                v67_2(v2, "                pcall(function()\n                    local obj = _G.__CachedHost\n                    if not obj or type(obj) ~= \"table\" or not rawget(obj, \"Cache\") then\n                        for _, v in ipairs(getgc(true)) do\n                            if type(v) == \"table\" and type(rawget(v, \"Cache\")) == \"table\" and rawget(v, \"Services\") and rawget(v, \"Modules\") then\n                                obj = v\n                                _G.__CachedHost = v\n                                break\n                            end\n                        end\n                    end\n                    if obj then\n                        obj.Spear_State = nil\n                        obj.Using_Spear = nil\n                        obj.Detonate = nil\n                        obj.Can_Detonate = nil\n\n                        if type(obj.Cache.Variables) == \"table\" and obj.Cache.Variables.Slash then\n                            obj.Cache.Variables.Slash.Slashing = false\n                            obj.Cache.Variables.Slash.Holding = false\n                            obj.Cache.Variables.Slash.Released = false\n                        end\n\n                        if obj.Events then\n                            if obj.Events.Spear_Stepped_2 then\n                                pcall(function() obj.Events.Spear_Stepped_2:Disconnect() end)\n                                obj.Events.Spear_Stepped_2 = nil\n                            end\n                            if obj.Events.Spear_Stepped then\n                                pcall(function() obj.Events.Spear_Stepped:Disconnect() end)\n                                obj.Events.Spear_Stepped = nil\n                            end\n                        end\n\n                        if type(obj.Cache.Interface) == \"table\" and obj.Cache.Interface.Cursor and obj.Cache.Interface.Cursor.Distance2 then\n                            obj.Cache.Interface.Cursor.Distance2.Visible = false\n                        end\n\n                        if type(obj.Cache.Tracks) == \"table\" then\n                            for name, track in pairs(obj.Cache.Tracks) do\n                                if tostring(name):find(\"Spear\") or tostring(name):find(\"Hit\") or tostring(name):find(\"Slash\") then\n                                    pcall(function() track:Stop(0.1) end)\n                                end\n                            end\n                        end\n\n                        if type(obj.Cache.Animations) == \"table\" then\n                            for name, track in pairs(obj.Cache.Animations) do\n                                if tostring(name):find(\"Spear\") or tostring(name):find(\"Hit\") or tostring(name):find(\"Slash\") then\n                                    pcall(function() track:Stop(0.1) end)\n                                end\n                            end\n                        end\n                    end\n                end)\n            ")
+                v67_2(v2,
+                    "                pcall(function()\n                    local obj = _G.__CachedHost\n                    if not obj or type(obj) ~= \"table\" or not rawget(obj, \"Cache\") then\n                        for _, v in ipairs(getgc(true)) do\n                            if type(v) == \"table\" and type(rawget(v, \"Cache\")) == \"table\" and rawget(v, \"Services\") and rawget(v, \"Modules\") then\n                                obj = v\n                                _G.__CachedHost = v\n                                break\n                            end\n                        end\n                    end\n                    if obj then\n                        obj.Spear_State = nil\n                        obj.Using_Spear = nil\n                        obj.Detonate = nil\n                        obj.Can_Detonate = nil\n\n                        if type(obj.Cache.Variables) == \"table\" and obj.Cache.Variables.Slash then\n                            obj.Cache.Variables.Slash.Slashing = false\n                            obj.Cache.Variables.Slash.Holding = false\n                            obj.Cache.Variables.Slash.Released = false\n                        end\n\n                        if obj.Events then\n                            if obj.Events.Spear_Stepped_2 then\n                                pcall(function() obj.Events.Spear_Stepped_2:Disconnect() end)\n                                obj.Events.Spear_Stepped_2 = nil\n                            end\n                            if obj.Events.Spear_Stepped then\n                                pcall(function() obj.Events.Spear_Stepped:Disconnect() end)\n                                obj.Events.Spear_Stepped = nil\n                            end\n                        end\n\n                        if type(obj.Cache.Interface) == \"table\" and obj.Cache.Interface.Cursor and obj.Cache.Interface.Cursor.Distance2 then\n                            obj.Cache.Interface.Cursor.Distance2.Visible = false\n                        end\n\n                        if type(obj.Cache.Tracks) == \"table\" then\n                            for name, track in pairs(obj.Cache.Tracks) do\n                                if tostring(name):find(\"Spear\") or tostring(name):find(\"Hit\") or tostring(name):find(\"Slash\") then\n                                    pcall(function() track:Stop(0.1) end)\n                                end\n                            end\n                        end\n\n                        if type(obj.Cache.Animations) == \"table\" then\n                            for name, track in pairs(obj.Cache.Animations) do\n                                if tostring(name):find(\"Spear\") or tostring(name):find(\"Hit\") or tostring(name):find(\"Slash\") then\n                                    pcall(function() track:Stop(0.1) end)\n                                end\n                            end\n                        end\n                    end\n                end)\n            ")
             end
             return
         end)
@@ -693,7 +694,10 @@ do
         local v5_16 = v4_11:FindFirstChild("Actor") or v66 and v66()[1]
         if v5_16 and v67_2 then
             pcall(function()
-                v67_2(v5_16, string.format("                local host = _G.__CachedHost\n                if type(host) ~= \"table\"\n                    or type(rawget(host, \"Modules\")) ~= \"table\"\n                    or type(rawget(host, \"Cache\")) ~= \"table\"\n                    or not host.Modules.Zones\n                then\n                    host = nil\n                    _G.__CachedHost = nil\n                    for _, obj in ipairs(getgc(true)) do\n                        if type(obj) == \"table\"\n                            and type(rawget(obj, \"Modules\")) == \"table\"\n                            and type(rawget(obj, \"Cache\")) == \"table\"\n                            and rawget(obj, \"Services\")\n                            and obj.Modules.Zones\n                        then\n                            host = obj\n                            _G.__CachedHost = obj\n                            break\n                        end\n                    end\n                end\n\n                if host then\n                    if host.Loadout and host.Loadout.Stats then\n                        host.Loadout.Stats.Crit_Chance = 100\n                        host.Loadout.Stats.Strike = %d\n                    end\n                    local zones = host.Modules.Zones\n                    if zones and not zones.__SymbioteCritHooked and type(zones.Damage_Check) == \"function\" then\n                        zones.__SymbioteCritHooked = true\n                        local origDamageCheck = zones.Damage_Check\n                        zones.Damage_Check = function(p2, p3, p4, p5, p6, p7, p8, p9)\n                            return origDamageCheck(p2, p3, p4, true, p6, p7, p8, p9)\n                        end\n                    end\n                end\n            ", #v2_3))
+                v67_2(v5_16,
+                    string.format(
+                    "                local host = _G.__CachedHost\n                if type(host) ~= \"table\"\n                    or type(rawget(host, \"Modules\")) ~= \"table\"\n                    or type(rawget(host, \"Cache\")) ~= \"table\"\n                    or not host.Modules.Zones\n                then\n                    host = nil\n                    _G.__CachedHost = nil\n                    for _, obj in ipairs(getgc(true)) do\n                        if type(obj) == \"table\"\n                            and type(rawget(obj, \"Modules\")) == \"table\"\n                            and type(rawget(obj, \"Cache\")) == \"table\"\n                            and rawget(obj, \"Services\")\n                            and obj.Modules.Zones\n                        then\n                            host = obj\n                            _G.__CachedHost = obj\n                            break\n                        end\n                    end\n                end\n\n                if host then\n                    if host.Loadout and host.Loadout.Stats then\n                        host.Loadout.Stats.Crit_Chance = 100\n                        host.Loadout.Stats.Strike = %d\n                    end\n                    local zones = host.Modules.Zones\n                    if zones and not zones.__SymbioteCritHooked and type(zones.Damage_Check) == \"function\" then\n                        zones.__SymbioteCritHooked = true\n                        local origDamageCheck = zones.Damage_Check\n                        zones.Damage_Check = function(p2, p3, p4, p5, p6, p7, p8, p9)\n                            return origDamageCheck(p2, p3, p4, true, p6, p7, p8, p9)\n                        end\n                    end\n                end\n            ",
+                        #v2_3))
                 return
             end)
         end
@@ -706,9 +710,9 @@ do
         end
         local v7_8 = nil
         if not pcall(function()
-            v7_8 = v69_2:InvokeServer("Spears", "S_Fire", tostring(v6_17))
-            return
-        end) or v7_8 ~= true then
+                v7_8 = v69_2:InvokeServer("Spears", "S_Fire", tostring(v6_17))
+                return
+            end) or v7_8 ~= true then
             local v9_11 = v76_2()
             if v9_11 and 0 < v9_11 and v9_11 ~= v6_17 then
                 local v6_18 = v9_11
@@ -912,7 +916,8 @@ do
             v9_6:SetAttribute("SlashDone", false)
             v9_6:SetAttribute("SlashHandled", false)
             pcall(function()
-                v67_2(v9_6, "                local Players = game:GetService(\"Players\")\n                local lp = Players.LocalPlayer\n                local chars = workspace:FindFirstChild(\"Characters\")\n                local c = (chars and chars:FindFirstChild(lp.Name)) or lp.Character\n                local act = c and c:FindFirstChild(\"Actor\")\n                if not act then return end\n\n                local targetId = act:GetAttribute(\"TargetTitan\")\n                local targetNamesStr = act:GetAttribute(\"TargetTitanNames\") or \"\"\n                local nameMap = {}\n                for name in string.gmatch(targetNamesStr, \"[^,]+\") do\n                    nameMap[name] = true\n                end\n                local maxTargets = tonumber(act:GetAttribute(\"SlashMaxTargets\")) or 1\n                local tit = workspace:FindFirstChild(\"Titans\")\n                local napes = {}\n                if tit then\n                    for _, m in ipairs(tit:GetChildren()) do\n                        if (targetId and m:GetAttribute(\"__SymbioteTarget\") == targetId) or nameMap[m.Name] then\n                            local np = m:FindFirstChild(\"Hitboxes\") and m.Hitboxes:FindFirstChild(\"Hit\") and m.Hitboxes.Hit:FindFirstChild(\"Nape\")\n                            if np then\n                                table.insert(napes, np)\n                                if #napes >= maxTargets then\n                                    break\n                                end\n                            end\n                        end\n                    end\n                    if #napes == 0 then\n                        for _, m in ipairs(tit:GetChildren()) do\n                            if m:IsA(\"Model\") and not m:GetAttribute(\"State\") then\n                                local np = m:FindFirstChild(\"Hitboxes\") and m.Hitboxes:FindFirstChild(\"Hit\") and m.Hitboxes.Hit:FindFirstChild(\"Nape\")\n                                if np then\n                                    table.insert(napes, np)\n                                    if #napes >= maxTargets then break end\n                                end\n                            end\n                        end\n                    end\n                end\n\n                local h = c and c:FindFirstChild(\"HumanoidRootPart\")\n                local hm = c and c:FindFirstChild(\"Humanoid\")\n                local hb = c and c:FindFirstChild(\"Hitbox\")\n                if hb and hb:IsA(\"BasePart\") then\n                    hb.CanTouch = true\n                end\n\n                local host = _G.__CachedHost\n                if type(host) ~= \"table\"\n                    or type(rawget(host, \"Modules\")) ~= \"table\"\n                    or type(rawget(host, \"Cache\")) ~= \"table\"\n                    or host.Cache.Character ~= c\n                    or not host.Modules.Zones\n                    or not host.Modules.Input\n                    or not host.Modules.ODMG\n                    or not host.Modules.Effects\n                then\n                    host = nil\n                    _G.__CachedHost = nil\n                    local now = os.clock()\n                    local lastScan = _G.__LastHostScan or 0\n                    if (now - lastScan) >= 1 then\n                        _G.__LastHostScan = now\n                        for _, obj in ipairs(getgc(true)) do\n                            if type(obj) == \"table\"\n                                and type(rawget(obj, \"Modules\")) == \"table\"\n                                and type(rawget(obj, \"Cache\")) == \"table\"\n                                and obj.Cache.Character == c\n                                and obj.Modules.Zones\n                            then\n                                host = obj\n                                _G.__CachedHost = obj\n                                break\n                            end\n                        end\n                    end\n                end\n\n                if host and #napes > 0 and h and hm then\n                    act:SetAttribute(\"SlashHandled\", true)\n                    pcall(function()\n                        local slash = host.Cache.Variables.Slash\n                        local odmg = host.Modules.ODMG\n                        local inputMod = host.Modules.Input\n                        local effects = host.Modules.Effects\n                        local zones = host.Modules.Zones\n\n                        if inputMod.Slashing then\n                            pcall(function() task.cancel(inputMod.Slashing) end)\n                            inputMod.Slashing = nil\n                        end\n                        if type(odmg.Events) == \"table\" then\n                            for _, ev in pairs(odmg.Events) do\n                                pcall(function() task.cancel(ev) end)\n                            end\n                            table.clear(odmg.Events)\n                        end\n\n                        if effects.Slash_State == true then\n                            pcall(function() effects.Slash(host, false, true) end)\n                            effects.Slash_State = false\n                        end\n\n                        host.Invoked = false\n                        if host.Modules.Shift then\n                            host.Modules.Shift.Stunned = false\n                        end\n\n                        if host.Loadout and host.Loadout.Stats then\n                            host.Loadout.Stats.Crit_Chance = 100\n                            host.Loadout.Stats.Strike = maxTargets\n                        end\n\n                        if not zones.__SymbioteCritHooked and type(zones.Damage_Check) == \"function\" then\n                            zones.__SymbioteCritHooked = true\n                            local origDamageCheck = zones.Damage_Check\n                            zones.Damage_Check = function(p2, p3, p4, p5, p6, p7, p8, p9)\n                                return origDamageCheck(p2, p3, p4, true, p6, p7, p8, p9)\n                            end\n                        end\n\n                        slash.Slashing = false\n                        slash.Released = false\n                        slash.Holding = false\n                        slash.Cooldown = false\n                        slash.Combo = 0\n                        table.clear(zones.Hit)\n\n                        if not host.__OrigTasks and type(odmg.Tasks) == \"function\" then\n                            host.__OrigTasks = odmg.Tasks\n                        end\n                        odmg.Tasks = function() end\n                        pcall(function() odmg.M1(host, false) end)\n                        if host.__OrigTasks then\n                            odmg.Tasks = host.__OrigTasks\n                        end\n\n                        slash.Slashing = true\n                        slash.Released = false\n                        slash.Holding = false\n                        slash.Type = \"Air\"\n                        slash.Last = tick() - 0.65\n                        zones.Time_Difference = 0.65\n\n                        task.wait(0.04)\n\n                        table.clear(zones.Hit)\n                        pcall(function() inputMod.Slash(host, h, hm) end)\n                        slash.Slashing = true\n                        slash.Released = true\n                        slash.Holding = false\n                        slash.Type = \"Air\"\n\n                        if effects.Slash_State ~= true then\n                            pcall(function() effects.Slash(host, true, true) end)\n                            effects.Slash_State = true\n                        end\n                        host:Send(\"Attacks\", \"Slash\", true)\n\n                        local a = hm:FindFirstChild(\"Animator\")\n                        if a then\n                            for _, track in ipairs(a:GetPlayingAnimationTracks()) do\n                                if track.Priority == Enum.AnimationPriority.Action4 or track.Priority == Enum.AnimationPriority.Action3 or track.Name:find(\"Hit\") or track.Name:find(\"Slash\") then\n                                    track:Stop(0)\n                                end\n                            end\n                        end\n\n                        for _, np in ipairs(napes) do\n                            table.insert(zones.Hit, np)\n                            host:Send(\"Hitboxes\", \"Register\", np, 0.65)\n                        end\n\n                        task.wait(0.12)\n\n                        if inputMod.Slashing then\n                            pcall(function() task.cancel(inputMod.Slashing) end)\n                            inputMod.Slashing = nil\n                        end\n                        slash.Slashing = false\n                        slash.Released = false\n                        slash.Holding = false\n                        pcall(function() effects.Slash(host, false, true) end)\n                        if effects.Slash_State ~= false then\n                            effects.Slash_State = false\n                        end\n                        host:Send(\"Attacks\", \"Slash\", false)\n                    end)\n                end\n\n                act:SetAttribute(\"SlashDone\", true)\n            ")
+                v67_2(v9_6,
+                    "                local Players = game:GetService(\"Players\")\n                local lp = Players.LocalPlayer\n                local chars = workspace:FindFirstChild(\"Characters\")\n                local c = (chars and chars:FindFirstChild(lp.Name)) or lp.Character\n                local act = c and c:FindFirstChild(\"Actor\")\n                if not act then return end\n\n                local targetId = act:GetAttribute(\"TargetTitan\")\n                local targetNamesStr = act:GetAttribute(\"TargetTitanNames\") or \"\"\n                local nameMap = {}\n                for name in string.gmatch(targetNamesStr, \"[^,]+\") do\n                    nameMap[name] = true\n                end\n                local maxTargets = tonumber(act:GetAttribute(\"SlashMaxTargets\")) or 1\n                local tit = workspace:FindFirstChild(\"Titans\")\n                local napes = {}\n                if tit then\n                    for _, m in ipairs(tit:GetChildren()) do\n                        if (targetId and m:GetAttribute(\"__SymbioteTarget\") == targetId) or nameMap[m.Name] then\n                            local np = m:FindFirstChild(\"Hitboxes\") and m.Hitboxes:FindFirstChild(\"Hit\") and m.Hitboxes.Hit:FindFirstChild(\"Nape\")\n                            if np then\n                                table.insert(napes, np)\n                                if #napes >= maxTargets then\n                                    break\n                                end\n                            end\n                        end\n                    end\n                    if #napes == 0 then\n                        for _, m in ipairs(tit:GetChildren()) do\n                            if m:IsA(\"Model\") and not m:GetAttribute(\"State\") then\n                                local np = m:FindFirstChild(\"Hitboxes\") and m.Hitboxes:FindFirstChild(\"Hit\") and m.Hitboxes.Hit:FindFirstChild(\"Nape\")\n                                if np then\n                                    table.insert(napes, np)\n                                    if #napes >= maxTargets then break end\n                                end\n                            end\n                        end\n                    end\n                end\n\n                local h = c and c:FindFirstChild(\"HumanoidRootPart\")\n                local hm = c and c:FindFirstChild(\"Humanoid\")\n                local hb = c and c:FindFirstChild(\"Hitbox\")\n                if hb and hb:IsA(\"BasePart\") then\n                    hb.CanTouch = true\n                end\n\n                local host = _G.__CachedHost\n                if type(host) ~= \"table\"\n                    or type(rawget(host, \"Modules\")) ~= \"table\"\n                    or type(rawget(host, \"Cache\")) ~= \"table\"\n                    or host.Cache.Character ~= c\n                    or not host.Modules.Zones\n                    or not host.Modules.Input\n                    or not host.Modules.ODMG\n                    or not host.Modules.Effects\n                then\n                    host = nil\n                    _G.__CachedHost = nil\n                    local now = os.clock()\n                    local lastScan = _G.__LastHostScan or 0\n                    if (now - lastScan) >= 1 then\n                        _G.__LastHostScan = now\n                        for _, obj in ipairs(getgc(true)) do\n                            if type(obj) == \"table\"\n                                and type(rawget(obj, \"Modules\")) == \"table\"\n                                and type(rawget(obj, \"Cache\")) == \"table\"\n                                and obj.Cache.Character == c\n                                and obj.Modules.Zones\n                            then\n                                host = obj\n                                _G.__CachedHost = obj\n                                break\n                            end\n                        end\n                    end\n                end\n\n                if host and #napes > 0 and h and hm then\n                    act:SetAttribute(\"SlashHandled\", true)\n                    pcall(function()\n                        local slash = host.Cache.Variables.Slash\n                        local odmg = host.Modules.ODMG\n                        local inputMod = host.Modules.Input\n                        local effects = host.Modules.Effects\n                        local zones = host.Modules.Zones\n\n                        if inputMod.Slashing then\n                            pcall(function() task.cancel(inputMod.Slashing) end)\n                            inputMod.Slashing = nil\n                        end\n                        if type(odmg.Events) == \"table\" then\n                            for _, ev in pairs(odmg.Events) do\n                                pcall(function() task.cancel(ev) end)\n                            end\n                            table.clear(odmg.Events)\n                        end\n\n                        if effects.Slash_State == true then\n                            pcall(function() effects.Slash(host, false, true) end)\n                            effects.Slash_State = false\n                        end\n\n                        host.Invoked = false\n                        if host.Modules.Shift then\n                            host.Modules.Shift.Stunned = false\n                        end\n\n                        if host.Loadout and host.Loadout.Stats then\n                            host.Loadout.Stats.Crit_Chance = 100\n                            host.Loadout.Stats.Strike = maxTargets\n                        end\n\n                        if not zones.__SymbioteCritHooked and type(zones.Damage_Check) == \"function\" then\n                            zones.__SymbioteCritHooked = true\n                            local origDamageCheck = zones.Damage_Check\n                            zones.Damage_Check = function(p2, p3, p4, p5, p6, p7, p8, p9)\n                                return origDamageCheck(p2, p3, p4, true, p6, p7, p8, p9)\n                            end\n                        end\n\n                        slash.Slashing = false\n                        slash.Released = false\n                        slash.Holding = false\n                        slash.Cooldown = false\n                        slash.Combo = 0\n                        table.clear(zones.Hit)\n\n                        if not host.__OrigTasks and type(odmg.Tasks) == \"function\" then\n                            host.__OrigTasks = odmg.Tasks\n                        end\n                        odmg.Tasks = function() end\n                        pcall(function() odmg.M1(host, false) end)\n                        if host.__OrigTasks then\n                            odmg.Tasks = host.__OrigTasks\n                        end\n\n                        slash.Slashing = true\n                        slash.Released = false\n                        slash.Holding = false\n                        slash.Type = \"Air\"\n                        slash.Last = tick() - 0.65\n                        zones.Time_Difference = 0.65\n\n                        task.wait(0.04)\n\n                        table.clear(zones.Hit)\n                        pcall(function() inputMod.Slash(host, h, hm) end)\n                        slash.Slashing = true\n                        slash.Released = true\n                        slash.Holding = false\n                        slash.Type = \"Air\"\n\n                        if effects.Slash_State ~= true then\n                            pcall(function() effects.Slash(host, true, true) end)\n                            effects.Slash_State = true\n                        end\n                        host:Send(\"Attacks\", \"Slash\", true)\n\n                        local a = hm:FindFirstChild(\"Animator\")\n                        if a then\n                            for _, track in ipairs(a:GetPlayingAnimationTracks()) do\n                                if track.Priority == Enum.AnimationPriority.Action4 or track.Priority == Enum.AnimationPriority.Action3 or track.Name:find(\"Hit\") or track.Name:find(\"Slash\") then\n                                    track:Stop(0)\n                                end\n                            end\n                        end\n\n                        for _, np in ipairs(napes) do\n                            table.insert(zones.Hit, np)\n                            host:Send(\"Hitboxes\", \"Register\", np, 0.65)\n                        end\n\n                        task.wait(0.12)\n\n                        if inputMod.Slashing then\n                            pcall(function() task.cancel(inputMod.Slashing) end)\n                            inputMod.Slashing = nil\n                        end\n                        slash.Slashing = false\n                        slash.Released = false\n                        slash.Holding = false\n                        pcall(function() effects.Slash(host, false, true) end)\n                        if effects.Slash_State ~= false then\n                            effects.Slash_State = false\n                        end\n                        host:Send(\"Attacks\", \"Slash\", false)\n                    end)\n                end\n\n                act:SetAttribute(\"SlashDone\", true)\n            ")
                 return
             end)
             local v17_20 = os.clock()
@@ -1814,7 +1819,8 @@ do
         local v3_8 = os.clock() * 8
         local v4_6 = 55 + v60_2
         local v6_7 = v3_8 + 0.2
-        return CFrame.lookAt(v2.Position + Vector3.new(math.cos(v3_8) * 32, v4_6, math.sin(v3_8) * 32), v2.Position + Vector3.new(math.cos(v6_7) * 32, v4_6, math.sin(v6_7) * 32))
+        return CFrame.lookAt(v2.Position + Vector3.new(math.cos(v3_8) * 32, v4_6, math.sin(v3_8) * 32),
+            v2.Position + Vector3.new(math.cos(v6_7) * 32, v4_6, math.sin(v6_7) * 32))
     end
     local function v120_4(p1)
         local v3 = math
@@ -2155,15 +2161,41 @@ do
     end
     do
         local SAFE_REMOTE_CATEGORIES = {
-            Attacks = true, Hitboxes = true, Spears = true, Blades = true,
-            Functions = true, S_Rewards = true, S_Equipment = true, Family = true,
-            Skills = true, Upgrades = true, ODMG = true, Shift = true,
-            Movement = true, Combat = true, Stats = true, Lobby = true,
-            Mission = true, Waves = true, Cutscene = true, Dialogue = true,
-            Shop = true, Customisation = true, Settings = true, Interact = true,
-            Inventory = true, Profile = true, Party = true, Quest = true,
-            Quests = true, Raid = true, Rewards = true, Titans = true,
-            Carry = true, Emote = true, Chat = true
+            Attacks = true,
+            Hitboxes = true,
+            Spears = true,
+            Blades = true,
+            Functions = true,
+            S_Rewards = true,
+            S_Equipment = true,
+            Family = true,
+            Skills = true,
+            Upgrades = true,
+            ODMG = true,
+            Shift = true,
+            Movement = true,
+            Combat = true,
+            Stats = true,
+            Lobby = true,
+            Mission = true,
+            Waves = true,
+            Cutscene = true,
+            Dialogue = true,
+            Shop = true,
+            Customisation = true,
+            Settings = true,
+            Interact = true,
+            Inventory = true,
+            Profile = true,
+            Party = true,
+            Quest = true,
+            Quests = true,
+            Raid = true,
+            Rewards = true,
+            Titans = true,
+            Carry = true,
+            Emote = true,
+            Chat = true
         }
         local SUSPICIOUS_TOKENS = {
             "anticheat", "anti_cheat", "antiexploit", "cheat", "exploit",
@@ -2171,8 +2203,13 @@ do
             "hitbox", "kicklog", "banplayer", "flagplayer", "reportexploit"
         }
         local CORE_SCRIPT_WHITELIST = {
-            actor = true, animate = true, playermodule = true, controlmodule = true,
-            cameramodule = true, chat = true, rbxcharactersounds = true
+            actor = true,
+            animate = true,
+            playermodule = true,
+            controlmodule = true,
+            cameramodule = true,
+            chat = true,
+            rbxcharactersounds = true
         }
         local function containsToken(str, tokens)
             if type(str) ~= "string" or str == "" then
@@ -2571,7 +2608,8 @@ do
             end
             local v6_18 = v1:FindFirstChild("HUD")
             local v7_12 = v6_18 and v6_18:FindFirstChild("Main") and v6_18.Main:FindFirstChild("Top")
-            local v8_9 = v7_12 and (v7_12:FindFirstChild("2") and v7_12["2"]:FindFirstChild("Gold") or v7_12:FindFirstChild("Gold", true))
+            local v8_9 = v7_12 and
+            (v7_12:FindFirstChild("2") and v7_12["2"]:FindFirstChild("Gold") or v7_12:FindFirstChild("Gold", true))
             local v9_7 = v8_9 and v8_9:FindFirstChild("Title")
             if v9_7 and v9_7.Text and v9_7.Text ~= "" then
                 local v11_4 = tonumber(v9_7.Text:gsub(",", ""):gsub("%s+", ""):gsub("%$", ""))
@@ -2617,7 +2655,8 @@ do
         end
         local v5_5 = v7_13:FindFirstChild("PlayerGui") and v7_13.PlayerGui:FindFirstChild("Interface")
         local v6_5 = v5_5 and v5_5:FindFirstChild("Upgrade")
-        local v7_4 = v6_5 and v6_5:FindFirstChild("Main") and v6_5.Main:FindFirstChild("Upgrades") and v6_5.Main.Upgrades:FindFirstChild("Max") and v6_5.Main.Upgrades.Max:FindFirstChild("Max_Use")
+        local v7_4 = v6_5 and v6_5:FindFirstChild("Main") and v6_5.Main:FindFirstChild("Upgrades") and
+        v6_5.Main.Upgrades:FindFirstChild("Max") and v6_5.Main.Upgrades.Max:FindFirstChild("Max_Use")
         local v8_8 = v7_4 and v7_4:FindFirstChild("Title")
         return v8_8 and v8_8.Text:find("MAX") ~= nil or false
     end
@@ -2633,7 +2672,8 @@ do
         end
         local v5_5 = v7_13:FindFirstChild("PlayerGui") and v7_13.PlayerGui:FindFirstChild("Interface")
         local v6_5 = v5_5 and v5_5:FindFirstChild("Upgrade")
-        local v7_4 = v6_5 and v6_5:FindFirstChild("Main") and v6_5.Main:FindFirstChild("Upgrades") and v6_5.Main.Upgrades:FindFirstChild("Regen") and v6_5.Main.Upgrades.Regen:FindFirstChild("Regen_Use")
+        local v7_4 = v6_5 and v6_5:FindFirstChild("Main") and v6_5.Main:FindFirstChild("Upgrades") and
+        v6_5.Main.Upgrades:FindFirstChild("Regen") and v6_5.Main.Upgrades.Regen:FindFirstChild("Regen_Use")
         local v8_8 = v7_4 and v7_4:FindFirstChild("Title")
         return v8_8 and v8_8.Text:find("MAX") ~= nil or false
     end
@@ -2649,7 +2689,8 @@ do
         end
         local v5_5 = v7_13:FindFirstChild("PlayerGui") and v7_13.PlayerGui:FindFirstChild("Interface")
         local v6_5 = v5_5 and v5_5:FindFirstChild("Upgrade")
-        local v7_4 = v6_5 and v6_5:FindFirstChild("Main") and v6_5.Main:FindFirstChild("Upgrades") and v6_5.Main.Upgrades:FindFirstChild("Refills") and v6_5.Main.Upgrades.Refills:FindFirstChild("Refills_Use")
+        local v7_4 = v6_5 and v6_5:FindFirstChild("Main") and v6_5.Main:FindFirstChild("Upgrades") and
+        v6_5.Main.Upgrades:FindFirstChild("Refills") and v6_5.Main.Upgrades.Refills:FindFirstChild("Refills_Use")
         local v8_8 = v7_4 and v7_4:FindFirstChild("Title")
         return v8_8 and v8_8.Text:find("MAX") ~= nil or false
     end
@@ -2675,7 +2716,8 @@ do
         local v2 = v1_2 and v1_2:FindFirstChild("Actor") or v66 and v66()[1]
         if v2 and v67_2 then
             pcall(function()
-                v67_2(v2, "                local foundData = nil\n                for _, v in ipairs(getgc(true)) do\n                    if type(v) == \"table\" and rawget(v, \"Currency\") and rawget(v, \"Progression\") and rawget(v, \"Upgrades\") then\n                        if type(v.Currency) == \"table\" and type(v.Currency.Gold) == \"number\" and v.Currency.Gold > 0 then\n                            foundData = v\n                            break\n                        end\n                    end\n                end\n                local minLvl = 999\n                if foundData and foundData.Upgrades then\n                    local w = foundData.Weapon or \"Blades\"\n                    local upgs = foundData.Upgrades[w]\n                    if type(upgs) == \"table\" then\n                        for _, lvl in pairs(upgs) do\n                            if type(lvl) == \"number\" and lvl < minLvl then\n                                minLvl = lvl\n                            end\n                        end\n                    end\n                end\n                local lp = game:GetService(\"Players\").LocalPlayer\n                local chars = workspace:FindFirstChild(\"Characters\")\n                local c = (chars and chars:FindFirstChild(lp.Name)) or lp.Character\n                local myAct = c and c:FindFirstChild(\"Actor\")\n                if myAct then\n                    myAct:SetAttribute(\"WeaponMinLevel\", minLvl < 999 and minLvl or 0)\n                end\n            ")
+                v67_2(v2,
+                    "                local foundData = nil\n                for _, v in ipairs(getgc(true)) do\n                    if type(v) == \"table\" and rawget(v, \"Currency\") and rawget(v, \"Progression\") and rawget(v, \"Upgrades\") then\n                        if type(v.Currency) == \"table\" and type(v.Currency.Gold) == \"number\" and v.Currency.Gold > 0 then\n                            foundData = v\n                            break\n                        end\n                    end\n                end\n                local minLvl = 999\n                if foundData and foundData.Upgrades then\n                    local w = foundData.Weapon or \"Blades\"\n                    local upgs = foundData.Upgrades[w]\n                    if type(upgs) == \"table\" then\n                        for _, lvl in pairs(upgs) do\n                            if type(lvl) == \"number\" and lvl < minLvl then\n                                minLvl = lvl\n                            end\n                        end\n                    end\n                end\n                local lp = game:GetService(\"Players\").LocalPlayer\n                local chars = workspace:FindFirstChild(\"Characters\")\n                local c = (chars and chars:FindFirstChild(lp.Name)) or lp.Character\n                local myAct = c and c:FindFirstChild(\"Actor\")\n                if myAct then\n                    myAct:SetAttribute(\"WeaponMinLevel\", minLvl < 999 and minLvl or 0)\n                end\n            ")
                 return
             end)
             local v3_7 = v2:GetAttribute("WeaponMinLevel")
@@ -2718,7 +2760,8 @@ do
         end
         local v2_3 = v7_13:FindFirstChild("PlayerGui") and v7_13.PlayerGui:FindFirstChild("Interface")
         local v3_4 = v2_3 and v2_3:FindFirstChild("Equipment")
-        local v4_4 = v3_4 and v3_4:FindFirstChild("Stat") and v3_4.Stat:FindFirstChild("Cost") and v3_4.Stat.Cost:FindFirstChild("Title")
+        local v4_4 = v3_4 and v3_4:FindFirstChild("Stat") and v3_4.Stat:FindFirstChild("Cost") and
+        v3_4.Stat.Cost:FindFirstChild("Title")
         if v4_4 and v4_4.Text and v4_4.Text:find("MAX") then
             return true
         end
@@ -2730,7 +2773,8 @@ do
         end
         local v1_4 = v7_13:FindFirstChild("PlayerGui") and v7_13.PlayerGui:FindFirstChild("Interface")
         local v2_4 = v1_4 and v1_4:FindFirstChild("Equipment")
-        local v3_4 = v2_4 and v2_4:FindFirstChild("Stat") and v2_4.Stat:FindFirstChild("Cost") and v2_4.Stat.Cost:FindFirstChild("Title")
+        local v3_4 = v2_4 and v2_4:FindFirstChild("Stat") and v2_4.Stat:FindFirstChild("Cost") and
+        v2_4.Stat.Cost:FindFirstChild("Title")
         if v3_4 and v3_4.Text and v3_4.Text ~= "" and not v3_4.Text:find("MAX") then
             local v5_12 = tonumber(v3_4.Text:gsub(",", ""):gsub("%s+", ""):gsub("%$", ""))
             if v5_12 and 0 < v5_12 then
@@ -2970,7 +3014,8 @@ do
         end
         local v7_6 = v1_6:FindFirstChild("Props")
         local v8_3 = v7_6 and v7_6:FindFirstChild("Dropoff")
-        local v9_3 = v8_3 and (v8_3:FindFirstChild("Bottom") or v8_3.PrimaryPart or v8_3:FindFirstChildWhichIsA("BasePart"))
+        local v9_3 = v8_3 and
+        (v8_3:FindFirstChild("Bottom") or v8_3.PrimaryPart or v8_3:FindFirstChildWhichIsA("BasePart"))
         local v10_4 = v1_6:FindFirstChild("Zones")
         local v11_2 = v10_4 and v10_4:FindFirstChild("Skills")
         local v12_3 = v11_2 and v11_2:FindFirstChild("Hitbox")
@@ -2984,7 +3029,8 @@ do
         v13_9.LastSkillCrateTimestamp = tick()
         v13_9.IsRetrievingSkillCrate = true
         if v4_6:GetAttribute("Occupied") ~= true then
-            local v13_11 = v4_6:FindFirstChild("Hitbox") or v4_6:FindFirstChild("Box") or v4_6.PrimaryPart or v4_6:FindFirstChildWhichIsA("BasePart")
+            local v13_11 = v4_6:FindFirstChild("Hitbox") or v4_6:FindFirstChild("Box") or v4_6.PrimaryPart or
+            v4_6:FindFirstChildWhichIsA("BasePart")
             if v13_11 and v13_11:IsA("BasePart") then
                 v6_5.CFrame = v13_11.CFrame + Vector3.new(0, 3, 0)
                 task.wait(0.1)
@@ -3343,7 +3389,8 @@ do
                                         else
                                             local v12_10 = v11_9:FindFirstChild("LeftLowerArm")
                                             local v13_14 = v11_9:FindFirstChild("RightLowerArm")
-                                            v10_5 = v12_10 and v12_10:FindFirstChild("Spears") ~= nil or v13_14 and v13_14:FindFirstChild("Spears") ~= nil or false
+                                            v10_5 = v12_10 and v12_10:FindFirstChild("Spears") ~= nil or
+                                            v13_14 and v13_14:FindFirstChild("Spears") ~= nil or false
                                         end
                                         if v10_5 then
                                             if (v25_2 or v34_2) and not v26_2 and v75_2() then
@@ -3495,11 +3542,13 @@ do
                                             else
                                                 local v13_30 = v12_32:FindFirstChild("LeftLowerArm")
                                                 local v14_35 = v12_32:FindFirstChild("RightLowerArm")
-                                                v11_38 = v13_30 and v13_30:FindFirstChild("Spears") ~= nil or v14_35 and v14_35:FindFirstChild("Spears") ~= nil or false
+                                                v11_38 = v13_30 and v13_30:FindFirstChild("Spears") ~= nil or
+                                                v14_35 and v14_35:FindFirstChild("Spears") ~= nil or false
                                             end
                                             if v11_38 then
                                                 if v93_2(v10_19) then
-                                                    task.wait(v57_3 and #v6_10 >= v7_18 + 8 and math.max(v58_2, 0.35) or 0.35)
+                                                    task.wait(v57_3 and #v6_10 >= v7_18 + 8 and math.max(v58_2, 0.35) or
+                                                    0.35)
                                                 else
                                                     task.wait(0.1)
                                                 end
@@ -4129,6 +4178,7 @@ do
                     warn("[Symbiote] SetState error:", err)
                 end
             end
+
             return toggle
         end
 
@@ -4163,6 +4213,7 @@ do
                     warn("[Symbiote] SetValue error:", err)
                 end
             end
+
             return slider
         end
 
@@ -4193,6 +4244,7 @@ do
                     warn("[Symbiote] SetSelected error:", err)
                 end
             end
+
             return dropdown
         end
 
@@ -4202,8 +4254,9 @@ do
     v150_9.toOptionSet = toOptionSet
 end
 local v150_8 = v12_4:CreateWindow({
-    Name = "Symbiote",
-    LoadingTitle = "Đang tải...",
+    Name = "HAIANHHUB",
+    LoadingTitle = "HAIANHHUB",
+    LoadingSubtitle = "Phiên bản 0.0.1",
     Theme = "Default",
     ConfigurationSaving = {
         Enabled = false
@@ -4242,7 +4295,8 @@ local v156_4 = {
         Gold = tonumber(v157_2.LastRound and v157_2.LastRound.Gold) or 0,
         Gems = tonumber(v157_2.LastRound and v157_2.LastRound.Gems) or 0,
         Pumpkins = tonumber(v157_2.LastRound and v157_2.LastRound.Pumpkins) or 0,
-        DivineFragments = tonumber(v157_2.LastRound and (v157_2.LastRound.DivineFragments or v157_2.LastRound["Divine Fragments"])) or 0,
+        DivineFragments = tonumber(v157_2.LastRound and
+        (v157_2.LastRound.DivineFragments or v157_2.LastRound["Divine Fragments"])) or 0,
         BP_XP = tonumber(v157_2.LastRound and (v157_2.LastRound.BP_XP or v157_2.LastRound["BP XP"])) or 0,
         XP = tonumber(v157_2.LastRound and v157_2.LastRound.XP) or 0,
         Items = v157_2.LastRound and type(v157_2.LastRound.Items) == "table" and v157_2.LastRound.Items or {}
@@ -4256,11 +4310,13 @@ local v156_4 = {
         Gold = tonumber(v157_2.Session and v157_2.Session.Gold) or 0,
         Gems = tonumber(v157_2.Session and v157_2.Session.Gems) or 0,
         Pumpkins = tonumber(v157_2.Session and v157_2.Session.Pumpkins) or 0,
-        DivineFragments = tonumber(v157_2.Session and (v157_2.Session.DivineFragments or v157_2.Session["Divine Fragments"])) or 0,
+        DivineFragments = tonumber(v157_2.Session and
+        (v157_2.Session.DivineFragments or v157_2.Session["Divine Fragments"])) or 0,
         BP_XP = tonumber(v157_2.Session and (v157_2.Session.BP_XP or v157_2.Session["BP XP"])) or 0,
         XP = tonumber(v157_2.Session and v157_2.Session.XP) or 0,
         Items = v157_2.Session and type(v157_2.Session.Items) == "table" and v157_2.Session.Items or {},
-        RarityCounts = v157_2.Session and type(v157_2.Session.RarityCounts) == "table" and v157_2.Session.RarityCounts or {
+        RarityCounts = v157_2.Session and type(v157_2.Session.RarityCounts) == "table" and v157_2.Session.RarityCounts or
+        {
             Common = 0,
             Uncommon = 0,
             Rare = 0,
@@ -4408,8 +4464,11 @@ local function v174_5()
     local v7 = v6
     local v8 = v7
     local v9_2 = v8
-    v173_2.Player:Set(string.format("Prestige: %s\nLevel: %s\nGems: %s\nGold: %s\nPumpkins: %s", v165_3(v6.Player.Prestige), v165_3(v7.Player.Level), v165_3(v8.Player.Gems), v165_3(v9_2.Player.Gold), v165_3(v9_2.Player.Pumpkins or 0)))
-    v173_2.LiveMission:Set(string.format("Status: %s\nTime: %s\nDifficulty: %s", v158_4.Status, v166_2(v158_4.Seconds), v158_4.Difficulty))
+    v173_2.Player:Set(string.format("Prestige: %s\nLevel: %s\nGems: %s\nGold: %s\nPumpkins: %s",
+        v165_3(v6.Player.Prestige), v165_3(v7.Player.Level), v165_3(v8.Player.Gems), v165_3(v9_2.Player.Gold),
+        v165_3(v9_2.Player.Pumpkins or 0)))
+    v173_2.LiveMission:Set(string.format("Status: %s\nTime: %s\nDifficulty: %s", v158_4.Status, v166_2(v158_4.Seconds),
+        v158_4.Difficulty))
     local v1_3 = v156_4.LastRound
     local v2_3 = v1_3.Items and #v1_3.Items or 0
     local v4_4 = {}
@@ -4451,7 +4510,8 @@ local function v174_5()
     local v7_16 = v167_2(v4_10.TotalSeconds or 0, v5_13)
     local v8_14 = v4_10.RarityCounts or {}
     local v10_9 = {}
-    local v11_9 = string.format("Common: %s | Uncommon: %s | Rare: %s", v165_3(v8_14.Common or 0), v165_3(v8_14.Uncommon or 0), v165_3(v8_14.Rare or 0))
+    local v11_9 = string.format("Common: %s | Uncommon: %s | Rare: %s", v165_3(v8_14.Common or 0),
+        v165_3(v8_14.Uncommon or 0), v165_3(v8_14.Rare or 0))
     local v12_8 = string.format
     local v14_10 = v165_3(v8_14.Epic or 0)
     local v15_11 = v165_3(v8_14.Legendary or 0)
@@ -4667,7 +4727,8 @@ local function v177_13()
             local v22_30 = tonumber(v21_19.Gold) or 0
             local v23_21 = tonumber(v21_19.Gems) or 0
             local v24_7 = tonumber(v21_19.Pumpkins) or 0
-            local v25_8 = tonumber(v21_19.Divine_Fragment or v21_19["Divine Fragment"] or v21_19.DivineFragments or v21_19["Divine Fragments"]) or 0
+            local v25_8 = tonumber(v21_19.Divine_Fragment or v21_19["Divine Fragment"] or v21_19.DivineFragments or
+            v21_19["Divine Fragments"]) or 0
             local v26_11 = tonumber(v21_19["BP XP"] or v21_19.BP_XP or v21_19.BPXP or v21_19.BP) or 0
             local v27_10 = tonumber(v21_19.XP) or 0
             if v22_30 > 0 then
@@ -4704,7 +4765,9 @@ local function v177_13()
                     end
                     if not v36_19 then
                         local v35_34 = v171_2(v33_5) or "Common"
-                        table.insert(v15_3, string.gsub(v33_5, "_", " ") .. (1 < v34_14 and " x" .. tostring(v34_14) or "") .. " (" .. v35_34 .. ")")
+                        table.insert(v15_3,
+                            string.gsub(v33_5, "_", " ") ..
+                            (1 < v34_14 and " x" .. tostring(v34_14) or "") .. " (" .. v35_34 .. ")")
                         table.insert(v16_3, v35_34)
                     end
                 end
@@ -4728,7 +4791,9 @@ local function v177_13()
                     end
                     if not v36_26 and v33_6 ~= "Pumpkins" and v33_6 ~= "Pumpkin" then
                         local v35_44 = v172_2(v33_6) or "Common"
-                        table.insert(v15_3, string.gsub(v33_6, "_", " ") .. (v34_20 > 1 and " x" .. tostring(v34_20) or "") .. " (" .. v35_44 .. ")")
+                        table.insert(v15_3,
+                            string.gsub(v33_6, "_", " ") ..
+                            (v34_20 > 1 and " x" .. tostring(v34_20) or "") .. " (" .. v35_44 .. ")")
                         table.insert(v16_3, v35_44)
                     end
                 end
@@ -4749,7 +4814,9 @@ local function v177_13()
                     end
                     if not v36_24 then
                         local v35_38 = v172_2(v33_7) or "Rare"
-                        table.insert(v15_3, string.gsub(v33_7, "_", " ") .. (v34_24 > 1 and " x" .. tostring(v34_24) or "") .. " (" .. v35_38 .. ")")
+                        table.insert(v15_3,
+                            string.gsub(v33_7, "_", " ") ..
+                            (v34_24 > 1 and " x" .. tostring(v34_24) or "") .. " (" .. v35_38 .. ")")
                         table.insert(v16_3, v35_38)
                     end
                 end
@@ -4770,7 +4837,9 @@ local function v177_13()
                     end
                     if not v36_25 then
                         local v35_42 = v172_2(v33_9) or "Common"
-                        table.insert(v15_3, string.gsub(v33_9, "_", " ") .. (1 < v34_26 and " x" .. tostring(v34_26) or "") .. " (" .. v35_42 .. ")")
+                        table.insert(v15_3,
+                            string.gsub(v33_9, "_", " ") ..
+                            (1 < v34_26 and " x" .. tostring(v34_26) or "") .. " (" .. v35_42 .. ")")
                         table.insert(v16_3, v35_42)
                     end
                 end
@@ -4990,7 +5059,8 @@ do
                 local v5_8 = v4_6.Create
                 v4_6.Create = function(p1, p2, p3, p4, p5, p6, p7)
                     pcall(function()
-                        local v2_2 = tonumber(tostring(p7 or ""):gsub(",", ""):gsub("%+", ""):gsub("x", ""):gsub("%s", "")) or 1
+                        local v2_2 = tonumber(tostring(p7 or ""):gsub(",", ""):gsub("%+", ""):gsub("x", ""):gsub("%s", "")) or
+                        1
                         local v3_7 = tostring(p4 or "")
                         if p3 == 1 or p4 == "Gold" or v3_7 == "Gold" then
                             local v4_7 = v159_6
@@ -5012,7 +5082,9 @@ do
                             v4_19.XP = v4_19.XP + v2_2
                         elseif not v161_61(v3_7) then
                             local v4_21 = p5 and p5 ~= "" and p5 or v171_2(v3_7) or v172_2(v3_7) or "Common"
-                            table.insert(v159_6.Items, string.gsub(v3_7, "_", " ") .. (v2_2 > 1 and " x" .. tostring(v2_2) or "") .. " (" .. v4_21 .. ")")
+                            table.insert(v159_6.Items,
+                                string.gsub(v3_7, "_", " ") ..
+                                (v2_2 > 1 and " x" .. tostring(v2_2) or "") .. " (" .. v4_21 .. ")")
                             table.insert(v159_6.Rarities, v4_21)
                         end
                         return
@@ -5689,7 +5761,8 @@ do
                                     PityVal = v14,
                                     SpinLuck = v12
                                 }))
-                                v67_2(v2_2, "                                pcall(function()\n                                    local p = game:GetService(\"Players\")\n                                    local lp = p.LocalPlayer\n                                    local chars = workspace:FindFirstChild(\"Characters\")\n                                    local c = (chars and chars:FindFirstChild(lp.Name)) or lp.Character\n                                    local act = c and c:FindFirstChild(\"Actor\")\n                                    local raw = act and act:GetAttribute(\"Symbiote_RollSync\")\n                                    if not raw then return end\n                                    local http = game:GetService(\"HttpService\")\n                                    local sync = http:JSONDecode(raw)\n                                    local host = _G.__CachedCustHost\n                                    if type(host) ~= \"table\"\n                                        or type(rawget(host, \"Modules\")) ~= \"table\"\n                                        or not host.Modules.Customisation\n                                    then\n                                        host = nil\n                                        _G.__CachedCustHost = nil\n                                        for _, v in ipairs(getgc(true)) do\n                                            if type(v) == \"table\"\n                                                and type(rawget(v, \"Cache\")) == \"table\"\n                                                and type(rawget(v, \"Modules\")) == \"table\"\n                                                and v.Modules.Customisation\n                                            then\n                                                host = v\n                                                _G.__CachedCustHost = v\n                                                break\n                                            end\n                                        end\n                                    end\n                                    if host then\n                                        local custMod = host.Modules.Customisation\n                                        local updMod = host.Modules.Update\n                                        local data, slot = nil, nil\n                                        if updMod and type(updMod.Get_Data) == \"function\" then\n                                            data, slot = updMod.Get_Data(host, true)\n                                        elseif type(host.Cache) == \"table\" and type(host.Cache.Data) == \"table\" then\n                                            data = host.Cache.Data\n                                            slot = data.Slots and data.Current_Slot and data.Slots[data.Current_Slot]\n                                        end\n                                        if type(data) == \"table\" then\n                                            if type(sync.Spins) == \"table\" then\n                                                data.Spins = sync.Spins\n                                            end\n                                            if sync.SpinLuck ~= nil then\n                                                data.Spin_Luck = sync.SpinLuck\n                                            end\n                                        end\n                                        if type(slot) == \"table\" and type(slot.Avatar) == \"table\" then\n                                            slot.Avatar.Family = sync.Family\n                                            if type(sync.Pity) == \"table\" then\n                                                slot.Avatar.Pity = sync.Pity\n                                            end\n                                        end\n                                        local pgui = game:GetService(\"Players\").LocalPlayer:FindFirstChild(\"PlayerGui\")\n                                        local cust = pgui and pgui:FindFirstChild(\"Interface\") and pgui.Interface:FindFirstChild(\"Customisation\")\n                                        local fUI = cust and cust:FindFirstChild(\"Family\")\n                                        if custMod then\n                                            custMod.Spinning = false\n                                            if fUI then\n                                                if custMod.Rates and host.Services and host.Services.W and data then\n                                                    pcall(function()\n                                                        custMod.Rates(host, fUI, host.Services.W, data)\n                                                    end)\n                                                end\n                                                if custMod.Family_Details then\n                                                    pcall(function()\n                                                        custMod.Family_Details(host, fUI, true, false)\n                                                    end)\n                                                end\n                                            end\n                                        end\n                                    end\n                                end)\n                            ")
+                                v67_2(v2_2,
+                                    "                                pcall(function()\n                                    local p = game:GetService(\"Players\")\n                                    local lp = p.LocalPlayer\n                                    local chars = workspace:FindFirstChild(\"Characters\")\n                                    local c = (chars and chars:FindFirstChild(lp.Name)) or lp.Character\n                                    local act = c and c:FindFirstChild(\"Actor\")\n                                    local raw = act and act:GetAttribute(\"Symbiote_RollSync\")\n                                    if not raw then return end\n                                    local http = game:GetService(\"HttpService\")\n                                    local sync = http:JSONDecode(raw)\n                                    local host = _G.__CachedCustHost\n                                    if type(host) ~= \"table\"\n                                        or type(rawget(host, \"Modules\")) ~= \"table\"\n                                        or not host.Modules.Customisation\n                                    then\n                                        host = nil\n                                        _G.__CachedCustHost = nil\n                                        for _, v in ipairs(getgc(true)) do\n                                            if type(v) == \"table\"\n                                                and type(rawget(v, \"Cache\")) == \"table\"\n                                                and type(rawget(v, \"Modules\")) == \"table\"\n                                                and v.Modules.Customisation\n                                            then\n                                                host = v\n                                                _G.__CachedCustHost = v\n                                                break\n                                            end\n                                        end\n                                    end\n                                    if host then\n                                        local custMod = host.Modules.Customisation\n                                        local updMod = host.Modules.Update\n                                        local data, slot = nil, nil\n                                        if updMod and type(updMod.Get_Data) == \"function\" then\n                                            data, slot = updMod.Get_Data(host, true)\n                                        elseif type(host.Cache) == \"table\" and type(host.Cache.Data) == \"table\" then\n                                            data = host.Cache.Data\n                                            slot = data.Slots and data.Current_Slot and data.Slots[data.Current_Slot]\n                                        end\n                                        if type(data) == \"table\" then\n                                            if type(sync.Spins) == \"table\" then\n                                                data.Spins = sync.Spins\n                                            end\n                                            if sync.SpinLuck ~= nil then\n                                                data.Spin_Luck = sync.SpinLuck\n                                            end\n                                        end\n                                        if type(slot) == \"table\" and type(slot.Avatar) == \"table\" then\n                                            slot.Avatar.Family = sync.Family\n                                            if type(sync.Pity) == \"table\" then\n                                                slot.Avatar.Pity = sync.Pity\n                                            end\n                                        end\n                                        local pgui = game:GetService(\"Players\").LocalPlayer:FindFirstChild(\"PlayerGui\")\n                                        local cust = pgui and pgui:FindFirstChild(\"Interface\") and pgui.Interface:FindFirstChild(\"Customisation\")\n                                        local fUI = cust and cust:FindFirstChild(\"Family\")\n                                        if custMod then\n                                            custMod.Spinning = false\n                                            if fUI then\n                                                if custMod.Rates and host.Services and host.Services.W and data then\n                                                    pcall(function()\n                                                        custMod.Rates(host, fUI, host.Services.W, data)\n                                                    end)\n                                                end\n                                                if custMod.Family_Details then\n                                                    pcall(function()\n                                                        custMod.Family_Details(host, fUI, true, false)\n                                                    end)\n                                                end\n                                            end\n                                        end\n                                    end\n                                end)\n                            ")
                             end
                             return
                         end)
@@ -5972,7 +6045,8 @@ local function v187_20()
             local v2 = v1_3 and v1_3:FindFirstChild("Actor") or v66 and v66()[1]
             if v2 then
                 v2:SetAttribute("Symbiote_PerkFilter", v5_6:JSONEncode({ Tiers = v46_2, Specific = v47_3 }))
-                v67_2(v2, "                    local p = game:GetService(\"Players\")\n                    local lp = p.LocalPlayer\n                    local chars = workspace:FindFirstChild(\"Characters\")\n                    local c = (chars and chars:FindFirstChild(lp.Name)) or lp.Character\n                    local act = c and c:FindFirstChild(\"Actor\")\n                    local rs = game:GetService(\"ReplicatedStorage\")\n                    local remoteGET = rs:WaitForChild(\"Assets\"):WaitForChild(\"Remotes\"):WaitForChild(\"GET\")\n                    local perksMod = require(rs.Modules.Storage.Perks)\n                    local rarityMap = {}\n                    for r, list in pairs(perksMod) do\n                        if type(list) == \"table\" then\n                            for name in pairs(list) do\n                                rarityMap[name] = r\n                            end\n                        end\n                    end\n\n                    local hostObj = _G.__CachedDataHost\n                    if not hostObj or type(hostObj) ~= \"table\" or type(rawget(hostObj, \"Cache\")) ~= \"table\" or type(rawget(hostObj.Cache, \"Data\")) ~= \"table\" then\n                        hostObj = nil\n                        for _, v in ipairs(getgc(true)) do\n                            if type(v) == \"table\" and type(rawget(v, \"Cache\")) == \"table\" then\n                                local cache = rawget(v, \"Cache\")\n                                if type(rawget(cache, \"Data\")) == \"table\" then\n                                    hostObj = v\n                                    _G.__CachedDataHost = v\n                                    break\n                                end\n                            end\n                        end\n                    end\n\n                    if hostObj and type(hostObj.Cache) == \"table\" and type(hostObj.Cache.Data) == \"table\" then\n                        local data = hostObj.Cache.Data\n                        local currentSlot = data.Current_Slot or 1\n                        local slotData = data.Slots and data.Slots[currentSlot]\n                        if slotData and slotData.Perks and slotData.Perks.Storage then\n                            local equippedIds = {}\n                            for _, eqId in pairs(slotData.Perks.Equipped or {}) do\n                                if eqId and eqId ~= \"\" then\n                                    equippedIds[eqId] = true\n                                end\n                            end\n\n                            local rawFilter = act and act:GetAttribute(\"Symbiote_PerkFilter\")\n                            local http = game:GetService(\"HttpService\")\n                            local filter = rawFilter and http:JSONDecode(rawFilter) or { Tiers = {}, Specific = {} }\n\n                            local batch = {}\n                            local deletedList = {}\n                            for id, info in pairs(slotData.Perks.Storage) do\n                                local name = info.Name\n                                local rarity = rarityMap[name] or \"Common\"\n                                local match = (filter.Tiers[rarity] == true) or (filter.Specific[name] == true)\n                                if match and not equippedIds[id] then\n                                    table.insert(batch, tostring(id))\n                                    table.insert(deletedList, tostring(id))\n                                    if #batch >= 25 then\n                                        local res = remoteGET:InvokeServer(\"S_Equipment\", \"Delete\", \"Perk\", batch)\n                                        if type(res) == \"table\" then\n                                            hostObj.Cache.Data = res\n                                            data = res\n                                            slotData = data.Slots and data.Slots[currentSlot]\n                                        end\n                                        batch = {}\n                                    end\n                                end\n                            end\n                            if #batch > 0 then\n                                local res = remoteGET:InvokeServer(\"S_Equipment\", \"Delete\", \"Perk\", batch)\n                                if type(res) == \"table\" then\n                                    hostObj.Cache.Data = res\n                                end\n                            end\n                            if act then\n                                act:SetAttribute(\"Symbiote_PerkDeleted\", http:JSONEncode(deletedList))\n                            end\n                        end\n                    end\n                ")
+                v67_2(v2,
+                    "                    local p = game:GetService(\"Players\")\n                    local lp = p.LocalPlayer\n                    local chars = workspace:FindFirstChild(\"Characters\")\n                    local c = (chars and chars:FindFirstChild(lp.Name)) or lp.Character\n                    local act = c and c:FindFirstChild(\"Actor\")\n                    local rs = game:GetService(\"ReplicatedStorage\")\n                    local remoteGET = rs:WaitForChild(\"Assets\"):WaitForChild(\"Remotes\"):WaitForChild(\"GET\")\n                    local perksMod = require(rs.Modules.Storage.Perks)\n                    local rarityMap = {}\n                    for r, list in pairs(perksMod) do\n                        if type(list) == \"table\" then\n                            for name in pairs(list) do\n                                rarityMap[name] = r\n                            end\n                        end\n                    end\n\n                    local hostObj = _G.__CachedDataHost\n                    if not hostObj or type(hostObj) ~= \"table\" or type(rawget(hostObj, \"Cache\")) ~= \"table\" or type(rawget(hostObj.Cache, \"Data\")) ~= \"table\" then\n                        hostObj = nil\n                        for _, v in ipairs(getgc(true)) do\n                            if type(v) == \"table\" and type(rawget(v, \"Cache\")) == \"table\" then\n                                local cache = rawget(v, \"Cache\")\n                                if type(rawget(cache, \"Data\")) == \"table\" then\n                                    hostObj = v\n                                    _G.__CachedDataHost = v\n                                    break\n                                end\n                            end\n                        end\n                    end\n\n                    if hostObj and type(hostObj.Cache) == \"table\" and type(hostObj.Cache.Data) == \"table\" then\n                        local data = hostObj.Cache.Data\n                        local currentSlot = data.Current_Slot or 1\n                        local slotData = data.Slots and data.Slots[currentSlot]\n                        if slotData and slotData.Perks and slotData.Perks.Storage then\n                            local equippedIds = {}\n                            for _, eqId in pairs(slotData.Perks.Equipped or {}) do\n                                if eqId and eqId ~= \"\" then\n                                    equippedIds[eqId] = true\n                                end\n                            end\n\n                            local rawFilter = act and act:GetAttribute(\"Symbiote_PerkFilter\")\n                            local http = game:GetService(\"HttpService\")\n                            local filter = rawFilter and http:JSONDecode(rawFilter) or { Tiers = {}, Specific = {} }\n\n                            local batch = {}\n                            local deletedList = {}\n                            for id, info in pairs(slotData.Perks.Storage) do\n                                local name = info.Name\n                                local rarity = rarityMap[name] or \"Common\"\n                                local match = (filter.Tiers[rarity] == true) or (filter.Specific[name] == true)\n                                if match and not equippedIds[id] then\n                                    table.insert(batch, tostring(id))\n                                    table.insert(deletedList, tostring(id))\n                                    if #batch >= 25 then\n                                        local res = remoteGET:InvokeServer(\"S_Equipment\", \"Delete\", \"Perk\", batch)\n                                        if type(res) == \"table\" then\n                                            hostObj.Cache.Data = res\n                                            data = res\n                                            slotData = data.Slots and data.Slots[currentSlot]\n                                        end\n                                        batch = {}\n                                    end\n                                end\n                            end\n                            if #batch > 0 then\n                                local res = remoteGET:InvokeServer(\"S_Equipment\", \"Delete\", \"Perk\", batch)\n                                if type(res) == \"table\" then\n                                    hostObj.Cache.Data = res\n                                end\n                            end\n                            if act then\n                                act:SetAttribute(\"Symbiote_PerkDeleted\", http:JSONEncode(deletedList))\n                            end\n                        end\n                    end\n                ")
                 v1_2 = true
                 local v3_2 = v2:GetAttribute("Symbiote_PerkDeleted")
                 if v3_2 then
