@@ -1195,7 +1195,7 @@ do
             v9_6:SetAttribute("SlashHandled", false)
             pcall(function()
                 v67_2(v9_6,
-                    "                local Players = game:GetService(\"Players\")\n                local lp = Players.LocalPlayer\n                local chars = workspace:FindFirstChild(\"Characters\")\n                local c = (chars and chars:FindFirstChild(lp.Name)) or lp.Character\n                local act = c and c:FindFirstChild(\"Actor\")\n                if not act then return end\n\n                local targetId = act:GetAttribute(\"TargetTitan\")\n                local targetNamesStr = act:GetAttribute(\"TargetTitanNames\") or \"\"\n                local nameMap = {}\n                for name in string.gmatch(targetNamesStr, \"[^,]+\") do\n                    nameMap[name] = true\n                end\n                local maxTargets = tonumber(act:GetAttribute(\"SlashMaxTargets\")) or 1\n                local tit = workspace:FindFirstChild(\"Titans\")\n                local napes = {}\n                if tit then\n                    for _, m in ipairs(tit:GetChildren()) do\n                        if (targetId and m:GetAttribute(\"__SymbioteTarget\") == targetId) or nameMap[m.Name] then\n                            local np = m:FindFirstChild(\"Hitboxes\") and m.Hitboxes:FindFirstChild(\"Hit\") and m.Hitboxes.Hit:FindFirstChild(\"Nape\")\n                            if np then\n                                table.insert(napes, np)\n                                if #napes >= maxTargets then\n                                    break\n                                end\n                            end\n                        end\n                    end\n                    if #napes == 0 then\n                        for _, m in ipairs(tit:GetChildren()) do\n                            if m:IsA(\"Model\") and not m:GetAttribute(\"State\") then\n                                local np = m:FindFirstChild(\"Hitboxes\") and m.Hitboxes:FindFirstChild(\"Hit\") and m.Hitboxes.Hit:FindFirstChild(\"Nape\")\n                                if np then\n                                    table.insert(napes, np)\n                                    if #napes >= maxTargets then break end\n                                end\n                            end\n                        end\n                    end\n                end\n\n                if #napes > 0 and #napes < maxTargets and (act:GetAttribute(\"BossBurst\") == true or targetId) then\n                    local singleNape = napes[1]\n                    while #napes < maxTargets do\n                        table.insert(napes, singleNape)\n                    end\n                end\n\n                local h = c and c:FindFirstChild(\"HumanoidRootPart\")\n                local hm = c and c:FindFirstChild(\"Humanoid\")\n                local hb = c and c:FindFirstChild(\"Hitbox\")\n                if hb and hb:IsA(\"BasePart\") then\n                    hb.CanCollide = false\n                    hb.CanTouch = true\n                end\n\n                local host = _G.__CachedHost\n                if type(host) ~= \"table\"\n                    or type(rawget(host, \"Modules\")) ~= \"table\"\n                    or type(rawget(host, \"Cache\")) ~= \"table\"\n                    or host.Cache.Character ~= c\n                    or not host.Modules.Zones\n                    or not host.Modules.Input\n                    or not host.Modules.ODMG\n                    or not host.Modules.Effects\n                then\n                    host = nil\n                    _G.__CachedHost = nil\n                    local now = os.clock()\n                    local lastScan = _G.__LastHostScan or 0\n                    if (now - lastScan) >= 1 then\n                        _G.__LastHostScan = now\n                        for _, obj in ipairs(getgc(true)) do\n                            if type(obj) == \"table\"\n                                and type(rawget(obj, \"Modules\")) == \"table\"\n                                and type(rawget(obj, \"Cache\")) == \"table\"\n                                and obj.Cache.Character == c\n                                and obj.Modules.Zones\n                            then\n                                host = obj\n                                _G.__CachedHost = obj\n                                break\n                            end\n                        end\n                    end\n                end\n\n                if host and #napes > 0 and h and hm then\n                    act:SetAttribute(\"SlashHandled\", true)\n                    pcall(function()\n                        local slash = host.Cache.Variables.Slash\n                        local odmg = host.Modules.ODMG\n                        local inputMod = host.Modules.Input\n                        local effects = host.Modules.Effects\n                        local zones = host.Modules.Zones\n\n                        if inputMod.Slashing then\n                            pcall(function() task.cancel(inputMod.Slashing) end)\n                            inputMod.Slashing = nil\n                        end\n                        if type(odmg.Events) == \"table\" then\n                            for _, ev in pairs(odmg.Events) do\n                                pcall(function() task.cancel(ev) end)\n                            end\n                            table.clear(odmg.Events)\n                        end\n\n                        if effects.Slash_State == true then\n                            pcall(function() effects.Slash(host, false, true) end)\n                            effects.Slash_State = false\n                        end\n\n                        host.Invoked = false\n                        if host.Modules.Shift then\n                            host.Modules.Shift.Stunned = false\n                        end\n\n                        if host.Loadout and host.Loadout.Stats then\n                            host.Loadout.Stats.Crit_Chance = 100\n                            host.Loadout.Stats.Strike = maxTargets\n                        end\n\n                        if not zones.__SymbioteCritHooked and type(zones.Damage_Check) == \"function\" then\n                            zones.__SymbioteCritHooked = true\n                            local origDamageCheck = zones.Damage_Check\n                            zones.Damage_Check = function(p2, p3, p4, p5, p6, p7, p8, p9)\n                                return origDamageCheck(p2, p3, p4, true, p6, p7, p8, p9)\n                            end\n                        end\n\n                        slash.Slashing = false\n                        slash.Released = false\n                        slash.Holding = false\n                        slash.Cooldown = false\n                        slash.Combo = 0\n                        table.clear(zones.Hit)\n\n                        if not host.__OrigTasks and type(odmg.Tasks) == \"function\" then\n                            host.__OrigTasks = odmg.Tasks\n                        end\n                        odmg.Tasks = function() end\n                        pcall(function() odmg.M1(host, false) end)\n                        if host.__OrigTasks then\n                            odmg.Tasks = host.__OrigTasks\n                        end\n\n                        slash.Slashing = true\n                        slash.Released = false\n                        slash.Holding = false\n                        slash.Type = \"Air\"\n                        slash.Last = tick() - 0.65\n                        zones.Time_Difference = 0.65\n\n                        task.wait(0.04)\n\n                        table.clear(zones.Hit)\n                        local preSlashCF = h and h.CFrame\n                        pcall(function() inputMod.Slash(host, h, hm) end)\n                        if preSlashCF and h then h.CFrame = preSlashCF end\n                        if hm then hm.PlatformStand = true end\n                        slash.Slashing = true\n                        slash.Released = true\n                        slash.Holding = false\n                        slash.Type = \"Air\"\n\n                        if effects.Slash_State ~= true then\n                            pcall(function() effects.Slash(host, true, true) end)\n                            effects.Slash_State = true\n                        end\n                        host:Send(\"Attacks\", \"Slash\", true)\n\n                        local a = hm:FindFirstChild(\"Animator\")\n                        if a then\n                            for _, track in ipairs(a:GetPlayingAnimationTracks()) do\n                                if track.Priority == Enum.AnimationPriority.Action4 or track.Priority == Enum.AnimationPriority.Action3 or track.Name:find(\"Hit\") or track.Name:find(\"Slash\") then\n                                    track:Stop(0)\n                                end\n                            end\n                        end\n\n                        for _, np in ipairs(napes) do\n                            table.insert(zones.Hit, np)\n                            host:Send(\"Hitboxes\", \"Register\", np, 0.65)\n                        end\n\n                        task.wait(0.12)\n\n                        if inputMod.Slashing then\n                            pcall(function() task.cancel(inputMod.Slashing) end)\n                            inputMod.Slashing = nil\n                        end\n                        slash.Slashing = false\n                        slash.Released = false\n                        slash.Holding = false\n                        pcall(function() effects.Slash(host, false, true) end)\n                        if effects.Slash_State ~= false then\n                            effects.Slash_State = false\n                        end\n                        host:Send(\"Attacks\", \"Slash\", false)\n                    end)\n                end\n\n                act:SetAttribute(\"SlashDone\", true)\n            ")
+                    "                local Players = game:GetService(\"Players\")\n                local lp = Players.LocalPlayer\n                local chars = workspace:FindFirstChild(\"Characters\")\n                local c = (chars and chars:FindFirstChild(lp.Name)) or lp.Character\n                local act = c and c:FindFirstChild(\"Actor\")\n                if not act then return end\n\n                local targetId = act:GetAttribute(\"TargetTitan\")\n                local targetNamesStr = act:GetAttribute(\"TargetTitanNames\") or \"\"\n                local nameMap = {}\n                for name in string.gmatch(targetNamesStr, \"[^,]+\") do\n                    nameMap[name] = true\n                end\n                local maxTargets = tonumber(act:GetAttribute(\"SlashMaxTargets\")) or 1\n                local tit = workspace:FindFirstChild(\"Titans\")\n                local napes = {}\n                if tit then\n                    for _, m in ipairs(tit:GetChildren()) do\n                        if (targetId and m:GetAttribute(\"__SymbioteTarget\") == targetId) or nameMap[m.Name] then\n                            local np = m:FindFirstChild(\"Hitboxes\") and m.Hitboxes:FindFirstChild(\"Hit\") and m.Hitboxes.Hit:FindFirstChild(\"Nape\")\n                            if np then\n                                table.insert(napes, np)\n                                if #napes >= maxTargets then\n                                    break\n                                end\n                            end\n                        end\n                    end\n                    if #napes == 0 then\n                        for _, m in ipairs(tit:GetChildren()) do\n                            if m:IsA(\"Model\") and not m:GetAttribute(\"State\") then\n                                local np = m:FindFirstChild(\"Hitboxes\") and m.Hitboxes:FindFirstChild(\"Hit\") and m.Hitboxes.Hit:FindFirstChild(\"Nape\")\n                                if np then\n                                    table.insert(napes, np)\n                                    if #napes >= maxTargets then break end\n                                end\n                            end\n                        end\n                    end\n                end\n\n                if #napes > 0 and #napes < maxTargets and (act:GetAttribute(\"BossBurst\") == true or targetId) then\n                    local singleNape = napes[1]\n                    while #napes < maxTargets do\n                        table.insert(napes, singleNape)\n                    end\n                end\n\n                local h = c and c:FindFirstChild(\"HumanoidRootPart\")\n                local hm = c and c:FindFirstChild(\"Humanoid\")\n                local hb = c and c:FindFirstChild(\"Hitbox\")\n                if hb and hb:IsA(\"BasePart\") then\n                    hb.CanCollide = false\n                    hb.CanTouch = true\n                end\n\n                local host = _G.__CachedHost\n                if type(host) ~= \"table\"\n                    or type(rawget(host, \"Modules\")) ~= \"table\"\n                    or type(rawget(host, \"Cache\")) ~= \"table\"\n                    or host.Cache.Character ~= c\n                    or not host.Modules.Zones\n                    or not host.Modules.Input\n                    or not host.Modules.ODMG\n                    or not host.Modules.Effects\n                then\n                    host = nil\n                    _G.__CachedHost = nil\n                    local now = os.clock()\n                    local lastScan = _G.__LastHostScan or 0\n                    if (now - lastScan) >= 1 then\n                        _G.__LastHostScan = now\n                        for _, obj in ipairs(getgc(true)) do\n                            if type(obj) == \"table\"\n                                and type(rawget(obj, \"Modules\")) == \"table\"\n                                and type(rawget(obj, \"Cache\")) == \"table\"\n                                and obj.Cache.Character == c\n                                and obj.Modules.Zones\n                            then\n                                host = obj\n                                _G.__CachedHost = obj\n                                break\n                            end\n                        end\n                    end\n                end\n\n                if host and #napes > 0 and h and hm then\n                    act:SetAttribute(\"SlashHandled\", true)\n                    pcall(function()\n                        local slash = host.Cache.Variables.Slash\n                        local odmg = host.Modules.ODMG\n                        local inputMod = host.Modules.Input\n                        local effects = host.Modules.Effects\n                        local zones = host.Modules.Zones\n\n                        if inputMod.Slashing then\n                            pcall(function() task.cancel(inputMod.Slashing) end)\n                            inputMod.Slashing = nil\n                        end\n                        if type(odmg.Events) == \"table\" then\n                            for _, ev in pairs(odmg.Events) do\n                                pcall(function() task.cancel(ev) end)\n                            end\n                            table.clear(odmg.Events)\n                        end\n\n                        if effects.Slash_State == true then\n                            pcall(function() effects.Slash(host, false, true) end)\n                            effects.Slash_State = false\n                        end\n\n                        host.Invoked = false\n                        if host.Modules.Shift then\n                            host.Modules.Shift.Stunned = false\n                        end\n\n                        if host.Loadout and host.Loadout.Stats then\n                            host.Loadout.Stats.Crit_Chance = 100\n                            host.Loadout.Stats.Strike = maxTargets\n                        end\n\n                        if not zones.__SymbioteCritHooked and type(zones.Damage_Check) == \"function\" then\n                            zones.__SymbioteCritHooked = true\n                            local origDamageCheck = zones.Damage_Check\n                            zones.Damage_Check = function(p2, p3, p4, p5, p6, p7, p8, p9)\n                                return origDamageCheck(p2, p3, p4, true, p6, p7, p8, p9)\n                            end\n                        end\n\n                        slash.Slashing = false\n                        slash.Released = false\n                        slash.Holding = false\n                        slash.Cooldown = false\n                        slash.Combo = 0\n                        table.clear(zones.Hit)\n\n                        if not host.__OrigTasks and type(odmg.Tasks) == \"function\" then\n                            host.__OrigTasks = odmg.Tasks\n                        end\n                        odmg.Tasks = function() end\n                        pcall(function() odmg.M1(host, false) end)\n                        if host.__OrigTasks then\n                            odmg.Tasks = host.__OrigTasks\n                        end\n\n                        slash.Slashing = true\n                        slash.Released = false\n                        slash.Holding = false\n                        slash.Type = \"Air\"\n                        slash.Last = tick() - 0.65\n                        zones.Time_Difference = 0.65\n\n                        task.wait(0.04)\n\n                        table.clear(zones.Hit)\n                        pcall(function() inputMod.Slash(host, h, hm) end)\n                        slash.Slashing = true\n                        slash.Released = true\n                        slash.Holding = false\n                        slash.Type = \"Air\"\n\n                        if effects.Slash_State ~= true then\n                            pcall(function() effects.Slash(host, true, true) end)\n                            effects.Slash_State = true\n                        end\n                        host:Send(\"Attacks\", \"Slash\", true)\n\n                        local a = hm:FindFirstChild(\"Animator\")\n                        if a then\n                            for _, track in ipairs(a:GetPlayingAnimationTracks()) do\n                                if track.Priority == Enum.AnimationPriority.Action4 or track.Priority == Enum.AnimationPriority.Action3 or track.Name:find(\"Hit\") or track.Name:find(\"Slash\") then\n                                    track:Stop(0)\n                                end\n                            end\n                        end\n\n                        for _, np in ipairs(napes) do\n                            table.insert(zones.Hit, np)\n                            host:Send(\"Hitboxes\", \"Register\", np, 0.65)\n                        end\n\n                        task.wait(0.12)\n\n                        if inputMod.Slashing then\n                            pcall(function() task.cancel(inputMod.Slashing) end)\n                            inputMod.Slashing = nil\n                        end\n                        slash.Slashing = false\n                        slash.Released = false\n                        slash.Holding = false\n                        pcall(function() effects.Slash(host, false, true) end)\n                        if effects.Slash_State ~= false then\n                            effects.Slash_State = false\n                        end\n                        host:Send(\"Attacks\", \"Slash\", false)\n                    end)\n                end\n\n                act:SetAttribute(\"SlashDone\", true)\n            ")
                 return
             end)
             local v17_20 = os.clock()
@@ -1300,15 +1300,10 @@ do
                     v5_3.Time_Difference = 0.65
                     task.wait(0.04)
                     table.clear(v5_3.Hit)
-                    local preSlashCF = v6_16 and v6_16.CFrame
                     pcall(function()
                         v3_3.Slash(v15_20, v6_16, v7_9)
                         return
                     end)
-                    if preSlashCF and v6_16 then
-                        v6_16.CFrame = preSlashCF
-                    end
-                    if v7_9 then v7_9.PlatformStand = true end
                     v1.Slashing = true
                     v1.Released = true
                     v1.Holding = false
@@ -4932,9 +4927,7 @@ do
             pcall(function()
                 for _, gui in ipairs(root:GetChildren()) do
                     local main = gui:FindFirstChild("Main")
-                    local topbar = main and main:FindFirstChild("Topbar")
-                    local topTitle = topbar and topbar:FindFirstChild("Title")
-                    if topTitle and topTitle.Text == "Symbiote" then
+                    if main and (main:FindFirstChild("TabList") or main:FindFirstChild("Elements")) then
                         local tabList = main:FindFirstChild("TabList")
                         if tabList then
                             for _, btn in ipairs(tabList:GetChildren()) do
@@ -7435,35 +7428,33 @@ do
             end
             local fired = false
             if type(firesignal) == "function" then
+                pcall(function() firesignal(target.MouseButton1Click) fired = true end)
+                pcall(function() firesignal(target.Activated) fired = true end)
+                pcall(function() firesignal(target.MouseButton1Down) firesignal(target.MouseButton1Up) fired = true end)
                 pcall(function()
-                    firesignal(target.MouseButton1Click)
+                    firesignal(target.InputBegan, {
+                        UserInputType = Enum.UserInputType.MouseButton1,
+                        UserInputState = Enum.UserInputState.Begin,
+                        Position = Vector3.new(
+                            (target.AbsolutePosition and target.AbsolutePosition.X or 0) + (target.AbsoluteSize and target.AbsoluteSize.X / 2 or 0),
+                            (target.AbsolutePosition and target.AbsolutePosition.Y or 0) + (target.AbsoluteSize and target.AbsoluteSize.Y / 2 or 0),
+                            0
+                        )
+                    })
                     fired = true
-                end)
-                pcall(function()
-                    firesignal(target.Activated)
-                    fired = true
-                end)
-                pcall(function()
-                    firesignal(target.MouseButton1Down)
-                    firesignal(target.MouseButton1Up)
                 end)
             end
             if type(getconnections) == "function" then
-                for _, sig in ipairs({ target.MouseButton1Click, target.Activated, target.MouseButton1Down, target.MouseButton1Up }) do
-                    if sig then
-                        pcall(function()
+                for _, sigName in ipairs({ "MouseButton1Click", "Activated", "MouseButton1Down", "MouseButton1Up", "InputBegan" }) do
+                    pcall(function()
+                        local sig = target[sigName]
+                        if sig then
                             for _, conn in ipairs(getconnections(sig)) do
-                                if conn.Fire then
-                                    pcall(conn.Fire, conn)
-                                    fired = true
-                                end
-                                if conn.Function then
-                                    pcall(conn.Function)
-                                    fired = true
-                                end
+                                if conn.Fire then pcall(conn.Fire, conn) fired = true end
+                                if conn.Function then pcall(conn.Function) fired = true end
                             end
-                        end)
-                    end
+                        end
+                    end)
                 end
             end
             return fired
@@ -7473,13 +7464,15 @@ do
             if not btn then
                 return false
             end
+            local targetBtn = (btn:IsA("GuiButton") and btn)
+                or btn:FindFirstAncestorWhichIsA("GuiButton")
+                or btn:FindFirstChildWhichIsA("GuiButton", true)
+                or btn
+
             local clicked = fireButtonSignalsDirect(btn)
-            if not btn:IsA("GuiButton") then
-                local childBtn = btn:FindFirstChildWhichIsA("GuiButton", true)
-                if childBtn then
-                    if fireButtonSignalsDirect(childBtn) then
-                        clicked = true
-                    end
+            if targetBtn ~= btn then
+                if fireButtonSignalsDirect(targetBtn) then
+                    clicked = true
                 end
             end
 
@@ -7489,6 +7482,7 @@ do
                 clicked = true
                 task.spawn(function()
                     pcall(function()
+                        targetBtn:SetAttribute("Symbiote_ClickTarget", true)
                         btn:SetAttribute("Symbiote_ClickTarget", true)
                         v67_2(act, [[
                             local lp = game:GetService("Players").LocalPlayer
@@ -7499,10 +7493,10 @@ do
                                 if obj:GetAttribute("Symbiote_ClickTarget") == true then
                                     obj:SetAttribute("Symbiote_ClickTarget", nil)
                                     local targets = { obj }
-                                    if not obj:IsA("GuiButton") then
-                                        local cb = obj:FindFirstChildWhichIsA("GuiButton", true)
-                                        if cb then table.insert(targets, cb) end
-                                    end
+                                    local ab = obj:FindFirstAncestorWhichIsA("GuiButton")
+                                    if ab then table.insert(targets, ab) end
+                                    local cb = obj:FindFirstChildWhichIsA("GuiButton", true)
+                                    if cb then table.insert(targets, cb) end
                                     for _, t in ipairs(targets) do
                                         if type(firesignal) == "function" then
                                             pcall(function() firesignal(t.MouseButton1Click) end)
@@ -7511,7 +7505,7 @@ do
                                             pcall(function() firesignal(t.MouseButton1Up) end)
                                         end
                                         if type(getconnections) == "function" then
-                                            for _, sig in ipairs({ t.MouseButton1Click, t.Activated }) do
+                                            for _, sig in ipairs({ t.MouseButton1Click, t.Activated, t.MouseButton1Down, t.MouseButton1Up }) do
                                                 if sig then
                                                     pcall(function()
                                                         for _, conn in ipairs(getconnections(sig)) do
@@ -7531,22 +7525,11 @@ do
             end
 
             pcall(function()
-                if btn.AbsolutePosition and btn.AbsoluteSize and btn.AbsoluteSize.X > 0 and btn.AbsoluteSize.Y > 0 then
-                    local insetY = 0
-                    local insetX = 0
-                    pcall(function()
-                        local gs = game:GetService("GuiService")
-                        local screenGui = btn:FindFirstAncestorWhichIsA("ScreenGui")
-                        if gs and (not screenGui or screenGui.IgnoreGuiInset == false) then
-                            local inset = gs:GetGuiInset()
-                            if inset then
-                                insetX = inset.X
-                                insetY = inset.Y
-                            end
-                        end
-                    end)
-                    local cx = btn.AbsolutePosition.X + (btn.AbsoluteSize.X / 2) + insetX
-                    local cy = btn.AbsolutePosition.Y + (btn.AbsoluteSize.Y / 2) + insetY
+                local clickObj = (targetBtn.AbsoluteSize and targetBtn.AbsoluteSize.X > 0 and targetBtn) or btn
+                if clickObj.AbsolutePosition and clickObj.AbsoluteSize and clickObj.AbsoluteSize.X > 0 and clickObj.AbsoluteSize.Y > 0 then
+                    -- AbsolutePosition is already in viewport screen space
+                    local cx = math.floor(clickObj.AbsolutePosition.X + (clickObj.AbsoluteSize.X / 2))
+                    local cy = math.floor(clickObj.AbsolutePosition.Y + (clickObj.AbsoluteSize.Y / 2))
                     v17_6:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
                     task.wait(0.04)
                     v17_6:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
@@ -7557,14 +7540,22 @@ do
         end
 
         local function isTrulyVisible(obj, root)
+            if not obj or not obj.Parent then
+                return false
+            end
             local cur = obj
-            while cur and cur ~= root do
+            local reachedRoot = (root == nil)
+            while cur do
                 if cur:IsA("GuiObject") and cur.Visible == false then
                     return false
                 end
+                if root and cur == root then
+                    reachedRoot = true
+                    break
+                end
                 cur = cur.Parent
             end
-            return obj ~= nil
+            return reachedRoot
         end
 
         v150_10.ShadowBanData = {
@@ -7786,17 +7777,26 @@ do
                 if not iface then
                     return
                 end
+
+                -- Robust Gold & Currency Extraction from Topbar
                 local topbar = iface:FindFirstChild("Topbar")
-                local curr = topbar and topbar:FindFirstChild("Main") and topbar.Main:FindFirstChild("Currencies")
-                local goldLbl = curr and curr:FindFirstChild("Gold") and
-                    (curr.Gold:FindFirstChild("Amount") or curr.Gold:FindFirstChild("Title"))
-                if goldLbl and goldLbl:IsA("TextLabel") and type(goldLbl.Text) == "string" then
-                    local parsedG = tonumber(goldLbl.Text:gsub(",", ""):gsub("%s+", ""))
-                    if parsedG and parsedG >= 0 then
-                        gold = parsedG
-                        v156_4.Player.Gold = parsedG
+                if topbar then
+                    for _, tObj in ipairs(topbar:GetDescendants()) do
+                        if tObj:IsA("TextLabel") and type(tObj.Text) == "string" and tObj.Text ~= "" then
+                            local cleanTxt = tObj.Text:gsub(",", ""):gsub("%s+", "")
+                            local pNum = tonumber(cleanTxt:match("^(%d+)$"))
+                            if pNum then
+                                local pName = string.lower(tostring(tObj.Parent and tObj.Parent.Name or ""))
+                                local oName = string.lower(tostring(tObj.Name or ""))
+                                if pName:find("gold") or oName:find("gold") or pName:find("vang") or oName:find("vang") then
+                                    gold = pNum
+                                    v156_4.Player.Gold = pNum
+                                end
+                            end
+                        end
                     end
                 end
+
                 for _, obj in ipairs(iface:GetDescendants()) do
                     if obj:IsA("TextLabel") or obj:IsA("TextButton") then
                         local txt = tostring(obj.Text or "")
@@ -7805,19 +7805,70 @@ do
                             if xpMatch then
                                 cachedXPPercent = tonumber(xpMatch) or cachedXPPercent
                             end
-                            local lvMatch = txt:match("^LV%.?%s*(%d+)$") or txt:match("^LEVEL%s*(%d+)$")
-                            if lvMatch then
-                                local parsedLv = tonumber(lvMatch)
-                                if parsedLv and parsedLv > 0 then
-                                    level = parsedLv
-                                    v156_4.Player.Level = parsedLv
+
+                            -- 1. Dual Level & MaxLevelCap Regex (e.g. "Cap. 37 / 125", "Lv. 26 / 125", "Level 100 / 150")
+                            local curLvStr, maxCapStr = txt:match("[Cc]?[Ấấ]?[Pp]?%.?%s*(%d+)%s*/%s*(%d+)")
+                            if not curLvStr then
+                                curLvStr, maxCapStr = txt:match("[Ll][Vv]%.?%s*(%d+)%s*/%s*(%d+)")
+                            end
+                            if not curLvStr then
+                                curLvStr, maxCapStr = txt:match("[Ll]evel%s*(%d+)%s*/%s*(%d+)")
+                            end
+                            if curLvStr and maxCapStr then
+                                local parsedCur = tonumber(curLvStr)
+                                local parsedCap = tonumber(maxCapStr)
+                                if parsedCur and parsedCur > 0 then
+                                    level = parsedCur
+                                    v156_4.Player.Level = parsedCur
+                                end
+                                if parsedCap and parsedCap >= 100 then
+                                    local derivedP = math.floor((parsedCap - 100) / 25)
+                                    if derivedP > prestige then
+                                        prestige = derivedP
+                                        v156_4.Player.Prestige = prestige
+                                        if v7_13 then
+                                            pcall(function() v7_13:SetAttribute("Symbiote_Prestige", prestige) end)
+                                        end
+                                    end
+                                end
+                            else
+                                local singleLv = txt:match("^[Cc]?[Ấấ]?[Pp]?%.?%s*(%d+)$") or txt:match("^[Ll][Vv]%.?%s*(%d+)$") or txt:match("^[Ll]evel%s*(%d+)$")
+                                if singleLv then
+                                    local pLv = tonumber(singleLv)
+                                    if pLv and pLv > 0 and pLv <= 250 then
+                                        level = pLv
+                                        v156_4.Player.Level = pLv
+                                    end
                                 end
                             end
-                            local gradeMatch = txt:upper():match("%[([E%-%+DCBAS]+)%s*GRADE%]")
+
+                            -- 2. Multilingual Weapon Grade Extraction (English + Vietnamese)
+                            local upTxt = txt:upper()
+                            local gradeMatch = upTxt:match("%[([E%-%+DCBAS]+)%s*GRADE%]")
+                                or upTxt:match("%[([E%-%+DCBAS]+)%s*CẤP%s*ĐỘ%]")
+                                or upTxt:match("%[([E%-%+DCBAS]+)%s*CAP%s*DO%]")
+                                or upTxt:match("NÂNG%s*CẤP%s*%[([E%-%+DCBAS]+)")
+                                or upTxt:match("NANG%s*CAP%s*%[([E%-%+DCBAS]+)")
+                                or upTxt:match("UPGRADE%s*%[([E%-%+DCBAS]+)")
                             if gradeMatch and LETTER_TO_LEVEL[gradeMatch] ~= nil then
-                                minLvl = LETTER_TO_LEVEL[gradeMatch]
-                                v61_2.CachedWeaponMinLevel = minLvl
+                                local gLvl = LETTER_TO_LEVEL[gradeMatch]
+                                if gLvl > minLvl then
+                                    minLvl = gLvl
+                                    v61_2.CachedWeaponMinLevel = minLvl
+                                end
                             end
+
+                            -- 3. In-Text Gold Parser
+                            local gNorm = normalizeVi(txt)
+                            if gNorm:find("vang:") or gNorm:find("gold:") then
+                                local pG = tonumber(txt:gsub(",", ""):match("(%d+)"))
+                                if pG and pG > 0 then
+                                    gold = pG
+                                    v156_4.Player.Gold = pG
+                                end
+                            end
+
+                            -- 4. Bonus Map Detection
                             local normTxt = normalizeVi(txt)
                             if (normTxt:find("tang phan thuong", 1, true) or normTxt:find("bonus", 1, true)) and obj.Parent then
                                 local pNorm = normalizeVi(getGuiObjectText(obj.Parent) ..
@@ -7859,9 +7910,10 @@ do
                 end
             end
 
+            -- Manual Map Override: if user selects a map, strictly prioritize it over auto bracket
             local chosenMap = tostring(v8_6("KaitunMap") or "Auto (Best)")
             local resolvedMap = chosenMap
-            if chosenMap == "Auto (Best)" then
+            if chosenMap == "Auto (Best)" or chosenMap == "" then
                 if bonusMapDetected then
                     resolvedMap = bonusMapDetected
                 elseif bracket.Order <= 2 then
@@ -7873,6 +7925,8 @@ do
                 else
                     resolvedMap = "Giant Forest"
                 end
+            else
+                resolvedMap = chosenMap
             end
 
             return {
@@ -8276,6 +8330,99 @@ do
             return prestiged
         end
 
+        function v150_10.HandleModeSelectionScreen()
+            local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+            local iface = pgui and pgui:FindFirstChild("Interface")
+            if not iface then return false end
+
+            local cards = {
+                missions = nil,
+                raid = nil,
+                waves = nil,
+                join = nil
+            }
+            local playBtn = nil
+            local modeCount = 0
+
+            local function getCardClickable(o)
+                if not o then return nil end
+                if o:IsA("GuiButton") then return o end
+                return o:FindFirstAncestorWhichIsA("GuiButton")
+                    or o:FindFirstChildWhichIsA("GuiButton", true)
+                    or (o.Parent and o.Parent:IsA("GuiObject") and o.Parent)
+                    or o
+            end
+
+            for _, obj in ipairs(iface:GetDescendants()) do
+                if isTrulyVisible(obj, iface) then
+                    local rawTxt = getGuiObjectText(obj)
+                    local norm = normalizeVi(rawTxt)
+                    local lname = string.lower(tostring(obj.Name or ""))
+
+                    local target = getCardClickable(obj)
+                    local sz = obj.AbsoluteSize or (target and target.AbsoluteSize)
+                    local pos = obj.AbsolutePosition or (target and target.AbsolutePosition)
+                    local isCardSize = sz and (sz.X > 40 or sz.Y > 60)
+
+                    if (norm == "nhiem vu" or norm == "missions" or norm == "mission" or lname == "mission" or lname == "missions") and isCardSize then
+                        if not cards.missions and pos and pos.Y > 40 then
+                            cards.missions = target
+                            modeCount = modeCount + 1
+                        end
+                    elseif (norm == "raid" or lname == "raid") and isCardSize then
+                        if not cards.raid and pos and pos.Y > 40 then
+                            cards.raid = target
+                            modeCount = modeCount + 1
+                        end
+                    elseif (norm == "song" or norm == "waves" or norm == "wave" or lname == "wave" or lname == "waves") and isCardSize then
+                        if not cards.waves and pos and pos.Y > 40 then
+                            cards.waves = target
+                            modeCount = modeCount + 1
+                        end
+                    elseif (norm == "tham gia" or norm == "join" or lname == "join") and isCardSize then
+                        if not cards.join and pos and pos.Y > 40 then
+                            cards.join = target
+                            modeCount = modeCount + 1
+                        end
+                    elseif (norm == "choi" or norm == "play" or lname == "play" or lname == "start") then
+                        if pos and pos.Y > 200 then
+                            playBtn = target
+                        end
+                    end
+                end
+            end
+
+            -- If this 4-card Game Mode Selection modal is active
+            if modeCount >= 2 or (cards.missions and playBtn) then
+                local chosenCard = nil
+                local modeName = "NHIỆM VỤ (Missions)"
+
+                if v8_6("AutoRaid") and not v8_6("KaitunEnabled") then
+                    chosenCard = cards.raid or cards.missions
+                    modeName = "RAID"
+                else
+                    chosenCard = cards.missions or cards.raid
+                    modeName = "NHIỆM VỤ (Missions)"
+                end
+
+                if chosenCard then
+                    kaitunActionState = "Selecting Mode: " .. modeName
+                    if v150_10.UpdateKaitunParagraph then pcall(v150_10.UpdateKaitunParagraph) end
+                    v150_10.ClickGuiButton(chosenCard)
+                    task.wait(0.35)
+                end
+
+                if playBtn then
+                    kaitunActionState = "Confirming Mode (CHƠI)..."
+                    if v150_10.UpdateKaitunParagraph then pcall(v150_10.UpdateKaitunParagraph) end
+                    v150_10.ClickGuiButton(playBtn)
+                    task.wait(0.65)
+                    return true
+                end
+            end
+            return false
+        end
+
         function v150_10.KaitunCreateAndStartMission()
             local state = v150_10.GetKaitunPlayerState()
             local targetMap = state.TargetMap
@@ -8296,6 +8443,12 @@ do
                     return
                 end
 
+                -- Step 0: Check if currently stuck on the 4-card Mode Selection screen
+                local handledModeScreen = v150_10.HandleModeSelectionScreen()
+                if handledModeScreen then
+                    task.wait(0.5)
+                end
+
                 local function scanMissionUi()
                     local info = {
                         createBtn = nil,
@@ -8307,11 +8460,17 @@ do
                         nextDiffBtn = nil,
                         prevDiffBtn = nil
                     }
+                    local function getClickable(o)
+                        if not o then return nil end
+                        if o:IsA("GuiButton") then return o end
+                        return o:FindFirstAncestorWhichIsA("GuiButton") or o:FindFirstChildWhichIsA("GuiButton", true) or o
+                    end
+
                     local topbar = iface:FindFirstChild("Topbar")
                     if topbar then
                         local mDirect = topbar:FindFirstChild("Missions", true) or topbar:FindFirstChild("Mission", true)
                         if mDirect and mDirect:IsA("GuiObject") then
-                            info.missionOpenBtn = mDirect
+                            info.missionOpenBtn = getClickable(mDirect)
                         end
                     end
                     for _, obj in ipairs(iface:GetDescendants()) do
@@ -8321,31 +8480,32 @@ do
                             local norm = normalizeVi(rawTxt)
                             local lname = string.lower(tostring(obj.Name or ""))
 
-                            if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and up:find("GRADE)", 1, true) then
+                            if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and (up:find("GRADE)", 1, true) or up:find("CẤP ĐỘ)", 1, true) or up:find("CAP DO)", 1, true)) then
                                 info.diffLabel = obj
                             end
 
-                            if obj:IsA("GuiButton") then
+                            local clickable = getClickable(obj)
+                            if clickable and isTrulyVisible(clickable, iface) then
                                 if lname == "missions" or lname == "mission" or norm == "nhiem vu" or norm == "missions" then
-                                    info.missionOpenBtn = obj
+                                    info.missionOpenBtn = clickable
                                 elseif lname == "create" or norm == "tao" or norm == "create" then
-                                    info.createBtn = obj
+                                    info.createBtn = clickable
                                 elseif lname == "play" or lname == "start" or norm == "choi" or norm == "play" or norm == "start" or norm == "bat dau" then
-                                    info.playBtn = obj
+                                    info.playBtn = clickable
                                 elseif lname == "modifiers" or lname == "modifier" or norm == "sua doi" or norm == "modifiers" then
-                                    info.modifiersBtn = obj
+                                    info.modifiersBtn = clickable
                                 elseif rawTxt == ">" or lname == "next" or lname == "right" or lname == "arrowright" or lname == "arrow_right" then
-                                    info.nextDiffBtn = obj
+                                    info.nextDiffBtn = clickable
                                 elseif rawTxt == "<" or lname == "prev" or lname == "previous" or lname == "left" or lname == "arrowleft" or lname == "arrow_left" then
-                                    info.prevDiffBtn = obj
+                                    info.prevDiffBtn = clickable
                                 elseif lname:find("shiganshina", 1, true) or norm:find("shiganshina", 1, true) then
-                                    info.mapButtons["Shiganshina"] = obj
+                                    info.mapButtons["Shiganshina"] = clickable
                                 elseif lname:find("trost", 1, true) or norm:find("trost", 1, true) then
-                                    info.mapButtons["Trost"] = obj
+                                    info.mapButtons["Trost"] = clickable
                                 elseif lname:find("outskirts", 1, true) or norm:find("outskirts", 1, true) or norm:find("do lot", 1, true) then
-                                    info.mapButtons["Outskirts"] = obj
+                                    info.mapButtons["Outskirts"] = clickable
                                 elseif lname:find("forest", 1, true) or norm:find("forest", 1, true) or norm:find("rung", 1, true) then
-                                    info.mapButtons["Giant Forest"] = obj
+                                    info.mapButtons["Giant Forest"] = clickable
                                 end
                             end
                         end
@@ -8355,13 +8515,14 @@ do
                         local searchRoot = (info.diffLabel.Parent and info.diffLabel.Parent.Parent) or
                             info.diffLabel.Parent or iface
                         for _, btn in ipairs(searchRoot:GetDescendants()) do
-                            if btn:IsA("GuiButton") and btn ~= info.diffLabel and isTrulyVisible(btn, iface) then
-                                local bPos = btn.AbsolutePosition
+                            local clickable = getClickable(btn)
+                            if clickable and clickable ~= info.diffLabel and isTrulyVisible(clickable, iface) then
+                                local bPos = clickable.AbsolutePosition
                                 if math.abs(bPos.Y - dPos.Y) < 65 then
                                     if bPos.X > dPos.X and not info.nextDiffBtn then
-                                        info.nextDiffBtn = btn
+                                        info.nextDiffBtn = clickable
                                     elseif bPos.X < dPos.X and not info.prevDiffBtn then
-                                        info.prevDiffBtn = btn
+                                        info.prevDiffBtn = clickable
                                     end
                                 end
                             end
