@@ -600,64 +600,62 @@ do
             return
         end
         v26_2 = true
-        task.wait(0.05)
-        if v73_2() then
-            v81_2(true)
-        elseif v77_2() then
-            v78_2()
-            local v1_14 = os.clock()
-            while true do
-                if os.clock() - v1_14 < 1.8 then
-                    task.wait(0.1)
-                    local v4_2, v5_2 = pcall(function()
-                        local v1_2 = v72_2()
-                        if not v1_2 then
-                            return false
-                        end
-                        local v2_3 = v1_2:FindFirstChild("LeftHand")
-                        local v3_3 = v1_2:FindFirstChild("RightHand")
-                        if v2_3 then
-                            local v4_4 = v2_3:FindFirstChild("Blade_1")
-                            if v4_4 and v4_4:GetAttribute("Broken") then
-                                return true
+        pcall(function()
+            task.wait(0.05)
+            if v73_2() then
+                v81_2(true)
+            elseif v77_2() then
+                v78_2()
+                local v1_14 = os.clock()
+                while true do
+                    if os.clock() - v1_14 < 1.8 then
+                        task.wait(0.1)
+                        local v4_2, v5_2 = pcall(function()
+                            local v1_2 = v72_2()
+                            if not v1_2 then
+                                return false
                             end
-                        end
-                        if v3_3 then
-                            local v4_6 = v3_3:FindFirstChild("Blade_1")
-                            if v4_6 and v4_6:GetAttribute("Broken") then
-                                return true
-                            end
-                        end
-                        local v4_7 = false
-                        for v8, v9 in ipairs(v1_2:GetDescendants()) do
-                            if v9:IsA("MeshPart") and v9.Name:sub(1, 5) == "Blade" then
-                                v4_7 = true
-                                if not v9:GetAttribute("Broken") and v9.Transparency < 0.9 then
-                                    return false
+                            local v2_3 = v1_2:FindFirstChild("LeftHand")
+                            local v3_3 = v1_2:FindFirstChild("RightHand")
+                            if v2_3 then
+                                local v4_4 = v2_3:FindFirstChild("Blade_1")
+                                if v4_4 and v4_4:GetAttribute("Broken") then
+                                    return true
                                 end
                             end
+                            if v3_3 then
+                                local v4_6 = v3_3:FindFirstChild("Blade_1")
+                                if v4_6 and v4_6:GetAttribute("Broken") then
+                                    return true
+                                end
+                            end
+                            local v4_7 = false
+                            for v8, v9 in ipairs(v1_2:GetDescendants()) do
+                                if v9:IsA("MeshPart") and v9.Name:sub(1, 5) == "Blade" then
+                                    v4_7 = true
+                                    if not v9:GetAttribute("Broken") and v9.Transparency < 0.9 then
+                                        return false
+                                    end
+                                end
+                            end
+                            return v4_7
+                        end)
+                        local v3_8
+                        if v4_2 then
+                            v3_8 = v5_2
+                        else
+                            v3_8 = false
                         end
-                        return v4_7
-                    end)
-                    local v3_8
-                    if v4_2 then
-                        v3_8 = v5_2
+                        if not v3_8 then
+                            break
+                        end
                     else
-                        v3_8 = false
+                        break
                     end
-                    if not v3_8 then
-                        task.wait(0.2)
-                        v26_2 = false
-                        return
-                    end
-                else
-                    task.wait(0.2)
-                    v26_2 = false
-                    return
                 end
             end
-        end
-        task.wait(0.2)
+            task.wait(0.2)
+        end)
         v26_2 = false
         return
     end
@@ -670,7 +668,9 @@ do
         end
         v35_2 = true
         v36_2 = nil
-        v81_2(false)
+        pcall(function()
+            v81_2(false)
+        end)
         v36_2 = nil
         v35_2 = false
         return
@@ -714,7 +714,7 @@ do
         if v8_11 then
             return false
         end
-        if v73_2() and v75_2() then
+        if v73_2() and (v75_2() or v76_2() == 0) then
             return false
         end
         return true
@@ -1192,8 +1192,8 @@ do
             end)
         end
         local v6_17 = v76_2()
-        if not v6_17 or (type(v6_17) == "number" and v6_17 <= 0) then
-            if (v25_2 or v34_2 or v18_4) and not v26_2 and v75_2() then
+        if not v6_17 or v6_17 <= 0 then
+            if (v25_2 or v34_2 or v18_4) and not v26_2 then
                 v85_2()
             end
             return false
@@ -4375,8 +4375,8 @@ do
             if not v18_4 then
                 break
             else
-                if (v25_2 or v34_2) and not v26_2 then
-                    if v73_2() and v75_2() then
+                if (v25_2 or v34_2 or v18_4) and not v26_2 then
+                    if v73_2() and (v75_2() or v76_2() == 0) then
                         v85_2()
                     else
                         local v2_13 = v25_2 and v77_2()
@@ -4531,9 +4531,9 @@ do
                                                 v13_14 and v13_14:FindFirstChild("Spears") ~= nil or false
                                         end
                                         if v10_5 then
-                                            if (v25_2 or v34_2) and not v26_2 and v75_2() then
+                                            if (v25_2 or v34_2 or v18_4) and not v26_2 and (v75_2() or v76_2() == 0) then
                                                 v85_2()
-                                                if v75_2() then
+                                                if v75_2() or v76_2() == 0 then
                                                     break
                                                 end
                                             end
@@ -4911,7 +4911,7 @@ task.spawn(function()
             if v18_4 then
             elseif v26_2 or v35_2 then
             elseif v73_2() then
-                if v75_2() then
+                if v75_2() or v76_2() == 0 then
                     v85_2()
                 end
             elseif v77_2() then
@@ -5135,7 +5135,6 @@ do
         ["Auto Claim Achievements"] = "Tự Nhận Thành Tựu (Auto Claim Achievements)",
         ["Auto Claim Daily Reward"] = "Tự Nhận Quà Hàng Ngày (Auto Claim Daily)",
         ["Mission Safety Timer"] = "Bộ Đếm An Toàn (Mission Safety Timer)",
-        ["Safest Refill Station"] = "Trạm Nạp An Toàn Nhất",
         ["Auto Family Spin"] = "Tự Quay Gia Tộc",
         ["Families To Stop"] = "Gia Tộc Muốn Dừng",
         ["Family Tiers To Stop"] = "Bậc Gia Tộc Muốn Dừng",
