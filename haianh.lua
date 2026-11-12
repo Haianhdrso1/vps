@@ -493,16 +493,7 @@ do
         if v73_2() then
             return false
         end
-        local v1_5 = v72_2()
-        if not v1_5 then
-            return false
-        end
-        for v5, v6 in ipairs(v1_5:GetDescendants()) do
-            if v6:IsA("MeshPart") and v6.Name:sub(1, 5) == "Blade" then
-                return true
-            end
-        end
-        return false
+        return true
     end
     local function v78_2()
         if not v77_2() then
@@ -559,6 +550,15 @@ do
         end)
 
         local candidates = {}
+        local function checkStation(desc)
+            if desc.Name == "Refill" or desc.Name == "RefillStation" or desc.Name:find("Refill") then
+                local p = desc:IsA("BasePart") and desc or desc:FindFirstChildWhichIsA("BasePart") or (desc:IsA("Model") and (desc.PrimaryPart or desc:FindFirstChild("Hitbox") or desc:FindFirstChildWhichIsA("BasePart")))
+                if p then
+                    table.insert(candidates, p)
+                end
+            end
+        end
+
         pcall(function()
             local searchContainers = {
                 v13_8:FindFirstChild("Unclimbable"),
@@ -572,17 +572,13 @@ do
             for _, container in ipairs(searchContainers) do
                 if container then
                     for _, desc in ipairs(container:GetDescendants()) do
-                        if desc:IsA("BasePart") and (desc.Name == "Refill" or desc.Name == "RefillStation" or desc.Name:find("Refill")) then
-                            table.insert(candidates, desc)
-                        end
+                        checkStation(desc)
                     end
                 end
             end
             if #candidates == 0 then
                 for _, desc in ipairs(v13_8:GetDescendants()) do
-                    if desc:IsA("BasePart") and (desc.Name == "Refill" or desc.Name == "RefillStation") then
-                        table.insert(candidates, desc)
-                    end
+                    checkStation(desc)
                 end
             end
         end)
@@ -723,26 +719,27 @@ do
             local v3_3 = v1_2:FindFirstChild("RightHand")
             if v2_3 then
                 local v4_4 = v2_3:FindFirstChild("Blade_1")
-                if v4_4 and v4_4:GetAttribute("Broken") then
+                if v4_4 and (v4_4:GetAttribute("Broken") or v4_4.Transparency >= 0.9) then
                     return true
                 end
             end
             if v3_3 then
                 local v4_6 = v3_3:FindFirstChild("Blade_1")
-                if v4_6 and v4_6:GetAttribute("Broken") then
+                if v4_6 and (v4_6:GetAttribute("Broken") or v4_6.Transparency >= 0.9) then
                     return true
                 end
             end
-            local v4_7 = false
+            local foundAnyBlade = false
             for v8, v9 in ipairs(v1_2:GetDescendants()) do
                 if v9:IsA("MeshPart") and v9.Name:sub(1, 5) == "Blade" then
-                    v4_7 = true
+                    foundAnyBlade = true
                     if not v9:GetAttribute("Broken") and 0.9 > v9.Transparency then
                         return false
                     end
                 end
             end
-            return v4_7
+            -- If no visible unbroken blades remain, or hands are completely empty:
+            return true
         end)
         if v1 then
             return v2_2
@@ -762,7 +759,7 @@ do
             v36_2 = os.clock()
             return false
         end
-        if 2 > os.clock() - v36_2 then
+        if 1 > os.clock() - v36_2 then
             return false
         end
         return v83_2()
@@ -781,48 +778,22 @@ do
                 v81_2(true)
             end
         elseif v77_2() then
+            local setsLeft = v82_2()
+            if setsLeft ~= nil and setsLeft == 0 then
+                -- 0 sets remaining in holster! Must go to Refill Station!
+                if (v34_2 or v18_4) and not v35_2 then
+                    task.spawn(v86_2)
+                end
+                task.wait(0.2)
+                v26_2 = false
+                return
+            end
             v78_2()
             local v1_14 = os.clock()
             while true do
                 if os.clock() - v1_14 < 1.8 then
                     task.wait(0.1)
-                    local v4_2, v5_2 = pcall(function()
-                        local v1_2 = v72_2()
-                        if not v1_2 then
-                            return false
-                        end
-                        local v2_3 = v1_2:FindFirstChild("LeftHand")
-                        local v3_3 = v1_2:FindFirstChild("RightHand")
-                        if v2_3 then
-                            local v4_4 = v2_3:FindFirstChild("Blade_1")
-                            if v4_4 and v4_4:GetAttribute("Broken") then
-                                return true
-                            end
-                        end
-                        if v3_3 then
-                            local v4_6 = v3_3:FindFirstChild("Blade_1")
-                            if v4_6 and v4_6:GetAttribute("Broken") then
-                                return true
-                            end
-                        end
-                        local v4_7 = false
-                        for v8, v9 in ipairs(v1_2:GetDescendants()) do
-                            if v9:IsA("MeshPart") and v9.Name:sub(1, 5) == "Blade" then
-                                v4_7 = true
-                                if not v9:GetAttribute("Broken") and v9.Transparency < 0.9 then
-                                    return false
-                                end
-                            end
-                        end
-                        return v4_7
-                    end)
-                    local v3_8
-                    if v4_2 then
-                        v3_8 = v5_2
-                    else
-                        v3_8 = false
-                    end
-                    if not v3_8 then
+                    if not v83_2() then
                         task.wait(0.2)
                         v26_2 = false
                         return
@@ -4900,9 +4871,8 @@ end)
 task.spawn(function()
     while true do
         task.wait(0.5)
-        if not v34_2 or not v77_2() then
+        if (not v34_2 and not v18_4) or not v77_2() then
             v36_2 = nil
-        elseif v18_4 then
         elseif v35_2 then
         elseif v84_2() then
             task.spawn(v86_2)
