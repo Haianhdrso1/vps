@@ -269,7 +269,7 @@ local v150_10 = {
         getconnections = type(getconnections) == "function",
         newcclosure = type(newcclosure) == "function",
         run_on_actor = type(run_on_actor) == "function" or
-        (type(syn) == "table" and type(syn.run_on_actor) == "function")
+            (type(syn) == "table" and type(syn.run_on_actor) == "function")
     },
     OriginalSizes = setmetatable({}, { __mode = "k" }),
     HooksInstalled = false,
@@ -748,7 +748,7 @@ do
             return true
         end
         local v2_4 = p1:FindFirstChild("HumanoidRootPart") or p1.PrimaryPart or p1:FindFirstChild("Torso") or
-        p1:FindFirstChild("Hitboxes") or p1:FindFirstChild("Hitbox")
+            p1:FindFirstChild("Hitboxes") or p1:FindFirstChild("Hitbox")
         if not v2_4 then
             return true
         end
@@ -2712,7 +2712,7 @@ do
                         local okVel, isHrp = pcall(function()
                             local char = v7_13 and v7_13.Character
                             return char ~= nil and typeof(self) == "Instance" and
-                            self == char:FindFirstChild("HumanoidRootPart")
+                                self == char:FindFirstChild("HumanoidRootPart")
                         end)
                         if okVel and isHrp then
                             local realVel = origIndex(self, key)
@@ -3389,7 +3389,7 @@ do
                         v67_2(v2,
                             "                local foundData = nil\n                for _, v in ipairs(getgc(true)) do\n                    if type(v) == \"table\" and rawget(v, \"Currency\") and rawget(v, \"Progression\") and rawget(v, \"Upgrades\") then\n                        if type(v.Currency) == \"table\" and type(v.Currency.Gold) == \"number\" then\n                            foundData = v\n                            break\n                        end\n                    end\n                end\n                local minLvl = 999\n                if foundData and foundData.Upgrades then\n                    local w = foundData.Weapon or \"Blades\"\n                    local upgs = foundData.Upgrades[w]\n                    if type(upgs) == \"table\" then\n                        for _, lvl in pairs(upgs) do\n                            if type(lvl) == \"number\" and lvl < minLvl then\n                                minLvl = lvl\n                            end\n                        end\n                    end\n                end\n                local resolvedMin = minLvl < 999 and minLvl or 0\n                local lp = game:GetService(\"Players\").LocalPlayer\n                if lp then\n                    lp:SetAttribute(\"WeaponMinLevel\", resolvedMin)\n                    if foundData and type(foundData.Currency) == \"table\" and type(foundData.Currency.Gold) == \"number\" then\n                        lp:SetAttribute(\"Symbiote_Gold\", foundData.Currency.Gold)\n                    end\n                    if foundData and type(foundData.Progression) == \"table\" then\n                        if type(foundData.Progression.Level) == \"number\" then\n                            lp:SetAttribute(\"Symbiote_Level\", foundData.Progression.Level)\n                        end\n                        if type(foundData.Progression.Prestige) == \"number\" then\n                            lp:SetAttribute(\"Symbiote_Prestige\", foundData.Progression.Prestige)\n                        end\n                    end\n                end\n                local chars = workspace:FindFirstChild(\"Characters\")\n                local c = (chars and lp and chars:FindFirstChild(lp.Name)) or (lp and lp.Character)\n                local myAct = c and c:FindFirstChild(\"Actor\")\n                if myAct then\n                    myAct:SetAttribute(\"WeaponMinLevel\", resolvedMin)\n                end\n            ")
                         local v3_7 = (v7_13 and v7_13:GetAttribute("WeaponMinLevel")) or
-                        v2:GetAttribute("WeaponMinLevel")
+                            v2:GetAttribute("WeaponMinLevel")
                         if type(v3_7) == "number" and 0 <= v3_7 and 15 >= v3_7 then
                             v61_2.CachedWeaponMinLevel = v3_7
                             v16_9["CachedWeaponMinLevel"] = v3_7
@@ -5228,7 +5228,7 @@ do
     v150_9.toOptionSet = toOptionSet
 end
 local v150_8 = v150_9.wrapWindow(v12_4:CreateWindow({
-    Name = "HAIANHHUB",
+    Name = "HAIANHHUB (premium)",
     LoadingTitle = "HAIANHHUB",
     LoadingSubtitle = "Phiên bản 0.0.1",
     Theme = "Default",
@@ -6584,7 +6584,7 @@ end
 task.spawn(function()
     pcall(function()
         local mod = v16_15:FindFirstChild("Modules") and v16_15.Modules:FindFirstChild("Storage") and
-        v16_15.Modules.Storage:FindFirstChild("Families")
+            v16_15.Modules.Storage:FindFirstChild("Families")
         if not mod then return end
         for v5, v6 in pairs(require(mod)) do
             if type(v6) == "table" then
@@ -7038,7 +7038,7 @@ end
 task.spawn(function()
     pcall(function()
         local mod = v16_15:FindFirstChild("Modules") and v16_15.Modules:FindFirstChild("Storage") and
-        v16_15.Modules.Storage:FindFirstChild("Perks")
+            v16_15.Modules.Storage:FindFirstChild("Perks")
         if not mod then return end
         for v5, v6 in pairs(require(mod)) do
             if type(v6) == "table" then
@@ -7606,7 +7606,7 @@ do
                     local char = lp.Character
                     if char then
                         local charBan = char:GetAttribute("ShadowBanned") or char:GetAttribute("ShadowBan") or
-                        char:GetAttribute("IsShadowBanned")
+                            char:GetAttribute("IsShadowBanned")
                         if charBan == true then
                             detected = true
                             reason = "Character Attribute: ShadowBanned = true"
@@ -7656,26 +7656,26 @@ do
 
             if detected then
                 v150_10.ShadowBanData.Reason = isVi and ("BỊ SHADOW BAN! (" .. reason .. ")") or
-                ("SHADOW BANNED! (" .. reason .. ")")
+                    ("SHADOW BANNED! (" .. reason .. ")")
                 pcall(function()
                     v150_8.Rayfield:Notify({
                         Title = isVi and "CẢNH BÁO SHADOW BAN!" or "SHADOW BAN DETECTED!",
                         Content = isVi and ("Tài khoản bị phát hiện Shadow Ban:\n" .. reason) or
-                        ("Account detected Shadow Banned:\n" .. reason),
+                            ("Account detected Shadow Banned:\n" .. reason),
                         Duration = 10,
                         Image = 4483362458
                     })
                 end)
             else
                 v150_10.ShadowBanData.Reason = isVi and "Tài khoản sạch 100% (Không có dấu hiệu Shadow Ban)" or
-                "100% Clean (No Shadow Ban detected)"
+                    "100% Clean (No Shadow Ban detected)"
                 if isManual then
                     pcall(function()
                         v150_8.Rayfield:Notify({
                             Title = isVi and "KIỂM TRA SHADOW BAN" or "SHADOW BAN CHECK",
                             Content = isVi and
-                            "Tài khoản 100% Sạch! Tất cả thuộc tính, chỉ số & giao diện đều bình thường." or
-                            "Account is 100% Clean! All attributes, stats & UI normal.",
+                                "Tài khoản 100% Sạch! Tất cả thuộc tính, chỉ số & giao diện đều bình thường." or
+                                "Account is 100% Clean! All attributes, stats & UI normal.",
                             Duration = 5,
                             Image = 4483362458
                         })
@@ -7724,7 +7724,7 @@ do
                 or tonumber(v61_2.CachedWeaponMinLevel)
                 or 0
             local prestige = tonumber(v7_13 and
-                (v7_13:GetAttribute("Symbiote_Prestige") or v7_13:GetAttribute("Prestige")))
+                    (v7_13:GetAttribute("Symbiote_Prestige") or v7_13:GetAttribute("Prestige")))
                 or tonumber(v156_4.Player.Prestige)
                 or 0
             local level = tonumber(v7_13 and (v7_13:GetAttribute("Symbiote_Level") or v7_13:GetAttribute("Level")))
@@ -7789,7 +7789,7 @@ do
                 local topbar = iface:FindFirstChild("Topbar")
                 local curr = topbar and topbar:FindFirstChild("Main") and topbar.Main:FindFirstChild("Currencies")
                 local goldLbl = curr and curr:FindFirstChild("Gold") and
-                (curr.Gold:FindFirstChild("Amount") or curr.Gold:FindFirstChild("Title"))
+                    (curr.Gold:FindFirstChild("Amount") or curr.Gold:FindFirstChild("Title"))
                 if goldLbl and goldLbl:IsA("TextLabel") and type(goldLbl.Text) == "string" then
                     local parsedG = tonumber(goldLbl.Text:gsub(",", ""):gsub("%s+", ""))
                     if parsedG and parsedG >= 0 then
@@ -7821,7 +7821,7 @@ do
                             local normTxt = normalizeVi(txt)
                             if (normTxt:find("tang phan thuong", 1, true) or normTxt:find("bonus", 1, true)) and obj.Parent then
                                 local pNorm = normalizeVi(getGuiObjectText(obj.Parent) ..
-                                " " .. tostring(obj.Parent.Name or ""))
+                                    " " .. tostring(obj.Parent.Name or ""))
                                 if pNorm:find("shiganshina", 1, true) then
                                     bonusMapDetected = "Shiganshina"
                                 elseif pNorm:find("trost", 1, true) then
@@ -7936,8 +7936,8 @@ do
             local startMinLvl = state.WeaponMinLevel
             local startGold = state.Gold
             kaitunActionState = "Upgrading Weapon [" ..
-            (GRADE_LETTERS[startMinLvl] or "E-") ..
-            " -> " .. (GRADE_LETTERS[math.min(15, startMinLvl + 1)] or "S-") .. "]"
+                (GRADE_LETTERS[startMinLvl] or "E-") ..
+                " -> " .. (GRADE_LETTERS[math.min(15, startMinLvl + 1)] or "S-") .. "]"
             if v150_10.UpdateKaitunParagraph then
                 pcall(v150_10.UpdateKaitunParagraph)
             end
@@ -8353,7 +8353,7 @@ do
                     if info.diffLabel and (not info.nextDiffBtn or not info.prevDiffBtn) then
                         local dPos = info.diffLabel.AbsolutePosition
                         local searchRoot = (info.diffLabel.Parent and info.diffLabel.Parent.Parent) or
-                        info.diffLabel.Parent or iface
+                            info.diffLabel.Parent or iface
                         for _, btn in ipairs(searchRoot:GetDescendants()) do
                             if btn:IsA("GuiButton") and btn ~= info.diffLabel and isTrulyVisible(btn, iface) then
                                 local bPos = btn.AbsolutePosition
@@ -8623,7 +8623,7 @@ do
                 local isVi = v150_9.IsVietnamese()
                 local st = v150_10.GetKaitunPlayerState()
                 local enabledStr = v8_6("KaitunEnabled") and (isVi and "ĐANG BẬT (ON)" or "ACTIVE (ON)") or
-                (isVi and "ĐANG TẮT (OFF)" or "DISABLED (OFF)")
+                    (isVi and "ĐANG TẮT (OFF)" or "DISABLED (OFF)")
                 local nextBracketTxt = st.Bracket.NextGrade
                     and string.format("%s (%s Gold)", st.Bracket.NextGrade, v165_3(st.GoldForNextBracket or 0))
                     or (isVi and "Đã tối đa (MAX S)" or "MAXED (S Grade)")
@@ -8684,7 +8684,7 @@ do
                 local kaitunOn = v8_6("KaitunEnabled") == true
                 local autoFarmOn = v8_6("AutoFarm") == true
                 local slotFile, normSlot = v15_getSlotFile(v8_6("SelectedSettingSlot") or v15_orderData.ActiveSlot or
-                "Setting 1")
+                    "Setting 1")
                 local createdList = (type(v15_orderData.Created) == "table" and #v15_orderData.Created > 0)
                     and table.concat(v15_orderData.Created, ", ")
                     or normSlot
@@ -8935,15 +8935,19 @@ do
                 v61_2.AutoUpgradeMaxHQHP = v8_6("AutoUpgradeMaxHQHP") == true
                 if v56_2.AutoUpgradeMaxHQHP then v56_2.AutoUpgradeMaxHQHP:SetState(v61_2.AutoUpgradeMaxHQHP) end
                 v61_2.AutoUpgradeHQHealthRegen = v8_6("AutoUpgradeHQHealthRegen") == true
-                if v56_2.AutoUpgradeHQHealthRegen then v56_2.AutoUpgradeHQHealthRegen:SetState(v61_2
-                    .AutoUpgradeHQHealthRegen) end
+                if v56_2.AutoUpgradeHQHealthRegen then
+                    v56_2.AutoUpgradeHQHealthRegen:SetState(v61_2
+                        .AutoUpgradeHQHealthRegen)
+                end
                 v61_2.AutoUpgradeRefillLimit = v8_6("AutoUpgradeRefillLimit") == true
                 if v56_2.AutoUpgradeRefillLimit then v56_2.AutoUpgradeRefillLimit:SetState(v61_2.AutoUpgradeRefillLimit) end
                 v61_2.AutoUpgradeWeapon = v8_6("AutoUpgradeWeapon") == true
                 if v56_2.AutoUpgradeWeapon then v56_2.AutoUpgradeWeapon:SetState(v61_2.AutoUpgradeWeapon) end
                 v61_2.AutoGetRetrieveSkillCrate = v8_6("AutoGetRetrieveSkillCrate") == true
-                if v56_2.AutoGetRetrieveSkillCrate then v56_2.AutoGetRetrieveSkillCrate:SetState(v61_2
-                    .AutoGetRetrieveSkillCrate) end
+                if v56_2.AutoGetRetrieveSkillCrate then
+                    v56_2.AutoGetRetrieveSkillCrate:SetState(v61_2
+                        .AutoGetRetrieveSkillCrate)
+                end
 
                 v150_10.AutoResetStreak = v8_6("AutoResetStreak") == true
                 if v56_2.AutoResetStreak then v56_2.AutoResetStreak:SetState(v150_10.AutoResetStreak) end
@@ -8974,7 +8978,7 @@ do
                 end
                 if v56_2.SettingSlotDropdown then
                     local _, normSlot = v15_getSlotFile(v8_6("SelectedSettingSlot") or v15_orderData.ActiveSlot or
-                    "Setting 1")
+                        "Setting 1")
                     v56_2.SettingSlotDropdown:SetSelected(normSlot)
                 end
                 if v56_2.AutoLoadGlobalToggle then
@@ -9016,7 +9020,7 @@ do
                 end
             end
             local slotFile, normSlot = v15_getSlotFile(v16_9.SelectedSettingSlot or v15_orderData.ActiveSlot or
-            "Setting 1")
+                "Setting 1")
             v16_9.SelectedSettingSlot = normSlot
             v15_22(v16_9)
             local raw = v5_6:JSONEncode(v16_9)
@@ -9103,7 +9107,7 @@ do
 
         function v150_10.LoadAllSettings()
             local slotFile, normSlot = v15_getSlotFile(v8_6("SelectedSettingSlot") or v15_orderData.ActiveSlot or
-            "Setting 1")
+                "Setting 1")
             local rawG = v10_3(slotFile) or v10_3("Symbiote_GlobalSettings.json") or v10_3(v12)
             if rawG then
                 local ok, decoded = pcall(function()
