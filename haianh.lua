@@ -497,12 +497,21 @@ do
         if not v1_5 then
             return false
         end
-        for v5, v6 in ipairs(v1_5:GetDescendants()) do
-            if v6:IsA("MeshPart") and v6.Name:sub(1, 5) == "Blade" then
+        for _, v6 in ipairs(v1_5:GetDescendants()) do
+            if v6:IsA("BasePart") and v6.Name:sub(1, 5) == "Blade" then
                 return true
             end
         end
-        return false
+        local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+        local hud = pgui and pgui:FindFirstChild("Interface") and pgui.Interface:FindFirstChild("HUD")
+        if hud then
+            for _, desc in ipairs(hud:GetDescendants()) do
+                if desc.Name == "Blades" then
+                    return true
+                end
+            end
+        end
+        return true
     end
     local function v78_2()
         if not v77_2() then
@@ -683,7 +692,7 @@ do
                         local blades = slot:FindFirstChild("Blades")
                         local sets = blades and blades:FindFirstChild("Sets")
                         if sets and sets:IsA("TextLabel") and sets.Text ~= "" then
-                            local num = sets.Text:match("^(%d+)%s*/")
+                            local num = sets.Text:match("(%d+)")
                             if num then
                                 return tonumber(num)
                             end
@@ -692,16 +701,19 @@ do
                 end
                 for _, desc in ipairs(hud:GetDescendants()) do
                     if desc:IsA("TextLabel") and desc.Name == "Sets" and desc.Parent and desc.Parent.Name == "Blades" then
-                        local num = desc.Text:match("^(%d+)%s*/")
+                        local num = desc.Text:match("(%d+)")
                         if num then
                             return tonumber(num)
                         end
                     end
                 end
             end
-            local v4 = v7_13.PlayerGui.Interface.HUD.Main.Top["7"].Blades.Sets.Text:match("^(%d+)%s*/")
-            if v4 then
-                return tonumber(v4)
+            local raw = v7_13.PlayerGui.Interface.HUD.Main.Top["7"].Blades.Sets.Text
+            if raw then
+                local v4 = raw:match("(%d+)")
+                if v4 then
+                    return tonumber(v4)
+                end
             end
             return nil
         end)
@@ -716,10 +728,21 @@ do
             if not v1_2 then
                 return false
             end
-            local v2_3 = v1_2:FindFirstChild("LeftHand")
-            local v3_3 = v1_2:FindFirstChild("RightHand")
-            local leftBlade = v2_3 and v2_3:FindFirstChild("Blade_1")
-            local rightBlade = v3_3 and v3_3:FindFirstChild("Blade_1")
+            local leftHand = v1_2:FindFirstChild("LeftHand") or v1_2:FindFirstChild("Left Arm")
+            local rightHand = v1_2:FindFirstChild("RightHand") or v1_2:FindFirstChild("Right Arm")
+
+            local function findHandBlade(hand)
+                if not hand then return nil end
+                for _, ch in ipairs(hand:GetChildren()) do
+                    if ch:IsA("BasePart") and ch.Name:sub(1, 5) == "Blade" then
+                        return ch
+                    end
+                end
+                return nil
+            end
+
+            local leftBlade = findHandBlade(leftHand)
+            local rightBlade = findHandBlade(rightHand)
 
             local leftBroken = (leftBlade == nil) or (leftBlade:GetAttribute("Broken") == true) or (leftBlade:IsA("BasePart") and leftBlade.Transparency >= 0.9)
             local rightBroken = (rightBlade == nil) or (rightBlade:GetAttribute("Broken") == true) or (rightBlade:IsA("BasePart") and rightBlade.Transparency >= 0.9)
@@ -727,28 +750,14 @@ do
             if leftBlade and rightBlade then
                 -- Smart blade usage: only broken when BOTH blades are broken!
                 return leftBroken and rightBroken
-            end
-            if leftBlade and not rightBlade then
+            elseif leftBlade and not rightBlade then
                 return leftBroken
-            end
-            if rightBlade and not leftBlade then
+            elseif rightBlade and not leftBlade then
                 return rightBroken
+            else
+                -- Neither hand has a blade! Both hands are completely empty -> blades are broken/missing!
+                return true
             end
-
-            local v4_7 = false
-            local hasUsable = false
-            for v8, v9 in ipairs(v1_2:GetDescendants()) do
-                if v9:IsA("MeshPart") and v9.Name:sub(1, 5) == "Blade" then
-                    v4_7 = true
-                    if not v9:GetAttribute("Broken") and 0.9 > v9.Transparency then
-                        hasUsable = true
-                    end
-                end
-            end
-            if v4_7 then
-                return not hasUsable
-            end
-            return false
         end)
         if v1 then
             return v2_2
@@ -760,18 +769,21 @@ do
             return false
         end
         local setsLeft = v82_2()
-        if not (setsLeft ~= nil and setsLeft == 0) then
+        if setsLeft == 0 then
+            return v83_2()
+        end
+        if v83_2() then
+            if v36_2 == nil then
+                v36_2 = os.clock()
+                return false
+            end
+            if os.clock() - v36_2 >= 1.2 then
+                return true
+            end
+        else
             v36_2 = nil
-            return false
         end
-        if v36_2 == nil then
-            v36_2 = os.clock()
-            return false
-        end
-        if os.clock() - v36_2 < 1.0 then
-            return false
-        end
-        return v83_2()
+        return false
     end
     v85_2 = function()
         if v26_2 then
@@ -789,18 +801,22 @@ do
             end
         elseif v77_2() then
             local setsLeft = v82_2()
-            if setsLeft ~= nil and setsLeft == 0 and v83_2() then
-                -- Truly empty: 0 sets left and both blades broken -> go to refill station!
+            if setsLeft == 0 then
+                -- Truly 0 sets in holster and blades broken -> IMMEDIATELY go to refill station!
                 v81_2(false)
-            elseif v83_2() then
-                -- Both blades broken, but still have sets in holster -> reload from holster!
+            else
+                -- Try holster reload first
                 v78_2()
                 local v1_14 = os.clock()
-                while os.clock() - v1_14 < 1.5 do
+                while os.clock() - v1_14 < 1.2 do
                     task.wait(0.1)
                     if not v83_2() then
                         break
                     end
+                end
+                -- If STILL broken after holster reload attempt, holster is empty -> GO TO REFILL STATION!
+                if v83_2() then
+                    v81_2(false)
                 end
             end
         end
@@ -816,9 +832,16 @@ do
             return
         end
         if v77_2() then
-            local setsLeft = v82_2()
-            if not (setsLeft ~= nil and setsLeft == 0 and v83_2()) then
+            if not v83_2() then
                 return
+            end
+            local setsLeft = v82_2()
+            if setsLeft ~= nil and setsLeft > 0 then
+                v78_2()
+                task.wait(0.5)
+                if not v83_2() then
+                    return
+                end
             end
         elseif v73_2() then
             if not v75_2() then
@@ -2080,6 +2103,10 @@ do
             return b.Name or ""
         end
 
+        local retryBtns = {}
+        local claimBtns = {}
+        local nextBtns = {}
+
         for _, f in ipairs(candidateFrames) do
             for _, btn in ipairs(f:GetDescendants()) do
                 if btn:IsA("GuiButton") and btn.Visible == true then
@@ -2092,29 +2119,58 @@ do
                         or n:find("LOBBY")
 
                     if not isLobby then
-                        local isContinue = t:find("TIẾP TỤC") or t:find("TIEP TUC") or t:find("CONTINUE") or t:find("NEXT")
-                            or t:find("NHẬN") or t:find("CLAIM") or t:find("XÁC NHẬN") or t:find("CONFIRM")
-                            or t:find("BỎ QUA") or t:find("SKIP") or t:find("OK") or t:find("ACCEPT") or t:find("CLOSE")
-                            or n:find("CONTINUE") or n:find("NEXT") or n:find("CLAIM") or n:find("OK") or n:find("CLOSE")
-
                         local isRetry = t:find("CHƠI LẠI") or t:find("CHOI LAI") or t:find("RETRY") or t:find("REPLAY")
                             or t:find("THỬ LẠI") or t:find("THU LAI") or t:find("AGAIN") or n:find("RETRY") or n:find("REPLAY")
 
-                        if isContinue or isRetry then
-                            if v150_10.ClickGuiButton then
-                                v150_10.ClickGuiButton(btn)
-                            else
-                                pcall(function()
-                                    if type(firesignal) == "function" then
-                                        firesignal(btn.MouseButton1Click)
-                                        firesignal(btn.Activated)
-                                    end
-                                end)
-                            end
-                            handled = true
+                        local isClaim = t:find("NHẬN") or t:find("CLAIM") or t:find("XÁC NHẬN") or t:find("CONFIRM")
+                            or t:find("BỎ QUA") or t:find("SKIP") or t:find("OK") or t:find("ACCEPT") or t:find("CLOSE")
+                            or n:find("CLAIM") or n:find("OK") or n:find("CLOSE")
+
+                        local isNext = t:find("TIẾP TỤC") or t:find("TIEP TUC") or t:find("CONTINUE") or t:find("NEXT")
+                            or n:find("CONTINUE") or n:find("NEXT")
+
+                        if isRetry then
+                            table.insert(retryBtns, btn)
+                        elseif isClaim then
+                            table.insert(claimBtns, btn)
+                        elseif isNext then
+                            table.insert(nextBtns, btn)
                         end
                     end
                 end
+            end
+        end
+
+        local function doClick(b)
+            if v150_10.ClickGuiButton then
+                v150_10.ClickGuiButton(b)
+            else
+                pcall(function()
+                    if type(firesignal) == "function" then
+                        firesignal(b.MouseButton1Click)
+                        firesignal(b.Activated)
+                    end
+                end)
+            end
+        end
+
+        -- 1. Click reward / confirmation popups first
+        for _, btn in ipairs(claimBtns) do
+            doClick(btn)
+            handled = true
+        end
+
+        -- 2. PRIORITIZE RETRY: Auto Retry means replay the CURRENT map!
+        if #retryBtns > 0 then
+            for _, btn in ipairs(retryBtns) do
+                doClick(btn)
+                handled = true
+            end
+        elseif #nextBtns > 0 and not v8_6("AutoRetry") then
+            -- Only click Next if AutoRetry is disabled (i.e. user explicitly wants to advance maps)
+            for _, btn in ipairs(nextBtns) do
+                doClick(btn)
+                handled = true
             end
         end
 
@@ -2128,6 +2184,7 @@ do
                         v69_2:InvokeServer("Functions", "Retry", "Add")
                     end)
                 end)
+                v150_10.MissionStartTime = os.clock()
                 handled = true
             end
         end
@@ -9260,7 +9317,30 @@ do
                         local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
                         local iface = pgui and pgui:FindFirstChild("Interface")
                         local rewards = iface and iface:FindFirstChild("Rewards")
-                        if (rewards and rewards.Visible) or (v150_10.HandleRetryAndContinueScreen and v150_10.HandleRetryAndContinueScreen()) then
+                        local isMatchEnded = false
+                        if rewards and (rewards.Visible == true or (rewards:IsA("LayerCollector") and rewards.Enabled == true)) then
+                            isMatchEnded = true
+                        end
+                        if not isMatchEnded and iface then
+                            for _, name in ipairs({ "Result", "Results", "Victory", "Defeat", "MissionComplete", "GameEnd", "MatchEnd", "EndScreen" }) do
+                                local f = iface:FindFirstChild(name)
+                                if f and (f.Visible == true or (f:IsA("LayerCollector") and f.Enabled == true)) then
+                                    isMatchEnded = true
+                                    break
+                                end
+                            end
+                        end
+                        if not isMatchEnded and pgui then
+                            for _, name in ipairs({ "Rewards", "Results", "EndScreen", "Victory", "Defeat" }) do
+                                local f = pgui:FindFirstChild(name)
+                                if f and f ~= iface and (f.Visible == true or (f:IsA("LayerCollector") and f.Enabled == true)) then
+                                    isMatchEnded = true
+                                    break
+                                end
+                            end
+                        end
+
+                        if isMatchEnded then
                             if v150_10.ShouldKaitunReturnToLobby() then
                                 v150_10.KaitunReturnToLobby()
                             else
@@ -9774,7 +9854,7 @@ do
             if v150_10.ClaimDailyReward then pcall(v150_10.ClaimDailyReward) end
             if v150_10.AutoClaimAchievements and v150_10.ClaimAchievements then pcall(v150_10.ClaimAchievements) end
             while true do
-                task.wait(30)
+                task.wait(10)
                 if v150_10.ClaimDailyReward then pcall(v150_10.ClaimDailyReward) end
                 if v150_10.AutoClaimAchievements and v150_10.ClaimAchievements then pcall(v150_10.ClaimAchievements) end
                 if v38_2 and (not autoRetryWatcherThread or coroutine.status(autoRetryWatcherThread) == "dead") then
