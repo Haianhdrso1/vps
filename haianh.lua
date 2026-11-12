@@ -521,6 +521,29 @@ do
             v69_2:InvokeServer("Blades", "Reload")
             return
         end)
+        -- Also click the on-screen "Nạp lại" / "Reload" button if visible
+        pcall(function()
+            local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+            if pgui then
+                for _, btn in ipairs(pgui:GetDescendants()) do
+                    if btn:IsA("GuiButton") and btn.Visible == true then
+                        local t = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or ""):lower()
+                        local n = tostring(btn.Name):lower()
+                        if t:find("nạp lại") or t == "reload" or n == "reload" or n == "reloadbutton" then
+                            if v150_10.ClickGuiButton then
+                                v150_10.ClickGuiButton(btn)
+                            else
+                                if type(firesignal) == "function" then
+                                    firesignal(btn.MouseButton1Click)
+                                    firesignal(btn.Activated)
+                                end
+                            end
+                            break
+                        end
+                    end
+                end
+            end
+        end)
         return
     end
     local v80_2 = nil
@@ -728,36 +751,43 @@ do
             if not v1_2 then
                 return false
             end
-            local leftHand = v1_2:FindFirstChild("LeftHand") or v1_2:FindFirstChild("Left Arm")
-            local rightHand = v1_2:FindFirstChild("RightHand") or v1_2:FindFirstChild("Right Arm")
-
-            local function findHandBlade(hand)
-                if not hand then return nil end
-                for _, ch in ipairs(hand:GetChildren()) do
-                    if ch:IsA("BasePart") and ch.Name:sub(1, 5) == "Blade" then
-                        return ch
+            local v2_3 = v1_2:FindFirstChild("LeftHand")
+            local v3_3 = v1_2:FindFirstChild("RightHand")
+            if v2_3 then
+                local v4_4 = v2_3:FindFirstChild("Blade_1")
+                if v4_4 and (v4_4:GetAttribute("Broken") or (v4_4:IsA("BasePart") and v4_4.Transparency >= 0.9)) then
+                    return true
+                end
+            end
+            if v3_3 then
+                local v4_6 = v3_3:FindFirstChild("Blade_1")
+                if v4_6 and (v4_6:GetAttribute("Broken") or (v4_6:IsA("BasePart") and v4_6.Transparency >= 0.9)) then
+                    return true
+                end
+            end
+            -- Also check on-screen "Nạp lại" button visibility
+            local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+            if pgui then
+                for _, btn in ipairs(pgui:GetDescendants()) do
+                    if btn:IsA("GuiButton") and btn.Visible == true then
+                        local t = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or ""):lower()
+                        local n = tostring(btn.Name):lower()
+                        if t:find("nạp lại") or t == "reload" or n == "reload" or n == "reloadbutton" then
+                            return true
+                        end
                     end
                 end
-                return nil
             end
-
-            local leftBlade = findHandBlade(leftHand)
-            local rightBlade = findHandBlade(rightHand)
-
-            local leftBroken = (leftBlade == nil) or (leftBlade:GetAttribute("Broken") == true) or (leftBlade:IsA("BasePart") and leftBlade.Transparency >= 0.9)
-            local rightBroken = (rightBlade == nil) or (rightBlade:GetAttribute("Broken") == true) or (rightBlade:IsA("BasePart") and rightBlade.Transparency >= 0.9)
-
-            if leftBlade and rightBlade then
-                -- Smart blade usage: only broken when BOTH blades are broken!
-                return leftBroken and rightBroken
-            elseif leftBlade and not rightBlade then
-                return leftBroken
-            elseif rightBlade and not leftBlade then
-                return rightBroken
-            else
-                -- Neither hand has a blade! Both hands are completely empty -> blades are broken/missing!
-                return true
+            local v4_7 = false
+            for v8, v9 in ipairs(v1_2:GetDescendants()) do
+                if v9:IsA("MeshPart") and v9.Name:sub(1, 5) == "Blade" then
+                    v4_7 = true
+                    if not v9:GetAttribute("Broken") and 0.9 > v9.Transparency then
+                        return false
+                    end
+                end
             end
+            return v4_7
         end)
         if v1 then
             return v2_2
@@ -769,21 +799,18 @@ do
             return false
         end
         local setsLeft = v82_2()
-        if setsLeft == 0 then
-            return v83_2()
-        end
-        if v83_2() then
-            if v36_2 == nil then
-                v36_2 = os.clock()
-                return false
-            end
-            if os.clock() - v36_2 >= 1.2 then
-                return true
-            end
-        else
+        if not (setsLeft ~= nil and setsLeft == 0) then
             v36_2 = nil
+            return false
         end
-        return false
+        if v36_2 == nil then
+            v36_2 = os.clock()
+            return false
+        end
+        if os.clock() - v36_2 < 1.5 then
+            return false
+        end
+        return v83_2()
     end
     v85_2 = function()
         if v26_2 then
@@ -800,23 +827,21 @@ do
                 v81_2(true)
             end
         elseif v77_2() then
-            local setsLeft = v82_2()
-            if setsLeft == 0 then
-                -- Truly 0 sets in holster and blades broken -> IMMEDIATELY go to refill station!
-                v81_2(false)
-            else
-                -- Try holster reload first
-                v78_2()
-                local v1_14 = os.clock()
-                while os.clock() - v1_14 < 1.2 do
+            -- BLADES: ALWAYS DO RELOAD!
+            v78_2()
+            local v1_14 = os.clock()
+            while true do
+                if os.clock() - v1_14 < 1.8 then
                     task.wait(0.1)
                     if not v83_2() then
-                        break
+                        task.wait(0.2)
+                        v26_2 = false
+                        return
                     end
-                end
-                -- If STILL broken after holster reload attempt, holster is empty -> GO TO REFILL STATION!
-                if v83_2() then
-                    v81_2(false)
+                else
+                    task.wait(0.2)
+                    v26_2 = false
+                    return
                 end
             end
         end
@@ -830,23 +855,6 @@ do
         end
         if os.clock() - v41_2 < 5 then
             return
-        end
-        if v77_2() then
-            if not v83_2() then
-                return
-            end
-            local setsLeft = v82_2()
-            if setsLeft ~= nil and setsLeft > 0 then
-                v78_2()
-                task.wait(0.5)
-                if not v83_2() then
-                    return
-                end
-            end
-        elseif v73_2() then
-            if not v75_2() then
-                return
-            end
         end
         v35_2 = true
         v36_2 = nil
@@ -881,10 +889,7 @@ do
             return false
         end
         if (v25_2 or v18_4) and v77_2() and v83_2() then
-            local setsLeft = v82_2()
-            if setsLeft ~= nil and setsLeft == 0 then
-                return false
-            end
+            return false
         end
         local v8_11 = (v34_2 or v18_4) and v77_2()
         if v8_11 then
