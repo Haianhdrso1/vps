@@ -46,7 +46,6 @@ local v13_2 = {
     AutoGetRetrieveSkillCrate = false,
     AutoOpenRaidChests = false,
     AutoRaid = false,
-    AutoClaimAchievements = true,
     AutoResetStreak = false,
     KaitunEnabled = false,
     KaitunAutoUpgradeWeapon = true,
@@ -55,7 +54,6 @@ local v13_2 = {
     KaitunAutoMap = true,
     KaitunAutoPrestige = true,
     KaitunMaxPrestige = 5,
-    KaitunPrioritizeBonusMap = true,
     AutoLoadGlobalConfig = true,
     SelectedSettingSlot = "Setting 1",
     CachedWeaponMinLevel = 0,
@@ -285,9 +283,7 @@ local v150_10 = {
     BreakingStreak = false,
     CurrentKillStreak = 0,
     StreakThreshold = 1000,
-    AutoRaid = false,
-    AutoClaimAchievements = true,
-    MissionStartTime = os.clock()
+    AutoRaid = false
 }
 local v18_4 = false
 local v19_3 = false
@@ -676,7 +672,7 @@ do
         return
     end
     v87_2 = function()
-        if v26_2 or v35_2 or v61_2.IsUpgrading or v61_2.IsRetrievingSkillCrate then
+        if v26_2 or v35_2 or v150_10.BreakingStreak or v61_2.IsUpgrading or v61_2.IsRetrievingSkillCrate then
             return false
         end
         local v1_4 = v71_3()
@@ -770,16 +766,10 @@ do
         if not p1 or not p1.Parent then
             return false
         end
-        if v150_10 and v150_10.IsBossModel and v150_10.IsBossModel(p1) then
-            return not v90_2(p1)
-        end
         local v2_3 = v13_8:FindFirstChild("Titans")
-        local pName = p1.Parent and p1.Parent.Name
         local isTitanParent = (v2_3 and p1.Parent == v2_3)
             or (v13_8:FindFirstChild("Boss") and p1.Parent == v13_8.Boss)
             or (v13_8:FindFirstChild("Shifters") and p1.Parent == v13_8.Shifters)
-            or pName == "Bosses" or pName == "Enemies" or pName == "Raid"
-            or pName == "Spawns" or pName == "Living" or pName == "Entities"
         if not isTitanParent then
             return false
         end
@@ -789,11 +779,6 @@ do
     function v150_10.IsBossModel(model)
         if not model or not model.Parent then return false end
         if v90_2(model) then return false end
-
-        local pName = model.Parent and model.Parent.Name
-        if pName == "Boss" or pName == "Bosses" or pName == "Shifters" or pName == "Raid" then
-            return true
-        end
 
         if model:GetAttribute("Boss") == true
             or model:GetAttribute("Shifter") == true
@@ -807,11 +792,8 @@ do
         end
 
         local pTag, cs = pcall(function() return game:GetService("CollectionService") end)
-        if pTag and cs and (type(cs) == "userdata" or (type(cs) == "table" and type(cs.HasTag) == "function")) then
-            local ok, has = pcall(function()
-                return cs:HasTag(model, "Boss") or cs:HasTag(model, "Shifter") or cs:HasTag(model, "RaidBoss") or cs:HasTag(model, "Raid")
-            end)
-            if ok and has then
+        if pTag and cs then
+            if cs:HasTag(model, "Boss") or cs:HasTag(model, "Shifter") or cs:HasTag(model, "RaidBoss") or cs:HasTag(model, "Raid") then
                 return true
             end
         end
@@ -838,246 +820,21 @@ do
 
     function v150_10.GetRaidBoss()
         local searchContainers = {
-            v13_8:FindFirstChild("Boss"),
-            v13_8:FindFirstChild("Bosses"),
-            v13_8:FindFirstChild("Shifters"),
-            v13_8:FindFirstChild("Raid"),
             v13_8:FindFirstChild("Titans"),
-            v13_8:FindFirstChild("Enemies"),
-            v13_8:FindFirstChild("Spawns"),
-            v13_8:FindFirstChild("Characters"),
-            v13_8:FindFirstChild("Living"),
-            v13_8:FindFirstChild("Entities")
+            v13_8:FindFirstChild("Boss"),
+            v13_8:FindFirstChild("Shifters"),
+            v13_8:FindFirstChild("Characters")
         }
         for _, container in ipairs(searchContainers) do
             if container then
                 for _, child in ipairs(container:GetChildren()) do
-                    if child:IsA("Model") and v150_10.IsBossModel(child) and v91_2(child) then
+                    if child:IsA("Model") and v150_10.IsBossModel(child) then
                         return child
                     end
                 end
             end
         end
-        for _, child in ipairs(v13_8:GetChildren()) do
-            if child:IsA("Model") and v150_10.IsBossModel(child) and v91_2(child) then
-                return child
-            end
-        end
         return nil
-    end
-
-    function v150_10.GetAliveTitansCount()
-        local count = 0
-        pcall(function()
-            local titanFolders = {
-                v13_8:FindFirstChild("Titans"),
-                v13_8:FindFirstChild("Boss"),
-                v13_8:FindFirstChild("Shifters"),
-                v13_8:FindFirstChild("Bosses"),
-                v13_8:FindFirstChild("Enemies"),
-                v13_8:FindFirstChild("Raid"),
-                v13_8:FindFirstChild("Living")
-            }
-            for _, folder in ipairs(titanFolders) do
-                if folder then
-                    for _, titan in ipairs(folder:GetChildren()) do
-                        if titan:IsA("Model") and not v90_2(titan) then
-                            count = count + 1
-                        end
-                    end
-                end
-            end
-        end)
-        return count
-    end
-
-    function v150_10.CheckMissionSafetyWait(targetTitan)
-        local minSafeDuration = 30
-        local startTime = v150_10.MissionStartTime or os.clock()
-        local elapsed = os.clock() - startTime
-        if elapsed < minSafeDuration then
-            local aliveCount = v150_10.GetAliveTitansCount()
-            if aliveCount <= 1 then
-                while v18_4 and (os.clock() - (v150_10.MissionStartTime or 0) < minSafeDuration) do
-                    if targetTitan and v91_2(targetTitan) and v127_2 then
-                        pcall(function()
-                            v127_2(targetTitan)
-                        end)
-                    end
-                    task.wait(0.2)
-                end
-            end
-        end
-    end
-
-    function v150_10.GetActualGameTime()
-        local resTime = nil
-        pcall(function()
-            local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
-            local iface = pgui and pgui:FindFirstChild("Interface")
-            if iface then
-                local rewards = iface:FindFirstChild("Rewards")
-                if rewards and rewards:FindFirstChild("Main") and rewards.Main:FindFirstChild("Info") then
-                    local stats = rewards.Main.Info.Main:FindFirstChild("Stats")
-                    local tt = stats and stats:FindFirstChild("Time_Taken") and stats.Time_Taken:FindFirstChild("Amount")
-                    if tt and tt:IsA("TextLabel") and tt.Text ~= "" and tt.Text ~= "00:00" then
-                        local m, s = string.match(tt.Text, "(%d+):(%d+)")
-                        if m and s then
-                            local total = (tonumber(m) or 0) * 60 + (tonumber(s) or 0)
-                            if total > 0 then
-                                resTime = total
-                                return
-                            end
-                        end
-                    end
-                end
-                local hud = iface:FindFirstChild("HUD")
-                if hud then
-                    for _, desc in ipairs(hud:GetDescendants()) do
-                        if desc:IsA("TextLabel") and desc.Visible and desc.Text:match("^%d+:%d+$") then
-                            local m, s = string.match(desc.Text, "(%d+):(%d+)")
-                            if m and s then
-                                local total = (tonumber(m) or 0) * 60 + (tonumber(s) or 0)
-                                if total > 0 then
-                                    resTime = total
-                                    return
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end)
-        if not resTime then
-            local attrSec = tonumber(v13_8:GetAttribute("Seconds")) or tonumber(v13_8:GetAttribute("Time")) or tonumber(v13_8:GetAttribute("Timer"))
-            if attrSec and attrSec > 0 then
-                resTime = attrSec
-            end
-        end
-        if not resTime then
-            local elapsed = math.floor(os.clock() - (v150_10.MissionStartTime or os.clock()))
-            resTime = math.max(30, elapsed)
-        end
-        return resTime
-    end
-
-    function v150_10.ClaimAchievements()
-        if not v150_10.AutoClaimAchievements then
-            return
-        end
-        task.spawn(function()
-            pcall(function()
-                if v69_2 then
-                    v69_2:InvokeServer("Achievements", "ClaimAll")
-                end
-            end)
-            pcall(function()
-                if v68_2 then
-                    v68_2:FireServer("Achievements", "ClaimAll")
-                end
-            end)
-            pcall(function()
-                if v69_2 then
-                    v69_2:InvokeServer("Functions", "Achievements", "ClaimAll")
-                end
-            end)
-            pcall(function()
-                local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
-                if not pgui then return end
-                for _, container in ipairs({ pgui:FindFirstChild("Interface"), pgui }) do
-                    if container then
-                        for _, name in ipairs({ "Achievements", "Achievement", "Tasks", "Quests", "Missions" }) do
-                            local achFrame = container:FindFirstChild(name, true)
-                            if achFrame then
-                                for _, btn in ipairs(achFrame:GetDescendants()) do
-                                    if btn:IsA("GuiButton") and btn.Visible then
-                                        local txt = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or btn.Name):upper()
-                                        if txt:find("CLAIM") or txt:find("NHẬN") or txt:find("COLLECT") or txt:find("ALL") then
-                                            if v150_10.ClickGuiButton then
-                                                v150_10.ClickGuiButton(btn)
-                                            else
-                                                pcall(function()
-                                                    if type(firesignal) == "function" then
-                                                        firesignal(btn.MouseButton1Click)
-                                                        firesignal(btn.Activated)
-                                                    end
-                                                end)
-                                            end
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-            end)
-        end)
-    end
-
-    function v150_10.ClaimDailyReward()
-        -- Always enabled, no toggle required
-        task.spawn(function()
-            pcall(function()
-                if v69_2 then
-                    v69_2:InvokeServer("Daily", "Claim")
-                end
-            end)
-            pcall(function()
-                if v69_2 then
-                    v69_2:InvokeServer("S_Rewards", "Daily")
-                end
-            end)
-            pcall(function()
-                if v69_2 then
-                    v69_2:InvokeServer("Rewards", "Daily")
-                end
-            end)
-            pcall(function()
-                if v69_2 then
-                    v69_2:InvokeServer("DailyReward", "Claim")
-                end
-            end)
-            pcall(function()
-                if v69_2 then
-                    v69_2:InvokeServer("Lobby", "Daily")
-                end
-            end)
-            pcall(function()
-                if v68_2 then
-                    v68_2:FireServer("Daily", "Claim")
-                end
-            end)
-            pcall(function()
-                local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
-                if not pgui then return end
-                for _, container in ipairs({ pgui:FindFirstChild("Interface"), pgui }) do
-                    if container then
-                        for _, name in ipairs({ "Daily", "DailyReward", "DailyRewards", "Calendar", "LoginReward" }) do
-                            local dailyFrame = container:FindFirstChild(name, true)
-                            if dailyFrame then
-                                for _, btn in ipairs(dailyFrame:GetDescendants()) do
-                                    if btn:IsA("GuiButton") and btn.Visible then
-                                        local txt = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or btn.Name):upper()
-                                        if txt:find("CLAIM") or txt:find("NHẬN") or txt:find("COLLECT") or txt:find("DAY") then
-                                            if v150_10.ClickGuiButton then
-                                                v150_10.ClickGuiButton(btn)
-                                            else
-                                                pcall(function()
-                                                    if type(firesignal) == "function" then
-                                                        firesignal(btn.MouseButton1Click)
-                                                        firesignal(btn.Activated)
-                                                    end
-                                                end)
-                                            end
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-            end)
-        end)
     end
 
     local function v92_2()
@@ -1121,10 +878,16 @@ do
             return false
         end
         local raidBoss = v150_10.AutoRaid and v150_10.GetRaidBoss()
-        if raidBoss then
-            local bossNape = v89_2(raidBoss)
-            if bossNape then
-                p1 = bossNape
+        if raidBoss and type(p1) == "table" then
+            local filtered = {}
+            for _, item in ipairs(p1) do
+                local m = (typeof(item) == "Instance" and (item:IsA("Model") and item or item:FindFirstAncestorOfClass("Model")))
+                if m == raidBoss then
+                    table.insert(filtered, item)
+                end
+            end
+            if #filtered > 0 then
+                p1 = filtered
             else
                 p1 = raidBoss
             end
@@ -1168,7 +931,7 @@ do
                 end
             end
         end
-        if raidBoss and #v2_3 > 0 then
+        if raidBoss and #v2_3 == 1 then
             local singleNape = v2_3[1]
             while #v2_3 < v3_3 do
                 table.insert(v2_3, singleNape)
@@ -1274,17 +1037,12 @@ do
         return
     end
     v96_6 = function(p1)
-        local searchFolders = {
-            v13_8:FindFirstChild("Titans"),
-            v13_8:FindFirstChild("Boss"),
-            v13_8:FindFirstChild("Shifters")
-        }
-        for _, fld in ipairs(searchFolders) do
-            if fld then
-                for _, child in ipairs(fld:GetChildren()) do
-                    v95_8(child, p1)
-                end
-            end
+        local v2_3 = v13_8:FindFirstChild("Titans")
+        if not v2_3 then
+            return
+        end
+        for v6, v7 in ipairs(v2_3:GetChildren()) do
+            v95_8(v7, p1)
         end
         return
     end
@@ -1296,25 +1054,18 @@ do
             return v93_2(p1)
         end
         local raidBoss = v150_10.AutoRaid and v150_10.GetRaidBoss()
-        if raidBoss then
-            if type(p1) == "table" then
-                local filtered = {}
-                for _, item in ipairs(p1) do
-                    local m = (typeof(item) == "Instance" and (item:IsA("Model") and item or item:FindFirstAncestorOfClass("Model")))
-                    if m == raidBoss then
-                        table.insert(filtered, item)
-                    end
+        if raidBoss and type(p1) == "table" then
+            local filtered = {}
+            for _, item in ipairs(p1) do
+                local m = (typeof(item) == "Instance" and (item:IsA("Model") and item or item:FindFirstAncestorOfClass("Model")))
+                if m == raidBoss then
+                    table.insert(filtered, item)
                 end
-                if #filtered > 0 then
-                    p1 = filtered
-                else
-                    p1 = raidBoss
-                end
-            elseif typeof(p1) == "Instance" then
-                local m = p1:IsA("Model") and p1 or p1:FindFirstAncestorOfClass("Model")
-                if m ~= raidBoss then
-                    p1 = raidBoss
-                end
+            end
+            if #filtered > 0 then
+                p1 = filtered
+            else
+                p1 = raidBoss
             end
         end
         local v2_7 = {}
@@ -1324,8 +1075,38 @@ do
             for v8_2, v9_2 in ipairs(p1) do
                 if typeof(v9_2) == "Instance" then
                     local v10_4 = v9_2:IsA("Model") and v9_2 or v9_2:FindFirstAncestorOfClass("Model")
-                    local v11_5 = (v9_2:IsA("BasePart") and v9_2.Name == "Nape" and v9_2) or (v10_4 and v89_2(v10_4))
-                    local v12_6 = v10_4 and v11_5 and v91_2(v10_4)
+                    local v11_5 = v9_2:IsA("BasePart") and v9_2.Name == "Nape" and v9_2
+                    if not v11_5 then
+                        v11_5 = v10_4
+                        if v11_5 then
+                            local v12_8 = v10_4:FindFirstChild("Hitboxes")
+                            if not v12_8 then
+                                v11_5 = nil
+                            else
+                                local v13_13 = v12_8:FindFirstChild("Hit")
+                                if not v13_13 then
+                                    v11_5 = nil
+                                else
+                                    v11_5 = v13_13:FindFirstChild("Nape")
+                                end
+                            end
+                        end
+                    end
+                    local v12_6 = v10_4 and v11_5
+                    if v12_6 then
+                        if not v10_4 or not v10_4.Parent then
+                            v12_6 = false
+                        else
+                            local v13_26 = v13_8:FindFirstChild("Titans")
+                            if not v13_26 then
+                                v12_6 = false
+                            elseif v10_4.Parent ~= v13_26 then
+                                v12_6 = false
+                            else
+                                v12_6 = not v90_2(v10_4)
+                            end
+                        end
+                    end
                     if v12_6 then
                         table.insert(v2_7, v10_4)
                         table.insert(v3_6, v11_5)
@@ -1337,7 +1118,7 @@ do
             end
         elseif typeof(p1) == "Instance" then
             local v5_8 = p1:IsA("Model") and p1 or p1:FindFirstAncestorOfClass("Model")
-            local v6_11 = (p1:IsA("BasePart") and p1.Name == "Nape" and p1) or (v5_8 and v89_2(v5_8))
+            local v6_11 = p1:IsA("BasePart") and p1.Name == "Nape" and p1 or v5_8 and v89_2(v5_8)
             if v5_8 and v6_11 and v91_2(v5_8) then
                 table.insert(v2_7, v5_8)
                 table.insert(v3_6, v6_11)
@@ -1365,7 +1146,7 @@ do
         end
         local v10_11 = v8_8 and v8_8.CollisionGroup
         local v11_9 = v8_8 and v8_8.Size
-        local v12_10 = math.max(120, (55 + v60_2 * 2) * 2 + 50)
+        local v12_10 = math.max(100, (55 + v60_2) * 2 + 30)
         if v8_8 and v8_8:IsA("BasePart") then
             if not v150_10.OriginalSizes[v8_8] then
                 v150_10.OriginalSizes[v8_8] = v11_9
@@ -1385,13 +1166,6 @@ do
                         v24_3.CanCollide = false
                         v24_3.CanTouch = v24_3.Name == "Nape"
                     end
-                end
-            else
-                local napePart = v89_2(v17_3)
-                if napePart and napePart:IsA("BasePart") then
-                    napePart.CollisionGroup = "Default"
-                    napePart.CanCollide = false
-                    napePart.CanTouch = true
                 end
             end
         end
@@ -1420,7 +1194,7 @@ do
             v9_6:SetAttribute("SlashHandled", false)
             pcall(function()
                 v67_2(v9_6,
-                    "                local Players = game:GetService(\"Players\")\n                local lp = Players.LocalPlayer\n                local chars = workspace:FindFirstChild(\"Characters\")\n                local c = (chars and chars:FindFirstChild(lp.Name)) or lp.Character\n                local act = c and c:FindFirstChild(\"Actor\")\n                if not act then return end\n\n                local targetId = act:GetAttribute(\"TargetTitan\")\n                local targetNamesStr = act:GetAttribute(\"TargetTitanNames\") or \"\"\n                local nameMap = {}\n                for name in string.gmatch(targetNamesStr, \"[^,]+\") do\n                    nameMap[name] = true\n                end\n                local maxTargets = tonumber(act:GetAttribute(\"SlashMaxTargets\")) or 1\n                local searchFolders = {\n                    workspace:FindFirstChild(\"Titans\"),\n                    workspace:FindFirstChild(\"Boss\"),\n                    workspace:FindFirstChild(\"Shifters\"),\n                    workspace:FindFirstChild(\"Characters\")\n                }\n                local napes = {}\n                for _, fld in ipairs(searchFolders) do\n                    if fld then\n                        for _, m in ipairs(fld:GetChildren()) do\n                            if (targetId and m:GetAttribute(\"__SymbioteTarget\") == targetId) or nameMap[m.Name] then\n                                local np = (m:FindFirstChild(\"Hitboxes\") and m.Hitboxes:FindFirstChild(\"Hit\") and m.Hitboxes.Hit:FindFirstChild(\"Nape\"))\n                                    or m:FindFirstChild(\"Nape\", true)\n                                if np and np:IsA(\"BasePart\") then\n                                    table.insert(napes, np)\n                                    if #napes >= maxTargets then break end\n                                end\n                            end\n                        end\n                    end\n                    if #napes >= maxTargets then break end\n                end\n                if #napes == 0 then\n                    for _, fld in ipairs(searchFolders) do\n                        if fld then\n                            for _, m in ipairs(fld:GetChildren()) do\n                                if m:IsA(\"Model\") and not m:GetAttribute(\"State\") then\n                                    local np = (m:FindFirstChild(\"Hitboxes\") and m.Hitboxes:FindFirstChild(\"Hit\") and m.Hitboxes.Hit:FindFirstChild(\"Nape\"))\n                                        or m:FindFirstChild(\"Nape\", true)\n                                    if np and np:IsA(\"BasePart\") then\n                                        table.insert(napes, np)\n                                        if #napes >= maxTargets then break end\n                                    end\n                                end\n                            end\n                        end\n                        if #napes >= maxTargets then break end\n                    end\n                end\n\n                if #napes > 0 and #napes < maxTargets and (act:GetAttribute(\"BossBurst\") == true or targetId) then\n                    local singleNape = napes[1]\n                    while #napes < maxTargets do\n                        table.insert(napes, singleNape)\n                    end\n                end\n\n                local h = c and c:FindFirstChild(\"HumanoidRootPart\")\n                local hm = c and c:FindFirstChild(\"Humanoid\")\n                local hb = c and c:FindFirstChild(\"Hitbox\")\n                if hb and hb:IsA(\"BasePart\") then\n                    hb.CanCollide = false\n                    hb.CanTouch = true\n                end\n\n                local host = _G.__CachedHost\n                if type(host) ~= \"table\"\n                    or type(rawget(host, \"Modules\")) ~= \"table\"\n                    or type(rawget(host, \"Cache\")) ~= \"table\"\n                    or host.Cache.Character ~= c\n                    or not host.Modules.Zones\n                    or not host.Modules.Input\n                    or not host.Modules.ODMG\n                    or not host.Modules.Effects\n                then\n                    host = nil\n                    _G.__CachedHost = nil\n                    local now = os.clock()\n                    local lastScan = _G.__LastHostScan or 0\n                    if (now - lastScan) >= 1 then\n                        _G.__LastHostScan = now\n                        for _, obj in ipairs(getgc(true)) do\n                            if type(obj) == \"table\"\n                                and type(rawget(obj, \"Modules\")) == \"table\"\n                                and type(rawget(obj, \"Cache\")) == \"table\"\n                                and obj.Cache.Character == c\n                                and obj.Modules.Zones\n                            then\n                                host = obj\n                                _G.__CachedHost = obj\n                                break\n                            end\n                        end\n                    end\n                end\n\n                if host and #napes > 0 and h and hm then\n                    act:SetAttribute(\"SlashHandled\", true)\n                    pcall(function()\n                        local slash = host.Cache.Variables.Slash\n                        local odmg = host.Modules.ODMG\n                        local inputMod = host.Modules.Input\n                        local effects = host.Modules.Effects\n                        local zones = host.Modules.Zones\n\n                        if inputMod.Slashing then\n                            pcall(function() task.cancel(inputMod.Slashing) end)\n                            inputMod.Slashing = nil\n                        end\n                        if type(odmg.Events) == \"table\" then\n                            for _, ev in pairs(odmg.Events) do\n                                pcall(function() task.cancel(ev) end)\n                            end\n                            table.clear(odmg.Events)\n                        end\n\n                        if effects.Slash_State == true then\n                            pcall(function() effects.Slash(host, false, true) end)\n                            effects.Slash_State = false\n                        end\n\n                        host.Invoked = false\n                        if host.Modules.Shift then\n                            host.Modules.Shift.Stunned = false\n                        end\n\n                        if host.Loadout and host.Loadout.Stats then\n                            host.Loadout.Stats.Crit_Chance = 100\n                            host.Loadout.Stats.Strike = maxTargets\n                        end\n\n                        if not zones.__SymbioteCritHooked and type(zones.Damage_Check) == \"function\" then\n                            zones.__SymbioteCritHooked = true\n                            local origDamageCheck = zones.Damage_Check\n                            zones.Damage_Check = function(p2, p3, p4, p5, p6, p7, p8, p9)\n                                return origDamageCheck(p2, p3, p4, true, p6, p7, p8, p9)\n                            end\n                        end\n\n                        slash.Slashing = false\n                        slash.Released = false\n                        slash.Holding = false\n                        slash.Cooldown = false\n                        slash.Combo = 0\n                        table.clear(zones.Hit)\n\n                        if not host.__OrigTasks and type(odmg.Tasks) == \"function\" then\n                            host.__OrigTasks = odmg.Tasks\n                        end\n                        odmg.Tasks = function() end\n                        pcall(function() odmg.M1(host, false) end)\n                        if host.__OrigTasks then\n                            odmg.Tasks = host.__OrigTasks\n                        end\n\n                        slash.Slashing = true\n                        slash.Released = false\n                        slash.Holding = false\n                        slash.Type = \"Air\"\n                        slash.Last = tick() - 0.65\n                        zones.Time_Difference = 0.65\n\n                        task.wait(0.04)\n\n                        table.clear(zones.Hit)\n                        pcall(function() inputMod.Slash(host, h, hm) end)\n                        slash.Slashing = true\n                        slash.Released = true\n                        slash.Holding = false\n                        slash.Type = \"Air\"\n\n                        if effects.Slash_State ~= true then\n                            pcall(function() effects.Slash(host, true, true) end)\n                            effects.Slash_State = true\n                        end\n                        host:Send(\"Attacks\", \"Slash\", true)\n\n                        local a = hm:FindFirstChild(\"Animator\")\n                        if a then\n                            for _, track in ipairs(a:GetPlayingAnimationTracks()) do\n                                if track.Priority == Enum.AnimationPriority.Action4 or track.Priority == Enum.AnimationPriority.Action3 or track.Name:find(\"Hit\") or track.Name:find(\"Slash\") then\n                                    track:Stop(0)\n                                end\n                            end\n                        end\n\n                        for _, np in ipairs(napes) do\n                            table.insert(zones.Hit, np)\n                            host:Send(\"Hitboxes\", \"Register\", np, 0.65)\n                        end\n\n                        task.wait(0.12)\n\n                        if inputMod.Slashing then\n                            pcall(function() task.cancel(inputMod.Slashing) end)\n                            inputMod.Slashing = nil\n                        end\n                        slash.Slashing = false\n                        slash.Released = false\n                        slash.Holding = false\n                        pcall(function() effects.Slash(host, false, true) end)\n                        if effects.Slash_State ~= false then\n                            effects.Slash_State = false\n                        end\n                        host:Send(\"Attacks\", \"Slash\", false)\n                    end)\n                end\n\n                act:SetAttribute(\"SlashDone\", true)\n            ")
+                    "                local Players = game:GetService(\"Players\")\n                local lp = Players.LocalPlayer\n                local chars = workspace:FindFirstChild(\"Characters\")\n                local c = (chars and chars:FindFirstChild(lp.Name)) or lp.Character\n                local act = c and c:FindFirstChild(\"Actor\")\n                if not act then return end\n\n                local targetId = act:GetAttribute(\"TargetTitan\")\n                local targetNamesStr = act:GetAttribute(\"TargetTitanNames\") or \"\"\n                local nameMap = {}\n                for name in string.gmatch(targetNamesStr, \"[^,]+\") do\n                    nameMap[name] = true\n                end\n                local maxTargets = tonumber(act:GetAttribute(\"SlashMaxTargets\")) or 1\n                local tit = workspace:FindFirstChild(\"Titans\")\n                local napes = {}\n                if tit then\n                    for _, m in ipairs(tit:GetChildren()) do\n                        if (targetId and m:GetAttribute(\"__SymbioteTarget\") == targetId) or nameMap[m.Name] then\n                            local np = m:FindFirstChild(\"Hitboxes\") and m.Hitboxes:FindFirstChild(\"Hit\") and m.Hitboxes.Hit:FindFirstChild(\"Nape\")\n                            if np then\n                                table.insert(napes, np)\n                                if #napes >= maxTargets then\n                                    break\n                                end\n                            end\n                        end\n                    end\n                    if #napes == 0 then\n                        for _, m in ipairs(tit:GetChildren()) do\n                            if m:IsA(\"Model\") and not m:GetAttribute(\"State\") then\n                                local np = m:FindFirstChild(\"Hitboxes\") and m.Hitboxes:FindFirstChild(\"Hit\") and m.Hitboxes.Hit:FindFirstChild(\"Nape\")\n                                if np then\n                                    table.insert(napes, np)\n                                    if #napes >= maxTargets then break end\n                                end\n                            end\n                        end\n                    end\n                end\n\n                if #napes > 0 and #napes < maxTargets and (act:GetAttribute(\"BossBurst\") == true or targetId) then\n                    local singleNape = napes[1]\n                    while #napes < maxTargets do\n                        table.insert(napes, singleNape)\n                    end\n                end\n\n                local h = c and c:FindFirstChild(\"HumanoidRootPart\")\n                local hm = c and c:FindFirstChild(\"Humanoid\")\n                local hb = c and c:FindFirstChild(\"Hitbox\")\n                if hb and hb:IsA(\"BasePart\") then\n                    hb.CanCollide = false\n                    hb.CanTouch = true\n                end\n\n                local host = _G.__CachedHost\n                if type(host) ~= \"table\"\n                    or type(rawget(host, \"Modules\")) ~= \"table\"\n                    or type(rawget(host, \"Cache\")) ~= \"table\"\n                    or host.Cache.Character ~= c\n                    or not host.Modules.Zones\n                    or not host.Modules.Input\n                    or not host.Modules.ODMG\n                    or not host.Modules.Effects\n                then\n                    host = nil\n                    _G.__CachedHost = nil\n                    local now = os.clock()\n                    local lastScan = _G.__LastHostScan or 0\n                    if (now - lastScan) >= 1 then\n                        _G.__LastHostScan = now\n                        for _, obj in ipairs(getgc(true)) do\n                            if type(obj) == \"table\"\n                                and type(rawget(obj, \"Modules\")) == \"table\"\n                                and type(rawget(obj, \"Cache\")) == \"table\"\n                                and obj.Cache.Character == c\n                                and obj.Modules.Zones\n                            then\n                                host = obj\n                                _G.__CachedHost = obj\n                                break\n                            end\n                        end\n                    end\n                end\n\n                if host and #napes > 0 and h and hm then\n                    act:SetAttribute(\"SlashHandled\", true)\n                    pcall(function()\n                        local slash = host.Cache.Variables.Slash\n                        local odmg = host.Modules.ODMG\n                        local inputMod = host.Modules.Input\n                        local effects = host.Modules.Effects\n                        local zones = host.Modules.Zones\n\n                        if inputMod.Slashing then\n                            pcall(function() task.cancel(inputMod.Slashing) end)\n                            inputMod.Slashing = nil\n                        end\n                        if type(odmg.Events) == \"table\" then\n                            for _, ev in pairs(odmg.Events) do\n                                pcall(function() task.cancel(ev) end)\n                            end\n                            table.clear(odmg.Events)\n                        end\n\n                        if effects.Slash_State == true then\n                            pcall(function() effects.Slash(host, false, true) end)\n                            effects.Slash_State = false\n                        end\n\n                        host.Invoked = false\n                        if host.Modules.Shift then\n                            host.Modules.Shift.Stunned = false\n                        end\n\n                        if host.Loadout and host.Loadout.Stats then\n                            host.Loadout.Stats.Crit_Chance = 100\n                            host.Loadout.Stats.Strike = maxTargets\n                        end\n\n                        if not zones.__SymbioteCritHooked and type(zones.Damage_Check) == \"function\" then\n                            zones.__SymbioteCritHooked = true\n                            local origDamageCheck = zones.Damage_Check\n                            zones.Damage_Check = function(p2, p3, p4, p5, p6, p7, p8, p9)\n                                return origDamageCheck(p2, p3, p4, true, p6, p7, p8, p9)\n                            end\n                        end\n\n                        slash.Slashing = false\n                        slash.Released = false\n                        slash.Holding = false\n                        slash.Cooldown = false\n                        slash.Combo = 0\n                        table.clear(zones.Hit)\n\n                        if not host.__OrigTasks and type(odmg.Tasks) == \"function\" then\n                            host.__OrigTasks = odmg.Tasks\n                        end\n                        odmg.Tasks = function() end\n                        pcall(function() odmg.M1(host, false) end)\n                        if host.__OrigTasks then\n                            odmg.Tasks = host.__OrigTasks\n                        end\n\n                        slash.Slashing = true\n                        slash.Released = false\n                        slash.Holding = false\n                        slash.Type = \"Air\"\n                        slash.Last = tick() - 0.65\n                        zones.Time_Difference = 0.65\n\n                        task.wait(0.04)\n\n                        table.clear(zones.Hit)\n                        pcall(function() inputMod.Slash(host, h, hm) end)\n                        slash.Slashing = true\n                        slash.Released = true\n                        slash.Holding = false\n                        slash.Type = \"Air\"\n\n                        if effects.Slash_State ~= true then\n                            pcall(function() effects.Slash(host, true, true) end)\n                            effects.Slash_State = true\n                        end\n                        host:Send(\"Attacks\", \"Slash\", true)\n\n                        local a = hm:FindFirstChild(\"Animator\")\n                        if a then\n                            for _, track in ipairs(a:GetPlayingAnimationTracks()) do\n                                if track.Priority == Enum.AnimationPriority.Action4 or track.Priority == Enum.AnimationPriority.Action3 or track.Name:find(\"Hit\") or track.Name:find(\"Slash\") then\n                                    track:Stop(0)\n                                end\n                            end\n                        end\n\n                        for _, np in ipairs(napes) do\n                            table.insert(zones.Hit, np)\n                            host:Send(\"Hitboxes\", \"Register\", np, 0.65)\n                        end\n\n                        task.wait(0.12)\n\n                        if inputMod.Slashing then\n                            pcall(function() task.cancel(inputMod.Slashing) end)\n                            inputMod.Slashing = nil\n                        end\n                        slash.Slashing = false\n                        slash.Released = false\n                        slash.Holding = false\n                        pcall(function() effects.Slash(host, false, true) end)\n                        if effects.Slash_State ~= false then\n                            effects.Slash_State = false\n                        end\n                        host:Send(\"Attacks\", \"Slash\", false)\n                    end)\n                end\n\n                act:SetAttribute(\"SlashDone\", true)\n            ")
                 return
             end)
             local v17_20 = os.clock()
@@ -1844,179 +1618,7 @@ do
     end
     local v112_2 = nil
     local v113_2 = nil
-    local autoRetryWatcherThread = nil
-    local lastRetryInvokeTime = 0
-
-    function v150_10.HandleRetryAndContinueScreen()
-        -- Mission Safety Timer check: ensure minimum 30 seconds before continuing/retrying
-        local elapsed = os.clock() - (v150_10.MissionStartTime or os.clock())
-        if elapsed < 30 then
-            return false
-        end
-
-        local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
-        local iface = pgui and pgui:FindFirstChild("Interface")
-        if not pgui then
-            lastRetryInvokeTime = 0
-            return false
-        end
-
-        local candidateFrames = {}
-        if iface then
-            local rewards = iface:FindFirstChild("Rewards")
-            if rewards and (rewards.Visible == true or rewards:IsA("LayerCollector")) then
-                table.insert(candidateFrames, rewards)
-            end
-            for _, name in ipairs({ "Result", "Results", "Victory", "Defeat", "MissionComplete", "GameEnd", "MatchEnd", "EndScreen", "Popup", "Dialog", "LevelUp", "RankUp", "Prompt", "Notification" }) do
-                local f = iface:FindFirstChild(name)
-                if f and (f:IsA("GuiObject") or f:IsA("LayerCollector")) then
-                    table.insert(candidateFrames, f)
-                end
-            end
-            if #candidateFrames == 0 then
-                for _, child in ipairs(iface:GetChildren()) do
-                    if child:IsA("GuiObject") and child.Visible == true
-                        and child.Name ~= "Customisation" and child.Name ~= "Family"
-                        and child.Name ~= "Settings" and child.Name ~= "Cursor" and child.Name ~= "TopBar" then
-                        for _, btn in ipairs(child:GetDescendants()) do
-                            if btn:IsA("GuiButton") and btn.Visible == true then
-                                local t = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or ""):upper()
-                                if t:find("TIẾP TỤC") or t:find("TIEP TUC") or t:find("CONTINUE")
-                                    or t:find("CHƠI LẠI") or t:find("CHOI LAI") or t:find("RETRY") or t:find("REPLAY")
-                                    or t:find("CLAIM") or t:find("NHẬN") or t:find("OK") or t:find("NEXT") then
-                                    table.insert(candidateFrames, child)
-                                    break
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-        end
-
-        for _, name in ipairs({ "Rewards", "Results", "EndScreen", "Victory", "LevelUp", "Prompt", "Dialog" }) do
-            local f = pgui:FindFirstChild(name)
-            if f and f ~= iface and (f:IsA("GuiObject") or f:IsA("LayerCollector")) then
-                table.insert(candidateFrames, f)
-            end
-        end
-
-        if #candidateFrames == 0 then
-            lastRetryInvokeTime = 0
-            return false
-        end
-
-        if v150_10.ShouldKaitunReturnToLobby and v150_10.ShouldKaitunReturnToLobby() then
-            v150_10.KaitunReturnToLobby()
-            return true
-        end
-
-        local handled = false
-
-        local function getBtnText(b)
-            if b.Text and b.Text ~= "" then return b.Text end
-            for _, ch in ipairs(b:GetChildren()) do
-                if ch:IsA("TextLabel") and ch.Text and ch.Text ~= "" then
-                    return ch.Text
-                end
-            end
-            return b.Name or ""
-        end
-
-        local retryBtns = {}
-        local claimBtns = {}
-        local nextBtns = {}
-
-        for _, f in ipairs(candidateFrames) do
-            for _, btn in ipairs(f:GetDescendants()) do
-                if btn:IsA("GuiButton") and btn.Visible == true then
-                    local rawText = getBtnText(btn)
-                    local t = tostring(rawText):upper()
-                    local n = tostring(btn.Name):upper()
-
-                    local isLobby = t:find("LOBBY") or t:find("SẢNH") or t:find("TRỞ VỀ")
-                        or t:find("TRỞ LẠI") or t:find("RETURN") or t:find("LEAVE") or t:find("THOÁT")
-                        or n:find("LOBBY")
-
-                    if not isLobby then
-                        local isRetry = t:find("CHƠI LẠI") or t:find("CHOI LAI") or t:find("RETRY") or t:find("REPLAY")
-                            or t:find("THỬ LẠI") or t:find("THU LAI") or t:find("AGAIN") or n:find("RETRY") or n:find("REPLAY")
-
-                        local isClaim = t:find("NHẬN") or t:find("CLAIM") or t:find("XÁC NHẬN") or t:find("CONFIRM")
-                            or t:find("BỎ QUA") or t:find("SKIP") or t:find("OK") or t:find("ACCEPT") or t:find("CLOSE")
-                            or n:find("CLAIM") or n:find("OK") or n:find("CLOSE")
-
-                        local isNext = t:find("TIẾP TỤC") or t:find("TIEP TUC") or t:find("CONTINUE") or t:find("NEXT")
-                            or n:find("CONTINUE") or n:find("NEXT")
-
-                        if isRetry then
-                            table.insert(retryBtns, btn)
-                        elseif isClaim then
-                            table.insert(claimBtns, btn)
-                        elseif isNext then
-                            table.insert(nextBtns, btn)
-                        end
-                    end
-                end
-            end
-        end
-
-        local function doClick(b)
-            if v150_10.ClickGuiButton then
-                v150_10.ClickGuiButton(b)
-            else
-                pcall(function()
-                    if type(firesignal) == "function" then
-                        firesignal(b.MouseButton1Click)
-                        firesignal(b.Activated)
-                    end
-                end)
-            end
-        end
-
-        -- 1. Click reward / confirmation popups first
-        for _, btn in ipairs(claimBtns) do
-            doClick(btn)
-            handled = true
-        end
-
-        -- 2. PRIORITIZE RETRY: Auto Retry means replay the CURRENT map!
-        if #retryBtns > 0 then
-            for _, btn in ipairs(retryBtns) do
-                doClick(btn)
-                handled = true
-            end
-        elseif #nextBtns > 0 and not v8_6("AutoRetry") then
-            -- Only click Next if AutoRetry is disabled (i.e. user explicitly wants to advance maps)
-            for _, btn in ipairs(nextBtns) do
-                doClick(btn)
-                handled = true
-            end
-        end
-
-        local now = os.clock()
-        if lastRetryInvokeTime == 0 or now - lastRetryInvokeTime >= 1.0 then
-            lastRetryInvokeTime = now
-            if v69_2 then
-                -- Asynchronous non-blocking invoke to prevent thread hangs after 15-20 matches
-                task.spawn(function()
-                    pcall(function()
-                        v69_2:InvokeServer("Functions", "Retry", "Add")
-                    end)
-                end)
-                v150_10.MissionStartTime = os.clock()
-                handled = true
-            end
-        end
-
-        return handled
-    end
-
     v111_3 = function()
-        if autoRetryWatcherThread then
-            task.cancel(autoRetryWatcherThread)
-            autoRetryWatcherThread = nil
-        end
         if v112_2 then
             v112_2:Disconnect()
             v112_2 = nil
@@ -2027,17 +1629,47 @@ do
         end
         return
     end
-
     v110_3 = function()
         v111_3()
-        autoRetryWatcherThread = task.spawn(function()
-            while v38_2 do
-                pcall(function()
-                    v150_10.HandleRetryAndContinueScreen()
-                end)
-                task.wait(0.8)
+        v113_2 = task.spawn(function()
+            local v1_3 = v7_13:WaitForChild("PlayerGui", 15)
+            local v2 = v1_3 and v1_3:WaitForChild("Interface", 15)
+            local v3_3 = v2 and v2:WaitForChild("Rewards", 15)
+            if not v3_3 or not v38_2 then
+                return
             end
-            autoRetryWatcherThread = nil
+            if v3_3.Visible then
+                task.wait(1)
+                if v38_2 then
+                    if v150_10.ShouldKaitunReturnToLobby and v150_10.ShouldKaitunReturnToLobby() then
+                        pcall(v150_10.KaitunReturnToLobby)
+                    else
+                        pcall(function()
+                            v69_2:InvokeServer("Functions", "Retry", "Add")
+                            return
+                        end)
+                    end
+                end
+            end
+            v112_2 = v3_3:GetPropertyChangedSignal("Visible"):Connect(function()
+                if not v38_2 or not v3_3.Visible then
+                    return
+                end
+                task.wait(1)
+                if v38_2 then
+                    if v150_10.ShouldKaitunReturnToLobby and v150_10.ShouldKaitunReturnToLobby() then
+                        pcall(v150_10.KaitunReturnToLobby)
+                    else
+                        pcall(function()
+                            v69_2:InvokeServer("Functions", "Retry", "Add")
+                            return
+                        end)
+                    end
+                end
+                return
+            end)
+            v113_2 = nil
+            return
         end)
         return
     end
@@ -2126,12 +1758,7 @@ do
         v115_2 = false
         return
     end
-    local autoSkipWatcherThread = nil
     v113_3 = function()
-        if autoSkipWatcherThread then
-            task.cancel(autoSkipWatcherThread)
-            autoSkipWatcherThread = nil
-        end
         if v114_2 then
             v114_2:Disconnect()
             v114_2 = nil
@@ -2145,19 +1772,31 @@ do
     end
     v112_3 = function()
         v113_3()
-        autoSkipWatcherThread = task.spawn(function()
-            while v39_2 do
-                pcall(function()
-                    local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
-                    local iface = pgui and pgui:FindFirstChild("Interface")
-                    local skipBtn = iface and iface:FindFirstChild("Skip")
-                    if skipBtn and skipBtn.Visible then
-                        v119_2(skipBtn)
-                    end
-                end)
-                task.wait(0.5)
+        v116_2 = task.spawn(function()
+            local v1_3 = v7_13:WaitForChild("PlayerGui", 15)
+            local v2 = v1_3 and v1_3:WaitForChild("Interface", 15)
+            local v3_3 = v2 and v2:WaitForChild("Skip", 15)
+            if not v3_3 or not v39_2 then
+                return
             end
-            autoSkipWatcherThread = nil
+            if v3_3.Visible then
+                task.spawn(function()
+                    v119_2(v3_3)
+                    return
+                end)
+            end
+            v114_2 = v3_3:GetPropertyChangedSignal("Visible"):Connect(function()
+                if not v39_2 or not v3_3.Visible then
+                    return
+                end
+                task.spawn(function()
+                    v119_2(v3_3)
+                    return
+                end)
+                return
+            end)
+            v116_2 = nil
+            return
         end)
         return
     end
@@ -2455,55 +2094,13 @@ do
 end
 local v121_4, v122_3, v123_4, v127_2, v128_2, v129_4, v50_2
 do
-    local function toNumY(v)
-        if type(v) == "number" then return v end
-        if type(v) == "table" or type(v) == "userdata" then
-            local ok, y = pcall(function() return v.Y end)
-            if ok and type(y) == "number" then return y end
-            if type(v[2]) == "number" then return v[2] end
-        end
-        return 0
-    end
-
-    local function getTitanTopY(model, defaultPart)
-        if not model then
-            local defPosY = defaultPart and pcall(function() return defaultPart.Position.Y end) and toNumY(defaultPart.Position.Y) or 0
-            return defPosY + 15
-        end
-        local head = model:FindFirstChild("Head")
-        if head and head:IsA("BasePart") then
-            local hy = toNumY(head.Position and head.Position.Y)
-            local sy = toNumY(head.Size and head.Size.Y)
-            return hy + sy * 0.5
-        end
-        local nape = defaultPart or model:FindFirstChild("Nape", true)
-        if nape and nape:IsA("BasePart") then
-            local ny = toNumY(nape.Position and nape.Position.Y)
-            local sy = toNumY(nape.Size and nape.Size.Y)
-            return ny + sy * 0.5 + 8
-        end
-        local root = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
-        if root and root:IsA("BasePart") then
-            local ry = toNumY(root.Position and root.Position.Y)
-            return ry + 25
-        end
-        local defPosY = defaultPart and pcall(function() return defaultPart.Position.Y end) and toNumY(defaultPart.Position.Y) or 0
-        return defPosY + 15
-    end
-
     local function v119_5(p1)
         local v2 = v89_2(p1) or p1 and p1:FindFirstChild("HumanoidRootPart")
         if not v2 then
             return nil
         end
-        local topY = getTitanTopY(p1, v2)
-        local v2PosY = toNumY(v2.Position and v2.Position.Y)
-        local headOffset = math.max(0, topY - v2PosY)
-
         if v73_2() then
-            local hoverHeight = headOffset + 35 + (v60_2 * 2)
-            local hoverPos = v2.Position + Vector3.new(0, hoverHeight, 0)
-            return CFrame.lookAt(hoverPos, v2.Position, Vector3.new(0, 0, -1))
+            return CFrame.lookAt(v2.Position + Vector3.new(0, 48, 0) - v2.CFrame.LookVector * (75 + v60_2), v2.Position)
         end
         local v3_8 = os.clock() * 8
         local v4_6 = 55 + v60_2
@@ -3778,8 +3375,8 @@ do
     local function v135_3()
         local lpAttr = v7_13 and v7_13:GetAttribute("WeaponMinLevel")
         if type(lpAttr) == "number" and 0 <= lpAttr and 15 >= lpAttr then
-            v61_2.CachedWeaponMinLevel = math.max(v61_2.CachedWeaponMinLevel or 0, lpAttr)
-            v16_9["CachedWeaponMinLevel"] = v61_2.CachedWeaponMinLevel
+            v61_2.CachedWeaponMinLevel = lpAttr
+            v16_9["CachedWeaponMinLevel"] = lpAttr
         end
         local now = os.clock()
         if not v135_scanning and (now - v135_lastScan) > 3.5 then
@@ -3787,53 +3384,6 @@ do
             v135_lastScan = now
             task.spawn(function()
                 pcall(function()
-                    -- Direct Main Thread GC Scan First (Works on Mobile and PC without Actor)
-                    if type(getgc) == "function" then
-                        local foundData = nil
-                        for _, v in ipairs(getgc(true)) do
-                            if type(v) == "table" and rawget(v, "Currency") and rawget(v, "Progression") and rawget(v, "Upgrades") then
-                                if type(v.Currency) == "table" and type(v.Currency.Gold) == "number" then
-                                    foundData = v
-                                    break
-                                end
-                            end
-                        end
-                        if foundData and foundData.Upgrades then
-                            local w = foundData.Weapon or (v73_2() and "Spears" or "Blades")
-                            local upgs = foundData.Upgrades[w]
-                            if type(upgs) == "table" then
-                                local minLvl = 999
-                                for _, lvl in pairs(upgs) do
-                                    if type(lvl) == "number" and lvl < minLvl then
-                                        minLvl = lvl
-                                    end
-                                end
-                                if minLvl < 999 then
-                                    v61_2.CachedWeaponMinLevel = math.max(v61_2.CachedWeaponMinLevel or 0, minLvl)
-                                    v16_9["CachedWeaponMinLevel"] = v61_2.CachedWeaponMinLevel
-                                    if v7_13 then
-                                        pcall(function() v7_13:SetAttribute("WeaponMinLevel", v61_2.CachedWeaponMinLevel) end)
-                                    end
-                                end
-                            end
-                            if type(foundData.Progression) == "table" then
-                                local pLv = tonumber(foundData.Progression.Level)
-                                if pLv and pLv >= 1 and pLv <= 225 then
-                                    v156_4.Player.Level = pLv
-                                    if v7_13 then pcall(function() v7_13:SetAttribute("Level", pLv) end) end
-                                end
-                                local pPr = tonumber(foundData.Progression.Prestige)
-                                if pPr and pPr >= 0 and pPr <= 5 then
-                                    v156_4.Player.Prestige = pPr
-                                    if v7_13 then pcall(function() v7_13:SetAttribute("Prestige", pPr) end) end
-                                end
-                            end
-                            if type(foundData.Currency) == "table" and tonumber(foundData.Currency.Gold) then
-                                v156_4.Player.Gold = tonumber(foundData.Currency.Gold)
-                            end
-                        end
-                    end
-
                     local v1_2 = v71_3()
                     local v2 = v1_2 and v1_2:FindFirstChild("Actor") or v66 and v66()[1]
                     if v2 and v67_2 then
@@ -4404,7 +3954,7 @@ do
                                 for v8, v9 in ipairs(v1_2:GetDescendants()) do
                                     if v9:IsA("MeshPart") and v9.Name:sub(1, 5) == "Blade" then
                                         v4_7 = true
-                                        if not v9:GetAttribute("Broken") and 0.9 > v9.Transparency then
+                                        if not v9:GetAttribute("Broken") and v9.Transparency < 0.9 then
                                             return false
                                         end
                                     end
@@ -4585,7 +4135,7 @@ do
                                                         for v8, v9 in ipairs(v1_2:GetDescendants()) do
                                                             if v9:IsA("MeshPart") and v9.Name:sub(1, 5) == "Blade" then
                                                                 v4_7 = true
-                                                                if not v9:GetAttribute("Broken") and 0.9 > v9.Transparency then
+                                                                if not v9:GetAttribute("Broken") and v9.Transparency < 0.9 then
                                                                     return false
                                                                 end
                                                             end
@@ -4623,7 +4173,7 @@ do
                                                         for v8, v9 in ipairs(v1_2:GetDescendants()) do
                                                             if v9:IsA("MeshPart") and v9.Name:sub(1, 5) == "Blade" then
                                                                 v4_7 = true
-                                                                if not v9:GetAttribute("Broken") and 0.9 > v9.Transparency then
+                                                                if not v9:GetAttribute("Broken") and v9.Transparency < 0.9 then
                                                                     return false
                                                                 end
                                                             end
@@ -4645,16 +4195,34 @@ do
                                         local v10_19 = {}
                                         for v11_24 = v7_18, math.min(v7_18 + 8 - 1, #v6_10) do
                                             local v14_31 = v6_10[v11_24]
-                                            local v15_23 = v14_31.titan and v91_2(v14_31.titan) and v14_31.nape and v14_31.nape.Parent
+                                            local v15_23 = v14_31.titan
+                                            if v15_23 then
+                                                local v16_15 = v14_31.titan
+                                                if not v16_15 or not v16_15.Parent then
+                                                    v15_23 = false
+                                                else
+                                                    local v17_14 = v13_8:FindFirstChild("Titans")
+                                                    if not v17_14 then
+                                                        v15_23 = false
+                                                    elseif v16_15.Parent ~= v17_14 then
+                                                        v15_23 = false
+                                                    else
+                                                        v15_23 = not v90_2(v16_15)
+                                                    end
+                                                end
+                                            end
+                                            if v15_23 then
+                                                v15_23 = v14_31.nape
+                                            end
+                                            if v15_23 then
+                                                v15_23 = v14_31.nape.Parent
+                                            end
                                             if v15_23 then
                                                 table.insert(v10_19, v14_31.titan)
                                             end
                                         end
                                         if #v10_19 ~= 0 then
                                             v127_2(v20_2)
-                                            if v150_10.CheckMissionSafetyWait then
-                                                v150_10.CheckMissionSafetyWait(v20_2)
-                                            end
                                             local v12_32 = v72_2()
                                             local v11_38
                                             if not v12_32 then
@@ -4688,9 +4256,6 @@ do
                             task.wait(0.1)
                         else
                             v127_2(v20_2)
-                            if v150_10.CheckMissionSafetyWait then
-                                v150_10.CheckMissionSafetyWait(v20_2)
-                            end
                             if not v18_4 then
                                 break
                             elseif v73_2() then
@@ -4715,7 +4280,19 @@ do
                                 while true do
                                     if v18_4 and not v59_2 and os.clock() - v4_23 < v5_12 then
                                         task.wait(0.04)
-                                        local v7_31 = v2_41 and v91_2(v2_41)
+                                        local v7_31
+                                        if not v2_41 or not v2_41.Parent then
+                                            v7_31 = false
+                                        else
+                                            local v8_24 = v13_8:FindFirstChild("Titans")
+                                            if not v8_24 then
+                                                v7_31 = false
+                                            elseif v2_41.Parent ~= v8_24 then
+                                                v7_31 = false
+                                            else
+                                                v7_31 = not v90_2(v2_41)
+                                            end
+                                        end
                                         if not v7_31 then
                                             break
                                         end
@@ -4726,7 +4303,19 @@ do
                                 if not v18_4 then
                                     break
                                 else
-                                    local v7_36 = v2_41 and v91_2(v2_41)
+                                    local v7_36
+                                    if not v2_41 or not v2_41.Parent then
+                                        v7_36 = false
+                                    else
+                                        local v8_29 = v13_8:FindFirstChild("Titans")
+                                        if not v8_29 then
+                                            v7_36 = false
+                                        elseif v2_41.Parent ~= v8_29 then
+                                            v7_36 = false
+                                        else
+                                            v7_36 = not v90_2(v2_41)
+                                        end
+                                    end
                                     if not v7_36 then
                                         if v2_41 == v20_2 then
                                             v20_2 = nil
@@ -4746,6 +4335,28 @@ do
                                             break
                                         else
                                             local v3_40 = v25_2 and not v26_2
+                                            if v3_40 then
+                                                if v73_2() then
+                                                    v3_40 = false
+                                                else
+                                                    local v4_29 = v72_2()
+                                                    if not v4_29 then
+                                                        v3_40 = false
+                                                    else
+                                                        local _brk2 = false
+                                                        for v8_17, v9_7 in ipairs(v4_29:GetDescendants()) do
+                                                            if v9_7:IsA("MeshPart") and v9_7.Name:sub(1, 5) == "Blade" then
+                                                                v3_40 = true
+                                                                _brk2 = true
+                                                                break
+                                                            end
+                                                        end
+                                                        if not _brk2 then
+                                                            v3_40 = false
+                                                        end
+                                                    end
+                                                end
+                                            end
                                             if v3_40 then
                                                 local v4_30, v5_17 = pcall(function()
                                                     local v1_2 = v72_2()
@@ -4770,7 +4381,7 @@ do
                                                     for v8, v9 in ipairs(v1_2:GetDescendants()) do
                                                         if v9:IsA("MeshPart") and v9.Name:sub(1, 5) == "Blade" then
                                                             v4_7 = true
-                                                            if not v9:GetAttribute("Broken") and 0.9 > v9.Transparency then
+                                                            if not v9:GetAttribute("Broken") and v9.Transparency < 0.9 then
                                                                 return false
                                                             end
                                                         end
@@ -4823,7 +4434,19 @@ do
                                             elseif not v87_2() then
                                             else
                                                 local v5_27 = v20_2
-                                                local v4_45 = v5_27 and v91_2(v5_27)
+                                                local v4_45
+                                                if not v5_27 or not v5_27.Parent then
+                                                    v4_45 = false
+                                                else
+                                                    local v6_37 = v13_8:FindFirstChild("Titans")
+                                                    if not v6_37 then
+                                                        v4_45 = false
+                                                    elseif v5_27.Parent ~= v6_37 then
+                                                        v4_45 = false
+                                                    else
+                                                        v4_45 = not v90_2(v5_27)
+                                                    end
+                                                end
                                                 if not v4_45 then
                                                     v20_2 = raidBoss or v121_4(v20_2)
                                                     if not v20_2 then
@@ -4833,7 +4456,19 @@ do
                                                 local v3_51 = not v2_43
                                                 if not v3_51 then
                                                     local v5_30 = v2_43
-                                                    local v4_50 = v5_30 and v91_2(v5_30)
+                                                    local v4_50
+                                                    if not v5_30 or not v5_30.Parent then
+                                                        v4_50 = false
+                                                    else
+                                                        local v6_41 = v13_8:FindFirstChild("Titans")
+                                                        if not v6_41 then
+                                                            v4_50 = false
+                                                        elseif v5_30.Parent ~= v6_41 then
+                                                            v4_50 = false
+                                                        else
+                                                            v4_50 = not v90_2(v5_30)
+                                                        end
+                                                    end
                                                     v3_51 = not v4_50
                                                 end
                                                 if v3_51 then
@@ -4851,13 +4486,36 @@ do
                                                 local v3_59 = not v2_43
                                                 if not v3_59 then
                                                     local v5_31 = v2_43
-                                                    local v4_55 = v5_31 and v91_2(v5_31)
+                                                    local v4_55
+                                                    if not v5_31 or not v5_31.Parent then
+                                                        v4_55 = false
+                                                    else
+                                                        local v6_49 = v13_8:FindFirstChild("Titans")
+                                                        if not v6_49 then
+                                                            v4_55 = false
+                                                        elseif v5_31.Parent ~= v6_49 then
+                                                            v4_55 = false
+                                                        else
+                                                            v4_55 = not v90_2(v5_31)
+                                                        end
+                                                    end
                                                     v3_59 = not v4_55
                                                 end
                                                 if v3_59 then
                                                     break
                                                 else
-                                                    local v3_60 = v89_2(v2_43)
+                                                    local v5_33 = v2_43:FindFirstChild("Hitboxes")
+                                                    local v3_60
+                                                    if not v5_33 then
+                                                        v3_60 = nil
+                                                    else
+                                                        local v6_47 = v5_33:FindFirstChild("Hit")
+                                                        if not v6_47 then
+                                                            v3_60 = nil
+                                                        else
+                                                            v3_60 = v6_47:FindFirstChild("Nape")
+                                                        end
+                                                    end
                                                     if v3_60 and v87_2() then
                                                         pcall(function()
                                                             v97_6(v2_43)
@@ -4868,7 +4526,19 @@ do
                                                             if v18_4 and not v59_2 and 0.22 > os.clock() - v4_60 then
                                                                 task.wait(0.03)
                                                                 local v7_75 = v2_43
-                                                                local v6_54 = v7_75 and v91_2(v7_75)
+                                                                local v6_54
+                                                                if not v7_75 or not v7_75.Parent then
+                                                                    v6_54 = false
+                                                                else
+                                                                    local v8_45 = v13_8:FindFirstChild("Titans")
+                                                                    if not v8_45 then
+                                                                        v6_54 = false
+                                                                    elseif v7_75.Parent ~= v8_45 then
+                                                                        v6_54 = false
+                                                                    else
+                                                                        v6_54 = not v90_2(v7_75)
+                                                                    end
+                                                                end
                                                                 if not v6_54 then
                                                                     break
                                                                 end
@@ -5132,9 +4802,6 @@ do
         ["Auto Retry"] = "Tự Chơi Lại (Auto Retry)",
         ["Auto Skip Cutscenes"] = "Tự Bỏ Qua Cắt Cảnh",
         ["Auto Open Raid Chests"] = "Tự Mở Rương Raid",
-        ["Auto Claim Achievements"] = "Tự Nhận Thành Tựu (Auto Claim Achievements)",
-        ["Auto Claim Daily Reward"] = "Tự Nhận Quà Hàng Ngày (Auto Claim Daily)",
-        ["Mission Safety Timer"] = "Bộ Đếm An Toàn (Mission Safety Timer)",
         ["Auto Family Spin"] = "Tự Quay Gia Tộc",
         ["Families To Stop"] = "Gia Tộc Muốn Dừng",
         ["Family Tiers To Stop"] = "Bậc Gia Tộc Muốn Dừng",
@@ -5969,9 +5636,9 @@ local function v177_13()
     v162_72 = "Ended"
     task.wait(0.6)
     v158_4.Status = "Completed"
-    local v1_7 = v150_10.GetActualGameTime and v150_10.GetActualGameTime()
+    local v1_7 = tonumber(v13_8:GetAttribute("Seconds"))
     if not v1_7 or v1_7 <= 0 then
-        v1_7 = tonumber(v13_8:GetAttribute("Seconds")) or math.max(30, v158_4.Seconds)
+        v1_7 = math.max(1, v158_4.Seconds)
     end
     local v2_13 = v13_8:GetAttribute("Difficulty")
     if not v2_13 or tostring(v2_13) == "" or tostring(v2_13) == "N/A" then
@@ -6339,7 +6006,6 @@ local function v178_5()
     end
     v162_72 = "Playing"
     v164_3 = os.clock()
-    v150_10.MissionStartTime = os.clock()
     local v1_5 = v158_4
     v1_5.Status = "In Progress"
     v1_5.Seconds = 0
@@ -6678,7 +6344,7 @@ v56_2.AutoRaid = v152_7:AddToggle("Auto Raid (Focus Boss)", function(p1)
     end
     return
 end)
-v56_2.DistanceToTitanSlider = v152_7:AddSlider("Distance to Titan", 0, 300, v8_6("DistanceToTitan"), function(p1)
+v56_2.DistanceToTitanSlider = v152_7:AddSlider("Distance to Titan", 0, 100, v8_6("DistanceToTitan"), function(p1)
     v60_2 = p1
     v9_4("DistanceToTitan", p1)
     return
@@ -6848,16 +6514,6 @@ v56_2.AutoOpenRaidChests = v153_9:AddToggle("Auto Open Raid Chests", function(p1
         v114_3()
     else
         v115_3()
-    end
-    return
-end)
-v56_2.AutoClaimAchievements = v153_9:AddToggle("Auto Claim Achievements", function(p1)
-    v150_10.AutoClaimAchievements = p1
-    v9_4("AutoClaimAchievements", p1)
-    if p1 then
-        if v150_10.ClaimAchievements then
-            v150_10.ClaimAchievements()
-        end
     end
     return
 end)
@@ -7695,11 +7351,11 @@ do
         }
 
         local function normalizeVi(str)
-            local s = tostring(str or "")
+            local s = string.lower(tostring(str or ""))
             for _, pair in ipairs(VI_FOLD_PAIRS) do
                 s = s:gsub(pair[1], pair[2])
             end
-            s = s:lower():gsub("^%s+", ""):gsub("%s+$", ""):gsub("%s+", " ")
+            s = s:gsub("^%s+", ""):gsub("%s+$", ""):gsub("%s+", " ")
             return s
         end
 
@@ -7800,45 +7456,25 @@ do
                 return false
             end
             local fired = false
-            local cx = math.floor((target.AbsolutePosition and target.AbsolutePosition.X or 0) + (target.AbsoluteSize and target.AbsoluteSize.X / 2 or 0))
-            local cy = math.floor((target.AbsolutePosition and target.AbsolutePosition.Y or 0) + (target.AbsoluteSize and target.AbsoluteSize.Y / 2 or 0))
-            local v2Pos = Vector2.new(cx, cy)
-            local v3Pos = Vector3.new(cx, cy, 0)
-
             if type(firesignal) == "function" then
                 pcall(function() firesignal(target.MouseButton1Click) fired = true end)
                 pcall(function() firesignal(target.Activated) fired = true end)
                 pcall(function() firesignal(target.MouseButton1Down) firesignal(target.MouseButton1Up) fired = true end)
-                pcall(function() firesignal(target.TouchTap) fired = true end)
                 pcall(function()
                     firesignal(target.InputBegan, {
                         UserInputType = Enum.UserInputType.MouseButton1,
                         UserInputState = Enum.UserInputState.Begin,
-                        Position = v3Pos
-                    })
-                    firesignal(target.InputEnded, {
-                        UserInputType = Enum.UserInputType.MouseButton1,
-                        UserInputState = Enum.UserInputState.End,
-                        Position = v3Pos
-                    })
-                    fired = true
-                end)
-                pcall(function()
-                    firesignal(target.InputBegan, {
-                        UserInputType = Enum.UserInputType.Touch,
-                        UserInputState = Enum.UserInputState.Begin,
-                        Position = v3Pos
-                    })
-                    firesignal(target.InputEnded, {
-                        UserInputType = Enum.UserInputType.Touch,
-                        UserInputState = Enum.UserInputState.End,
-                        Position = v3Pos
+                        Position = Vector3.new(
+                            (target.AbsolutePosition and target.AbsolutePosition.X or 0) + (target.AbsoluteSize and target.AbsoluteSize.X / 2 or 0),
+                            (target.AbsolutePosition and target.AbsolutePosition.Y or 0) + (target.AbsoluteSize and target.AbsoluteSize.Y / 2 or 0),
+                            0
+                        )
                     })
                     fired = true
                 end)
             end
             if type(getconnections) == "function" then
-                for _, sigName in ipairs({ "MouseButton1Click", "Activated", "MouseButton1Down", "MouseButton1Up", "TouchTap", "InputBegan", "InputEnded" }) do
+                for _, sigName in ipairs({ "MouseButton1Click", "Activated", "MouseButton1Down", "MouseButton1Up", "InputBegan" }) do
                     pcall(function()
                         local sig = target[sigName]
                         if sig then
@@ -7850,16 +7486,6 @@ do
                     end)
                 end
             end
-            pcall(function()
-                local vu = game:GetService("VirtualUser")
-                if vu then
-                    vu:CaptureController()
-                    vu:Button1Down(v2Pos)
-                    task.wait(0.02)
-                    vu:Button1Up(v2Pos)
-                    fired = true
-                end
-            end)
             return fired
         end
 
@@ -7906,11 +7532,9 @@ do
                                             pcall(function() firesignal(t.Activated) end)
                                             pcall(function() firesignal(t.MouseButton1Down) end)
                                             pcall(function() firesignal(t.MouseButton1Up) end)
-                                            pcall(function() firesignal(t.TouchTap) end)
                                         end
                                         if type(getconnections) == "function" then
-                                            for _, sigName in ipairs({ "MouseButton1Click", "Activated", "MouseButton1Down", "MouseButton1Up", "TouchTap" }) do
-                                                local sig = t[sigName]
+                                            for _, sig in ipairs({ t.MouseButton1Click, t.Activated, t.MouseButton1Down, t.MouseButton1Up }) do
                                                 if sig then
                                                     pcall(function()
                                                         for _, conn in ipairs(getconnections(sig)) do
@@ -7932,18 +7556,12 @@ do
             pcall(function()
                 local clickObj = (targetBtn.AbsoluteSize and targetBtn.AbsoluteSize.X > 0 and targetBtn) or btn
                 if clickObj.AbsolutePosition and clickObj.AbsoluteSize and clickObj.AbsoluteSize.X > 0 and clickObj.AbsoluteSize.Y > 0 then
+                    -- AbsolutePosition is already in viewport screen space
                     local cx = math.floor(clickObj.AbsolutePosition.X + (clickObj.AbsoluteSize.X / 2))
                     local cy = math.floor(clickObj.AbsolutePosition.Y + (clickObj.AbsoluteSize.Y / 2))
-                    if v17_6 and type(v17_6.SendMouseButtonEvent) == "function" then
-                        v17_6:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
-                        task.wait(0.04)
-                        v17_6:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
-                    end
-                    local vu = game:GetService("VirtualUser")
-                    if vu then
-                        vu:CaptureController()
-                        vu:ClickButton1(Vector2.new(cx, cy))
-                    end
+                    v17_6:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
+                    task.wait(0.04)
+                    v17_6:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
                     clicked = true
                 end
             end)
@@ -8001,42 +7619,7 @@ do
                     local dm = lp:GetAttribute("DropMultiplier")
                     if (type(gm) == "number" and gm == 0) or (type(xm) == "number" and xm == 0) or (type(dm) == "number" and dm == 0) then
                         detected = true
-                        reason = "Hệ số thưởng bị ép về 0 (Gold/XP/Drop = 0)"
-                        return
-                    end
-
-                    -- Check Trade Ban / Trade Locked
-                    local tradeAttr = lp:GetAttribute("TradingDisabled")
-                        or lp:GetAttribute("TradeDisabled")
-                        or lp:GetAttribute("TradeLock")
-                        or lp:GetAttribute("TradeBanned")
-                        or lp:GetAttribute("IsTradeBanned")
-                    if tradeAttr == true or (type(tradeAttr) == "string" and string.lower(tradeAttr):find("ban")) then
-                        detected = true
-                        reason = "Bị khóa Giao Dịch (Trade Banned/Locked)"
-                        return
-                    end
-                    if lp:GetAttribute("CanTrade") == false then
-                        detected = true
-                        reason = "Không thể giao dịch (CanTrade = false)"
-                        return
-                    end
-
-                    -- Check Friend / Party / Matchmaking restriction (Không chơi với bạn bè được)
-                    local partyAttr = lp:GetAttribute("PartyDisabled")
-                        or lp:GetAttribute("PartyBlocked")
-                        or lp:GetAttribute("MatchmakingDisabled")
-                        or lp:GetAttribute("MatchmakingBanned")
-                        or lp:GetAttribute("FriendsDisabled")
-                        or lp:GetAttribute("MultiplayerDisabled")
-                    if partyAttr == true or (type(partyAttr) == "string" and string.lower(partyAttr):find("ban")) then
-                        detected = true
-                        reason = "Bị cấm chơi cùng bạn bè (Party/Matchmaking Restricted)"
-                        return
-                    end
-                    if lp:GetAttribute("CanJoinFriends") == false then
-                        detected = true
-                        reason = "Không thể tham gia cùng bạn bè (CanJoinFriends = false)"
+                        reason = "Reward Multipliers forced to 0 (Gold/XP/Drop = 0)"
                         return
                     end
 
@@ -8060,16 +7643,6 @@ do
                         reason = "Game Cache Data: ShadowBanned/Flagged = true"
                         return
                     end
-                    if data.TradingDisabled == true or data.TradeDisabled == true or data.TradeLock == true or data.TradeBanned == true or data.CanTrade == false then
-                        detected = true
-                        reason = "Game Cache: Bị cấm giao dịch (Trade Banned/CanTrade = false)"
-                        return
-                    end
-                    if data.PartyDisabled == true or data.PartyBlocked == true or data.MatchmakingDisabled == true or data.CanJoinFriends == false or data.MultiplayerDisabled == true then
-                        detected = true
-                        reason = "Game Cache: Bị cấm chơi với bạn bè (Party/Matchmaking Restricted)"
-                        return
-                    end
                 end
 
                 if v156_4 and v156_4.Player then
@@ -8087,15 +7660,7 @@ do
                             local t = string.lower(tostring(obj.Text or ""))
                             if t:find("shadowban") or t:find("shadow ban") or t:find("shadow-ban")
                                 or t:find("rewards disabled") or t:find("suspicious activity detected")
-                                or t:find("vo hieu hoa phan thuong") or t:find("bi cam nhan phan thuong")
-                                or t:find("không thể giao dịch") or t:find("khong the giao dich")
-                                or t:find("bị cấm giao dịch") or t:find("bị khóa giao dịch")
-                                or t:find("trading disabled") or t:find("trade locked") or t:find("trade restricted")
-                                or t:find("cannot trade") or t:find("trade ban")
-                                or t:find("không thể chơi với bạn bè") or t:find("khong the choi voi ban be")
-                                or t:find("không thể tham gia cùng bạn bè") or t:find("cannot play with friends")
-                                or t:find("cannot join friends") or t:find("party disabled") or t:find("party restricted")
-                                or t:find("matchmaking restricted") or t:find("giới hạn tìm trận") then
+                                or t:find("vo hieu hoa phan thuong") or t:find("bi cam nhan phan thuong") then
                                 detected = true
                                 reason = "GUI Alert: \"" .. tostring(obj.Text):sub(1, 40) .. "...\""
                                 return
@@ -8174,28 +7739,6 @@ do
             end)
         end
 
-        function v150_10.GetDataHost()
-            local host = _G.__CachedDataHost or _G.__CachedCustHost or _G.__CachedHost
-            if type(host) == "table" and type(rawget(host, "Cache")) == "table" and type(rawget(host.Cache, "Data")) == "table" then
-                return host
-            end
-            if type(getgc) == "function" then
-                pcall(function()
-                    for _, v in ipairs(getgc(true)) do
-                        if type(v) == "table" and type(rawget(v, "Cache")) == "table" then
-                            local cache = rawget(v, "Cache")
-                            if type(rawget(cache, "Data")) == "table" then
-                                _G.__CachedDataHost = v
-                                host = v
-                                return
-                            end
-                        end
-                    end
-                end)
-            end
-            return host
-        end
-
         function v150_10.GetKaitunPlayerState()
             local minLvl = tonumber(v150_10.GetWeaponMinLevel and v150_10.GetWeaponMinLevel())
                 or tonumber(v61_2.CachedWeaponMinLevel)
@@ -8230,9 +7773,8 @@ do
                 v156_4.Player.Gold = hudGold
             end
 
-            -- Priority 1: Game Cache Data (Server-replicated true player slot data)
             pcall(function()
-                local host = v150_10.GetDataHost()
+                local host = _G.__CachedDataHost or _G.__CachedCustHost or _G.__CachedHost
                 if type(host) == "table" and type(rawget(host, "Cache")) == "table" and type(rawget(host.Cache, "Data")) == "table" then
                     local data = host.Cache.Data
                     local slot = type(data.Slots) == "table" and data.Current_Slot and data.Slots[data.Current_Slot]
@@ -8264,8 +7806,8 @@ do
                                     end
                                 end
                                 if m < 999 then
-                                    minLvl = math.max(minLvl, m)
-                                    v61_2.CachedWeaponMinLevel = minLvl
+                                    minLvl = m
+                                    v61_2.CachedWeaponMinLevel = m
                                 end
                             end
                         end
@@ -8273,7 +7815,6 @@ do
                 end
             end)
 
-            -- Priority 2: In-Game UI Parsing (With strict sanitization)
             local bonusMapDetected = nil
             pcall(function()
                 local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
@@ -8310,52 +7851,70 @@ do
                                 cachedXPPercent = tonumber(xpMatch) or cachedXPPercent
                             end
 
-                            -- Multilingual Weapon Grade Extraction (UTF-8 normalized)
-                            local norm = normalizeVi(txt):upper()
-                            local gradeMatch = norm:match("%[%s*CAP%s*DO%s*([E%-%+DCBAS]+)%s*%]")
-                                or norm:match("%[%s*([E%-%+DCBAS]+)%s*CAP%s*DO%s*%]")
-                                or norm:match("%[%s*GRADE%s*([E%-%+DCBAS]+)%s*%]")
-                                or norm:match("%[%s*([E%-%+DCBAS]+)%s*GRADE%s*%]")
-                                or norm:match("NANG%s*CAP%s*%[%s*CAP%s*DO%s*([E%-%+DCBAS]+)%s*%]")
-                                or norm:match("NANG%s*CAP%s*%[%s*([E%-%+DCBAS]+)%s*%]")
-                                or norm:match("UPGRADE%s*%[%s*([E%-%+DCBAS]+)%s*%]")
-                                or norm:match("%[%s*([E%-%+DCBAS]+)%s*%]")
+                            local lowerTxt = txt:lower()
+                            -- 1. Dual Level & MaxLevelCap Regex (e.g. "Cap. 26 / 125", "Lv. 26 / 125", "Level 100 / 150")
+                            -- Strictly require explicit keyword "cap", "lv", or "level"
+                            local curLvStr, maxCapStr = nil, nil
+                            if lowerTxt:find("cap", 1, true) or lowerTxt:find("lv", 1, true) or lowerTxt:find("level", 1, true) then
+                                curLvStr, maxCapStr = txt:match("[Cc][ẤấaAáÁ][Pp]%.?%s*(%d+)%s*/%s*(%d+)")
+                                if not curLvStr then
+                                    curLvStr, maxCapStr = txt:match("[Ll][Vv]%.?%s*(%d+)%s*/%s*(%d+)")
+                                end
+                                if not curLvStr then
+                                    curLvStr, maxCapStr = txt:match("[Ll]evel%s*(%d+)%s*/%s*(%d+)")
+                                end
+                            end
+                            if curLvStr and maxCapStr then
+                                local parsedCur = tonumber(curLvStr)
+                                local parsedCap = tonumber(maxCapStr)
+                                if parsedCap and parsedCap >= 100 and parsedCap <= 225 and ((parsedCap - 100) % 25 == 0) then
+                                    local derivedP = math.floor((parsedCap - 100) / 25)
+                                    if derivedP >= 0 and derivedP <= 5 then
+                                        prestige = derivedP
+                                        v156_4.Player.Prestige = prestige
+                                        if v7_13 then
+                                            pcall(function() v7_13:SetAttribute("Symbiote_Prestige", prestige) end)
+                                        end
+                                    end
+                                    if parsedCur and parsedCur > 0 and parsedCur <= parsedCap then
+                                        level = parsedCur
+                                        v156_4.Player.Level = parsedCur
+                                        if v7_13 then
+                                            pcall(function() v7_13:SetAttribute("Symbiote_Level", parsedCur) end)
+                                        end
+                                    end
+                                end
+                            else
+                                local singleLv = nil
+                                if lowerTxt:find("cap", 1, true) or lowerTxt:find("lv", 1, true) or lowerTxt:find("level", 1, true) then
+                                    singleLv = txt:match("^[Cc][ẤấaAáÁ][Pp]%.?%s*(%d+)$") or txt:match("^[Ll][Vv]%.?%s*(%d+)$") or txt:match("^[Ll]evel%s*(%d+)$")
+                                end
+                                if singleLv then
+                                    local pLv = tonumber(singleLv)
+                                    if pLv and pLv > 0 and pLv <= 225 then
+                                        level = pLv
+                                        v156_4.Player.Level = pLv
+                                    end
+                                end
+                            end
+
+                            -- 2. Multilingual Weapon Grade Extraction (English + Vietnamese)
+                            local upTxt = txt:upper()
+                            local gradeMatch = upTxt:match("%[([E%-%+DCBAS]+)%s*GRADE%]")
+                                or upTxt:match("%[([E%-%+DCBAS]+)%s*CẤP%s*ĐỘ%]")
+                                or upTxt:match("%[([E%-%+DCBAS]+)%s*CAP%s*DO%]")
+                                or upTxt:match("NÂNG%s*CẤP%s*%[([E%-%+DCBAS]+)")
+                                or upTxt:match("NANG%s*CAP%s*%[([E%-%+DCBAS]+)")
+                                or upTxt:match("UPGRADE%s*%[([E%-%+DCBAS]+)")
                             if gradeMatch and LETTER_TO_LEVEL[gradeMatch] ~= nil then
                                 local gLvl = LETTER_TO_LEVEL[gradeMatch]
                                 if gLvl > minLvl then
                                     minLvl = gLvl
                                     v61_2.CachedWeaponMinLevel = minLvl
-                                    if v7_13 then
-                                        pcall(function() v7_13:SetAttribute("WeaponMinLevel", minLvl) end)
-                                    end
                                 end
                             end
 
-                            -- Safe Level extraction ONLY if level is not yet determined (level <= 1)
-                            if level <= 1 then
-                                local normLvTxt = normalizeVi(txt)
-                                local curLvStr, maxCapStr = normLvTxt:match("cap%.?%s*(%d+)%s*/%s*(%d+)")
-                                if not curLvStr then curLvStr, maxCapStr = normLvTxt:match("lv%.?%s*(%d+)%s*/%s*(%d+)") end
-                                if not curLvStr then curLvStr, maxCapStr = normLvTxt:match("level%s*(%d+)%s*/%s*(%d+)") end
-                                if curLvStr and maxCapStr then
-                                    local parsedCur = tonumber(curLvStr)
-                                    local parsedCap = tonumber(maxCapStr)
-                                    -- Strictly require standard AOT:R prestige caps: 100, 125, 150, 175, 200, 225
-                                    if parsedCap and parsedCap >= 100 and parsedCap <= 225 and ((parsedCap - 100) % 25 == 0) then
-                                            local derivedP = math.floor((parsedCap - 100) / 25)
-                                            if derivedP >= 0 and derivedP <= 5 then
-                                                prestige = derivedP
-                                                v156_4.Player.Prestige = prestige
-                                            end
-                                            if parsedCur and parsedCur > 0 and parsedCur <= parsedCap then
-                                                level = parsedCur
-                                                v156_4.Player.Level = parsedCur
-                                            end
-                                        end
-                                    end
-                                end
-
-                            -- In-Text Gold Parser
+                            -- 3. In-Text Gold Parser
                             local gNorm = normalizeVi(txt)
                             if gNorm:find("vang:") or gNorm:find("gold:") then
                                 local pG = tonumber(txt:gsub(",", ""):match("(%d+)"))
@@ -8365,7 +7924,7 @@ do
                                 end
                             end
 
-                            -- Bonus Map Detection
+                            -- 4. Bonus Map Detection
                             local normTxt = normalizeVi(txt)
                             if (normTxt:find("tang phan thuong", 1, true) or normTxt:find("bonus", 1, true)) and obj.Parent then
                                 local pNorm = normalizeVi(getGuiObjectText(obj.Parent) ..
@@ -8390,51 +7949,60 @@ do
             minLvl = math.max(0, math.min(15, math.floor(tonumber(minLvl) or 0)))
             local gradeLetter = GRADE_LETTERS[minLvl] or "E-"
             local bracket = getDifficultyBracket(minLvl)
-
             local maxLevelCap = 100 + (prestige * 25)
-            local readyToPrestige = (prestige < 5)
+            local maxPrestigeTarget = math.min(5, tonumber(v8_6("KaitunMaxPrestige")) or 5)
+            local readyToPrestige = (prestige < maxPrestigeTarget)
                 and ((level > maxLevelCap) or (level == maxLevelCap and cachedXPPercent >= 100))
-            local maxPrestigeTarget = 5
+
+            local costTbl = v150_10.UpgradeCostTable or {}
+            local nextStepCost = (minLvl < 15) and (tonumber(costTbl[minLvl + 1]) or 169420) or nil
+            local fullTierCost = nextStepCost and (nextStepCost * 8) or nil
+            local goldForNextBracket = bracket.NextMinLvl and getGoldNeededForLevel(minLvl, bracket.NextMinLvl) or nil
+            local readyForNextBracket = (v8_6("KaitunAutoUpgradeWeapon") ~= false)
+                and (goldForNextBracket ~= nil and goldForNextBracket > 0 and gold >= goldForNextBracket)
 
             local canUpgradeStep = false
-            local goldForNext = nil
-            if minLvl < 15 then
-                local nextLvl = minLvl + 1
-                local goldNeeded = getGoldNeededForLevel(minLvl, nextLvl)
-                if gold >= goldNeeded then
+            if v8_6("KaitunAutoUpgradeWeapon") ~= false and fullTierCost ~= nil and gold >= fullTierCost then
+                if gold ~= lastUpgradeAttemptGold or (os.clock() - lastUpgradeAttemptTime) > 15 then
                     canUpgradeStep = true
                 end
             end
 
-            local readyForNextBracket = false
-            if bracket.NextMinLvl then
-                goldForNext = getGoldNeededForLevel(minLvl, bracket.NextMinLvl)
-                if gold >= goldForNext then
-                    readyForNextBracket = true
+            -- Manual Map Override: if user selects a map, strictly prioritize it over auto bracket
+            local chosenMap = tostring(v8_6("KaitunMap") or "Auto (Best)")
+            local resolvedMap = chosenMap
+            if chosenMap == "Auto (Best)" or chosenMap == "" then
+                if bonusMapDetected then
+                    resolvedMap = bonusMapDetected
+                elseif bracket.Order <= 2 then
+                    resolvedMap = "Shiganshina"
+                elseif bracket.Order == 3 then
+                    resolvedMap = "Trost"
+                elseif bracket.Order == 4 then
+                    resolvedMap = "Outskirts"
+                else
+                    resolvedMap = "Giant Forest"
                 end
-            end
-
-            local resolvedMap = bracket.Map
-            if bonusMapDetected and v8_6("KaitunPrioritizeBonusMap") ~= false then
-                resolvedMap = bonusMapDetected
+            else
+                resolvedMap = chosenMap
             end
 
             return {
                 Prestige = prestige,
+                MaxPrestigeTarget = maxPrestigeTarget,
                 Level = level,
                 MaxLevelCap = maxLevelCap,
                 XPPercent = cachedXPPercent,
                 Gold = gold,
                 WeaponMinLevel = minLvl,
-                GradeLetter = gradeLetter,
                 WeaponGradeLetter = gradeLetter,
                 Bracket = bracket,
-                GoldForNextBracket = goldForNext,
-                ReadyToPrestige = readyToPrestige,
-                MaxPrestigeTarget = maxPrestigeTarget,
+                NextStepCost = nextStepCost,
+                FullTierCost = fullTierCost,
                 CanUpgradeStep = canUpgradeStep,
+                GoldForNextBracket = goldForNextBracket,
                 ReadyForNextBracket = readyForNextBracket,
-                BonusMapDetected = bonusMapDetected,
+                ReadyToPrestige = readyToPrestige,
                 TargetMap = resolvedMap
             }
         end
@@ -8820,98 +8388,97 @@ do
             return prestiged
         end
 
-        function v150_10.ConfigureModifiers(iface)
-            pcall(function()
-                local modRows = {}
-                for _, obj in ipairs(iface:GetDescendants()) do
-                    if (obj:IsA("Frame") or obj:IsA("GuiButton")) and isTrulyVisible(obj, iface) then
-                        local txt = getGuiObjectText(obj)
-                        local ntxt = normalizeVi(txt)
-                        if ntxt:find("%+", 1, true) or ntxt:find("vang/xp", 1, true) or ntxt:find("gold/xp", 1, true)
-                            or ntxt:find("uu dai", 1, true) or ntxt:find("ky nang", 1, true) or ntxt:find("ky uc", 1, true)
-                            or ntxt:find("ac mong", 1, true) or ntxt:find("oddball", 1, true) or ntxt:find("hardcore", 1, true) then
-                            local rowFrame = obj
-                            while rowFrame.Parent and rowFrame.Parent ~= iface and rowFrame.Parent:IsA("GuiObject") do
-                                if rowFrame.Parent:IsA("ScrollingFrame") or rowFrame.Parent.Name == "List" or rowFrame.Parent.Name == "Container" then
-                                    break
-                                end
-                                rowFrame = rowFrame.Parent
-                            end
-                            local alreadyAdded = false
-                            for _, r in ipairs(modRows) do
-                                if r == rowFrame then
-                                    alreadyAdded = true
-                                    break
-                                end
-                            end
-                            if not alreadyAdded then
-                                table.insert(modRows, rowFrame)
-                            end
-                        end
-                    end
-                end
-
-                if #modRows > 0 then
-                    table.sort(modRows, function(a, b)
-                        local loA = a.LayoutOrder or 0
-                        local loB = b.LayoutOrder or 0
-                        if loA ~= loB and loA > 0 and loB > 0 then
-                            return loA < loB
-                        end
-                        return a.AbsolutePosition.Y < b.AbsolutePosition.Y
-                    end)
-
-                    local totalMods = #modRows
-                    -- User requirement: Turn ON all modifiers except the last 4!
-                    local safeEnableCount = math.max(0, totalMods - 4)
-
-                    local function isChecked(row)
-                        for _, d in ipairs(row:GetDescendants()) do
-                            if d:IsA("ImageLabel") or d:IsA("ImageButton") then
-                                local iname = string.lower(d.Name)
-                                if (iname:find("check") or iname:find("tick") or iname:find("icon") or iname:find("box")) and d.Visible then
-                                    if d.ImageTransparency < 0.5 and d.Image ~= "" then
-                                        return true
-                                    end
-                                end
-                            elseif d:IsA("TextLabel") or d:IsA("TextButton") then
-                                local t = tostring(d.Text or "")
-                                if t:find("✓") or t == "X" or t == "x" then
-                                    return true
-                                end
-                            end
-                        end
-                        return row:GetAttribute("Enabled") == true or row:GetAttribute("Checked") == true
-                    end
-
-                    local function getClickTarget(row)
-                        if row:IsA("GuiButton") then return row end
-                        for _, b in ipairs(row:GetDescendants()) do
-                            if b:IsA("GuiButton") and isTrulyVisible(b, iface) then
-                                return b
-                            end
-                        end
-                        return nil
-                    end
-
-                    for idx, row in ipairs(modRows) do
-                        local targetState = (idx <= safeEnableCount)
-                        local currentlyOn = isChecked(row)
-                        if currentlyOn ~= targetState then
-                            local clickBtn = getClickTarget(row)
-                            if clickBtn then
-                                v150_10.ClickGuiButton(clickBtn)
-                                task.wait(0.06)
-                            end
-                        end
-                    end
-                end
-            end)
-        end
-
         function v150_10.HandleModeSelectionScreen()
-            -- Wrapper maintaining backwards compatibility
-            return v150_10.KaitunCreateAndStartMission()
+            local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+            local iface = pgui and pgui:FindFirstChild("Interface")
+            if not iface then return false end
+
+            local cards = {
+                missions = nil,
+                raid = nil,
+                waves = nil,
+                join = nil
+            }
+            local playBtn = nil
+            local modeCount = 0
+
+            local function getCardClickable(o)
+                if not o then return nil end
+                if o:IsA("GuiButton") then return o end
+                return o:FindFirstAncestorWhichIsA("GuiButton")
+                    or o:FindFirstChildWhichIsA("GuiButton", true)
+                    or (o.Parent and o.Parent:IsA("GuiObject") and o.Parent)
+                    or o
+            end
+
+            for _, obj in ipairs(iface:GetDescendants()) do
+                if isTrulyVisible(obj, iface) then
+                    local rawTxt = getGuiObjectText(obj)
+                    local norm = normalizeVi(rawTxt)
+                    local lname = string.lower(tostring(obj.Name or ""))
+
+                    local target = getCardClickable(obj)
+                    local sz = obj.AbsoluteSize or (target and target.AbsoluteSize)
+                    local pos = obj.AbsolutePosition or (target and target.AbsolutePosition)
+                    local isCardSize = sz and (sz.X > 40 or sz.Y > 60)
+
+                    if (norm == "nhiem vu" or norm == "missions" or norm == "mission" or lname == "mission" or lname == "missions") and isCardSize then
+                        if not cards.missions and pos and pos.Y > 40 then
+                            cards.missions = target
+                            modeCount = modeCount + 1
+                        end
+                    elseif (norm == "raid" or lname == "raid") and isCardSize then
+                        if not cards.raid and pos and pos.Y > 40 then
+                            cards.raid = target
+                            modeCount = modeCount + 1
+                        end
+                    elseif (norm == "song" or norm == "waves" or norm == "wave" or lname == "wave" or lname == "waves") and isCardSize then
+                        if not cards.waves and pos and pos.Y > 40 then
+                            cards.waves = target
+                            modeCount = modeCount + 1
+                        end
+                    elseif (norm == "tham gia" or norm == "join" or lname == "join") and isCardSize then
+                        if not cards.join and pos and pos.Y > 40 then
+                            cards.join = target
+                            modeCount = modeCount + 1
+                        end
+                    elseif (norm == "choi" or norm == "play" or lname == "play" or lname == "start") then
+                        if pos and pos.Y > 200 then
+                            playBtn = target
+                        end
+                    end
+                end
+            end
+
+            -- If this 4-card Game Mode Selection modal is active
+            if modeCount >= 2 or (cards.missions and playBtn) then
+                local chosenCard = nil
+                local modeName = "NHIỆM VỤ (Missions)"
+
+                if v8_6("AutoRaid") and not v8_6("KaitunEnabled") then
+                    chosenCard = cards.raid or cards.missions
+                    modeName = "RAID"
+                else
+                    chosenCard = cards.missions or cards.raid
+                    modeName = "NHIỆM VỤ (Missions)"
+                end
+
+                if chosenCard then
+                    kaitunActionState = "Selecting Mode: " .. modeName
+                    if v150_10.UpdateKaitunParagraph then pcall(v150_10.UpdateKaitunParagraph) end
+                    v150_10.ClickGuiButton(chosenCard)
+                    task.wait(0.35)
+                end
+
+                if playBtn then
+                    kaitunActionState = "Confirming Mode (CHƠI)..."
+                    if v150_10.UpdateKaitunParagraph then pcall(v150_10.UpdateKaitunParagraph) end
+                    v150_10.ClickGuiButton(playBtn)
+                    task.wait(0.65)
+                    return true
+                end
+            end
+            return false
         end
 
         function v150_10.KaitunCreateAndStartMission()
@@ -8921,212 +8488,291 @@ do
             local targetDiffEN = state.Bracket.DiffEN
             local targetOrder = state.Bracket.Order
 
-            local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
-            local iface = pgui and pgui:FindFirstChild("Interface")
-            if not iface then return false end
-
-            local function getClickable(o)
-                if not o then return nil end
-                if o:IsA("GuiButton") then return o end
-                return o:FindFirstAncestorWhichIsA("GuiButton")
-                    or o:FindFirstChildWhichIsA("GuiButton", true)
-                    or (o.Parent and o.Parent:IsA("GuiObject") and o.Parent)
-                    or o
+            kaitunActionState = "Starting Map: " .. targetMap .. " [" .. targetGrade .. " GRADE]"
+            if v150_10.UpdateKaitunParagraph then
+                pcall(v150_10.UpdateKaitunParagraph)
             end
 
-            -- =========================================================================
-            -- SCAN CURRENT UI ELEMENTS
-            -- =========================================================================
-            local startMissionBtn = nil
-            local createRoomBtn = nil
-            local modifiersBtn = nil
-            local backFromModsBtn = nil
-            local isModWindowOpen = false
-            local diffLabel = nil
-            local nextDiffBtn = nil
-            local prevDiffBtn = nil
-            local mapButtons = {}
-            local modeCards = {}
-            local modePlayBtn = nil
-            local topbarMissionBtn = nil
+            local started = false
+            pcall(function()
+                local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+                local iface = pgui and pgui:FindFirstChild("Interface")
+                if not iface then
+                    return
+                end
 
-            -- 1. Scan Topbar
-            local topbar = iface:FindFirstChild("Topbar")
-            if topbar then
-                for _, b in ipairs(topbar:GetDescendants()) do
-                    if isTrulyVisible(b, iface) then
-                        local nb = normalizeVi(getGuiObjectText(b) .. " " .. tostring(b.Name or ""))
-                        if nb:find("nhiem vu", 1, true) or nb:find("mission", 1, true) then
-                            topbarMissionBtn = getClickable(b)
-                            break
+                -- Step 0: Check if currently stuck on the 4-card Mode Selection screen
+                local handledModeScreen = v150_10.HandleModeSelectionScreen()
+                if handledModeScreen then
+                    task.wait(0.5)
+                end
+
+                local function scanMissionUi()
+                    local info = {
+                        createBtn = nil,
+                        playBtn = nil,
+                        modifiersBtn = nil,
+                        missionOpenBtn = nil,
+                        mapButtons = {},
+                        diffLabel = nil,
+                        nextDiffBtn = nil,
+                        prevDiffBtn = nil
+                    }
+                    local function getClickable(o)
+                        if not o then return nil end
+                        if o:IsA("GuiButton") then return o end
+                        return o:FindFirstAncestorWhichIsA("GuiButton") or o:FindFirstChildWhichIsA("GuiButton", true) or o
+                    end
+
+                    local topbar = iface:FindFirstChild("Topbar")
+                    if topbar then
+                        local mDirect = topbar:FindFirstChild("Missions", true) or topbar:FindFirstChild("Mission", true)
+                        if mDirect and mDirect:IsA("GuiObject") then
+                            info.missionOpenBtn = getClickable(mDirect)
                         end
                     end
-                end
-            end
+                    for _, obj in ipairs(iface:GetDescendants()) do
+                        if isTrulyVisible(obj, iface) then
+                            local rawTxt = getGuiObjectText(obj)
+                            local up = rawTxt:upper()
+                            local norm = normalizeVi(rawTxt)
+                            local lname = string.lower(tostring(obj.Name or ""))
 
-            -- 2. Scan visible interface descendants
-            for _, obj in ipairs(iface:GetDescendants()) do
-                if isTrulyVisible(obj, iface) then
-                    local rawTxt = getGuiObjectText(obj)
-                    local norm = normalizeVi(rawTxt)
-                    local up = rawTxt:upper()
-                    local lname = string.lower(tostring(obj.Name or ""))
-                    local clickable = getClickable(obj)
-                    local sz = obj.AbsoluteSize or (clickable and clickable.AbsoluteSize)
-                    local pos = obj.AbsolutePosition or (clickable and clickable.AbsolutePosition)
-                    local isCardSize = sz and (sz.X > 40 or sz.Y > 60)
+                            if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and (up:find("GRADE)", 1, true) or up:find("CẤP ĐỘ)", 1, true) or up:find("CAP DO)", 1, true)) then
+                                info.diffLabel = obj
+                            end
 
-                    -- Check if Modifiers modal is active
-                    if (norm == "sua doi" or norm == "modifiers") and (obj:IsA("TextLabel") or (pos and pos.Y < 200)) then
-                        isModWindowOpen = true
+                            local clickable = getClickable(obj)
+                            if clickable and isTrulyVisible(clickable, iface) then
+                                if lname == "missions" or lname == "mission" or norm == "nhiem vu" or norm == "missions" then
+                                    info.missionOpenBtn = clickable
+                                elseif lname == "create" or norm == "tao" or norm == "create" then
+                                    info.createBtn = clickable
+                                elseif lname == "play" or lname == "start" or norm == "choi" or norm == "play" or norm == "start" or norm == "bat dau" then
+                                    info.playBtn = clickable
+                                elseif lname == "modifiers" or lname == "modifier" or norm == "sua doi" or norm == "modifiers" then
+                                    info.modifiersBtn = clickable
+                                elseif rawTxt == ">" or lname == "next" or lname == "right" or lname == "arrowright" or lname == "arrow_right" then
+                                    info.nextDiffBtn = clickable
+                                elseif rawTxt == "<" or lname == "prev" or lname == "previous" or lname == "left" or lname == "arrowleft" or lname == "arrow_left" then
+                                    info.prevDiffBtn = clickable
+                                elseif lname:find("shiganshina", 1, true) or norm:find("shiganshina", 1, true) then
+                                    info.mapButtons["Shiganshina"] = clickable
+                                elseif lname:find("trost", 1, true) or norm:find("trost", 1, true) then
+                                    info.mapButtons["Trost"] = clickable
+                                elseif lname:find("outskirts", 1, true) or norm:find("outskirts", 1, true) or norm:find("do lot", 1, true) then
+                                    info.mapButtons["Outskirts"] = clickable
+                                elseif lname:find("forest", 1, true) or norm:find("forest", 1, true) or norm:find("rung", 1, true) then
+                                    info.mapButtons["Giant Forest"] = clickable
+                                end
+                            end
+                        end
                     end
-                    if (norm == "tro lai" or norm == "back" or norm == "return") and clickable then
-                        backFromModsBtn = clickable
+                    if info.diffLabel and (not info.nextDiffBtn or not info.prevDiffBtn) then
+                        local dPos = info.diffLabel.AbsolutePosition
+                        local searchRoot = (info.diffLabel.Parent and info.diffLabel.Parent.Parent) or
+                            info.diffLabel.Parent or iface
+                        for _, btn in ipairs(searchRoot:GetDescendants()) do
+                            local clickable = getClickable(btn)
+                            if clickable and clickable ~= info.diffLabel and isTrulyVisible(clickable, iface) then
+                                local bPos = clickable.AbsolutePosition
+                                if math.abs(bPos.Y - dPos.Y) < 65 then
+                                    if bPos.X > dPos.X and not info.nextDiffBtn then
+                                        info.nextDiffBtn = clickable
+                                    elseif bPos.X < dPos.X and not info.prevDiffBtn then
+                                        info.prevDiffBtn = clickable
+                                    end
+                                end
+                            end
+                        end
                     end
-
-                    -- Difficulty label & arrows
-                    if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and (up:find("GRADE)", 1, true) or up:find("CAP DO)", 1, true) or up:find("CẤP ĐỘ)", 1, true)) then
-                        diffLabel = obj
-                    end
-                    if rawTxt == ">" or lname == "next" or lname == "right" or lname == "arrowright" then
-                        nextDiffBtn = clickable
-                    elseif rawTxt == "<" or lname == "prev" or lname == "previous" or lname == "left" or lname == "arrowleft" then
-                        prevDiffBtn = clickable
-                    end
-
-                    -- Map buttons
-                    if lname:find("shiganshina", 1, true) or norm:find("shiganshina", 1, true) then
-                        mapButtons["Shiganshina"] = clickable
-                    elseif lname:find("trost", 1, true) or norm:find("trost", 1, true) then
-                        mapButtons["Trost"] = clickable
-                    elseif lname:find("outskirts", 1, true) or norm:find("outskirts", 1, true) or norm:find("do lot", 1, true) then
-                        mapButtons["Outskirts"] = clickable
-                    elseif lname:find("forest", 1, true) or norm:find("forest", 1, true) or norm:find("rung", 1, true) then
-                        mapButtons["Giant Forest"] = clickable
-                    end
-
-                    -- Mode cards
-                    if (norm == "nhiem vu" or norm == "missions" or lname == "mission" or lname == "missions") and isCardSize and pos and pos.Y > 40 then
-                        modeCards.missions = clickable
-                    elseif (norm == "raid" or lname == "raid") and isCardSize and pos and pos.Y > 40 then
-                        modeCards.raid = clickable
-                    elseif (norm == "song" or norm == "waves" or lname == "wave") and isCardSize and pos and pos.Y > 40 then
-                        modeCards.waves = clickable
-                    elseif (norm == "tham gia" or norm == "join" or lname == "join") and isCardSize and pos and pos.Y > 40 then
-                        modeCards.join = clickable
-                    end
-
-                    -- Action buttons
-                    if (norm == "tao" or norm == "create" or lname == "create") and clickable then
-                        createRoomBtn = clickable
-                    elseif (norm == "sua doi" or norm == "modifiers" or lname == "modifier" or lname == "modifiers") and clickable then
-                        modifiersBtn = clickable
-                    elseif (norm == "choi" or norm == "play") and clickable then
-                        modePlayBtn = clickable
-                    elseif (norm == "bat dau" or norm == "start" or lname == "start") and clickable then
-                        startMissionBtn = clickable
-                    end
-                end
-            end
-
-            -- =========================================================================
-            -- 5-STATE AUTOMATION LOGIC (Mutually Exclusive Priority)
-            -- =========================================================================
-
-            -- STATE 1: In Room Lobby (Ready to start)
-            if startMissionBtn then
-                kaitunActionState = "Room Ready - Starting Mission..."
-                if v150_10.UpdateKaitunParagraph then pcall(v150_10.UpdateKaitunParagraph) end
-                v150_10.ClickGuiButton(startMissionBtn)
-                task.wait(2.0)
-                return true
-            end
-
-            -- STATE 2: Modifiers Modal is open
-            if isModWindowOpen and backFromModsBtn then
-                kaitunActionState = "Configuring Modifiers (All ON except last 4)..."
-                if v150_10.UpdateKaitunParagraph then pcall(v150_10.UpdateKaitunParagraph) end
-                v150_10.ConfigureModifiers(iface)
-                task.wait(0.3)
-                v150_10.ClickGuiButton(backFromModsBtn)
-                task.wait(0.5)
-                return true
-            end
-
-            -- STATE 3: Room Creation Screen (TẠO button is visible)
-            if createRoomBtn then
-                kaitunActionState = "Creating Room: " .. targetMap .. " [" .. targetGrade .. " GRADE]..."
-                if v150_10.UpdateKaitunParagraph then pcall(v150_10.UpdateKaitunParagraph) end
-
-                -- 3a. Select Map
-                local mBtn = mapButtons[targetMap] or mapButtons["Shiganshina"]
-                if mBtn then
-                    v150_10.ClickGuiButton(mBtn)
-                    task.wait(0.25)
+                    return info
                 end
 
-                -- 3b. Adjust Difficulty Arrow
-                if diffLabel then
+                local ui = scanMissionUi()
+                if not ui.createBtn and ui.missionOpenBtn then
+                    v150_10.ClickGuiButton(ui.missionOpenBtn)
+                    task.wait(0.45)
+                    ui = scanMissionUi()
+                end
+
+                local mapBtn = ui.mapButtons[targetMap] or ui.mapButtons["Shiganshina"]
+                if mapBtn then
+                    v150_10.ClickGuiButton(mapBtn)
+                    task.wait(0.3)
+                    ui = scanMissionUi()
+                end
+
+                if ui.diffLabel then
                     for _ = 1, 5 do
-                        local dTxt = tostring(getGuiObjectText(diffLabel)):upper()
+                        local dTxt = tostring(getGuiObjectText(ui.diffLabel)):upper()
                         local curG = dTxt:match("%(([E%-%+DBAS]+)%s*GRADE%)")
                         local curOrder = curG and GRADE_ORDER[curG] or nil
                         if not curOrder or curOrder == targetOrder then
                             break
-                        elseif curOrder < targetOrder and nextDiffBtn then
-                            v150_10.ClickGuiButton(nextDiffBtn)
+                        elseif curOrder < targetOrder and ui.nextDiffBtn and isTrulyVisible(ui.nextDiffBtn, iface) then
+                            v150_10.ClickGuiButton(ui.nextDiffBtn)
                             task.wait(0.2)
-                        elseif curOrder > targetOrder and prevDiffBtn then
-                            v150_10.ClickGuiButton(prevDiffBtn)
+                        elseif curOrder > targetOrder and ui.prevDiffBtn and isTrulyVisible(ui.prevDiffBtn, iface) then
+                            v150_10.ClickGuiButton(ui.prevDiffBtn)
                             task.wait(0.2)
                         else
+                            break
+                        end
+                        ui = scanMissionUi()
+                        if not ui.diffLabel then
                             break
                         end
                     end
                 end
 
-                -- 3c. Click Modifiers button if available to configure before starting
-                if modifiersBtn and not v150_10._modifiersConfiguredThisSession then
-                    v150_10.ClickGuiButton(modifiersBtn)
-                    v150_10._modifiersConfiguredThisSession = true
-                    task.wait(0.5)
-                    return true
+                ui = scanMissionUi()
+                if ui.createBtn then
+                    v150_10.ClickGuiButton(ui.createBtn)
+                    started = true
+                    task.wait(0.55)
+                    ui = scanMissionUi()
                 end
 
-                -- 3d. Click TẠO
-                v150_10.ClickGuiButton(createRoomBtn)
-                task.wait(0.75)
-                return true
-            end
+                -- CONFIGURE MODIFIERS (SỬA ĐỔI) BEFORE STARTING MISSION
+                pcall(function()
+                    local modBtn = ui.modifiersBtn
+                    if not modBtn then
+                        for _, btn in ipairs(iface:GetDescendants()) do
+                            if btn:IsA("GuiButton") and isTrulyVisible(btn, iface) then
+                                local nb = normalizeVi(getGuiObjectText(btn) .. " " .. tostring(btn.Name or ""))
+                                if nb == "sua doi" or nb == "modifiers" or nb == "modifier" then
+                                    modBtn = btn
+                                    break
+                                end
+                            end
+                        end
+                    end
 
-            -- STATE 4: 4-Card Mode Selection Screen (Cards + CHƠI button visible)
-            if (modeCards.missions or modeCards.raid) and modePlayBtn then
-                kaitunActionState = "Selecting Mode: NHIỆM VỤ..."
-                if v150_10.UpdateKaitunParagraph then pcall(v150_10.UpdateKaitunParagraph) end
+                    if modBtn then
+                        v150_10.ClickGuiButton(modBtn)
+                        task.wait(0.45)
 
-                -- Select NHIỆM VỤ
-                local targetCard = modeCards.missions or modeCards.raid
-                if targetCard then
-                    v150_10.ClickGuiButton(targetCard)
-                    task.wait(0.3)
+                        local modContainer = nil
+                        for _, obj in ipairs(iface:GetDescendants()) do
+                            if isTrulyVisible(obj, iface) then
+                                local nb = normalizeVi(getGuiObjectText(obj) .. " " .. tostring(obj.Name or ""))
+                                if nb == "sua doi" or nb == "modifiers" then
+                                    modContainer = obj.Parent
+                                    break
+                                end
+                            end
+                        end
+
+                        local searchRoot = modContainer or iface
+                        local modRows = {}
+                        for _, obj in ipairs(searchRoot:GetDescendants()) do
+                            if (obj:IsA("Frame") or obj:IsA("GuiButton")) and isTrulyVisible(obj, iface) then
+                                local txt = getGuiObjectText(obj)
+                                local ntxt = normalizeVi(txt)
+                                if ntxt:find("%+", 1, true) or ntxt:find("vang/xp", 1, true) or ntxt:find("gold/xp", 1, true)
+                                    or ntxt:find("uu dai", 1, true) or ntxt:find("ky nang", 1, true) or ntxt:find("ky uc", 1, true)
+                                    or ntxt:find("ac mong", 1, true) or ntxt:find("oddball", 1, true) or ntxt:find("hardcore", 1, true) then
+                                    local rowFrame = obj
+                                    while rowFrame.Parent and rowFrame.Parent ~= searchRoot and rowFrame.Parent:IsA("GuiObject") do
+                                        if rowFrame.Parent:IsA("ScrollingFrame") or rowFrame.Parent.Name == "List" or rowFrame.Parent.Name == "Container" then
+                                            break
+                                        end
+                                        rowFrame = rowFrame.Parent
+                                    end
+                                    local alreadyAdded = false
+                                    for _, r in ipairs(modRows) do
+                                        if r == rowFrame then
+                                            alreadyAdded = true
+                                            break
+                                        end
+                                    end
+                                    if not alreadyAdded then
+                                        table.insert(modRows, rowFrame)
+                                    end
+                                end
+                            end
+                        end
+
+                        if #modRows > 0 then
+                            table.sort(modRows, function(a, b)
+                                local loA = a.LayoutOrder or 0
+                                local loB = b.LayoutOrder or 0
+                                if loA ~= loB and loA > 0 and loB > 0 then
+                                    return loA < loB
+                                end
+                                return a.AbsolutePosition.Y < b.AbsolutePosition.Y
+                            end)
+
+                            local totalMods = #modRows
+                            -- User requirement: Turn ON all modifiers except the last 4!
+                            local safeEnableCount = math.max(0, totalMods - 4)
+
+                            local function isChecked(row)
+                                for _, d in ipairs(row:GetDescendants()) do
+                                    if d:IsA("ImageLabel") or d:IsA("ImageButton") then
+                                        local iname = string.lower(d.Name)
+                                        if (iname:find("check") or iname:find("tick") or iname:find("icon") or iname:find("box")) and d.Visible then
+                                            if d.ImageTransparency < 0.5 and d.Image ~= "" then
+                                                return true
+                                            end
+                                        end
+                                    elseif d:IsA("TextLabel") or d:IsA("TextButton") then
+                                        local t = tostring(d.Text or "")
+                                        if t:find("✓") or t == "X" or t == "x" then
+                                            return true
+                                        end
+                                    end
+                                end
+                                return row:GetAttribute("Enabled") == true or row:GetAttribute("Checked") == true
+                            end
+
+                            local function getClickTarget(row)
+                                if row:IsA("GuiButton") then return row end
+                                for _, b in ipairs(row:GetDescendants()) do
+                                    if b:IsA("GuiButton") and isTrulyVisible(b, iface) then
+                                        return b
+                                    end
+                                end
+                                return nil
+                            end
+
+                            for idx, row in ipairs(modRows) do
+                                local targetState = (idx <= safeEnableCount)
+                                local currentlyOn = isChecked(row)
+                                if currentlyOn ~= targetState then
+                                    local clickBtn = getClickTarget(row)
+                                    if clickBtn then
+                                        v150_10.ClickGuiButton(clickBtn)
+                                        task.wait(0.06)
+                                    end
+                                end
+                            end
+                        end
+
+                        -- Click "TRỞ LẠI" / "Back" button to return to room screen
+                        for _, btn in ipairs(iface:GetDescendants()) do
+                            if btn:IsA("GuiButton") and isTrulyVisible(btn, iface) then
+                                local nb = normalizeVi(getGuiObjectText(btn) .. " " .. tostring(btn.Name or ""))
+                                if nb == "tro lai" or nb == "back" or nb == "return" or nb == "close" or nb == "dong" then
+                                    v150_10.ClickGuiButton(btn)
+                                    task.wait(0.35)
+                                    break
+                                end
+                            end
+                        end
+                    end
+                end)
+
+                -- Finally click "BẮT ĐẦU" / "Start" / "Play"
+                ui = scanMissionUi()
+                if ui.playBtn then
+                    v150_10.ClickGuiButton(ui.playBtn)
+                    started = true
+                    task.wait(2.5)
                 end
+            end)
 
-                -- Click CHƠI
-                v150_10.ClickGuiButton(modePlayBtn)
-                task.wait(0.75)
-                return true
-            end
-
-            -- STATE 5: Lobby Idle (Nothing open -> Click Topbar NHIỆM VỤ)
-            if topbarMissionBtn then
-                kaitunActionState = "Opening Missions Menu from Topbar..."
-                if v150_10.UpdateKaitunParagraph then pcall(v150_10.UpdateKaitunParagraph) end
-                v150_10.ClickGuiButton(topbarMissionBtn)
-                task.wait(0.75)
-                return true
-            end
-
-            -- Fallback remote call if UI not responsive
             if v69_2 then
                 pcall(function()
                     v69_2:InvokeServer("S_Missions", "Create", {
@@ -9139,7 +8785,7 @@ do
                     v69_2:InvokeServer("S_Missions", "Start")
                 end)
             end
-            return false
+            return started
         end
 
         function v150_10.ShouldKaitunReturnToLobby()
@@ -9213,35 +8859,35 @@ do
                 if isVi then
                     v56_2.KaitunStatusParagraph:Set(string.format(
                         "Trạng Thái Kaitun: %s\nHành Động: %s\nCấp Độ: Lv.%s / %s (Prestige %s)\nTiến Độ Tái Sinh: %s\nGold Hiện Tại: %s\nHạng Vũ Khí: [%s GRADE] (Cấp %d/15)\nMap & Độ Khó Mục Tiêu: %s - %s\nMốc Mở Khóa Độ Khó Tiếp: %s",
-                        tostring(enabledStr),
-                        tostring(kaitunActionState),
-                        tostring(v165_3(st.Level)),
-                        tostring(v165_3(st.MaxLevelCap)),
-                        tostring(prestigeDisplay),
-                        tostring(prestigeReadyTxt),
-                        tostring(v165_3(st.Gold)),
-                        tostring(st.WeaponGradeLetter or st.GradeLetter or "E-"),
-                        tonumber(st.WeaponMinLevel) or 0,
-                        tostring(st.TargetMap or "Shiganshina"),
-                        tostring(st.Bracket and st.Bracket.DiffVI or "Dễ"),
-                        tostring(nextBracketTxt or "N/A")
+                        enabledStr,
+                        kaitunActionState,
+                        v165_3(st.Level),
+                        v165_3(st.MaxLevelCap),
+                        prestigeDisplay,
+                        prestigeReadyTxt,
+                        v165_3(st.Gold),
+                        st.WeaponGradeLetter,
+                        st.WeaponMinLevel,
+                        st.TargetMap,
+                        st.Bracket.DiffVI,
+                        nextBracketTxt
                     ))
                 else
                     v56_2.KaitunStatusParagraph:Set(string.format(
                         "Kaitun Mode: %s\nAction: %s\nLevel: Lv.%s / %s (Prestige %s)\nPrestige Progress: %s\nCurrent Gold: %s\nWeapon Grade: [%s GRADE] (Lv.%d/15)\nTarget Map & Difficulty: %s - %s (%s GRADE)\nNext Difficulty Unlock: %s",
-                        tostring(enabledStr),
-                        tostring(kaitunActionState),
-                        tostring(v165_3(st.Level)),
-                        tostring(v165_3(st.MaxLevelCap)),
-                        tostring(prestigeDisplay),
-                        tostring(prestigeReadyTxt),
-                        tostring(v165_3(st.Gold)),
-                        tostring(st.WeaponGradeLetter or st.GradeLetter or "E-"),
-                        tonumber(st.WeaponMinLevel) or 0,
-                        tostring(st.TargetMap or "Shiganshina"),
-                        tostring(st.Bracket and st.Bracket.DiffEN or "Easy"),
-                        tostring(st.Bracket and st.Bracket.Grade or "E-"),
-                        tostring(nextBracketTxt or "N/A")
+                        enabledStr,
+                        kaitunActionState,
+                        v165_3(st.Level),
+                        v165_3(st.MaxLevelCap),
+                        prestigeDisplay,
+                        prestigeReadyTxt,
+                        v165_3(st.Gold),
+                        st.WeaponGradeLetter,
+                        st.WeaponMinLevel,
+                        st.TargetMap,
+                        st.Bracket.DiffEN,
+                        st.Bracket.Grade,
+                        nextBracketTxt
                     ))
                 end
             end)
@@ -9371,35 +9017,16 @@ do
                         local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
                         local iface = pgui and pgui:FindFirstChild("Interface")
                         local rewards = iface and iface:FindFirstChild("Rewards")
-                        local isMatchEnded = false
-                        if rewards and (rewards.Visible == true or (rewards:IsA("LayerCollector") and rewards.Enabled == true)) then
-                            isMatchEnded = true
-                        end
-                        if not isMatchEnded and iface then
-                            for _, name in ipairs({ "Result", "Results", "Victory", "Defeat", "MissionComplete", "GameEnd", "MatchEnd", "EndScreen" }) do
-                                local f = iface:FindFirstChild(name)
-                                if f and (f.Visible == true or (f:IsA("LayerCollector") and f.Enabled == true)) then
-                                    isMatchEnded = true
-                                    break
-                                end
-                            end
-                        end
-                        if not isMatchEnded and pgui then
-                            for _, name in ipairs({ "Rewards", "Results", "EndScreen", "Victory", "Defeat" }) do
-                                local f = pgui:FindFirstChild(name)
-                                if f and f ~= iface and (f.Visible == true or (f:IsA("LayerCollector") and f.Enabled == true)) then
-                                    isMatchEnded = true
-                                    break
-                                end
-                            end
-                        end
-
-                        if isMatchEnded then
+                        if rewards and rewards.Visible then
                             if v150_10.ShouldKaitunReturnToLobby() then
                                 v150_10.KaitunReturnToLobby()
                             else
                                 kaitunActionState = "Retrying Mission [" .. st.Bracket.Grade .. " GRADE]"
-                                v150_10.HandleRetryAndContinueScreen()
+                                if v69_2 then
+                                    pcall(function()
+                                        v69_2:InvokeServer("Functions", "Retry", "Add")
+                                    end)
+                                end
                             end
                         else
                             if v8_6("KaitunAutoUpgradeWeapon") ~= false and v13_8:FindFirstChild("Waves") and st.CanUpgradeStep then
@@ -9509,10 +9136,6 @@ do
 
                 v150_10.AutoRaid = v8_6("AutoRaid") == true
                 if v56_2.AutoRaid then v56_2.AutoRaid:SetState(v150_10.AutoRaid) end
-
-                v150_10.AutoClaimAchievements = v8_6("AutoClaimAchievements") ~= false
-                if v56_2.AutoClaimAchievements then v56_2.AutoClaimAchievements:SetState(v150_10.AutoClaimAchievements) end
-                if v150_10.AutoClaimAchievements and v150_10.ClaimAchievements then v150_10.ClaimAchievements() end
 
                 v45_3 = v8_6("AutoSellPerks") == true
                 if v56_2.AutoSellPerks then v56_2.AutoSellPerks:SetState(v45_3) end
@@ -9753,7 +9376,6 @@ do
         local kTab = v56_2.KaitunTab
         if kTab then
             v56_2.KaitunStatusParagraph = kTab:AddParagraph("KAITUN STATUS:", "...")
-            pcall(v150_10.UpdateKaitunParagraph)
             kTab:AddLabel("KAITUN AUTOMATION")
             v56_2.KaitunEnabledToggle = kTab:AddToggle("Enable Kaitun (Auto Level & Prestige)", function(p1)
                 v9_4("KaitunEnabled", p1)
@@ -9812,7 +9434,6 @@ do
         local sTab = v56_2.SettingsTab
         if sTab then
             v56_2.ConfigStatusParagraph = sTab:AddParagraph("CONFIG STATUS:", "...")
-            pcall(v150_10.UpdateConfigParagraph)
             sTab:AddLabel("CONFIG & SETTINGS")
             v56_2.SettingSlotDropdown = sTab:AddSingleDropdown("Select Setting File (Order)", v15_SettingSlotsList,
                 tostring(v8_6("SelectedSettingSlot") or "Setting 1"), function(p1)
@@ -9838,11 +9459,6 @@ do
 
         v15_isRestoring = false
         v150_10.ApplySettingsToUI(false)
-        pcall(function()
-            if v150_10.UpdateKaitunParagraph then v150_10.UpdateKaitunParagraph() end
-            if v150_10.UpdateConfigParagraph then v150_10.UpdateConfigParagraph() end
-            if v150_10.UpdateShadowBanParagraph then v150_10.UpdateShadowBanParagraph() end
-        end)
 
         task.spawn(function()
             while true do
@@ -9902,20 +9518,6 @@ do
             v62_3()
             task.spawn(v63_9)
         end
-        -- Background standing task: Auto Claim Daily Reward (always on), Achievements, and Auto Retry Watchdog
-        task.spawn(function()
-            task.wait(2.0)
-            if v150_10.ClaimDailyReward then pcall(v150_10.ClaimDailyReward) end
-            if v150_10.AutoClaimAchievements and v150_10.ClaimAchievements then pcall(v150_10.ClaimAchievements) end
-            while true do
-                task.wait(10)
-                if v150_10.ClaimDailyReward then pcall(v150_10.ClaimDailyReward) end
-                if v150_10.AutoClaimAchievements and v150_10.ClaimAchievements then pcall(v150_10.ClaimAchievements) end
-                if v38_2 and (not autoRetryWatcherThread or coroutine.status(autoRetryWatcherThread) == "dead") then
-                    pcall(v110_3)
-                end
-            end
-        end)
         return
     end)
 end
