@@ -1146,8 +1146,7 @@ do
         end
         local v10_11 = v8_8 and v8_8.CollisionGroup
         local v11_9 = v8_8 and v8_8.Size
-        local extraDist = tonumber(v60_2) or 0
-        local v12_10 = math.max(120, (55 + (extraDist * 1.5)) * 2 + 50)
+        local v12_10 = math.max(100, (55 + v60_2) * 2 + 30)
         if v8_8 and v8_8:IsA("BasePart") then
             if not v150_10.OriginalSizes[v8_8] then
                 v150_10.OriginalSizes[v8_8] = v11_9
@@ -2096,25 +2095,18 @@ end
 local v121_4, v122_3, v123_4, v127_2, v128_2, v129_4, v50_2
 do
     local function v119_5(p1)
-        local v2 = v89_2(p1) or (p1 and p1:FindFirstChild("HumanoidRootPart"))
+        local v2 = v89_2(p1) or p1 and p1:FindFirstChild("HumanoidRootPart")
         if not v2 then
             return nil
         end
-        local extraDist = tonumber(v60_2) or 0
         if v73_2() then
-            local spearHeight = 48 + (extraDist * 1.2)
-            local spearDist = 75 + extraDist
-            return CFrame.lookAt(v2.Position + Vector3.new(0, spearHeight, 0) - v2.CFrame.LookVector * spearDist,
-                v2.Position)
+            return CFrame.lookAt(v2.Position + Vector3.new(0, 48, 0) - v2.CFrame.LookVector * (75 + v60_2), v2.Position)
         end
         local v3_8 = os.clock() * 8
-        local v4_6 = 55 + (extraDist * 1.5)
-        local orbitRadius = 32 + (extraDist * 0.25)
+        local v4_6 = 55 + v60_2
         local v6_7 = v3_8 + 0.2
-        return CFrame.lookAt(
-            v2.Position + Vector3.new(math.cos(v3_8) * orbitRadius, v4_6, math.sin(v3_8) * orbitRadius),
-            v2.Position + Vector3.new(math.cos(v6_7) * orbitRadius, v4_6, math.sin(v6_7) * orbitRadius)
-        )
+        return CFrame.lookAt(v2.Position + Vector3.new(math.cos(v3_8) * 32, v4_6, math.sin(v3_8) * 32),
+            v2.Position + Vector3.new(math.cos(v6_7) * 32, v4_6, math.sin(v6_7) * 32))
     end
     local function v120_4(p1)
         local v3 = math
@@ -2308,14 +2300,32 @@ do
         end
         v55_2 = p3
         p1.CFrame = p3
-        if p2 then
-            p2.PlatformStand = true
+        if v73_2() then
+            if p2 then
+                p2.PlatformStand = true
+            end
+            pcall(function()
+                local v1 = p1
+                local v3 = Vector3
+                v1.AssemblyLinearVelocity = v3.zero
+                v1.AssemblyAngularVelocity = v3.zero
+                return
+            end)
+        else
+            if p2 then
+                p2.PlatformStand = false
+                pcall(function()
+                    p2:ChangeState(Enum.HumanoidStateType.Freefall)
+                    return
+                end)
+            end
+            pcall(function()
+                local v1 = p1
+                v1.AssemblyLinearVelocity = p3.LookVector * 160
+                v1.AssemblyAngularVelocity = Vector3.zero
+                return
+            end)
         end
-        pcall(function()
-            p1.AssemblyLinearVelocity = Vector3.zero
-            p1.AssemblyAngularVelocity = Vector3.zero
-            return
-        end)
         return
     end
     v127_2 = function(p1)
@@ -2429,12 +2439,8 @@ do
                 end
                 if v20_2 and v91_2(v20_2) then
                     v10_4 = v119_5(v20_2)
-                elseif v55_2 then
-                    v10_4 = v55_2
                 else
-                    local extraDist = tonumber(v60_2) or 0
-                    local safeY = 55 + (extraDist * 1.5)
-                    v10_4 = CFrame.new(v4_6.Position.X, math.max(v4_6.Position.Y, safeY), v4_6.Position.Z)
+                    v10_4 = v55_2 or v4_6.CFrame
                 end
             end
             if v10_4 then
@@ -3382,7 +3388,7 @@ do
                     local v2 = v1_2 and v1_2:FindFirstChild("Actor") or v66 and v66()[1]
                     if v2 and v67_2 then
                         v67_2(v2,
-                            "                local foundData = nil\n                for _, v in ipairs(getgc(true)) do\n                    if type(v) == \"table\" and rawget(v, \"Currency\") and rawget(v, \"Progression\") and rawget(v, \"Upgrades\") then\n                        if type(v.Currency) == \"table\" and type(v.Currency.Gold) == \"number\" then\n                            foundData = v\n                            break\n                        end\n                    end\n                end\n                local minLvl = 999\n                if foundData and foundData.Upgrades then\n                    local w = foundData.Weapon or \"Blades\"\n                    local upgs = foundData.Upgrades[w]\n                    if type(upgs) == \"table\" then\n                        for _, lvl in pairs(upgs) do\n                            if type(lvl) == \"number\" and lvl < minLvl then\n                                minLvl = lvl\n                            end\n                        end\n                    end\n                end\n                local resolvedMin = minLvl < 999 and minLvl or 0\n                local lp = game:GetService(\"Players\").LocalPlayer\n                if lp then\n                    lp:SetAttribute(\"WeaponMinLevel\", resolvedMin)\n                    if foundData and type(foundData.Currency) == \"table\" and type(foundData.Currency.Gold) == \"number\" then\n                        lp:SetAttribute(\"Symbiote_Gold\", foundData.Currency.Gold)\n                    end\n                    if foundData and type(foundData.Progression) == \"table\" then\n                        if type(foundData.Progression.Level) == \"number\" then\n                            lp:SetAttribute(\"Symbiote_Level\", foundData.Progression.Level)\n                        end\n                        if type(foundData.Progression.Prestige) == \"number\" then\n                            lp:SetAttribute(\"Symbiote_Prestige\", foundData.Progression.Prestige)\n                        end\n                    end\n                end\n                local chars = workspace:FindFirstChild(\"Characters\")\n                local c = (chars and lp and chars:FindFirstChild(lp.Name)) or (lp and lp.Character)\n                local myAct = c and c:FindFirstChild(\"Actor\")\n                if myAct then\n                    myAct:SetAttribute(\"WeaponMinLevel\", resolvedMin)\n                end\n            ")
+                            "                local foundData = nil\n                for _, v in ipairs(getgc(true)) do\n                    if type(v) == \"table\" and rawget(v, \"Currency\") and rawget(v, \"Progression\") and rawget(v, \"Upgrades\") then\n                        if type(v.Currency) == \"table\" and type(v.Currency.Gold) == \"number\" then\n                            foundData = v\n                            break\n                        end\n                    end\n                end\n                local minLvl = 999\n                if foundData and foundData.Upgrades then\n                    local w = foundData.Weapon or \"Blades\"\n                    local upgs = foundData.Upgrades[w]\n                    if type(upgs) == \"table\" then\n                        for _, lvl in pairs(upgs) do\n                            if type(lvl) == \"number\" and lvl < minLvl then\n                                minLvl = lvl\n                            end\n                        end\n                    end\n                end\n                local resolvedMin = minLvl < 999 and minLvl or 0\n                local lp = game:GetService(\"Players\").LocalPlayer\n                if lp then\n                    lp:SetAttribute(\"WeaponMinLevel\", resolvedMin)\n                    if foundData and type(foundData.Currency) == \"table\" and type(foundData.Currency.Gold) == \"number\" then\n                        lp:SetAttribute(\"Symbiote_Gold\", foundData.Currency.Gold)\n                    end\n                    if foundData and type(foundData.Progression) == \"table\" then\n                        if type(foundData.Progression.Level) == \"number\" and foundData.Progression.Level <= 225 then\n                            lp:SetAttribute(\"Symbiote_Level\", foundData.Progression.Level)\n                        end\n                        if type(foundData.Progression.Prestige) == \"number\" and foundData.Progression.Prestige <= 5 then\n                            lp:SetAttribute(\"Symbiote_Prestige\", foundData.Progression.Prestige)\n                        end\n                    end\n                end\n                local chars = workspace:FindFirstChild(\"Characters\")\n                local c = (chars and lp and chars:FindFirstChild(lp.Name)) or (lp and lp.Character)\n                local myAct = c and c:FindFirstChild(\"Actor\")\n                if myAct then\n                    myAct:SetAttribute(\"WeaponMinLevel\", resolvedMin)\n                end\n            ")
                         local v3_7 = (v7_13 and v7_13:GetAttribute("WeaponMinLevel")) or
                             v2:GetAttribute("WeaponMinLevel")
                         if type(v3_7) == "number" and 0 <= v3_7 and 15 >= v3_7 then
@@ -5248,10 +5254,15 @@ local v157_2 = (function()
     end
     return nil
 end)() or {}
+local rawPrestige = tonumber(v157_2.Player and v157_2.Player.Prestige) or 0
+if rawPrestige > 5 or rawPrestige < 0 then rawPrestige = 0 end
+local rawLevel = tonumber(v157_2.Player and v157_2.Player.Level) or 1
+if rawLevel > 225 or rawLevel < 1 then rawLevel = 1 end
+
 local v156_4 = {
     Player = {
-        Prestige = tonumber(v157_2.Player and v157_2.Player.Prestige) or 0,
-        Level = tonumber(v157_2.Player and v157_2.Player.Level) or 1,
+        Prestige = rawPrestige,
+        Level = rawLevel,
         Gems = tonumber(v157_2.Player and v157_2.Player.Gems) or 0,
         Gold = tonumber(v157_2.Player and v157_2.Player.Gold) or 0,
         Pumpkins = tonumber(v157_2.Player and v157_2.Player.Pumpkins) or 0
@@ -5297,6 +5308,10 @@ local v156_4 = {
     }
 }
 local function v157_5()
+    if v156_4 and v156_4.Player then
+        v156_4.Player.Prestige = math.min(5, math.max(0, tonumber(v156_4.Player.Prestige) or 0))
+        v156_4.Player.Level = math.min(225, math.max(1, tonumber(v156_4.Player.Level) or 1))
+    end
     local v1_2, v2_2 = pcall(function()
         return v5_6:JSONEncode(v156_4)
     end)
@@ -5431,11 +5446,13 @@ end
 local function v174_5()
     local isVi = v150_9.IsVietnamese()
     local v6 = v156_4
+    local pPrestige = math.min(5, math.max(0, tonumber(v6.Player.Prestige) or 0))
+    local pLevel = math.min(225, math.max(1, tonumber(v6.Player.Level) or 1))
     v173_2.Player:Set(string.format(
         isVi and "Prestige: %s\nCấp Độ (Level): %s\nGems: %s\nGold: %s\nPumpkins: %s"
         or "Prestige: %s\nLevel: %s\nGems: %s\nGold: %s\nPumpkins: %s",
-        v165_3(v6.Player.Prestige),
-        v165_3(v6.Player.Level),
+        v165_3(pPrestige),
+        v165_3(pLevel),
         v165_3(v6.Player.Gems),
         v165_3(v6.Player.Gold),
         v165_3(v6.Player.Pumpkins or 0)
@@ -5517,12 +5534,18 @@ local function v175_4(p1)
     local v2_4 = false
     if type(p1.Progression) == "table" then
         if p1.Progression.Prestige ~= nil then
-            v156_4.Player.Prestige = tonumber(p1.Progression.Prestige) or v156_4.Player.Prestige
-            v2_4 = true
+            local pVal = tonumber(p1.Progression.Prestige)
+            if pVal and pVal >= 0 and pVal <= 5 then
+                v156_4.Player.Prestige = pVal
+                v2_4 = true
+            end
         end
         if p1.Progression.Level ~= nil then
-            v156_4.Player.Level = tonumber(p1.Progression.Level) or v156_4.Player.Level
-            v2_4 = true
+            local lVal = tonumber(p1.Progression.Level)
+            if lVal and lVal >= 1 and lVal <= 225 then
+                v156_4.Player.Level = lVal
+                v2_4 = true
+            end
         end
     end
     if type(p1.Currency) == "table" then
@@ -5546,13 +5569,19 @@ local function v176_5()
     local v2 = game.PlaceId == 14916516914 or game.PlaceId == 13379208636
     local v3_2 = v7_13:GetAttribute("Prestige")
     if v3_2 ~= nil then
-        v156_4.Player.Prestige = tonumber(v3_2) or v156_4.Player.Prestige
-        v1 = true
+        local pVal = tonumber(v3_2)
+        if pVal and pVal >= 0 and pVal <= 5 then
+            v156_4.Player.Prestige = pVal
+            v1 = true
+        end
     end
     local v4_8 = v7_13:GetAttribute("Level")
     if v4_8 ~= nil then
-        v156_4.Player.Level = tonumber(v4_8) or v156_4.Player.Level
-        v1 = true
+        local lVal = tonumber(v4_8)
+        if lVal and lVal >= 1 and lVal <= 225 then
+            v156_4.Player.Level = lVal
+            v1 = true
+        end
     end
     if v2 then
         local v5_10 = v7_13:FindFirstChild("PlayerGui")
@@ -7715,12 +7744,26 @@ do
                 or tonumber(v61_2.CachedWeaponMinLevel)
                 or 0
             local prestige = tonumber(v7_13 and
-                    (v7_13:GetAttribute("Symbiote_Prestige") or v7_13:GetAttribute("Prestige")))
+                    (v7_13:GetAttribute("Prestige") or v7_13:GetAttribute("Symbiote_Prestige")))
                 or tonumber(v156_4.Player.Prestige)
                 or 0
-            local level = tonumber(v7_13 and (v7_13:GetAttribute("Symbiote_Level") or v7_13:GetAttribute("Level")))
+            if prestige > 5 or prestige < 0 then
+                prestige = 0
+                v156_4.Player.Prestige = 0
+                if v7_13 then
+                    pcall(function() v7_13:SetAttribute("Symbiote_Prestige", nil) end)
+                end
+            end
+            local level = tonumber(v7_13 and (v7_13:GetAttribute("Level") or v7_13:GetAttribute("Symbiote_Level")))
                 or tonumber(v156_4.Player.Level)
                 or 1
+            if level > 225 or level < 1 then
+                level = 1
+                v156_4.Player.Level = 1
+                if v7_13 then
+                    pcall(function() v7_13:SetAttribute("Symbiote_Level", nil) end)
+                end
+            end
             local gold = tonumber(v7_13 and v7_13:GetAttribute("Symbiote_Gold"))
                 or tonumber(v156_4.Player.Gold)
                 or 0
@@ -7737,12 +7780,14 @@ do
                     local slot = type(data.Slots) == "table" and data.Current_Slot and data.Slots[data.Current_Slot]
                     if type(slot) == "table" then
                         if type(slot.Progression) == "table" then
-                            if tonumber(slot.Progression.Prestige) then
-                                prestige = tonumber(slot.Progression.Prestige)
+                            local pNum = tonumber(slot.Progression.Prestige)
+                            if pNum and pNum >= 0 and pNum <= 5 then
+                                prestige = pNum
                                 v156_4.Player.Prestige = prestige
                             end
-                            if tonumber(slot.Progression.Level) then
-                                level = tonumber(slot.Progression.Level)
+                            local lNum = tonumber(slot.Progression.Level)
+                            if lNum and lNum >= 1 and lNum <= 225 then
+                                level = lNum
                                 v156_4.Player.Level = level
                             end
                         end
@@ -7806,36 +7851,47 @@ do
                                 cachedXPPercent = tonumber(xpMatch) or cachedXPPercent
                             end
 
-                            -- 1. Dual Level & MaxLevelCap Regex (e.g. "Cap. 37 / 125", "Lv. 26 / 125", "Level 100 / 150")
-                            local curLvStr, maxCapStr = txt:match("[Cc]?[Ấấ]?[Pp]?%.?%s*(%d+)%s*/%s*(%d+)")
-                            if not curLvStr then
-                                curLvStr, maxCapStr = txt:match("[Ll][Vv]%.?%s*(%d+)%s*/%s*(%d+)")
-                            end
-                            if not curLvStr then
-                                curLvStr, maxCapStr = txt:match("[Ll]evel%s*(%d+)%s*/%s*(%d+)")
+                            local lowerTxt = txt:lower()
+                            -- 1. Dual Level & MaxLevelCap Regex (e.g. "Cap. 26 / 125", "Lv. 26 / 125", "Level 100 / 150")
+                            -- Strictly require explicit keyword "cap", "lv", or "level"
+                            local curLvStr, maxCapStr = nil, nil
+                            if lowerTxt:find("cap", 1, true) or lowerTxt:find("lv", 1, true) or lowerTxt:find("level", 1, true) then
+                                curLvStr, maxCapStr = txt:match("[Cc][ẤấaAáÁ][Pp]%.?%s*(%d+)%s*/%s*(%d+)")
+                                if not curLvStr then
+                                    curLvStr, maxCapStr = txt:match("[Ll][Vv]%.?%s*(%d+)%s*/%s*(%d+)")
+                                end
+                                if not curLvStr then
+                                    curLvStr, maxCapStr = txt:match("[Ll]evel%s*(%d+)%s*/%s*(%d+)")
+                                end
                             end
                             if curLvStr and maxCapStr then
                                 local parsedCur = tonumber(curLvStr)
                                 local parsedCap = tonumber(maxCapStr)
-                                if parsedCur and parsedCur > 0 then
-                                    level = parsedCur
-                                    v156_4.Player.Level = parsedCur
-                                end
-                                if parsedCap and parsedCap >= 100 then
+                                if parsedCap and parsedCap >= 100 and parsedCap <= 225 and ((parsedCap - 100) % 25 == 0) then
                                     local derivedP = math.floor((parsedCap - 100) / 25)
-                                    if derivedP > prestige then
+                                    if derivedP >= 0 and derivedP <= 5 then
                                         prestige = derivedP
                                         v156_4.Player.Prestige = prestige
                                         if v7_13 then
                                             pcall(function() v7_13:SetAttribute("Symbiote_Prestige", prestige) end)
                                         end
                                     end
+                                    if parsedCur and parsedCur > 0 and parsedCur <= parsedCap then
+                                        level = parsedCur
+                                        v156_4.Player.Level = parsedCur
+                                        if v7_13 then
+                                            pcall(function() v7_13:SetAttribute("Symbiote_Level", parsedCur) end)
+                                        end
+                                    end
                                 end
                             else
-                                local singleLv = txt:match("^[Cc]?[Ấấ]?[Pp]?%.?%s*(%d+)$") or txt:match("^[Ll][Vv]%.?%s*(%d+)$") or txt:match("^[Ll]evel%s*(%d+)$")
+                                local singleLv = nil
+                                if lowerTxt:find("cap", 1, true) or lowerTxt:find("lv", 1, true) or lowerTxt:find("level", 1, true) then
+                                    singleLv = txt:match("^[Cc][ẤấaAáÁ][Pp]%.?%s*(%d+)$") or txt:match("^[Ll][Vv]%.?%s*(%d+)$") or txt:match("^[Ll]evel%s*(%d+)$")
+                                end
                                 if singleLv then
                                     local pLv = tonumber(singleLv)
-                                    if pLv and pLv > 0 and pLv <= 250 then
+                                    if pLv and pLv > 0 and pLv <= 225 then
                                         level = pLv
                                         v156_4.Player.Level = pLv
                                     end
@@ -7888,6 +7944,8 @@ do
                 end
             end)
 
+            prestige = math.min(5, math.max(0, prestige))
+            level = math.min(225, math.max(1, level))
             minLvl = math.max(0, math.min(15, math.floor(tonumber(minLvl) or 0)))
             local gradeLetter = GRADE_LETTERS[minLvl] or "E-"
             local bracket = getDifficultyBracket(minLvl)
@@ -8790,9 +8848,9 @@ do
                     or (isVi and "Đã tối đa (MAX S)" or "MAXED (S Grade)")
                 local isMaxPrestige = st.Prestige >= st.MaxPrestigeTarget
                 local prestigeReadyTxt = isMaxPrestige
-                    and (isVi and "ĐÃ ĐẠT CẤP TÁI SINH TỐI ĐA (MAX PRESTIGE 5)" or "MAX PRESTIGE REACHED (PRESTIGE 5)")
+                    and string.format(isVi and "ĐÃ ĐẠT CẤP TÁI SINH MỤC TIÊU (MAX PRESTIGE %d)" or "TARGET MAX PRESTIGE REACHED (PRESTIGE %d)", st.MaxPrestigeTarget)
                     or (st.ReadyToPrestige
-                        and (isVi and "SẴN SÀNG TÁI SINH!" or "READY TO PRESTIGE!")
+                        and (isVi and "SẴN SÀNG TÁI SINH! (Vào Linh Mục)" or "READY TO PRESTIGE!")
                         or string.format("Lv.%d/%d (XP: %d%%)", st.Level, st.MaxLevelCap, st.XPPercent))
                 local prestigeDisplay = isMaxPrestige
                     and string.format("%s/%s (MAX)", tostring(st.Prestige), tostring(st.MaxPrestigeTarget))
