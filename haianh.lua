@@ -497,21 +497,12 @@ do
         if not v1_5 then
             return false
         end
-        for _, v6 in ipairs(v1_5:GetDescendants()) do
-            if v6:IsA("BasePart") and v6.Name:sub(1, 5) == "Blade" then
+        for v5, v6 in ipairs(v1_5:GetDescendants()) do
+            if v6:IsA("MeshPart") and v6.Name:sub(1, 5) == "Blade" then
                 return true
             end
         end
-        local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
-        local hud = pgui and pgui:FindFirstChild("Interface") and pgui.Interface:FindFirstChild("HUD")
-        if hud then
-            for _, desc in ipairs(hud:GetDescendants()) do
-                if desc.Name == "Blades" then
-                    return true
-                end
-            end
-        end
-        return true
+        return false
     end
     local function v78_2()
         if not v77_2() then
@@ -520,29 +511,6 @@ do
         pcall(function()
             v69_2:InvokeServer("Blades", "Reload")
             return
-        end)
-        -- Also click the on-screen "Nạp lại" / "Reload" button if visible
-        pcall(function()
-            local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
-            if pgui then
-                for _, btn in ipairs(pgui:GetDescendants()) do
-                    if btn:IsA("GuiButton") and btn.Visible == true then
-                        local t = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or ""):lower()
-                        local n = tostring(btn.Name):lower()
-                        if t:find("nạp lại") or t == "reload" or n == "reload" or n == "reloadbutton" then
-                            if v150_10.ClickGuiButton then
-                                v150_10.ClickGuiButton(btn)
-                            else
-                                if type(firesignal) == "function" then
-                                    firesignal(btn.MouseButton1Click)
-                                    firesignal(btn.Activated)
-                                end
-                            end
-                            break
-                        end
-                    end
-                end
-            end
         end)
         return
     end
@@ -755,27 +723,14 @@ do
             local v3_3 = v1_2:FindFirstChild("RightHand")
             if v2_3 then
                 local v4_4 = v2_3:FindFirstChild("Blade_1")
-                if v4_4 and (v4_4:GetAttribute("Broken") or (v4_4:IsA("BasePart") and v4_4.Transparency >= 0.9)) then
+                if v4_4 and v4_4:GetAttribute("Broken") then
                     return true
                 end
             end
             if v3_3 then
                 local v4_6 = v3_3:FindFirstChild("Blade_1")
-                if v4_6 and (v4_6:GetAttribute("Broken") or (v4_6:IsA("BasePart") and v4_6.Transparency >= 0.9)) then
+                if v4_6 and v4_6:GetAttribute("Broken") then
                     return true
-                end
-            end
-            -- Also check on-screen "Nạp lại" button visibility
-            local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
-            if pgui then
-                for _, btn in ipairs(pgui:GetDescendants()) do
-                    if btn:IsA("GuiButton") and btn.Visible == true then
-                        local t = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or ""):lower()
-                        local n = tostring(btn.Name):lower()
-                        if t:find("nạp lại") or t == "reload" or n == "reload" or n == "reloadbutton" then
-                            return true
-                        end
-                    end
                 end
             end
             local v4_7 = false
@@ -807,7 +762,7 @@ do
             v36_2 = os.clock()
             return false
         end
-        if os.clock() - v36_2 < 1.5 then
+        if 2 > os.clock() - v36_2 then
             return false
         end
         return v83_2()
@@ -816,24 +771,58 @@ do
         if v26_2 then
             return
         end
-        if os.clock() - v41_2 < 3 then
+        if 5 > os.clock() - v41_2 then
             return
         end
         v26_2 = true
         task.wait(0.05)
         if v73_2() then
-            -- Spears: only go to refill station if ALL spears are completely 0!
             if v75_2() then
                 v81_2(true)
             end
         elseif v77_2() then
-            -- BLADES: ALWAYS DO RELOAD!
             v78_2()
             local v1_14 = os.clock()
             while true do
                 if os.clock() - v1_14 < 1.8 then
                     task.wait(0.1)
-                    if not v83_2() then
+                    local v4_2, v5_2 = pcall(function()
+                        local v1_2 = v72_2()
+                        if not v1_2 then
+                            return false
+                        end
+                        local v2_3 = v1_2:FindFirstChild("LeftHand")
+                        local v3_3 = v1_2:FindFirstChild("RightHand")
+                        if v2_3 then
+                            local v4_4 = v2_3:FindFirstChild("Blade_1")
+                            if v4_4 and v4_4:GetAttribute("Broken") then
+                                return true
+                            end
+                        end
+                        if v3_3 then
+                            local v4_6 = v3_3:FindFirstChild("Blade_1")
+                            if v4_6 and v4_6:GetAttribute("Broken") then
+                                return true
+                            end
+                        end
+                        local v4_7 = false
+                        for v8, v9 in ipairs(v1_2:GetDescendants()) do
+                            if v9:IsA("MeshPart") and v9.Name:sub(1, 5) == "Blade" then
+                                v4_7 = true
+                                if not v9:GetAttribute("Broken") and v9.Transparency < 0.9 then
+                                    return false
+                                end
+                            end
+                        end
+                        return v4_7
+                    end)
+                    local v3_8
+                    if v4_2 then
+                        v3_8 = v5_2
+                    else
+                        v3_8 = false
+                    end
+                    if not v3_8 then
                         task.wait(0.2)
                         v26_2 = false
                         return
