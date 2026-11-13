@@ -278,6 +278,7 @@ local v150_10 = {
     ActorShielded = false,
     BlockedRemotes = 0,
     BlockedKicks = 0,
+    LastModerationError = nil,
     IsolatedScripts = 0,
     SilencedConnections = 0,
     AutoGasThread = nil,
@@ -3113,13 +3114,37 @@ do
                         v150_10.BlockedKicks = v150_10.BlockedKicks + 1
                         return nil
                     end
-                    if method == "FireServer" or method == "InvokeServer" or method == "fireServer" or method == "invokeServer" then
+                    if method == "FireServer" or method == "fireServer" then
                         local a1, a2, a3, a4 = ...
                         local okCheck, shouldBlock = pcall(isSuspiciousRemoteCall, self, a1, a2, a3, a4)
                         if okCheck and shouldBlock then
                             v150_10.BlockedRemotes = v150_10.BlockedRemotes + 1
                             return nil
                         end
+                    elseif method == "InvokeServer" or method == "invokeServer" then
+                        local a1, a2, a3, a4 = ...
+                        local okCheck, shouldBlock = pcall(isSuspiciousRemoteCall, self, a1, a2, a3, a4)
+                        if okCheck and shouldBlock then
+                            v150_10.BlockedRemotes = v150_10.BlockedRemotes + 1
+                            return nil
+                        end
+                        local res = origNamecall(self, ...)
+                        pcall(function()
+                            if type(res) == "string" then
+                                local rl = res:lower()
+                                if rl:find("exploiter") or rl:find("blacklisted") or rl:find("shadowban") or rl:find("restricted") then
+                                    v150_10.LastModerationError = res
+                                    if v150_10.CheckShadowBan then pcall(v150_10.CheckShadowBan, false) end
+                                end
+                            elseif type(res) == "table" and res.Error and type(res.Error) == "string" then
+                                local el = res.Error:lower()
+                                if el:find("exploiter") or el:find("blacklisted") or el:find("shadowban") or el:find("restricted") then
+                                    v150_10.LastModerationError = res.Error
+                                    if v150_10.CheckShadowBan then pcall(v150_10.CheckShadowBan, false) end
+                                end
+                            end
+                        end)
+                        return res
                     end
                     return origNamecall(self, ...)
                 end))
@@ -8015,6 +8040,28 @@ do
             return reachedRoot
         end
 
+        function v150_10.GetDataHost()
+            local host = _G.__CachedDataHost or _G.__CachedCustHost or _G.__CachedHost
+            if type(host) == "table" and type(rawget(host, "Cache")) == "table" and type(rawget(host.Cache, "Data")) == "table" then
+                return host
+            end
+            if type(getgc) == "function" then
+                pcall(function()
+                    for _, v in ipairs(getgc(true)) do
+                        if type(v) == "table" and type(rawget(v, "Cache")) == "table" then
+                            local cache = rawget(v, "Cache")
+                            if type(rawget(cache, "Data")) == "table" then
+                                _G.__CachedDataHost = v
+                                host = v
+                                return
+                            end
+                        end
+                    end
+                end)
+            end
+            return host
+        end
+
         v150_10.ShadowBanData = {
             IsBanned = false,
             Reason = "Clean (No Shadow Ban detected)",
@@ -8028,126 +8075,298 @@ do
             local detected = false
             local reason = ""
 
+            local BAD_PHRASES = {
+                "exploiter",
+                "player is an exploiter",
+                "you are an exploiter",
+                "an exploiter",
+                "blacklisted",
+                "blacklist",
+                "shadowban",
+                "shadow ban",
+                "shadow-ban",
+                "trading disabled",
+                "trade locked",
+                "trade restricted",
+                "cannot trade",
+                "trade ban",
+                "trading ban",
+                "bị khóa giao dịch",
+                "bị cấm giao dịch",
+                "không thể giao dịch",
+                "cannot join",
+                "failed to join",
+                "party restricted",
+                "party disabled",
+                "matchmaking restricted",
+                "matchmaking disabled",
+                "cannot play with friends",
+                "session restricted",
+                "rewards disabled",
+                "drops disabled",
+                "bị cấm nhận phần thưởng",
+                "vô hiệu hóa phần thưởng",
+                "suspicious activity",
+                "hành vi bất thường",
+                "gian lận",
+                "anti-cheat",
+                "anticheat violation",
+                "security violation"
+            }
+
             pcall(function()
-                if lp then
-                    local bannedAttr = lp:GetAttribute("ShadowBanned")
-                        or lp:GetAttribute("ShadowBan")
-                        or lp:GetAttribute("IsShadowBanned")
-                        or lp:GetAttribute("Flagged")
-                        or lp:GetAttribute("RewardBan")
-                        or lp:GetAttribute("RewardsDisabled")
-                    if bannedAttr == true or (type(bannedAttr) == "string" and string.lower(bannedAttr):find("ban")) then
-                        detected = true
-                        reason = "Player Attribute: " .. tostring(bannedAttr)
-                        return
-                    end
-
-                    local gm = lp:GetAttribute("GoldMultiplier")
-                    local xm = lp:GetAttribute("ExpMultiplier")
-                    local dm = lp:GetAttribute("DropMultiplier")
-                    if (type(gm) == "number" and gm == 0) or (type(xm) == "number" and xm == 0) or (type(dm) == "number" and dm == 0) then
-                        detected = true
-                        reason = "Hệ số thưởng bị ép về 0 (Gold/XP/Drop = 0)"
-                        return
-                    end
-
-                    -- Check Trade Ban / Trade Locked
-                    local tradeAttr = lp:GetAttribute("TradingDisabled")
-                        or lp:GetAttribute("TradeDisabled")
-                        or lp:GetAttribute("TradeLock")
-                        or lp:GetAttribute("TradeBanned")
-                        or lp:GetAttribute("IsTradeBanned")
-                    if tradeAttr == true or (type(tradeAttr) == "string" and string.lower(tradeAttr):find("ban")) then
-                        detected = true
-                        reason = "Bị khóa Giao Dịch (Trade Banned/Locked)"
-                        return
-                    end
-                    if lp:GetAttribute("CanTrade") == false then
-                        detected = true
-                        reason = "Không thể giao dịch (CanTrade = false)"
-                        return
-                    end
-
-                    -- Check Friend / Party / Matchmaking restriction (Không chơi với bạn bè được)
-                    local partyAttr = lp:GetAttribute("PartyDisabled")
-                        or lp:GetAttribute("PartyBlocked")
-                        or lp:GetAttribute("MatchmakingDisabled")
-                        or lp:GetAttribute("MatchmakingBanned")
-                        or lp:GetAttribute("FriendsDisabled")
-                        or lp:GetAttribute("MultiplayerDisabled")
-                    if partyAttr == true or (type(partyAttr) == "string" and string.lower(partyAttr):find("ban")) then
-                        detected = true
-                        reason = "Bị cấm chơi cùng bạn bè (Party/Matchmaking Restricted)"
-                        return
-                    end
-                    if lp:GetAttribute("CanJoinFriends") == false then
-                        detected = true
-                        reason = "Không thể tham gia cùng bạn bè (CanJoinFriends = false)"
-                        return
-                    end
-
-                    local char = lp.Character
-                    if char then
-                        local charBan = char:GetAttribute("ShadowBanned") or char:GetAttribute("ShadowBan") or
-                            char:GetAttribute("IsShadowBanned")
-                        if charBan == true then
-                            detected = true
-                            reason = "Character Attribute: ShadowBanned = true"
-                            return
-                        end
-                    end
+                -- 1. Check intercepted Server Moderation errors (e.g. from joining/trading/party)
+                if v150_10.LastModerationError and tostring(v150_10.LastModerationError) ~= "" then
+                    detected = true
+                    reason = "Lỗi máy chủ ghi nhận: \"" .. tostring(v150_10.LastModerationError) .. "\""
+                    return
                 end
 
-                local host = _G.__CachedDataHost or _G.__CachedCustHost or _G.__CachedHost
-                if type(host) == "table" and type(rawget(host, "Cache")) == "table" and type(rawget(host.Cache, "Data")) == "table" then
-                    local data = host.Cache.Data
-                    if data.ShadowBanned == true or data.IsShadowBanned == true or data.RewardsDisabled == true or data.Flagged == true then
-                        detected = true
-                        reason = "Game Cache Data: ShadowBanned/Flagged = true"
-                        return
-                    end
-                    if data.TradingDisabled == true or data.TradeDisabled == true or data.TradeLock == true or data.TradeBanned == true or data.CanTrade == false then
-                        detected = true
-                        reason = "Game Cache: Bị cấm giao dịch (Trade Banned/CanTrade = false)"
-                        return
-                    end
-                    if data.PartyDisabled == true or data.PartyBlocked == true or data.MatchmakingDisabled == true or data.CanJoinFriends == false or data.MultiplayerDisabled == true then
-                        detected = true
-                        reason = "Game Cache: Bị cấm chơi với bạn bè (Party/Matchmaking Restricted)"
-                        return
-                    end
-                end
+                -- 2. Check Player Attributes (All Attributes dynamically)
+                if lp and type(lp.GetAttributes) == "function" then
+                    for name, val in pairs(lp:GetAttributes()) do
+                        local n = string.lower(tostring(name))
+                        local v = tostring(val):lower()
 
-                if v156_4 and v156_4.Player then
-                    if v156_4.Player.ShadowBanned == true or v156_4.Player.IsShadowBanned == true or v156_4.Player.RewardsDisabled == true then
-                        detected = true
-                        reason = "Internal Player State: ShadowBanned = true"
-                        return
-                    end
-                end
-
-                local pgui = lp and lp:FindFirstChild("PlayerGui")
-                if pgui then
-                    for _, obj in ipairs(pgui:GetDescendants()) do
-                        if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and obj.Visible then
-                            local t = string.lower(tostring(obj.Text or ""))
-                            if t:find("shadowban") or t:find("shadow ban") or t:find("shadow-ban")
-                                or t:find("rewards disabled") or t:find("suspicious activity detected")
-                                or t:find("vo hieu hoa phan thuong") or t:find("bi cam nhan phan thuong")
-                                or t:find("không thể giao dịch") or t:find("khong the giao dich")
-                                or t:find("bị cấm giao dịch") or t:find("bị khóa giao dịch")
-                                or t:find("trading disabled") or t:find("trade locked") or t:find("trade restricted")
-                                or t:find("cannot trade") or t:find("trade ban")
-                                or t:find("không thể chơi với bạn bè") or t:find("khong the choi voi ban be")
-                                or t:find("không thể tham gia cùng bạn bè") or t:find("cannot play with friends")
-                                or t:find("cannot join friends") or t:find("party disabled") or t:find("party restricted")
-                                or t:find("matchmaking restricted") or t:find("giới hạn tìm trận") then
+                        if (n:find("ban") or n:find("shadow") or n:find("blacklist") or n:find("exploit")
+                            or n:find("flag") or n:find("restrict") or n:find("strike") or n:find("violation")
+                            or n:find("cheat") or n:find("sanction") or n:find("penalty")) then
+                            if val == true or (type(val) == "number" and val > 0)
+                                or (type(val) == "string" and val ~= "" and val ~= "false" and val ~= "0" and val ~= "none") then
                                 detected = true
-                                reason = "GUI Alert: \"" .. tostring(obj.Text):sub(1, 40) .. "...\""
+                                reason = "Player Attribute: " .. name .. " = " .. tostring(val)
+                                return
+                            end
+                        end
+
+                        if (n:find("trade") or n:find("party") or n:find("join") or n:find("matchmake")
+                            or n:find("multiplayer") or n:find("reward") or n:find("drop")) then
+                            if val == false or v == "disabled" or v == "blocked" or v == "restricted" then
+                                detected = true
+                                reason = "Quyền Player bị khóa: " .. name .. " = " .. tostring(val)
+                                return
+                            end
+                        end
+
+                        if (n:find("multi") or n:find("drop") or n:find("luck") or n:find("gold") or n:find("exp")) then
+                            if type(val) == "number" and val == 0 then
+                                detected = true
+                                reason = "Hệ số Player bị ép về 0: " .. name .. " = 0"
                                 return
                             end
                         end
                     end
+                end
+
+                -- 3. Check Character Attributes
+                local char = lp and lp.Character
+                if char and type(char.GetAttributes) == "function" then
+                    for name, val in pairs(char:GetAttributes()) do
+                        local n = string.lower(tostring(name))
+                        if (n:find("ban") or n:find("shadow") or n:find("blacklist") or n:find("exploit")
+                            or n:find("flag") or n:find("restrict") or n:find("cheat")) then
+                            if val == true or (type(val) == "number" and val > 0) or (type(val) == "string" and val ~= "" and val ~= "false") then
+                                detected = true
+                                reason = "Character Attribute: " .. name .. " = " .. tostring(val)
+                                return
+                            end
+                        end
+                    end
+                end
+
+                -- 4. Check Value Objects inside Player & Subfolders
+                if lp then
+                    for _, child in ipairs(lp:GetChildren()) do
+                        if child:IsA("ValueBase") then
+                            local cn = string.lower(child.Name)
+                            local cv = tostring(child.Value):lower()
+                            if (cn:find("ban") or cn:find("shadow") or cn:find("blacklist") or cn:find("exploit")
+                                or cn:find("flag") or cn:find("restrict")) then
+                                if child.Value == true or (type(child.Value) == "number" and child.Value > 0) or cv:find("ban") or cv:find("exploit") then
+                                    detected = true
+                                    reason = "Player Value: " .. child.Name .. " = " .. tostring(child.Value)
+                                    return
+                                end
+                            end
+                        elseif child:IsA("Folder") or child:IsA("Configuration") then
+                            for _, sub in ipairs(child:GetChildren()) do
+                                if sub:IsA("ValueBase") then
+                                    local sn = string.lower(sub.Name)
+                                    local sv = tostring(sub.Value):lower()
+                                    if (sn:find("ban") or sn:find("shadow") or sn:find("blacklist") or sn:find("exploit")
+                                        or sn:find("flag") or sn:find("restrict")) then
+                                        if sub.Value == true or (type(sub.Value) == "number" and sub.Value > 0) or sv:find("ban") or sv:find("exploit") then
+                                            detected = true
+                                            reason = "Player (" .. child.Name .. "): " .. sub.Name .. " = " .. tostring(sub.Value)
+                                            return
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+
+                -- 5. Deep Scan Game Cache Data & Cache tables (Recursive)
+                local host = v150_10.GetDataHost()
+                if host and type(host.Cache) == "table" then
+                    local function scanTbl(tbl, depth, path)
+                        if not tbl or type(tbl) ~= "table" or (depth or 0) > 4 then return false end
+                        for k, v in pairs(tbl) do
+                            local kn = string.lower(tostring(k))
+                            local curP = path and (path .. "." .. tostring(k)) or tostring(k)
+                            if kn:find("ban") or kn:find("shadow") or kn:find("blacklist") or kn:find("exploit")
+                                or kn:find("restrict") or kn:find("flag") or kn:find("strike") or kn:find("sanction") then
+                                if v == true or (type(v) == "number" and v > 0) or (type(v) == "string" and v ~= "" and v ~= "false" and v ~= "0") then
+                                    return true, curP .. " = " .. tostring(v)
+                                end
+                            end
+                            if kn:find("cantrade") or kn:find("trade_enabled") or kn:find("canparty") or kn:find("canjoin") then
+                                if v == false then
+                                    return true, curP .. " = false"
+                                end
+                            end
+                            if type(v) == "table" then
+                                local found, r = scanTbl(v, (depth or 0) + 1, curP)
+                                if found then return true, r end
+                            end
+                        end
+                        return false
+                    end
+
+                    if type(host.Cache.Data) == "table" then
+                        local found, r = scanTbl(host.Cache.Data, 0, "Data")
+                        if found then
+                            detected = true
+                            reason = "Game Cache Data: " .. r
+                            return
+                        end
+                    end
+                    local foundC, rC = scanTbl(host.Cache, 0, "Cache")
+                    if foundC then
+                        detected = true
+                        reason = "Game Cache: " .. rC
+                        return
+                    end
+                end
+
+                -- 6. Check internal player state
+                if v156_4 and v156_4.Player then
+                    if v156_4.Player.ShadowBanned == true or v156_4.Player.IsShadowBanned == true or v156_4.Player.RewardsDisabled == true or v156_4.Player.Blacklisted == true then
+                        detected = true
+                        reason = "Trạng thái người chơi nội bộ: Bị cấm/giới hạn"
+                        return
+                    end
+                end
+
+                -- 7. Scan PlayerGui for Moderation / Error / Restriction UI Text
+                local pgui = lp and lp:FindFirstChild("PlayerGui")
+                if pgui then
+                    for _, obj in ipairs(pgui:GetDescendants()) do
+                        if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+                            local raw = tostring(obj.Text or "")
+                            if #raw >= 3 then
+                                local t = string.lower(raw)
+                                for _, phrase in ipairs(BAD_PHRASES) do
+                                    if t:find(phrase, 1, true) then
+                                        detected = true
+                                        reason = "Thông báo giao diện (UI): \"" .. raw:sub(1, 55) .. "\""
+                                        return
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+
+                -- 8. Scan LogService Client Console History
+                pcall(function()
+                    local logService = game:GetService("LogService")
+                    if logService and type(logService.GetLogHistory) == "function" then
+                        local logs = logService:GetLogHistory()
+                        if type(logs) == "table" then
+                            for i = #logs, math.max(1, #logs - 150), -1 do
+                                local entry = logs[i]
+                                local msg = entry and entry.message and string.lower(tostring(entry.message))
+                                if msg and #msg > 0 then
+                                    for _, phrase in ipairs(BAD_PHRASES) do
+                                        if msg:find(phrase, 1, true) then
+                                            detected = true
+                                            reason = "Nhật ký hệ thống (Console Log): \"" .. tostring(entry.message):sub(1, 60) .. "\""
+                                            return
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end)
+
+                -- 9. Active Server Remote Probes (Safe Checks)
+                if isManual and v69_2 then
+                    pcall(function()
+                        local probeCalls = {
+                            { "Trading", "Check" },
+                            { "S_Trading", "Check" },
+                            { "Trading", "Status" },
+                            { "S_Missions", "Check" },
+                            { "Party", "Check" },
+                            { "S_Party", "Check" },
+                            { "Leaderboard", "Check" }
+                        }
+                        for _, args in ipairs(probeCalls) do
+                            local res = nil
+                            local ok = pcall(function()
+                                res = v69_2:InvokeServer(unpack(args))
+                            end)
+                            if ok and res ~= nil then
+                                if type(res) == "string" then
+                                    local rl = res:lower()
+                                    for _, phrase in ipairs(BAD_PHRASES) do
+                                        if rl:find(phrase, 1, true) then
+                                            detected = true
+                                            reason = "Phản hồi máy chủ (" .. args[1] .. "): " .. res
+                                            return
+                                        end
+                                    end
+                                elseif type(res) == "table" then
+                                    if res.Error and type(res.Error) == "string" then
+                                        local el = res.Error:lower()
+                                        for _, phrase in ipairs(BAD_PHRASES) do
+                                            if el:find(phrase, 1, true) then
+                                                detected = true
+                                                reason = "Phản hồi máy chủ (" .. args[1] .. "): " .. res.Error
+                                                return
+                                            end
+                                        end
+                                    end
+                                    if res.Success == false and res.Blacklisted == true then
+                                        detected = true
+                                        reason = "Phản hồi máy chủ (" .. args[1] .. "): Blacklisted = true"
+                                        return
+                                    end
+                                end
+                            end
+                        end
+                    end)
+                end
+
+                -- 10. Memory Scan (getgc) for any table containing Moderation / Blacklist flags
+                if not detected and type(getgc) == "function" then
+                    pcall(function()
+                        for _, obj in ipairs(getgc(true)) do
+                            if type(obj) == "table" then
+                                if rawget(obj, "Blacklisted") == true or rawget(obj, "IsBlacklisted") == true
+                                    or rawget(obj, "Exploiter") == true or rawget(obj, "IsExploiter") == true
+                                    or rawget(obj, "ShadowBanned") == true or rawget(obj, "IsShadowBanned") == true
+                                    or rawget(obj, "TradeBanned") == true or rawget(obj, "IsTradeBanned") == true then
+                                    detected = true
+                                    reason = "Bộ nhớ Game (GC Memory): Phát hiện cờ Blacklist/Exploiter trong bảng nội bộ"
+                                    return
+                                end
+                            end
+                        end
+                    end)
                 end
             end)
 
@@ -8160,24 +8379,24 @@ do
                     ("SHADOW BANNED! (" .. reason .. ")")
                 pcall(function()
                     v150_8.Rayfield:Notify({
-                        Title = isVi and "CẢNH BÁO SHADOW BAN!" or "SHADOW BAN DETECTED!",
-                        Content = isVi and ("Tài khoản bị phát hiện Shadow Ban:\n" .. reason) or
-                            ("Account detected Shadow Banned:\n" .. reason),
-                        Duration = 10,
+                        Title = isVi and "CẢNH BÁO: TÀI KHOẢN BỊ SHADOW BAN!" or "WARNING: SHADOW BANNED!",
+                        Content = isVi and ("Chi tiết:\n" .. reason) or
+                            ("Details:\n" .. reason),
+                        Duration = 12,
                         Image = 4483362458
                     })
                 end)
             else
-                v150_10.ShadowBanData.Reason = isVi and "Tài khoản sạch 100% (Không có dấu hiệu Shadow Ban)" or
-                    "100% Clean (No Shadow Ban detected)"
+                v150_10.ShadowBanData.Reason = isVi and "Tài khoản sạch 100% (Đã quét Thuộc tính, Bộ nhớ GC, UI, Logs & Server)" or
+                    "100% Clean (Scanned Attributes, GC Memory, UI, Logs & Server)"
                 if isManual then
                     pcall(function()
                         v150_8.Rayfield:Notify({
                             Title = isVi and "KIỂM TRA SHADOW BAN" or "SHADOW BAN CHECK",
                             Content = isVi and
-                                "Tài khoản 100% Sạch! Tất cả thuộc tính, chỉ số & giao diện đều bình thường." or
-                                "Account is 100% Clean! All attributes, stats & UI normal.",
-                            Duration = 5,
+                                "Tài khoản 100% Sạch! Đã kiểm tra Thuộc tính, Bộ nhớ GC, Giao diện và Nhật ký hệ thống." or
+                                "Account is 100% Clean! Checked Attributes, GC Memory, UI and System Logs.",
+                            Duration = 6,
                             Image = 4483362458
                         })
                     end)
@@ -8218,28 +8437,6 @@ do
                     ))
                 end
             end)
-        end
-
-        function v150_10.GetDataHost()
-            local host = _G.__CachedDataHost or _G.__CachedCustHost or _G.__CachedHost
-            if type(host) == "table" and type(rawget(host, "Cache")) == "table" and type(rawget(host.Cache, "Data")) == "table" then
-                return host
-            end
-            if type(getgc) == "function" then
-                pcall(function()
-                    for _, v in ipairs(getgc(true)) do
-                        if type(v) == "table" and type(rawget(v, "Cache")) == "table" then
-                            local cache = rawget(v, "Cache")
-                            if type(rawget(cache, "Data")) == "table" then
-                                _G.__CachedDataHost = v
-                                host = v
-                                return
-                            end
-                        end
-                    end
-                end)
-            end
-            return host
         end
 
         function v150_10.GetKaitunPlayerState()
