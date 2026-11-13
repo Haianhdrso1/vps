@@ -1885,13 +1885,36 @@ do
     local autoRetryWatcherThread = nil
     local lastRetryInvokeTime = 0
 
-    function v150_10.HandleRetryAndContinueScreen()
-        -- Mission Safety Timer check: ensure minimum 30 seconds before continuing/retrying
-        local elapsed = os.clock() - (v150_10.MissionStartTime or os.clock())
-        if elapsed < 30 then
-            return false
+    function v150_10.IsMatchEnded()
+        local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+        local iface = pgui and pgui:FindFirstChild("Interface")
+        if not pgui then return false end
+
+        local rewards = iface and iface:FindFirstChild("Rewards")
+        if rewards and (rewards.Visible == true or (rewards:IsA("LayerCollector") and rewards.Enabled == true)) then
+            return true
         end
 
+        if iface then
+            for _, name in ipairs({ "Result", "Results", "Victory", "Defeat", "MissionComplete", "GameEnd", "MatchEnd", "EndScreen" }) do
+                local f = iface:FindFirstChild(name)
+                if f and (f.Visible == true or (f:IsA("LayerCollector") and f.Enabled == true)) then
+                    return true
+                end
+            end
+        end
+
+        for _, name in ipairs({ "Rewards", "Results", "EndScreen", "Victory", "Defeat" }) do
+            local f = pgui:FindFirstChild(name)
+            if f and f ~= iface and (f.Visible == true or (f:IsA("LayerCollector") and f.Enabled == true)) then
+                return true
+            end
+        end
+
+        return false
+    end
+
+    function v150_10.HandleRetryAndContinueScreen()
         local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
         local iface = pgui and pgui:FindFirstChild("Interface")
         if not pgui then
@@ -1899,42 +1922,40 @@ do
             return false
         end
 
+        -- STRICT MATCH END CHECK:
+        -- Absolutely NEVER retry, click next, or leave while the mission is still running!
+        if not v150_10.IsMatchEnded() then
+            lastRetryInvokeTime = 0
+            return false
+        end
+
+        -- Mission Safety Timer check: ensure minimum 30 seconds before continuing/retrying
+        local elapsed = os.clock() - (v150_10.MissionStartTime or os.clock())
+        if elapsed < 30 then
+            return false
+        end
+
+        if v150_10.ShouldKaitunReturnToLobby and v150_10.ShouldKaitunReturnToLobby() then
+            v150_10.KaitunReturnToLobby()
+            return true
+        end
+
         local candidateFrames = {}
+        local rewards = iface and iface:FindFirstChild("Rewards")
+        if rewards and (rewards.Visible == true or (rewards:IsA("LayerCollector") and rewards.Enabled == true)) then
+            table.insert(candidateFrames, rewards)
+        end
         if iface then
-            local rewards = iface:FindFirstChild("Rewards")
-            if rewards and (rewards.Visible == true or rewards:IsA("LayerCollector")) then
-                table.insert(candidateFrames, rewards)
-            end
-            for _, name in ipairs({ "Result", "Results", "Victory", "Defeat", "MissionComplete", "GameEnd", "MatchEnd", "EndScreen", "Popup", "Dialog", "LevelUp", "RankUp", "Prompt", "Notification" }) do
+            for _, name in ipairs({ "Result", "Results", "Victory", "Defeat", "MissionComplete", "GameEnd", "MatchEnd", "EndScreen" }) do
                 local f = iface:FindFirstChild(name)
-                if f and (f:IsA("GuiObject") or f:IsA("LayerCollector")) then
+                if f and (f.Visible == true or (f:IsA("LayerCollector") and f.Enabled == true)) then
                     table.insert(candidateFrames, f)
                 end
             end
-            if #candidateFrames == 0 then
-                for _, child in ipairs(iface:GetChildren()) do
-                    if child:IsA("GuiObject") and child.Visible == true
-                        and child.Name ~= "Customisation" and child.Name ~= "Family"
-                        and child.Name ~= "Settings" and child.Name ~= "Cursor" and child.Name ~= "TopBar" then
-                        for _, btn in ipairs(child:GetDescendants()) do
-                            if btn:IsA("GuiButton") and btn.Visible == true then
-                                local t = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or ""):upper()
-                                if t:find("TIẾP TỤC") or t:find("TIEP TUC") or t:find("CONTINUE")
-                                    or t:find("CHƠI LẠI") or t:find("CHOI LAI") or t:find("RETRY") or t:find("REPLAY")
-                                    or t:find("CLAIM") or t:find("NHẬN") or t:find("OK") or t:find("NEXT") then
-                                    table.insert(candidateFrames, child)
-                                    break
-                                end
-                            end
-                        end
-                    end
-                end
-            end
         end
-
-        for _, name in ipairs({ "Rewards", "Results", "EndScreen", "Victory", "LevelUp", "Prompt", "Dialog" }) do
+        for _, name in ipairs({ "Rewards", "Results", "EndScreen", "Victory", "Defeat" }) do
             local f = pgui:FindFirstChild(name)
-            if f and f ~= iface and (f:IsA("GuiObject") or f:IsA("LayerCollector")) then
+            if f and f ~= iface and (f.Visible == true or (f:IsA("LayerCollector") and f.Enabled == true)) then
                 table.insert(candidateFrames, f)
             end
         end
@@ -1942,11 +1963,6 @@ do
         if #candidateFrames == 0 then
             lastRetryInvokeTime = 0
             return false
-        end
-
-        if v150_10.ShouldKaitunReturnToLobby and v150_10.ShouldKaitunReturnToLobby() then
-            v150_10.KaitunReturnToLobby()
-            return true
         end
 
         local handled = false
@@ -1963,7 +1979,6 @@ do
 
         local retryBtns = {}
         local claimBtns = {}
-        local nextBtns = {}
 
         for _, f in ipairs(candidateFrames) do
             for _, btn in ipairs(f:GetDescendants()) do
@@ -1984,15 +1999,10 @@ do
                             or t:find("BỎ QUA") or t:find("SKIP") or t:find("OK") or t:find("ACCEPT") or t:find("CLOSE")
                             or n:find("CLAIM") or n:find("OK") or n:find("CLOSE")
 
-                        local isNext = t:find("TIẾP TỤC") or t:find("TIEP TUC") or t:find("CONTINUE") or t:find("NEXT")
-                            or n:find("CONTINUE") or n:find("NEXT")
-
                         if isRetry then
                             table.insert(retryBtns, btn)
                         elseif isClaim then
                             table.insert(claimBtns, btn)
-                        elseif isNext then
-                            table.insert(nextBtns, btn)
                         end
                     end
                 end
@@ -2012,38 +2022,36 @@ do
             end
         end
 
-        -- 1. Click reward / confirmation popups first
+        -- 1. Click reward / confirmation popups first (Claim, OK)
         for _, btn in ipairs(claimBtns) do
             doClick(btn)
             handled = true
         end
 
-        -- 2. PRIORITIZE RETRY: Auto Retry means replay the CURRENT map!
-        if #retryBtns > 0 then
-            for _, btn in ipairs(retryBtns) do
-                doClick(btn)
-                handled = true
+        -- 2. ONLY RETRY if AutoRetry is enabled or Kaitun is active!
+        -- NEVER click Next! Clicking Next advances to another map, which ruins farming!
+        local canRetry = v8_6("AutoRetry") == true or v8_6("KaitunEnabled") == true
+        if canRetry then
+            if #retryBtns > 0 then
+                for _, btn in ipairs(retryBtns) do
+                    doClick(btn)
+                    handled = true
+                end
             end
-        elseif #nextBtns > 0 and not v8_6("AutoRetry") then
-            -- Only click Next if AutoRetry is disabled (i.e. user explicitly wants to advance maps)
-            for _, btn in ipairs(nextBtns) do
-                doClick(btn)
-                handled = true
-            end
-        end
 
-        local now = os.clock()
-        if lastRetryInvokeTime == 0 or now - lastRetryInvokeTime >= 1.0 then
-            lastRetryInvokeTime = now
-            if v69_2 then
-                -- Asynchronous non-blocking invoke to prevent thread hangs after 15-20 matches
-                task.spawn(function()
-                    pcall(function()
-                        v69_2:InvokeServer("Functions", "Retry", "Add")
+            local now = os.clock()
+            if lastRetryInvokeTime == 0 or now - lastRetryInvokeTime >= 1.0 then
+                lastRetryInvokeTime = now
+                if v69_2 then
+                    -- Asynchronous non-blocking invoke to prevent thread hangs after 15-20 matches
+                    task.spawn(function()
+                        pcall(function()
+                            v69_2:InvokeServer("Functions", "Retry", "Add")
+                        end)
                     end)
-                end)
-                v150_10.MissionStartTime = os.clock()
-                handled = true
+                    v150_10.MissionStartTime = os.clock()
+                    handled = true
+                end
             end
         end
 
@@ -9378,7 +9386,6 @@ do
                 while v8_6("KaitunEnabled") do
                     local st = v150_10.GetKaitunPlayerState()
                     local inLobby = (game.PlaceId == 14916516914 or game.PlaceId == 13379208636)
-                        or (v13_8:FindFirstChild("Titans") == nil and v13_8:FindFirstChild("Waves") == nil)
 
                     pcall(function()
                         v150_10.CheckShadowBan(false)
@@ -9406,31 +9413,7 @@ do
                             v150_10.StartAutoGas()
                             task.spawn(v148_4)
                         end
-                        local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
-                        local iface = pgui and pgui:FindFirstChild("Interface")
-                        local rewards = iface and iface:FindFirstChild("Rewards")
-                        local isMatchEnded = false
-                        if rewards and (rewards.Visible == true or (rewards:IsA("LayerCollector") and rewards.Enabled == true)) then
-                            isMatchEnded = true
-                        end
-                        if not isMatchEnded and iface then
-                            for _, name in ipairs({ "Result", "Results", "Victory", "Defeat", "MissionComplete", "GameEnd", "MatchEnd", "EndScreen" }) do
-                                local f = iface:FindFirstChild(name)
-                                if f and (f.Visible == true or (f:IsA("LayerCollector") and f.Enabled == true)) then
-                                    isMatchEnded = true
-                                    break
-                                end
-                            end
-                        end
-                        if not isMatchEnded and pgui then
-                            for _, name in ipairs({ "Rewards", "Results", "EndScreen", "Victory", "Defeat" }) do
-                                local f = pgui:FindFirstChild(name)
-                                if f and f ~= iface and (f.Visible == true or (f:IsA("LayerCollector") and f.Enabled == true)) then
-                                    isMatchEnded = true
-                                    break
-                                end
-                            end
-                        end
+                        local isMatchEnded = v150_10.IsMatchEnded()
 
                         if isMatchEnded then
                             if v150_10.ShouldKaitunReturnToLobby() then
