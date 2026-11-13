@@ -783,10 +783,26 @@ do
             if v3_5 and v3_5:FindFirstChild("Nape") then
                 return v3_5.Nape
             end
+            local npDirect = v2_2:FindFirstChild("Nape")
+            if npDirect and npDirect:IsA("BasePart") then
+                return npDirect
+            end
         end
         local v3_fallback = p1:FindFirstChild("Nape", true)
         if v3_fallback and v3_fallback:IsA("BasePart") then
             return v3_fallback
+        end
+        for _, part in ipairs(p1:GetDescendants()) do
+            if part:IsA("BasePart") then
+                local pName = string.lower(part.Name)
+                if pName == "nape" or pName == "weakpoint" or pName == "core" then
+                    return part
+                end
+            end
+        end
+        local root = p1:FindFirstChild("HumanoidRootPart") or p1.PrimaryPart or p1:FindFirstChild("Head") or p1:FindFirstChild("Torso")
+        if root and root:IsA("BasePart") then
+            return root
         end
         return nil
     end
@@ -813,22 +829,19 @@ do
         if not p1 or not p1.Parent then
             return false
         end
-        -- Bỏ qua Titan đồng minh có thuộc tính Ally / Protect / Friendly
-        if p1:GetAttribute("Ally") == true or p1:GetAttribute("Protect") == true or p1:GetAttribute("Friendly") == true or p1:GetAttribute("IsAlly") == true then
-            return false
-        end
-        local mname = string.lower(p1.Name)
-        -- Trong màn 1 (Bảo vệ Eren), Eren là đồng minh nên không đánh.
-        -- Nhưng khi qua màn Boss (đánh Bot Eren / Shifters), IsProtectStageActive() là false thì ĐƯỢC PHÉP ĐÁNH!
-        if v150_10.IsProtectStageActive and v150_10.IsProtectStageActive() then
-            if mname:find("eren") or mname:find("protect") or mname:find("friendly") then
+        -- Kiểm tra nếu là Boss / Shifter / Bot
+        local isBossOrRaid = (v150_10 and v150_10.IsBossModel and v150_10.IsBossModel(p1))
+            or p1:GetAttribute("Boss") == true or p1:GetAttribute("Shifter") == true or p1:GetAttribute("RaidBoss") == true
+        if not isBossOrRaid and not v150_10.AutoRaid then
+            if p1:GetAttribute("Ally") == true or p1:GetAttribute("Protect") == true or p1:GetAttribute("Friendly") == true or p1:GetAttribute("IsAlly") == true then
                 return false
             end
         end
 
-        if v150_10 and v150_10.IsBossModel and v150_10.IsBossModel(p1) then
+        if isBossOrRaid then
             return not v90_2(p1)
         end
+
         local v2_3 = v13_8:FindFirstChild("Titans")
         local pName = p1.Parent and p1.Parent.Name
         local isTitanParent = (v2_3 and p1.Parent == v2_3)
@@ -836,6 +849,7 @@ do
             or (v13_8:FindFirstChild("Shifters") and p1.Parent == v13_8.Shifters)
             or pName == "Bosses" or pName == "Enemies" or pName == "Raid"
             or pName == "Spawns" or pName == "Living" or pName == "Entities"
+            or (p1.Parent and p1.Parent.Parent and p1.Parent.Parent.Name == "Map")
         if not isTitanParent then
             return false
         end
@@ -843,23 +857,7 @@ do
     end
 
     function v150_10.IsProtectStageActive()
-        local isProtect = false
-        pcall(function()
-            local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
-            if not pgui then return end
-            for _, desc in ipairs(pgui:GetDescendants()) do
-                if desc:IsA("TextLabel") and desc.Visible then
-                    local txt = desc.Text:lower()
-                    if (txt:find("bảo vệ") or txt:find("protect") or txt:find("defend")) and (txt:find("eren") or txt:find("titan")) then
-                        if txt:find("0/1") or txt:find("%[ %]") or not (txt:find("1/1") or txt:find("%[x%]")) then
-                            isProtect = true
-                            return
-                        end
-                    end
-                end
-            end
-        end)
-        return isProtect
+        return false
     end
 
     function v150_10.IsTitanHardened(target)
@@ -948,18 +946,10 @@ do
         if not model or not model.Parent then return false end
         if v90_2(model) then return false end
 
-        -- Must have a damageable nape to be an attackable boss
         local nape = v89_2(model)
         if not nape then return false end
 
-        -- Protect Phase Check: In stage 1 (Bảo vệ Eren), ally Eren is NOT an enemy boss!
-        if v150_10.IsProtectStageActive() then
-            local mname = string.lower(model.Name)
-            if mname:find("eren") or model:GetAttribute("Ally") == true or model:GetAttribute("Protect") == true or model:GetAttribute("Friendly") == true then
-                return false
-            end
-        end
-        if model:GetAttribute("Ally") == true or model:GetAttribute("Protect") == true or model:GetAttribute("Friendly") == true then
+        if not v150_10.AutoRaid and (model:GetAttribute("Ally") == true or model:GetAttribute("Friendly") == true) then
             return false
         end
 
@@ -989,22 +979,15 @@ do
             end
         end
 
-        -- Titan thông thường trong workspace.Titans khi farm map thường KHÔNG ĐƯỢC coi là Raid Boss!
-        if pName == "Titans" and not v150_10.AutoRaid then
-            return false
-        end
-
-        if v150_10.AutoRaid or (pName and pName ~= "Titans") then
-            local nameLower = string.lower(model.Name)
-            local bossKeywords = {
-                "eren", "attack titan", "rogue", "colossal", "bertholdt", "reiner", "armored", "armoured",
-                "beast", "zeke", "female", "annie", "warhammer", "founding", "jaw", "cart",
-                "falco", "porco", "pieck", "larva", "shifter", "crawler", "boss"
-            }
-            for _, kw in ipairs(bossKeywords) do
-                if string.find(nameLower, kw) then
-                    return true
-                end
+        local nameLower = string.lower(model.Name)
+        local bossKeywords = {
+            "eren", "attack titan", "rogue", "colossal", "bertholdt", "reiner", "armored", "armoured",
+            "beast", "zeke", "female", "annie", "warhammer", "founding", "jaw", "cart",
+            "falco", "porco", "pieck", "larva", "shifter", "crawler", "boss", "bot"
+        }
+        for _, kw in ipairs(bossKeywords) do
+            if string.find(nameLower, kw) then
+                return true
             end
         end
 
@@ -1016,8 +999,21 @@ do
             v13_8:FindFirstChild("Boss"),
             v13_8:FindFirstChild("Bosses"),
             v13_8:FindFirstChild("Shifters"),
-            v13_8:FindFirstChild("Raid")
+            v13_8:FindFirstChild("Raid"),
+            v13_8:FindFirstChild("Titans"),
+            v13_8:FindFirstChild("Enemies"),
+            v13_8:FindFirstChild("Spawns"),
+            v13_8:FindFirstChild("Living")
         }
+        local mapFolder = v13_8:FindFirstChild("Map")
+        if mapFolder then
+            for _, sub in ipairs(mapFolder:GetChildren()) do
+                if sub.Name == "Boss" or sub.Name == "Bosses" or sub.Name == "Shifters" or sub.Name == "Raid" or sub.Name == "Titans" then
+                    table.insert(raidFolders, sub)
+                end
+            end
+        end
+
         for _, container in ipairs(raidFolders) do
             if container then
                 for _, child in ipairs(container:GetChildren()) do
@@ -1027,16 +1023,14 @@ do
                 end
             end
         end
-        if v150_10.AutoRaid then
-            local pTag, cs = pcall(function() return game:GetService("CollectionService") end)
-            if pTag and cs and type(cs) == "userdata" then
-                for _, tag in ipairs({"Boss", "RaidBoss", "Shifter"}) do
-                    local ok, taggedList = pcall(function() return cs:GetTagged(tag) end)
-                    if ok and taggedList then
-                        for _, tagged in ipairs(taggedList) do
-                            if tagged:IsA("Model") and v150_10.IsBossModel(tagged) and v91_2(tagged) then
-                                return tagged
-                            end
+        local pTag, cs = pcall(function() return game:GetService("CollectionService") end)
+        if pTag and cs and type(cs) == "userdata" then
+            for _, tag in ipairs({"Boss", "RaidBoss", "Shifter"}) do
+                local ok, taggedList = pcall(function() return cs:GetTagged(tag) end)
+                if ok and taggedList then
+                    for _, tagged in ipairs(taggedList) do
+                        if tagged:IsA("Model") and v150_10.IsBossModel(tagged) and v91_2(tagged) then
+                            return tagged
                         end
                     end
                 end
@@ -1300,70 +1294,13 @@ do
             return false
         end
 
-
-        -- 3. Bỏ qua khi Titan đang gồng (Hardening)
-        local function checkHardening(target)
-            if not target then return false end
-            local m = (typeof(target) == "Instance" and (target:IsA("Model") and target or target:FindFirstAncestorOfClass("Model")))
-            if not m then return false end
-
-            -- Thuộc tính trên Model
-            if m:GetAttribute("Hardened") == true
-                or m:GetAttribute("Hardening") == true
-                or m:GetAttribute("Crystal") == true
-                or m:GetAttribute("IsHardened") == true
-                or m:GetAttribute("IsHardening") == true
-                or m:GetAttribute("Blocking") == true
-            then
-                return true
-            end
-
-            -- Thuộc tính trên Gáy
-            local nape = v89_2(m)
-            if nape and nape:IsA("BasePart") then
-                if nape:GetAttribute("Hardened") == true
-                    or nape:GetAttribute("Protected") == true
-                    or nape:GetAttribute("Crystallized") == true
-                then
-                    return true
-                end
-            end
-
-            -- Animation tên là harden / crystal đang chạy
-            local hum = m:FindFirstChildOfClass("Humanoid") or m:FindFirstChild("Humanoid")
-            local anim = hum and (hum:FindFirstChildOfClass("Animator") or hum:FindFirstChild("Animator"))
-            if anim and type(anim.GetPlayingAnimationTracks) == "function" then
-                local okTracks, tracks = pcall(anim.GetPlayingAnimationTracks, anim)
-                if okTracks and tracks then
-                    for _, track in ipairs(tracks) do
-                        local tname = string.lower(tostring(track.Name))
-                        local trackAnim = track.Animation
-                        local aName = trackAnim and string.lower(tostring(trackAnim.Name)) or ""
-                        if tname:find("harden") or tname:find("crystal") or aName:find("harden") or aName:find("crystal") then
-                            return true
-                        end
-                    end
-                end
-            end
-
-            if v150_10 and v150_10.IsTitanHardened and v150_10.IsTitanHardened(m) then
-                return true
-            end
-
-            return false
-        end
-
         local isMultiTarget = type(p1) == "table" and #p1 > 1
         local raidBoss = v150_10.GetRaidBoss()
-        if not isMultiTarget and raidBoss and (not v150_10.IsProtectStageActive or not v150_10.IsProtectStageActive()) then
-            if checkHardening(raidBoss) then
-                return false
-            end
+        if (v150_10.AutoRaid or not isMultiTarget) and raidBoss and v91_2(raidBoss) then
             local bossNape = v89_2(raidBoss)
-            if not bossNape then
-                return false -- 1. Không tìm thấy Gáy thì return false ngay lập tức, không fallback vào thân!
+            if bossNape then
+                p1 = bossNape
             end
-            p1 = bossNape
         end
 
         local v2_3 = {}
@@ -1372,11 +1309,9 @@ do
             for v7, v8 in ipairs(p1) do
                 if typeof(v8) == "Instance" then
                     local m = v8:IsA("Model") and v8 or v8:FindFirstAncestorOfClass("Model")
-                    if not checkHardening(m or v8) then
-                        local nape = (v8:IsA("BasePart") and v8.Name == "Nape" and v8) or (m and v89_2(m))
-                        if nape and nape:IsA("BasePart") and nape.Name == "Nape" then
-                            table.insert(v2_3, nape)
-                        end
+                    local nape = (v8:IsA("BasePart") and v8.Name == "Nape" and v8) or (m and v89_2(m))
+                    if nape and nape:IsA("BasePart") then
+                        table.insert(v2_3, nape)
                     end
                     if #v2_3 >= v3_3 then
                         break
@@ -1385,14 +1320,10 @@ do
             end
         elseif typeof(p1) == "Instance" then
             local m = p1:IsA("Model") and p1 or p1:FindFirstAncestorOfClass("Model")
-            if checkHardening(m or p1) then
-                return false
-            end
             local nape = (p1:IsA("BasePart") and p1.Name == "Nape" and p1) or (m and v89_2(m))
-            if not nape or not nape:IsA("BasePart") or nape.Name ~= "Nape" then
-                return false -- 1. Không tìm thấy Gáy thì return false ngay lập tức, không fallback!
+            if nape and nape:IsA("BasePart") then
+                table.insert(v2_3, nape)
             end
-            table.insert(v2_3, nape)
         end
 
         if #v2_3 == 0 then
@@ -1472,7 +1403,7 @@ do
         end
         if v7_8 == true then
             task.wait(0.02)
-            -- 2. Kỹ thuật 1 Thương - 9 Dame (Batching & Micro-offset)
+            -- Kỹ thuật Dồn Dame & Hit All Nổ Thương: Mỗi mục tiêu đều nhận đủ lượng nổ chí mạng
             if #v2_3 == 1 then
                 local singleNape = v2_3[1]
                 if singleNape and singleNape.Parent then
@@ -1486,22 +1417,25 @@ do
                         pcall(function()
                             v68_2:FireServer("Spears", "S_Explode", basePos + microOffset, 2.5)
                         end)
-                        task.wait(0.015)
+                        task.wait(0.012)
                     end
                 end
             else
+                local hitsPerTarget = math.max(3, math.floor(9 / #v2_3))
                 for _, napePart in ipairs(v2_3) do
                     if napePart and napePart.Parent then
                         local basePos = napePart.Position
-                        local microOffset = Vector3.new(
-                            math.random(-100, 100) / 1000,
-                            math.random(-100, 100) / 1000,
-                            math.random(-100, 100) / 1000
-                        )
-                        pcall(function()
-                            v68_2:FireServer("Spears", "S_Explode", basePos + microOffset, 2.5)
-                        end)
-                        task.wait(0.015)
+                        for i = 1, hitsPerTarget do
+                            local microOffset = Vector3.new(
+                                math.random(-100, 100) / 1000,
+                                math.random(-100, 100) / 1000,
+                                math.random(-100, 100) / 1000
+                            )
+                            pcall(function()
+                                v68_2:FireServer("Spears", "S_Explode", basePos + microOffset, 2.5)
+                            end)
+                            task.wait(0.012)
+                        end
                     end
                 end
             end
@@ -1579,66 +1513,13 @@ do
             return v93_2(p1)
         end
 
-        -- 3. Bỏ qua khi Titan đang gồng (Hardening)
-        local function checkHardening(target)
-            if not target then return false end
-            local m = (typeof(target) == "Instance" and (target:IsA("Model") and target or target:FindFirstAncestorOfClass("Model")))
-            if not m then return false end
-
-            if m:GetAttribute("Hardened") == true
-                or m:GetAttribute("Hardening") == true
-                or m:GetAttribute("Crystal") == true
-                or m:GetAttribute("IsHardened") == true
-                or m:GetAttribute("IsHardening") == true
-                or m:GetAttribute("Blocking") == true
-            then
-                return true
-            end
-
-            local nape = v89_2(m)
-            if nape and nape:IsA("BasePart") then
-                if nape:GetAttribute("Hardened") == true
-                    or nape:GetAttribute("Protected") == true
-                    or nape:GetAttribute("Crystallized") == true
-                then
-                    return true
-                end
-            end
-
-            local hum = m:FindFirstChildOfClass("Humanoid") or m:FindFirstChild("Humanoid")
-            local anim = hum and (hum:FindFirstChildOfClass("Animator") or hum:FindFirstChild("Animator"))
-            if anim and type(anim.GetPlayingAnimationTracks) == "function" then
-                local okTracks, tracks = pcall(anim.GetPlayingAnimationTracks, anim)
-                if okTracks and tracks then
-                    for _, track in ipairs(tracks) do
-                        local tname = string.lower(tostring(track.Name))
-                        local trackAnim = track.Animation
-                        local aName = trackAnim and string.lower(tostring(trackAnim.Name)) or ""
-                        if tname:find("harden") or tname:find("crystal") or aName:find("harden") or aName:find("crystal") then
-                            return true
-                        end
-                    end
-                end
-            end
-
-            if v150_10 and v150_10.IsTitanHardened and v150_10.IsTitanHardened(m) then
-                return true
-            end
-
-            return false
-        end
-
         local isMultiTarget = type(p1) == "table" and #p1 > 1
         local raidBoss = v150_10.GetRaidBoss()
-        if not isMultiTarget and raidBoss and (not v150_10.IsProtectStageActive or not v150_10.IsProtectStageActive()) then
-            if checkHardening(raidBoss) then
-                return false
-            end
+        if (v150_10.AutoRaid or not isMultiTarget) and raidBoss and v91_2(raidBoss) then
             local bossNape = v89_2(raidBoss)
-            if not bossNape then
-                return false -- 1. Không tìm thấy Gáy thì return false ngay lập tức, không fallback vào thân!
+            if bossNape then
+                p1 = bossNape
             end
-            p1 = bossNape
         else
             raidBoss = nil
         end
@@ -1650,10 +1531,9 @@ do
             for v8_2, v9_2 in ipairs(p1) do
                 if typeof(v9_2) == "Instance" then
                     local v10_4 = v9_2:IsA("Model") and v9_2 or v9_2:FindFirstAncestorOfClass("Model")
-                    if v10_4 and not checkHardening(v10_4) then
+                    if v10_4 and v91_2(v10_4) then
                         local v11_5 = (v9_2:IsA("BasePart") and v9_2.Name == "Nape" and v9_2) or (v10_4 and v89_2(v10_4))
-                        local v12_6 = v10_4 and v11_5 and v91_2(v10_4)
-                        if v12_6 and v11_5:IsA("BasePart") and v11_5.Name == "Nape" then
+                        if v11_5 and v11_5:IsA("BasePart") then
                             table.insert(v2_7, v10_4)
                             table.insert(v3_6, v11_5)
                             if #v3_6 >= (v59_2 and 8 or 1) then
@@ -1665,14 +1545,8 @@ do
             end
         elseif typeof(p1) == "Instance" then
             local v5_8 = p1:IsA("Model") and p1 or p1:FindFirstAncestorOfClass("Model")
-            if checkHardening(v5_8 or p1) then
-                return false
-            end
             local v6_11 = (p1:IsA("BasePart") and p1.Name == "Nape" and p1) or (v5_8 and v89_2(v5_8))
-            if not v6_11 or not v6_11:IsA("BasePart") or v6_11.Name ~= "Nape" then
-                return false -- 1. Không tìm thấy Gáy thì return false ngay lập tức, không fallback!
-            end
-            if v5_8 and v91_2(v5_8) then
+            if v5_8 and v91_2(v5_8) and v6_11 and v6_11:IsA("BasePart") then
                 table.insert(v2_7, v5_8)
                 table.insert(v3_6, v6_11)
             end
@@ -1682,12 +1556,32 @@ do
             return false
         end
 
-        -- Khi chém 1 con đơn lẻ: nhân bản 9 dame chí mạng
-        -- Khi bật Hit All: giữ nguyên tất cả các gáy của từng con để chém trúng toàn bộ!
+        -- Boss Mechanics: Phá giáp khớp chân/tay Armored Titan / Shifter Bot
+        if raidBoss and raidBoss:IsA("Model") then
+            for _, partName in ipairs({ "Leg_L", "Leg_R", "Knee_L", "Knee_R", "Ankle_L", "Ankle_R", "Arm_L", "Arm_R" }) do
+                local bodyPart = raidBoss:FindFirstChild(partName, true)
+                if bodyPart and bodyPart:IsA("BasePart") then
+                    pcall(function()
+                        v68_2:FireServer("Hitboxes", "Register", bodyPart, 0.65)
+                    end)
+                end
+            end
+        end
+
+        -- Kỹ thuật Dồn Dame Chí Mạng & Hit All Toàn Diện:
+        local origNapes = table.clone(v3_6)
         if #v3_6 == 1 then
             local singleNape = v3_6[1]
             while #v3_6 < 9 do
                 table.insert(v3_6, singleNape)
+            end
+        else
+            -- Hit All: Phân bổ đều các nhát chém chí mạng (ít nhất 2-3 nhát mỗi con) để tiêu diệt đồng loạt!
+            local targetTotal = math.max(9, #origNapes * 2)
+            local idx = 1
+            while #v3_6 < targetTotal do
+                table.insert(v3_6, origNapes[idx])
+                idx = (idx % #origNapes) + 1
             end
         end
 
@@ -1722,7 +1616,7 @@ do
                     if v24_3:IsA("BasePart") then
                         v24_3.CollisionGroup = "Default"
                         v24_3.CanCollide = false
-                        v24_3.CanTouch = v24_3.Name == "Nape"
+                        v24_3.CanTouch = (v24_3.Name == "Nape" or v24_3.Name:lower():find("nape") ~= nil)
                     end
                 end
             else
@@ -1755,11 +1649,266 @@ do
             v9_6:SetAttribute("TargetTitan", v15_18)
             v9_6:SetAttribute("SlashMaxTargets", #v3_6)
             v9_6:SetAttribute("SlashDone", false)
-            v9_6:SetAttribute("BossBurst", raidBoss ~= nil)
+            v9_6:SetAttribute("BossBurst", (raidBoss ~= nil or #v2_7 == 1))
             v9_6:SetAttribute("SlashHandled", false)
             pcall(function()
-                v67_2(v9_6,
-                    "                local Players = game:GetService(\"Players\")\n                local lp = Players.LocalPlayer\n                local chars = workspace:FindFirstChild(\"Characters\")\n                local c = (chars and chars:FindFirstChild(lp.Name)) or lp.Character\n                local act = c and c:FindFirstChild(\"Actor\")\n                if not act then return end\n\n                local targetId = act:GetAttribute(\"TargetTitan\")\n                local targetNamesStr = act:GetAttribute(\"TargetTitanNames\") or \"\"\n                local nameMap = {}\n                for name in string.gmatch(targetNamesStr, \"[^,]+\") do\n                    nameMap[name] = true\n                end\n                local maxTargets = tonumber(act:GetAttribute(\"SlashMaxTargets\")) or 1\n                local searchFolders = {\n                    workspace:FindFirstChild(\"Titans\"),\n                    workspace:FindFirstChild(\"Boss\"),\n                    workspace:FindFirstChild(\"Shifters\"),\n                    workspace:FindFirstChild(\"Characters\")\n                }\n                local napes = {}\n                for _, fld in ipairs(searchFolders) do\n                    if fld then\n                        for _, m in ipairs(fld:GetChildren()) do\n                            if (targetId and m:GetAttribute(\"__SymbioteTarget\") == targetId) or nameMap[m.Name] then\n                                local np = (m:FindFirstChild(\"Hitboxes\") and m.Hitboxes:FindFirstChild(\"Hit\") and m.Hitboxes.Hit:FindFirstChild(\"Nape\"))\n                                    or m:FindFirstChild(\"Nape\", true)\n                                if np and np:IsA(\"BasePart\") then\n                                    table.insert(napes, np)\n                                    if #napes >= maxTargets then break end\n                                end\n                            end\n                        end\n                    end\n                    if #napes >= maxTargets then break end\n                end\n                if #napes == 0 then\n                    for _, fld in ipairs(searchFolders) do\n                        if fld then\n                            for _, m in ipairs(fld:GetChildren()) do\n                                if m:IsA(\"Model\") and not m:GetAttribute(\"State\") then\n                                    local np = (m:FindFirstChild(\"Hitboxes\") and m.Hitboxes:FindFirstChild(\"Hit\") and m.Hitboxes.Hit:FindFirstChild(\"Nape\"))\n                                        or m:FindFirstChild(\"Nape\", true)\n                                    if np and np:IsA(\"BasePart\") then\n                                        table.insert(napes, np)\n                                        if #napes >= maxTargets then break end\n                                    end\n                                end\n                            end\n                        end\n                        if #napes >= maxTargets then break end\n                    end\n                end\n\n                if #napes > 0 and #napes < maxTargets and (act:GetAttribute(\"BossBurst\") == true or targetId) then\n                    local singleNape = napes[1]\n                    while #napes < maxTargets do\n                        table.insert(napes, singleNape)\n                    end\n                end\n\n                local h = c and c:FindFirstChild(\"HumanoidRootPart\")\n                local hm = c and c:FindFirstChild(\"Humanoid\")\n                local hb = c and c:FindFirstChild(\"Hitbox\")\n                if hb and hb:IsA(\"BasePart\") then\n                    hb.CanCollide = false\n                    hb.CanTouch = true\n                end\n\n                local host = _G.__CachedHost\n                if type(host) ~= \"table\"\n                    or type(rawget(host, \"Modules\")) ~= \"table\"\n                    or type(rawget(host, \"Cache\")) ~= \"table\"\n                    or host.Cache.Character ~= c\n                    or not host.Modules.Zones\n                    or not host.Modules.Input\n                    or not host.Modules.ODMG\n                    or not host.Modules.Effects\n                then\n                    host = nil\n                    _G.__CachedHost = nil\n                    local now = os.clock()\n                    local lastScan = _G.__LastHostScan or 0\n                    if (now - lastScan) >= 1 then\n                        _G.__LastHostScan = now\n                        for _, obj in ipairs(getgc(true)) do\n                            if type(obj) == \"table\"\n                                and type(rawget(obj, \"Modules\")) == \"table\"\n                                and type(rawget(obj, \"Cache\")) == \"table\"\n                                and obj.Cache.Character == c\n                                and obj.Modules.Zones\n                            then\n                                host = obj\n                                _G.__CachedHost = obj\n                                break\n                            end\n                        end\n                    end\n                end\n\n                if host and #napes > 0 and h and hm then\n                    act:SetAttribute(\"SlashHandled\", true)\n                    pcall(function()\n                        local slash = host.Cache.Variables.Slash\n                        local odmg = host.Modules.ODMG\n                        local inputMod = host.Modules.Input\n                        local effects = host.Modules.Effects\n                        local zones = host.Modules.Zones\n\n                        if inputMod.Slashing then\n                            pcall(function() task.cancel(inputMod.Slashing) end)\n                            inputMod.Slashing = nil\n                        end\n                        if type(odmg.Events) == \"table\" then\n                            for _, ev in pairs(odmg.Events) do\n                                pcall(function() task.cancel(ev) end)\n                            end\n                            table.clear(odmg.Events)\n                        end\n\n                        if effects.Slash_State == true then\n                            pcall(function() effects.Slash(host, false, true) end)\n                            effects.Slash_State = false\n                        end\n\n                        host.Invoked = false\n                        if host.Modules.Shift then\n                            host.Modules.Shift.Stunned = false\n                        end\n\n                        if host.Loadout and host.Loadout.Stats then\n                            host.Loadout.Stats.Crit_Chance = 100\n                            host.Loadout.Stats.Strike = maxTargets\n                        end\n\n                        if not zones.__SymbioteCritHooked and type(zones.Damage_Check) == \"function\" then\n                            zones.__SymbioteCritHooked = true\n                            local origDamageCheck = zones.Damage_Check\n                            zones.Damage_Check = function(p2, p3, p4, p5, p6, p7, p8, p9)\n                                return origDamageCheck(p2, p3, p4, true, p6, p7, p8, p9)\n                            end\n                        end\n\n                        slash.Slashing = false\n                        slash.Released = false\n                        slash.Holding = false\n                        slash.Cooldown = false\n                        slash.Combo = 0\n                        table.clear(zones.Hit)\n\n                        if not host.__OrigTasks and type(odmg.Tasks) == \"function\" then\n                            host.__OrigTasks = odmg.Tasks\n                        end\n                        odmg.Tasks = function() end\n                        pcall(function() odmg.M1(host, false) end)\n                        if host.__OrigTasks then\n                            odmg.Tasks = host.__OrigTasks\n                        end\n\n                        slash.Slashing = true\n                        slash.Released = false\n                        slash.Holding = false\n                        slash.Type = \"Air\"\n                        slash.Last = tick() - 0.65\n                        zones.Time_Difference = 0.65\n\n                        task.wait(0.04)\n\n                        table.clear(zones.Hit)\n                        pcall(function() inputMod.Slash(host, h, hm) end)\n                        slash.Slashing = true\n                        slash.Released = true\n                        slash.Holding = false\n                        slash.Type = \"Air\"\n\n                        if effects.Slash_State ~= true then\n                            pcall(function() effects.Slash(host, true, true) end)\n                            effects.Slash_State = true\n                        end\n                        host:Send(\"Attacks\", \"Slash\", true)\n\n                        local a = hm:FindFirstChild(\"Animator\")\n                        if a then\n                            for _, track in ipairs(a:GetPlayingAnimationTracks()) do\n                                if track.Priority == Enum.AnimationPriority.Action4 or track.Priority == Enum.AnimationPriority.Action3 or track.Name:find(\"Hit\") or track.Name:find(\"Slash\") then\n                                    track:Stop(0)\n                                end\n                            end\n                        end\n\n                        for _, np in ipairs(napes) do\n                            table.insert(zones.Hit, np)\n                            host:Send(\"Hitboxes\", \"Register\", np, 0.65)\n                        end\n\n                        task.wait(0.12)\n\n                        if inputMod.Slashing then\n                            pcall(function() task.cancel(inputMod.Slashing) end)\n                            inputMod.Slashing = nil\n                        end\n                        slash.Slashing = false\n                        slash.Released = false\n                        slash.Holding = false\n                        pcall(function() effects.Slash(host, false, true) end)\n                        if effects.Slash_State ~= false then\n                            effects.Slash_State = false\n                        end\n                        host:Send(\"Attacks\", \"Slash\", false)\n                    end)\n                end\n\n                act:SetAttribute(\"SlashDone\", true)\n            ")
+                v67_2(v9_6, [[
+                    local Players = game:GetService("Players")
+                    local lp = Players.LocalPlayer
+                    local chars = workspace:FindFirstChild("Characters")
+                    local c = (chars and chars:FindFirstChild(lp.Name)) or lp.Character
+                    local act = c and c:FindFirstChild("Actor")
+                    if not act then return end
+
+                    local targetId = act:GetAttribute("TargetTitan")
+                    local targetNamesStr = act:GetAttribute("TargetTitanNames") or ""
+                    local nameMap = {}
+                    for name in string.gmatch(targetNamesStr, "[^,]+") do
+                        nameMap[name] = true
+                    end
+                    local maxTargets = tonumber(act:GetAttribute("SlashMaxTargets")) or 1
+                    local isBossBurst = act:GetAttribute("BossBurst") == true
+
+                    local searchFolders = {
+                        workspace:FindFirstChild("Titans"),
+                        workspace:FindFirstChild("Boss"),
+                        workspace:FindFirstChild("Bosses"),
+                        workspace:FindFirstChild("Shifters"),
+                        workspace:FindFirstChild("Raid"),
+                        workspace:FindFirstChild("Enemies"),
+                        workspace:FindFirstChild("Spawns"),
+                        workspace:FindFirstChild("Living"),
+                        workspace:FindFirstChild("Characters")
+                    }
+                    local mapFolder = workspace:FindFirstChild("Map")
+                    if mapFolder then
+                        for _, sub in ipairs(mapFolder:GetChildren()) do
+                            if sub.Name == "Titans" or sub.Name == "Boss" or sub.Name == "Bosses" or sub.Name == "Shifters" or sub.Name == "Raid" then
+                                table.insert(searchFolders, sub)
+                            end
+                        end
+                    end
+
+                    local napes = {}
+                    for _, fld in ipairs(searchFolders) do
+                        if fld then
+                            for _, m in ipairs(fld:GetChildren()) do
+                                if m:IsA("Model") then
+                                    if (targetId and m:GetAttribute("__SymbioteTarget") == targetId) or nameMap[m.Name] then
+                                        local np = (m:FindFirstChild("Hitboxes") and m.Hitboxes:FindFirstChild("Hit") and m.Hitboxes.Hit:FindFirstChild("Nape"))
+                                            or m:FindFirstChild("Nape", true)
+                                            or (m:FindFirstChild("Hitboxes") and m.Hitboxes:FindFirstChild("Nape"))
+                                            or m:FindFirstChild("Weakpoint", true)
+                                            or m:FindFirstChild("Core", true)
+                                        if np and np:IsA("BasePart") then
+                                            table.insert(napes, np)
+                                            if #napes >= maxTargets then break end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                        if #napes >= maxTargets then break end
+                    end
+
+                    if #napes == 0 then
+                        for _, fld in ipairs(searchFolders) do
+                            if fld then
+                                for _, m in ipairs(fld:GetChildren()) do
+                                    if m:IsA("Model") and m ~= c then
+                                        local st = m:GetAttribute("State")
+                                        if st ~= "Dead" and st ~= "Die" and st ~= "Dying" then
+                                            local hum = m:FindFirstChildOfClass("Humanoid")
+                                            if not hum or hum.Health > 0 then
+                                                local np = (m:FindFirstChild("Hitboxes") and m.Hitboxes:FindFirstChild("Hit") and m.Hitboxes.Hit:FindFirstChild("Nape"))
+                                                    or m:FindFirstChild("Nape", true)
+                                                    or (m:FindFirstChild("Hitboxes") and m.Hitboxes:FindFirstChild("Nape"))
+                                                    or m:FindFirstChild("Weakpoint", true)
+                                                    or m:FindFirstChild("Core", true)
+                                                if np and np:IsA("BasePart") then
+                                                    table.insert(napes, np)
+                                                    if #napes >= 8 then break end
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                            if #napes >= 8 then break end
+                        end
+                    end
+
+                    if #napes == 1 and (isBossBurst or maxTargets > 1) then
+                        local singleNape = napes[1]
+                        while #napes < 9 do
+                            table.insert(napes, singleNape)
+                        end
+                    elseif #napes > 1 then
+                        local origList = table.clone(napes)
+                        local targetTotal = math.max(9, #origList * 2)
+                        local idx = 1
+                        while #napes < targetTotal do
+                            table.insert(napes, origList[idx])
+                            idx = (idx % #origList) + 1
+                        end
+                    end
+
+                    local h = c and c:FindFirstChild("HumanoidRootPart")
+                    local hm = c and c:FindFirstChild("Humanoid")
+                    local hb = c and c:FindFirstChild("Hitbox")
+                    if hb and hb:IsA("BasePart") then
+                        hb.CanCollide = false
+                        hb.CanTouch = true
+                    end
+
+                    local host = _G.__CachedHost
+                    if type(host) ~= "table"
+                        or type(rawget(host, "Modules")) ~= "table"
+                        or type(rawget(host, "Cache")) ~= "table"
+                        or host.Cache.Character ~= c
+                        or not host.Modules.Zones
+                        or not host.Modules.Input
+                        or not host.Modules.ODMG
+                        or not host.Modules.Effects
+                    then
+                        host = nil
+                        _G.__CachedHost = nil
+                        local now = os.clock()
+                        local lastScan = _G.__LastHostScan or 0
+                        if (now - lastScan) >= 1 then
+                            _G.__LastHostScan = now
+                            for _, obj in ipairs(getgc(true)) do
+                                if type(obj) == "table"
+                                    and type(rawget(obj, "Modules")) == "table"
+                                    and type(rawget(obj, "Cache")) == "table"
+                                    and obj.Cache.Character == c
+                                    and obj.Modules.Zones
+                                    and obj.Modules.Input
+                                    and obj.Modules.ODMG
+                                    and obj.Modules.Effects
+                                then
+                                    host = obj
+                                    _G.__CachedHost = obj
+                                    break
+                                end
+                            end
+                        end
+                    end
+
+                    if host and host.Cache and host.Cache.Variables and host.Cache.Variables.Slash and host.Modules and host.Modules.ODMG and host.Modules.Input and host.Modules.Effects and host.Modules.Zones then
+                        act:SetAttribute("SlashHandled", true)
+                        pcall(function()
+                            local slash = host.Cache.Variables.Slash
+                            local odmg = host.Modules.ODMG
+                            local inputMod = host.Modules.Input
+                            local effects = host.Modules.Effects
+                            local zones = host.Modules.Zones
+
+                            if inputMod.Slashing then
+                                pcall(function() task.cancel(inputMod.Slashing) end)
+                                inputMod.Slashing = nil
+                            end
+                            if type(odmg.Events) == "table" then
+                                for _, ev in pairs(odmg.Events) do
+                                    pcall(function() task.cancel(ev) end)
+                                end
+                                table.clear(odmg.Events)
+                            end
+
+                            if effects.Slash_State == true then
+                                pcall(function() effects.Slash(host, false, true) end)
+                                effects.Slash_State = false
+                            end
+
+                            host.Invoked = false
+                            if host.Modules.Shift then
+                                host.Modules.Shift.Stunned = false
+                            end
+
+                            if host.Loadout and host.Loadout.Stats then
+                                host.Loadout.Stats.Crit_Chance = 100
+                                host.Loadout.Stats.Strike = #napes
+                            end
+
+                            if not zones.__SymbioteCritHooked and type(zones.Damage_Check) == "function" then
+                                zones.__SymbioteCritHooked = true
+                                local origDamageCheck = zones.Damage_Check
+                                zones.Damage_Check = function(p2, p3, p4, p5, p6, p7, p8, p9)
+                                    return origDamageCheck(p2, p3, p4, true, p6, p7, p8, p9)
+                                end
+                            end
+
+                            slash.Slashing = false
+                            slash.Released = false
+                            slash.Holding = false
+                            slash.Cooldown = false
+                            slash.Combo = 0
+                            table.clear(zones.Hit)
+
+                            if not host.__OrigTasks and type(odmg.Tasks) == "function" then
+                                host.__OrigTasks = odmg.Tasks
+                            end
+                            odmg.Tasks = function() end
+                            pcall(function() odmg.M1(host, false) end)
+                            if host.__OrigTasks then
+                                odmg.Tasks = host.__OrigTasks
+                            end
+
+                            slash.Slashing = true
+                            slash.Released = false
+                            slash.Holding = false
+                            slash.Type = "Air"
+                            slash.Last = tick() - 0.65
+                            zones.Time_Difference = 0.65
+
+                            task.wait(0.04)
+
+                            table.clear(zones.Hit)
+                            pcall(function() inputMod.Slash(host, h, hm) end)
+                            slash.Slashing = true
+                            slash.Released = true
+                            slash.Holding = false
+                            slash.Type = "Air"
+
+                            if effects.Slash_State ~= true then
+                                pcall(function() effects.Slash(host, true, true) end)
+                                effects.Slash_State = true
+                            end
+                            host:Send("Attacks", "Slash", true)
+
+                            local a = hm:FindFirstChild("Animator")
+                            if a then
+                                for _, track in ipairs(a:GetPlayingAnimationTracks()) do
+                                    if track.Priority == Enum.AnimationPriority.Action4 or track.Priority == Enum.AnimationPriority.Action3 or track.Name:find("Hit") or track.Name:find("Slash") then
+                                        track:Stop(0)
+                                    end
+                                end
+                            end
+
+                            for _, np in ipairs(napes) do
+                                table.insert(zones.Hit, np)
+                                host:Send("Hitboxes", "Register", np, 0.65)
+                            end
+
+                            task.wait(0.12)
+
+                            if inputMod.Slashing then
+                                pcall(function() task.cancel(inputMod.Slashing) end)
+                                inputMod.Slashing = nil
+                            end
+                            slash.Slashing = false
+                            slash.Released = false
+                            slash.Holding = false
+                            pcall(function() effects.Slash(host, false, true) end)
+                            if effects.Slash_State ~= false then
+                                effects.Slash_State = false
+                            end
+                            host:Send("Attacks", "Slash", false)
+                        end)
+                    end
+
+                    act:SetAttribute("SlashDone", true)
+                ]])
                 return
             end)
             local v17_20 = os.clock()
@@ -1828,7 +1977,7 @@ do
                     if v15_20.Loadout and v15_20.Loadout.Stats then
                         local v8_6 = v15_20
                         v8_6.Loadout.Stats.Crit_Chance = 100
-                        v8_6.Loadout.Stats.Strike = v4_2
+                        v8_6.Loadout.Stats.Strike = #v3_6
                     end
                     if not v5_3.__SymbioteCritHooked and type(v5_3.Damage_Check) == "function" then
                         v5_3.__SymbioteCritHooked = true
@@ -4860,7 +5009,38 @@ do
                                 v20_2 = v73_2() and v122_3() or v121_4()
                             end
                         end
-                        if v59_2 then
+
+                        -- 1. ƯU TIÊN TUYỆT ĐỐI KHI BẬT "Auto Raid (Focus Boss)" / DỒN DAME BOT:
+                        -- Bất kể có quái con nào xung quanh, tele trực tiếp đến Boss / Bot và chém 9 dame chí mạng liên tục!
+                        if v150_10.AutoRaid and raidBoss and v91_2(raidBoss) then
+                            v20_2 = raidBoss
+                            v127_2(raidBoss)
+                            if v150_10.CheckMissionSafetyWait then
+                                v150_10.CheckMissionSafetyWait(raidBoss)
+                            end
+                            local useSpears = false
+                            local char = v72_2()
+                            if char then
+                                local leftArm = char:FindFirstChild("LeftLowerArm")
+                                local rightArm = char:FindFirstChild("RightLowerArm")
+                                useSpears = (leftArm and leftArm:FindFirstChild("Spears") ~= nil)
+                                    or (rightArm and rightArm:FindFirstChild("Spears") ~= nil)
+                            end
+                            if useSpears or v73_2() then
+                                if v93_2(raidBoss) then
+                                    task.wait(v57_3 and math.max(v58_2, 0.35) or 0.35)
+                                else
+                                    task.wait(0.1)
+                                end
+                            else
+                                if v97_6(raidBoss) then
+                                    task.wait(v57_3 and math.max(v58_2, 0.12) or 0.12)
+                                else
+                                    task.wait(0.08)
+                                end
+                            end
+                        elseif v59_2 then
+                            -- 2. CHẾ ĐỘ HIT ALL (ĐÁNH LAN DIỆT TOÀN BỘ MAP):
                             local v2_31 = v88_2()
                             local v3_22 = {}
                             local v4_11 = nil
@@ -4887,8 +5067,9 @@ do
                                     end
                                 end
                             end
+                            -- Sắp xếp theo thứ tự gần mục tiêu nhất trước để dọn sạch từng cụm quái
                             table.sort(v3_22, function(p1, p2)
-                                return p2.dist > p1.dist
+                                return p1.dist < p2.dist
                             end)
                             if not v4_11 and #v3_22 > 0 then
                                 local v6_9 = table.remove(v3_22, 1)
@@ -4896,11 +5077,12 @@ do
                                 v4_11 = v6_9
                             end
                             local v6_10 = {}
-                            for v10_2, v11_2 in ipairs(v3_22) do
-                                table.insert(v6_10, v11_2)
-                            end
+                            -- Đưa mục tiêu chính vào đầu danh sách để tấn công ngay đợt đầu tiên
                             if v4_11 then
                                 table.insert(v6_10, v4_11)
+                            end
+                            for v10_2, v11_2 in ipairs(v3_22) do
+                                table.insert(v6_10, v11_2)
                             end
                             if #v6_10 == 0 then
                                 v20_2 = nil
@@ -5041,9 +5223,11 @@ do
                                             end
                                         end
                                         if #v10_19 ~= 0 then
-                                            v127_2(v20_2)
+                                            -- SỬA LỖI QUAN TRỌNG: Teleport trực tiếp đến con quái đầu tiên của nhóm Hit All hiện tại!
+                                            local currentBatchTarget = v10_19[1] or v20_2
+                                            v127_2(currentBatchTarget)
                                             if v150_10.CheckMissionSafetyWait then
-                                                v150_10.CheckMissionSafetyWait(v20_2)
+                                                v150_10.CheckMissionSafetyWait(currentBatchTarget)
                                             end
                                             local v12_32 = v72_2()
                                             local v11_38
