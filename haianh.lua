@@ -377,96 +377,72 @@ do
     end
     v72_2 = function()
         local v1_2 = v71_3()
-        if not v1_2 then return nil end
-        local rig = v1_2:FindFirstChild("Rig_" .. v7_13.Name) or v1_2:FindFirstChild("Rig")
-        if rig then return rig end
-        if v1_2:FindFirstChild("LeftLowerArm") or v1_2:FindFirstChild("LeftHand") then
-            return v1_2
-        end
-        return nil
+        return v1_2 and v1_2:FindFirstChild("Rig_" .. v7_13.Name) or nil
     end
-    local function getSpearArmFolders()
-        local char = v71_3()
-        if not char then return nil, nil end
-        local rig = char:FindFirstChild("Rig_" .. v7_13.Name) or char:FindFirstChild("Rig") or char
-        local lla = rig and rig:FindFirstChild("LeftLowerArm")
-        local rla = rig and rig:FindFirstChild("RightLowerArm")
-        local ls = lla and lla:FindFirstChild("Spears")
-        local rs = rla and rla:FindFirstChild("Spears")
-        if ls or rs then return ls, rs end
-        for _, desc in ipairs(char:GetDescendants()) do
-            if desc.Name == "Spears" and desc.Parent then
-                if desc.Parent.Name == "LeftLowerArm" then ls = desc end
-                if desc.Parent.Name == "RightLowerArm" then rs = desc end
-            end
-        end
-        return ls, rs
-    end
-
     v73_2 = function()
-        local ls, rs = getSpearArmFolders()
-        return (ls ~= nil or rs ~= nil)
+        local v1_2 = v72_2()
+        if not v1_2 then
+            return false
+        end
+        local v2_4 = v1_2:FindFirstChild("LeftLowerArm")
+        local v3_3 = v1_2:FindFirstChild("RightLowerArm")
+        return v2_4 and v2_4:FindFirstChild("Spears") ~= nil or v3_3 and v3_3:FindFirstChild("Spears") ~= nil or false
     end
-
     local function v74_2()
-        local ls, rs = getSpearArmFolders()
-        if not ls and not rs then
-            return 0
+        local v1_2 = v72_2()
+        if not v1_2 then
+            local v2_3 = v71_3()
+            local v3 = v2_3 and v2_3:GetAttribute("Spears")
+            return v3 and tonumber(v3) or 0
         end
-        local count = 0
-        for i = 1, 16 do
-            local parent = (i % 2 == 0) and rs or ls
-            local spearPart = parent and parent:FindFirstChild(tostring(i))
-            if spearPart and spearPart:GetAttribute("Used") == nil and spearPart.Transparency < 0.9 then
-                count = count + 1
+        local v2_4 = v1_2:FindFirstChild("LeftLowerArm") and v1_2.LeftLowerArm:FindFirstChild("Spears")
+        local v3_5 = v1_2:FindFirstChild("RightLowerArm") and v1_2.RightLowerArm:FindFirstChild("Spears")
+        if not v2_4 and not v3_5 then
+            local v4_10 = v71_3()
+            local v5_5 = v4_10 and v4_10:GetAttribute("Spears")
+            return v5_5 and tonumber(v5_5) or 0
+        end
+        local v4_11 = 0
+        for v5_6 = 1, 16 do
+            local v8 = v5_6 % 2 == 0 and v3_5 or v2_4
+            local v9_2 = v8 and v8:FindFirstChild(tostring(v5_6))
+            if v9_2 and v9_2:GetAttribute("Used") ~= true and v9_2.Transparency < 0.9 then
+                v4_11 = v4_11 + 1
             end
         end
-        if count == 0 then
-            for _, folder in ipairs({ ls, rs }) do
-                if folder then
-                    for _, sp in ipairs(folder:GetChildren()) do
-                        if sp:IsA("BasePart") and sp:GetAttribute("Used") == nil and sp.Transparency < 0.9 then
-                            count = count + 1
-                        end
-                    end
-                end
-            end
-        end
-        return count
+        return v4_11
     end
-
     local function v76_2()
-        local ls, rs = getSpearArmFolders()
-        if not ls and not rs then
-            return 0
-        end
-        for i = 16, 1, -1 do
-            local parent = (i % 2 == 0) and rs or ls
-            local spearPart = parent and parent:FindFirstChild(tostring(i))
-            if spearPart and spearPart:GetAttribute("Used") == nil and spearPart.Transparency < 0.9 then
-                return i
-            end
-        end
-        for _, folder in ipairs({ rs, ls }) do
-            if folder then
-                for _, sp in ipairs(folder:GetChildren()) do
-                    if sp:IsA("BasePart") and sp:GetAttribute("Used") == nil and sp.Transparency < 0.9 then
-                        local n = tonumber(sp.Name)
-                        if n then return n end
+        local v1_4 = v72_2()
+        if v1_4 then
+            local v2 = v1_4:FindFirstChild("LeftLowerArm") and v1_4.LeftLowerArm:FindFirstChild("Spears")
+            local v3_3 = v1_4:FindFirstChild("RightLowerArm") and v1_4.RightLowerArm:FindFirstChild("Spears")
+            if v2 or v3_3 then
+                for v4_5 = 16, 1, -1 do
+                    local v7 = v4_5 % 2 == 0 and v3_3 or v2
+                    local v8_2 = v7 and v7:FindFirstChild(tostring(v4_5))
+                    if v8_2 and v8_2:GetAttribute("Used") ~= true and v8_2.Transparency < 0.9 then
+                        return v4_5
                     end
                 end
             end
         end
         return 0
     end
-
     v75_2 = function()
-        local count = v74_2()
-        if count > 0 then
+        -- Nếu vẫn còn thương trên tay (v76_2 > 0) thì TUYỆT ĐỐI không nạp sớm!
+        local nextSpear = v76_2()
+        if nextSpear and nextSpear > 0 then
             return false
         end
-        local nextSpear = v76_2()
-        if nextSpear > 0 then
+        local v1_2 = v74_2()
+        local v2_2 = v71_3()
+        if v1_2 > 0 then
+            if v2_2 and v2_2:GetAttribute("Spears") ~= v1_2 then
+                pcall(function()
+                    v2_2:SetAttribute("Spears", v1_2)
+                end)
+            end
             return false
         end
         return true
@@ -872,15 +848,9 @@ do
             or m:GetAttribute("Hardening") == true
             or m:GetAttribute("IsHardened") == true
             or m:GetAttribute("IsHardening") == true
-            or m:GetAttribute("Armored") == true
-            or m:GetAttribute("Armor") == true
             or m:GetAttribute("Blocking") == true
-            or m:GetAttribute("Block") == true
             or m:GetAttribute("IsBlocking") == true
             or m:GetAttribute("Courage") == true
-            or m:GetAttribute("Immune") == true
-            or m:GetAttribute("Invulnerable") == true
-            or m:GetAttribute("Crystal") == true
             or m:GetAttribute("Crystallized") == true
             or m:GetAttribute("Defending") == true
         then
@@ -893,10 +863,7 @@ do
         end
 
         local stateStr = tostring(m:GetAttribute("State") or ""):lower()
-        if stateStr:find("harden") or stateStr:find("armor") or stateStr:find("block")
-            or stateStr:find("shield") or stateStr:find("roar") or stateStr:find("rage")
-            or stateStr:find("immune") or stateStr:find("courage") or stateStr:find("crystal")
-        then
+        if stateStr:find("harden") or stateStr:find("crystal") or stateStr:find("block") then
             return true
         end
 
@@ -904,39 +871,38 @@ do
         local nape = v89_2(m)
         if nape and nape:IsA("BasePart") then
             if nape:GetAttribute("Hardened") == true
-                or nape:GetAttribute("Armor") == true
-                or nape:GetAttribute("Immune") == true
                 or nape:GetAttribute("Protected") == true
+                or nape:GetAttribute("Crystallized") == true
+                or nape:GetAttribute("Immune") == true
             then
                 return true
             end
             local napeState = tostring(nape:GetAttribute("State") or ""):lower()
-            if napeState:find("harden") or napeState:find("armor") or napeState:find("block") or napeState:find("immune") then
+            if napeState:find("harden") or napeState:find("crystal") or napeState:find("block") then
                 return true
             end
         end
 
-        -- 3. Hardening MeshParts / Crystals / Armor Objects attached to Titan
+        -- 3. Hardening Crystal Parts attached to Titan
         for _, child in ipairs(m:GetChildren()) do
-            if child:IsA("BasePart") or child:IsA("Model") then
+            if child:IsA("BasePart") then
                 local cname = child.Name:lower()
-                if (cname:find("harden") or cname:find("crystal") or cname:find("armor") or cname:find("shield"))
-                    and child.Name ~= "Armored Titan"
-                then
-                    if child:IsA("BasePart") and child.Transparency < 0.9 then
-                        return true
-                    elseif child:IsA("Model") then
-                        for _, p in ipairs(child:GetChildren()) do
-                            if p:IsA("BasePart") and p.Transparency < 0.9 then
-                                return true
-                            end
+                if (cname:find("harden") or cname:find("crystal")) and child.Transparency < 0.8 then
+                    return true
+                end
+            elseif child:IsA("Model") then
+                local cname = child.Name:lower()
+                if cname:find("harden") or cname:find("crystal") then
+                    for _, p in ipairs(child:GetChildren()) do
+                        if p:IsA("BasePart") and p.Transparency < 0.8 then
+                            return true
                         end
                     end
                 end
             end
         end
 
-        -- 4. Playing Animation Tracks (Roar, Harden, Armor, Rage, Block, Gong)
+        -- 4. Active Animation Tracks (Hardening / Crystal / Blocking only)
         local hum = m:FindFirstChild("Humanoid")
         local anim = hum and hum:FindFirstChild("Animator")
         if anim then
@@ -944,10 +910,7 @@ do
             if okTracks and tracks then
                 for _, track in ipairs(tracks) do
                     local tname = track.Name:lower()
-                    if tname:find("harden") or tname:find("armor") or tname:find("block")
-                        or tname:find("roar") or tname:find("rage") or tname:find("shield")
-                        or tname:find("defense") or tname:find("gong") or tname:find("powerup")
-                    then
+                    if tname:find("harden") or tname:find("crystal") or tname:find("block_nape") or tname:find("nape_protect") then
                         return true
                     end
                 end
@@ -972,6 +935,9 @@ do
                 return false
             end
         end
+        if model:GetAttribute("Ally") == true or model:GetAttribute("Protect") == true or model:GetAttribute("Friendly") == true then
+            return false
+        end
 
         local pName = model.Parent and model.Parent.Name
         if pName == "Boss" or pName == "Bosses" or pName == "Shifters" or pName == "Raid" then
@@ -985,55 +951,49 @@ do
             return true
         end
         local titanType = tostring(model:GetAttribute("TitanType") or model:GetAttribute("Type") or ""):lower()
-        if titanType:find("boss") or titanType:find("shifter") or titanType:find("raid") then
+        if titanType == "boss" or titanType == "shifter" or titanType == "raid" or titanType:find("raidboss") then
             return true
         end
 
         local pTag, cs = pcall(function() return game:GetService("CollectionService") end)
         if pTag and cs and (type(cs) == "userdata" or (type(cs) == "table" and type(cs.HasTag) == "function")) then
             local ok, has = pcall(function()
-                return cs:HasTag(model, "Boss") or cs:HasTag(model, "Shifter") or cs:HasTag(model, "RaidBoss") or cs:HasTag(model, "Raid")
+                return cs:HasTag(model, "Boss") or cs:HasTag(model, "Shifter") or cs:HasTag(model, "RaidBoss")
             end)
             if ok and has then
                 return true
             end
         end
 
-        local nameLower = string.lower(model.Name)
-        local bossKeywords = {
-            "boss", "shifter", "eren", "attack", "female", "annie", "armored", "reiner",
-            "beast", "zeke", "colossal", "bertholdt", "jaw", "warhammer", "founder",
-            "falco", "porco", "pieck", "cart", "larva",
-            "tấn công", "thiết giáp", "hình nữ", "quái thú", "đại hình", "hàm", "chiến xa", "búa chiến", "thủy tổ", "quỷ"
-        }
-        for _, kw in ipairs(bossKeywords) do
-            if string.find(nameLower, kw) then
-                return true
-            end
+        -- Titan thông thường trong workspace.Titans khi farm map thường KHÔNG ĐƯỢC coi là Raid Boss!
+        if pName == "Titans" and not v150_10.AutoRaid then
+            return false
         end
 
-        local hum = model:FindFirstChild("Humanoid")
-        if hum and hum.MaxHealth and hum.MaxHealth >= 20000 then
-            return true
+        if v150_10.AutoRaid or (pName and pName ~= "Titans") then
+            local nameLower = string.lower(model.Name)
+            local bossKeywords = {
+                "colossal", "bertholdt", "reiner", "beast", "zeke", "female titan", "armored titan", "attack titan",
+                "warhammer", "founding", "falco", "porco", "pieck", "cart titan", "larva"
+            }
+            for _, kw in ipairs(bossKeywords) do
+                if string.find(nameLower, kw) then
+                    return true
+                end
+            end
         end
 
         return false
     end
 
     function v150_10.GetRaidBoss()
-        local searchContainers = {
+        local raidFolders = {
             v13_8:FindFirstChild("Boss"),
             v13_8:FindFirstChild("Bosses"),
             v13_8:FindFirstChild("Shifters"),
-            v13_8:FindFirstChild("Raid"),
-            v13_8:FindFirstChild("Titans"),
-            v13_8:FindFirstChild("Enemies"),
-            v13_8:FindFirstChild("Spawns"),
-            v13_8:FindFirstChild("Characters"),
-            v13_8:FindFirstChild("Living"),
-            v13_8:FindFirstChild("Entities")
+            v13_8:FindFirstChild("Raid")
         }
-        for _, container in ipairs(searchContainers) do
+        for _, container in ipairs(raidFolders) do
             if container then
                 for _, child in ipairs(container:GetChildren()) do
                     if child:IsA("Model") and v150_10.IsBossModel(child) and v91_2(child) then
@@ -1042,9 +1002,19 @@ do
                 end
             end
         end
-        for _, child in ipairs(v13_8:GetChildren()) do
-            if child:IsA("Model") and v150_10.IsBossModel(child) and v91_2(child) then
-                return child
+        if v150_10.AutoRaid then
+            local pTag, cs = pcall(function() return game:GetService("CollectionService") end)
+            if pTag and cs and type(cs) == "userdata" then
+                for _, tag in ipairs({"Boss", "RaidBoss", "Shifter"}) do
+                    local ok, taggedList = pcall(function() return cs:GetTagged(tag) end)
+                    if ok and taggedList then
+                        for _, tagged in ipairs(taggedList) do
+                            if tagged:IsA("Model") and v150_10.IsBossModel(tagged) and v91_2(tagged) then
+                                return tagged
+                            end
+                        end
+                    end
+                end
             end
         end
         return nil
@@ -1305,23 +1275,14 @@ do
             return false
         end
 
-        local targetModel = nil
-        if typeof(p1) == "Instance" then
-            targetModel = p1:IsA("Model") and p1 or p1:FindFirstAncestorOfClass("Model")
-        elseif type(p1) == "table" and p1[1] ~= nil then
-            local f = p1[1]
-            if typeof(f) == "Instance" then
-                targetModel = f:IsA("Model") and f or f:FindFirstAncestorOfClass("Model")
-            end
-        end
-
-        -- Nhận diện thông minh: Khi Titan đang gồng / hóa cứng thì TUYỆT ĐỐI KHÔNG phóng thương lôi!
-        if targetModel and v150_10.IsTitanHardened and v150_10.IsTitanHardened(targetModel) then
+        -- Trong Raid: Ở màn bảo vệ Titan (Eren), KHÔNG ném thương lôi để dành thương lôi cho màn Boss Raid!
+        if v150_10.IsProtectStageActive and v150_10.IsProtectStageActive() then
             return false
         end
 
+        local isMultiTarget = type(p1) == "table" and #p1 > 1
         local raidBoss = v150_10.GetRaidBoss()
-        if raidBoss and (not v150_10.IsProtectStageActive or not v150_10.IsProtectStageActive()) then
+        if not isMultiTarget and raidBoss and (not v150_10.IsProtectStageActive or not v150_10.IsProtectStageActive()) then
             if v150_10.IsTitanHardened and v150_10.IsTitanHardened(raidBoss) then
                 return false
             end
@@ -1332,28 +1293,18 @@ do
                 p1 = raidBoss
             end
         end
+
         local v2_3 = {}
         local v3_3 = v59_2 and 8 or 1
         if type(p1) == "table" and p1[1] ~= nil then
             for v7, v8 in ipairs(p1) do
                 if typeof(v8) == "Instance" then
-                    if v8:IsA("BasePart") and v8.Name == "Nape" then
-                        table.insert(v2_3, v8)
-                    else
-                        local v11_5 = v8:FindFirstChild("Hitboxes")
-                        local v9_7
-                        if not v11_5 then
-                            v9_7 = nil
-                        else
-                            local v12_5 = v11_5:FindFirstChild("Hit")
-                            if not v12_5 then
-                                v9_7 = nil
-                            else
-                                v9_7 = v12_5:FindFirstChild("Nape")
-                            end
-                        end
-                        if v9_7 then
-                            table.insert(v2_3, v9_7)
+                    -- Bỏ qua nếu titan này đang gồng/hóa cứng, các titan khác vẫn nhận đòn nổ
+                    local isHard = v150_10.IsTitanHardened and v150_10.IsTitanHardened(v8)
+                    if not isHard then
+                        local nape = (v8:IsA("BasePart") and v8.Name == "Nape" and v8) or v89_2(v8)
+                        if nape then
+                            table.insert(v2_3, nape)
                         end
                     end
                     if #v2_3 >= v3_3 then
@@ -1362,24 +1313,28 @@ do
                 end
             end
         elseif typeof(p1) == "Instance" then
-            if p1:IsA("BasePart") and p1.Name == "Nape" then
-                table.insert(v2_3, p1)
-            else
-                local v4_13 = v89_2(p1)
-                if v4_13 then
-                    table.insert(v2_3, v4_13)
+            local isHard = v150_10.IsTitanHardened and v150_10.IsTitanHardened(p1)
+            if not isHard then
+                local nape = (p1:IsA("BasePart") and p1.Name == "Nape" and p1) or v89_2(p1)
+                if nape then
+                    table.insert(v2_3, nape)
                 end
             end
         end
-        if raidBoss and #v2_3 > 0 then
-            local singleNape = v2_3[1]
-            while #v2_3 < v3_3 do
-                table.insert(v2_3, singleNape)
-            end
-        end
+
         if #v2_3 == 0 then
             return false
         end
+
+        -- Khi đánh 1 mục tiêu đơn lẻ (Single Target hoặc Boss), nhân bản 9 điểm nổ để ném 1 thương nổ 9 dame chí mạng
+        -- Khi bật Hit All đánh nhiều con (#v2_3 > 1), GIỮ NGUYÊN tất cả các con riêng biệt để nổ trúng toàn bộ!
+        if #v2_3 == 1 then
+            local singleNape = v2_3[1]
+            while #v2_3 < 9 do
+                table.insert(v2_3, singleNape)
+            end
+        end
+
         local v4_11 = v71_3()
         if not v4_11 then
             return false
@@ -1390,7 +1345,7 @@ do
                 v67_2(v5_16,
                     string.format(
                         "                local host = _G.__CachedHost\n                if type(host) ~= \"table\"\n                    or type(rawget(host, \"Modules\")) ~= \"table\"\n                    or type(rawget(host, \"Cache\")) ~= \"table\"\n                    or not host.Modules.Zones\n                then\n                    host = nil\n                    _G.__CachedHost = nil\n                    for _, obj in ipairs(getgc(true)) do\n                        if type(obj) == \"table\"\n                            and type(rawget(obj, \"Modules\")) == \"table\"\n                            and type(rawget(obj, \"Cache\")) == \"table\"\n                            and rawget(obj, \"Services\")\n                            and obj.Modules.Zones\n                        then\n                            host = obj\n                            _G.__CachedHost = obj\n                            break\n                        end\n                    end\n                end\n\n                if host then\n                    if host.Loadout and host.Loadout.Stats then\n                        host.Loadout.Stats.Crit_Chance = 100\n                        host.Loadout.Stats.Strike = %d\n                    end\n                    local zones = host.Modules.Zones\n                    if zones and not zones.__SymbioteCritHooked and type(zones.Damage_Check) == \"function\" then\n                        zones.__SymbioteCritHooked = true\n                        local origDamageCheck = zones.Damage_Check\n                        zones.Damage_Check = function(p2, p3, p4, p5, p6, p7, p8, p9)\n                            return origDamageCheck(p2, p3, p4, true, p6, p7, p8, p9)\n                        end\n                    end\n                end\n            ",
-                        9))
+                        math.max(#v2_3, 9)))
                 return
             end)
         end
@@ -1416,29 +1371,13 @@ do
             end
         end
         if v7_8 == true then
-            task.wait(0.03)
-            -- Ném 1 thương nổ 9 dame chí mạng (dame thật 100%, áp dụng cho tất cả các map)
-            local targetNapes = {}
-            for _, np in ipairs(v2_3) do
-                if np and np.Parent then
-                    table.insert(targetNapes, np)
-                end
-            end
-            if #targetNapes == 0 and typeof(p1) == "Instance" then
-                local np = (p1:IsA("BasePart") and p1.Name == "Nape" and p1) or v89_2(p1)
-                if np then table.insert(targetNapes, np) end
-            end
-
-            for _, napePart in ipairs(targetNapes) do
+            task.wait(0.02)
+            -- Bán kính 2.5 chuẩn server anticheat (không dùng 3.5 tránh bị server chặn đòn nổ)
+            for _, napePart in ipairs(v2_3) do
                 if napePart and napePart.Parent then
-                    for burst = 1, 9 do
-                        pcall(function()
-                            v68_2:FireServer("Spears", "S_Explode", napePart.Position, 2.5)
-                        end)
-                        if burst < 9 then
-                            task.wait(0.01)
-                        end
-                    end
+                    pcall(function()
+                        v68_2:FireServer("Spears", "S_Explode", napePart.Position, 2.5)
+                    end)
                 end
             end
             v92_2()
@@ -1514,8 +1453,9 @@ do
         if v73_2() then
             return v93_2(p1)
         end
+        local isMultiTarget = type(p1) == "table" and #p1 > 1
         local raidBoss = v150_10.GetRaidBoss()
-        if raidBoss and (not v150_10.IsProtectStageActive or not v150_10.IsProtectStageActive()) then
+        if not isMultiTarget and raidBoss and (not v150_10.IsProtectStageActive or not v150_10.IsProtectStageActive()) then
             if type(p1) == "table" then
                 local filtered = {}
                 for _, item in ipairs(p1) do
@@ -1540,7 +1480,7 @@ do
         end
         local v2_7 = {}
         local v3_6 = {}
-        local v4_2 = 9 -- Chém gáy nổ 9 dame chí mạng thật 100%
+        local v4_2 = v59_2 and 8 or 1
         if type(p1) == "table" then
             for v8_2, v9_2 in ipairs(p1) do
                 if typeof(v9_2) == "Instance" then
@@ -1550,7 +1490,7 @@ do
                     if v12_6 then
                         table.insert(v2_7, v10_4)
                         table.insert(v3_6, v11_5)
-                        if v4_2 <= #v3_6 then
+                        if #v3_6 >= (v59_2 and 8 or 1) then
                             break
                         end
                     end
@@ -1564,9 +1504,11 @@ do
                 table.insert(v3_6, v6_11)
             end
         end
-        if #v3_6 > 0 then
+        -- Khi chém 1 con đơn lẻ: nhân bản 9 dame chí mạng
+        -- Khi bật Hit All: giữ nguyên tất cả các gáy của từng con để chém trúng toàn bộ!
+        if #v3_6 == 1 then
             local singleNape = v3_6[1]
-            while #v3_6 < v4_2 do
+            while #v3_6 < 9 do
                 table.insert(v3_6, singleNape)
             end
         end
@@ -2596,11 +2538,15 @@ do
 
             -- Tắt CanTouch ở toàn bộ bộ phận cơ thể khác để tỉ lệ chém vào người là cực thấp, 100% trúng gáy
             local v11_2 = v8:FindFirstChild("Hitboxes")
-            local v12_5 = v11_2 and v11_2:FindFirstChild("Hit")
-            if v12_5 then
-                for _, part in ipairs(v12_5:GetChildren()) do
-                    if part:IsA("BasePart") and part.Name ~= "Nape" then
-                        part.CanTouch = false
+            if v11_2 then
+                for _, desc in ipairs(v11_2:GetDescendants()) do
+                    if desc:IsA("BasePart") then
+                        if desc.Name == "Nape" then
+                            desc.CanTouch = true
+                            desc.CanCollide = false
+                        else
+                            desc.CanTouch = false
+                        end
                     end
                 end
             end
@@ -4729,51 +4675,34 @@ do
                             local v2_31 = v88_2()
                             local v3_22 = {}
                             local v4_11 = nil
-                            local v5_5 = v20_2 and v20_2.PrimaryPart and v20_2.PrimaryPart.Position
-                            if raidBoss then
-                                local bossNape = v89_2(raidBoss)
-                                if bossNape then
-                                    v4_11 = { nape = bossNape, titan = raidBoss }
-                                end
-                            else
-                                for v9, v10 in ipairs(v2_31) do
-                                    local v12 = v10
-                                    local v11
-                                    if not v12 or not v12.Parent then
+                            local v5_5 = v20_2 and (v20_2.PrimaryPart and v20_2.PrimaryPart.Position or (v20_2:FindFirstChild("HumanoidRootPart") and v20_2.HumanoidRootPart.Position))
+                            for v9, v10 in ipairs(v2_31) do
+                                local v12 = v10
+                                local v11
+                                if not v12 or not v12.Parent then
+                                    v11 = false
+                                else
+                                    local v13_3 = v13_8:FindFirstChild("Titans")
+                                    if not v13_3 then
+                                        v11 = false
+                                    elseif v12.Parent ~= v13_3 then
                                         v11 = false
                                     else
-                                        local v13_3 = v13_8:FindFirstChild("Titans")
-                                        if not v13_3 then
-                                            v11 = false
-                                        elseif v12.Parent ~= v13_3 then
-                                            v11 = false
-                                        else
-                                            v11 = not v90_2(v12)
-                                        end
+                                        v11 = not v90_2(v12)
                                     end
-                                    if v11 then
-                                        local v13_7 = v10:FindFirstChild("Hitboxes")
-                                        local v11_3
-                                        if not v13_7 then
-                                            v11_3 = nil
+                                end
+                                if v11 then
+                                    local v11_3 = v89_2(v10)
+                                    if v11_3 then
+                                        if v10 == v20_2 then
+                                            v4_11 = { nape = v11_3, titan = v10 }
                                         else
-                                            local v14_13 = v13_7:FindFirstChild("Hit")
-                                            if not v14_13 then
-                                                v11_3 = nil
-                                            else
-                                                v11_3 = v14_13:FindFirstChild("Nape")
+                                            local v12_6 = 0
+                                            local root = v10.PrimaryPart or v10:FindFirstChild("HumanoidRootPart") or v10:FindFirstChild("Torso")
+                                            if v5_5 and root then
+                                                v12_6 = ((root.Position - v5_5)).Magnitude
                                             end
-                                        end
-                                        if v11_3 then
-                                            if v10 == v20_2 then
-                                                v4_11 = { nape = v11_3, titan = v10 }
-                                            else
-                                                local v12_6 = 0
-                                                if v5_5 and v10.PrimaryPart then
-                                                    v12_6 = ((v10.PrimaryPart.Position - v5_5)).Magnitude
-                                                end
-                                                table.insert(v3_22, { nape = v11_3, titan = v10, dist = v12_6 })
-                                            end
+                                            table.insert(v3_22, { nape = v11_3, titan = v10, dist = v12_6 })
                                         end
                                     end
                                 end
@@ -4947,7 +4876,13 @@ do
                                                     v14_35 and v14_35:FindFirstChild("Spears") ~= nil or false
                                             end
                                             if v11_38 then
-                                                if v93_2(v10_19) then
+                                                if v150_10.IsProtectStageActive and v150_10.IsProtectStageActive() then
+                                                    if v97_6(v10_19) then
+                                                        task.wait(v57_3 and v7_18 + 8 <= #v6_10 and math.max(v58_2, 0.12) or 0.12)
+                                                    else
+                                                        task.wait(0.08)
+                                                    end
+                                                elseif v93_2(v10_19) then
                                                     task.wait(v57_3 and #v6_10 >= v7_18 + 8 and math.max(v58_2, 0.35) or
                                                         0.35)
                                                 else
@@ -4975,21 +4910,27 @@ do
                             if not v18_4 then
                                 break
                             elseif v73_2() then
-                                local v2_41 = raidBoss or v122_3(v20_2) or v20_2
-                                local v4_14 = v2_41:FindFirstChild("Hitboxes")
-                                local v3_36
-                                if not v4_14 then
-                                    v3_36 = nil
+                                if v150_10.IsProtectStageActive and v150_10.IsProtectStageActive() then
+                                    local v2_43 = v121_4(v20_2) or v20_2
+                                    v97_6(v2_43)
+                                    task.wait(0.08)
                                 else
-                                    local v5_10 = v4_14:FindFirstChild("Hit")
-                                    if not v5_10 then
+                                    local v2_41 = raidBoss or v122_3(v20_2) or v20_2
+                                    local v4_14 = v2_41:FindFirstChild("Hitboxes")
+                                    local v3_36
+                                    if not v4_14 then
                                         v3_36 = nil
                                     else
-                                        v3_36 = v5_10:FindFirstChild("Nape")
+                                        local v5_10 = v4_14:FindFirstChild("Hit")
+                                        if not v5_10 then
+                                            v3_36 = nil
+                                        else
+                                            v3_36 = v5_10:FindFirstChild("Nape")
+                                        end
                                     end
-                                end
-                                if v3_36 and v87_2() then
-                                    v93_2(v2_41)
+                                    if v3_36 and v87_2() then
+                                        v93_2(v2_41)
+                                    end
                                 end
                                 local v4_23 = os.clock()
                                 local v5_12 = v57_3 and math.max(v58_2, 0.45) or 0.5
