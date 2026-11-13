@@ -753,13 +753,24 @@ do
     end
     v88_2 = function()
         local v1 = {}
-        local v2_2 = v13_8:FindFirstChild("Titans")
-        if not v2_2 then
-            return v1
-        end
-        for v6, v7 in ipairs(v2_2:GetChildren()) do
-            if v7:IsA("Model") then
-                table.insert(v1, v7)
+        local visited = {}
+        local containers = {
+            v13_8:FindFirstChild("Titans"),
+            v13_8:FindFirstChild("Enemies"),
+            v13_8:FindFirstChild("Spawns"),
+            v13_8:FindFirstChild("Raid"),
+            v13_8:FindFirstChild("Boss"),
+            v13_8:FindFirstChild("Bosses"),
+            v13_8:FindFirstChild("Shifters")
+        }
+        for _, c in ipairs(containers) do
+            if c then
+                for _, v7 in ipairs(c:GetChildren()) do
+                    if v7:IsA("Model") and not visited[v7] and v91_2(v7) then
+                        visited[v7] = true
+                        table.insert(v1, v7)
+                    end
+                end
             end
         end
         return v1
@@ -802,6 +813,19 @@ do
         if not p1 or not p1.Parent then
             return false
         end
+        -- Bỏ qua Titan đồng minh có thuộc tính Ally / Protect / Friendly
+        if p1:GetAttribute("Ally") == true or p1:GetAttribute("Protect") == true or p1:GetAttribute("Friendly") == true or p1:GetAttribute("IsAlly") == true then
+            return false
+        end
+        local mname = string.lower(p1.Name)
+        -- Trong màn 1 (Bảo vệ Eren), Eren là đồng minh nên không đánh.
+        -- Nhưng khi qua màn Boss (đánh Bot Eren / Shifters), IsProtectStageActive() là false thì ĐƯỢC PHÉP ĐÁNH!
+        if v150_10.IsProtectStageActive and v150_10.IsProtectStageActive() then
+            if mname:find("eren") or mname:find("protect") or mname:find("friendly") then
+                return false
+            end
+        end
+
         if v150_10 and v150_10.IsBossModel and v150_10.IsBossModel(p1) then
             return not v90_2(p1)
         end
@@ -973,8 +997,9 @@ do
         if v150_10.AutoRaid or (pName and pName ~= "Titans") then
             local nameLower = string.lower(model.Name)
             local bossKeywords = {
-                "colossal", "bertholdt", "reiner", "beast", "zeke", "female titan", "armored titan", "attack titan",
-                "warhammer", "founding", "falco", "porco", "pieck", "cart titan", "larva"
+                "eren", "attack titan", "rogue", "colossal", "bertholdt", "reiner", "armored", "armoured",
+                "beast", "zeke", "female", "annie", "warhammer", "founding", "jaw", "cart",
+                "falco", "porco", "pieck", "larva", "shifter", "crawler", "boss"
             }
             for _, kw in ipairs(bossKeywords) do
                 if string.find(nameLower, kw) then
@@ -1275,23 +1300,70 @@ do
             return false
         end
 
-        -- Trong Raid: Ở màn bảo vệ Titan (Eren), KHÔNG ném thương lôi để dành thương lôi cho màn Boss Raid!
-        if v150_10.IsProtectStageActive and v150_10.IsProtectStageActive() then
+
+        -- 3. Bỏ qua khi Titan đang gồng (Hardening)
+        local function checkHardening(target)
+            if not target then return false end
+            local m = (typeof(target) == "Instance" and (target:IsA("Model") and target or target:FindFirstAncestorOfClass("Model")))
+            if not m then return false end
+
+            -- Thuộc tính trên Model
+            if m:GetAttribute("Hardened") == true
+                or m:GetAttribute("Hardening") == true
+                or m:GetAttribute("Crystal") == true
+                or m:GetAttribute("IsHardened") == true
+                or m:GetAttribute("IsHardening") == true
+                or m:GetAttribute("Blocking") == true
+            then
+                return true
+            end
+
+            -- Thuộc tính trên Gáy
+            local nape = v89_2(m)
+            if nape and nape:IsA("BasePart") then
+                if nape:GetAttribute("Hardened") == true
+                    or nape:GetAttribute("Protected") == true
+                    or nape:GetAttribute("Crystallized") == true
+                then
+                    return true
+                end
+            end
+
+            -- Animation tên là harden / crystal đang chạy
+            local hum = m:FindFirstChildOfClass("Humanoid") or m:FindFirstChild("Humanoid")
+            local anim = hum and (hum:FindFirstChildOfClass("Animator") or hum:FindFirstChild("Animator"))
+            if anim and type(anim.GetPlayingAnimationTracks) == "function" then
+                local okTracks, tracks = pcall(anim.GetPlayingAnimationTracks, anim)
+                if okTracks and tracks then
+                    for _, track in ipairs(tracks) do
+                        local tname = string.lower(tostring(track.Name))
+                        local trackAnim = track.Animation
+                        local aName = trackAnim and string.lower(tostring(trackAnim.Name)) or ""
+                        if tname:find("harden") or tname:find("crystal") or aName:find("harden") or aName:find("crystal") then
+                            return true
+                        end
+                    end
+                end
+            end
+
+            if v150_10 and v150_10.IsTitanHardened and v150_10.IsTitanHardened(m) then
+                return true
+            end
+
             return false
         end
 
         local isMultiTarget = type(p1) == "table" and #p1 > 1
         local raidBoss = v150_10.GetRaidBoss()
         if not isMultiTarget and raidBoss and (not v150_10.IsProtectStageActive or not v150_10.IsProtectStageActive()) then
-            if v150_10.IsTitanHardened and v150_10.IsTitanHardened(raidBoss) then
+            if checkHardening(raidBoss) then
                 return false
             end
             local bossNape = v89_2(raidBoss)
-            if bossNape then
-                p1 = bossNape
-            else
-                p1 = raidBoss
+            if not bossNape then
+                return false -- 1. Không tìm thấy Gáy thì return false ngay lập tức, không fallback vào thân!
             end
+            p1 = bossNape
         end
 
         local v2_3 = {}
@@ -1299,11 +1371,10 @@ do
         if type(p1) == "table" and p1[1] ~= nil then
             for v7, v8 in ipairs(p1) do
                 if typeof(v8) == "Instance" then
-                    -- Bỏ qua nếu titan này đang gồng/hóa cứng, các titan khác vẫn nhận đòn nổ
-                    local isHard = v150_10.IsTitanHardened and v150_10.IsTitanHardened(v8)
-                    if not isHard then
-                        local nape = (v8:IsA("BasePart") and v8.Name == "Nape" and v8) or v89_2(v8)
-                        if nape then
+                    local m = v8:IsA("Model") and v8 or v8:FindFirstAncestorOfClass("Model")
+                    if not checkHardening(m or v8) then
+                        local nape = (v8:IsA("BasePart") and v8.Name == "Nape" and v8) or (m and v89_2(m))
+                        if nape and nape:IsA("BasePart") and nape.Name == "Nape" then
                             table.insert(v2_3, nape)
                         end
                     end
@@ -1313,39 +1384,68 @@ do
                 end
             end
         elseif typeof(p1) == "Instance" then
-            local isHard = v150_10.IsTitanHardened and v150_10.IsTitanHardened(p1)
-            if not isHard then
-                local nape = (p1:IsA("BasePart") and p1.Name == "Nape" and p1) or v89_2(p1)
-                if nape then
-                    table.insert(v2_3, nape)
-                end
+            local m = p1:IsA("Model") and p1 or p1:FindFirstAncestorOfClass("Model")
+            if checkHardening(m or p1) then
+                return false
             end
+            local nape = (p1:IsA("BasePart") and p1.Name == "Nape" and p1) or (m and v89_2(m))
+            if not nape or not nape:IsA("BasePart") or nape.Name ~= "Nape" then
+                return false -- 1. Không tìm thấy Gáy thì return false ngay lập tức, không fallback!
+            end
+            table.insert(v2_3, nape)
         end
 
         if #v2_3 == 0 then
             return false
         end
 
-        -- Khi đánh 1 mục tiêu đơn lẻ (Single Target hoặc Boss), nhân bản 9 điểm nổ để ném 1 thương nổ 9 dame chí mạng
-        -- Khi bật Hit All đánh nhiều con (#v2_3 > 1), GIỮ NGUYÊN tất cả các con riêng biệt để nổ trúng toàn bộ!
-        if #v2_3 == 1 then
-            local singleNape = v2_3[1]
-            while #v2_3 < 9 do
-                table.insert(v2_3, singleNape)
-            end
-        end
-
         local v4_11 = v71_3()
         if not v4_11 then
             return false
         end
-        local v5_16 = v4_11:FindFirstChild("Actor") or v66 and v66()[1]
+        local v5_16 = v4_11:FindFirstChild("Actor") or (v66 and v66()[1])
         if v5_16 and v67_2 then
             pcall(function()
                 v67_2(v5_16,
-                    string.format(
-                        "                local host = _G.__CachedHost\n                if type(host) ~= \"table\"\n                    or type(rawget(host, \"Modules\")) ~= \"table\"\n                    or type(rawget(host, \"Cache\")) ~= \"table\"\n                    or not host.Modules.Zones\n                then\n                    host = nil\n                    _G.__CachedHost = nil\n                    for _, obj in ipairs(getgc(true)) do\n                        if type(obj) == \"table\"\n                            and type(rawget(obj, \"Modules\")) == \"table\"\n                            and type(rawget(obj, \"Cache\")) == \"table\"\n                            and rawget(obj, \"Services\")\n                            and obj.Modules.Zones\n                        then\n                            host = obj\n                            _G.__CachedHost = obj\n                            break\n                        end\n                    end\n                end\n\n                if host then\n                    if host.Loadout and host.Loadout.Stats then\n                        host.Loadout.Stats.Crit_Chance = 100\n                        host.Loadout.Stats.Strike = %d\n                    end\n                    local zones = host.Modules.Zones\n                    if zones and not zones.__SymbioteCritHooked and type(zones.Damage_Check) == \"function\" then\n                        zones.__SymbioteCritHooked = true\n                        local origDamageCheck = zones.Damage_Check\n                        zones.Damage_Check = function(p2, p3, p4, p5, p6, p7, p8, p9)\n                            return origDamageCheck(p2, p3, p4, true, p6, p7, p8, p9)\n                        end\n                    end\n                end\n            ",
-                        math.max(#v2_3, 9)))
+                    string.format([[
+                        local host = _G.__CachedHost
+                        if type(host) ~= "table"
+                            or type(rawget(host, "Modules")) ~= "table"
+                            or type(rawget(host, "Cache")) ~= "table"
+                            or not host.Modules.Zones
+                        then
+                            host = nil
+                            _G.__CachedHost = nil
+                            for _, obj in ipairs(getgc(true)) do
+                                if type(obj) == "table"
+                                    and type(rawget(obj, "Modules")) == "table"
+                                    and type(rawget(obj, "Cache")) == "table"
+                                    and rawget(obj, "Services")
+                                    and obj.Modules.Zones
+                                then
+                                    host = obj
+                                    _G.__CachedHost = obj
+                                    break
+                                end
+                            end
+                        end
+
+                        if host then
+                            if host.Loadout and host.Loadout.Stats then
+                                host.Loadout.Stats.Crit_Chance = 100
+                                host.Loadout.Stats.Strike = %d
+                            end
+                            local zones = host.Modules.Zones
+                            if zones and not zones.__SymbioteCritHooked and type(zones.Damage_Check) == "function" then
+                                zones.__SymbioteCritHooked = true
+                                local origDamageCheck = zones.Damage_Check
+                                zones.Damage_Check = function(p2, p3, p4, p5, p6, p7, p8, p9)
+                                    return origDamageCheck(p2, p3, p4, true, p6, p7, p8, p9)
+                                end
+                            end
+                        end
+                    ]],
+                    math.max(#v2_3, 9)))
                 return
             end)
         end
@@ -1372,12 +1472,37 @@ do
         end
         if v7_8 == true then
             task.wait(0.02)
-            -- Bán kính 2.5 chuẩn server anticheat (không dùng 3.5 tránh bị server chặn đòn nổ)
-            for _, napePart in ipairs(v2_3) do
-                if napePart and napePart.Parent then
-                    pcall(function()
-                        v68_2:FireServer("Spears", "S_Explode", napePart.Position, 2.5)
-                    end)
+            -- 2. Kỹ thuật 1 Thương - 9 Dame (Batching & Micro-offset)
+            if #v2_3 == 1 then
+                local singleNape = v2_3[1]
+                if singleNape and singleNape.Parent then
+                    local basePos = singleNape.Position
+                    for i = 1, 9 do
+                        local microOffset = Vector3.new(
+                            math.random(-100, 100) / 1000,
+                            math.random(-100, 100) / 1000,
+                            math.random(-100, 100) / 1000
+                        )
+                        pcall(function()
+                            v68_2:FireServer("Spears", "S_Explode", basePos + microOffset, 2.5)
+                        end)
+                        task.wait(0.015)
+                    end
+                end
+            else
+                for _, napePart in ipairs(v2_3) do
+                    if napePart and napePart.Parent then
+                        local basePos = napePart.Position
+                        local microOffset = Vector3.new(
+                            math.random(-100, 100) / 1000,
+                            math.random(-100, 100) / 1000,
+                            math.random(-100, 100) / 1000
+                        )
+                        pcall(function()
+                            v68_2:FireServer("Spears", "S_Explode", basePos + microOffset, 2.5)
+                        end)
+                        task.wait(0.015)
+                    end
                 end
             end
             v92_2()
@@ -1453,31 +1578,71 @@ do
         if v73_2() then
             return v93_2(p1)
         end
+
+        -- 3. Bỏ qua khi Titan đang gồng (Hardening)
+        local function checkHardening(target)
+            if not target then return false end
+            local m = (typeof(target) == "Instance" and (target:IsA("Model") and target or target:FindFirstAncestorOfClass("Model")))
+            if not m then return false end
+
+            if m:GetAttribute("Hardened") == true
+                or m:GetAttribute("Hardening") == true
+                or m:GetAttribute("Crystal") == true
+                or m:GetAttribute("IsHardened") == true
+                or m:GetAttribute("IsHardening") == true
+                or m:GetAttribute("Blocking") == true
+            then
+                return true
+            end
+
+            local nape = v89_2(m)
+            if nape and nape:IsA("BasePart") then
+                if nape:GetAttribute("Hardened") == true
+                    or nape:GetAttribute("Protected") == true
+                    or nape:GetAttribute("Crystallized") == true
+                then
+                    return true
+                end
+            end
+
+            local hum = m:FindFirstChildOfClass("Humanoid") or m:FindFirstChild("Humanoid")
+            local anim = hum and (hum:FindFirstChildOfClass("Animator") or hum:FindFirstChild("Animator"))
+            if anim and type(anim.GetPlayingAnimationTracks) == "function" then
+                local okTracks, tracks = pcall(anim.GetPlayingAnimationTracks, anim)
+                if okTracks and tracks then
+                    for _, track in ipairs(tracks) do
+                        local tname = string.lower(tostring(track.Name))
+                        local trackAnim = track.Animation
+                        local aName = trackAnim and string.lower(tostring(trackAnim.Name)) or ""
+                        if tname:find("harden") or tname:find("crystal") or aName:find("harden") or aName:find("crystal") then
+                            return true
+                        end
+                    end
+                end
+            end
+
+            if v150_10 and v150_10.IsTitanHardened and v150_10.IsTitanHardened(m) then
+                return true
+            end
+
+            return false
+        end
+
         local isMultiTarget = type(p1) == "table" and #p1 > 1
         local raidBoss = v150_10.GetRaidBoss()
         if not isMultiTarget and raidBoss and (not v150_10.IsProtectStageActive or not v150_10.IsProtectStageActive()) then
-            if type(p1) == "table" then
-                local filtered = {}
-                for _, item in ipairs(p1) do
-                    local m = (typeof(item) == "Instance" and (item:IsA("Model") and item or item:FindFirstAncestorOfClass("Model")))
-                    if m == raidBoss then
-                        table.insert(filtered, item)
-                    end
-                end
-                if #filtered > 0 then
-                    p1 = filtered
-                else
-                    p1 = raidBoss
-                end
-            elseif typeof(p1) == "Instance" then
-                local m = p1:IsA("Model") and p1 or p1:FindFirstAncestorOfClass("Model")
-                if m ~= raidBoss then
-                    p1 = raidBoss
-                end
+            if checkHardening(raidBoss) then
+                return false
             end
+            local bossNape = v89_2(raidBoss)
+            if not bossNape then
+                return false -- 1. Không tìm thấy Gáy thì return false ngay lập tức, không fallback vào thân!
+            end
+            p1 = bossNape
         else
             raidBoss = nil
         end
+
         local v2_7 = {}
         local v3_6 = {}
         local v4_2 = v59_2 and 8 or 1
@@ -1485,25 +1650,38 @@ do
             for v8_2, v9_2 in ipairs(p1) do
                 if typeof(v9_2) == "Instance" then
                     local v10_4 = v9_2:IsA("Model") and v9_2 or v9_2:FindFirstAncestorOfClass("Model")
-                    local v11_5 = (v9_2:IsA("BasePart") and v9_2.Name == "Nape" and v9_2) or (v10_4 and v89_2(v10_4))
-                    local v12_6 = v10_4 and v11_5 and v91_2(v10_4)
-                    if v12_6 then
-                        table.insert(v2_7, v10_4)
-                        table.insert(v3_6, v11_5)
-                        if #v3_6 >= (v59_2 and 8 or 1) then
-                            break
+                    if v10_4 and not checkHardening(v10_4) then
+                        local v11_5 = (v9_2:IsA("BasePart") and v9_2.Name == "Nape" and v9_2) or (v10_4 and v89_2(v10_4))
+                        local v12_6 = v10_4 and v11_5 and v91_2(v10_4)
+                        if v12_6 and v11_5:IsA("BasePart") and v11_5.Name == "Nape" then
+                            table.insert(v2_7, v10_4)
+                            table.insert(v3_6, v11_5)
+                            if #v3_6 >= (v59_2 and 8 or 1) then
+                                break
+                            end
                         end
                     end
                 end
             end
         elseif typeof(p1) == "Instance" then
             local v5_8 = p1:IsA("Model") and p1 or p1:FindFirstAncestorOfClass("Model")
+            if checkHardening(v5_8 or p1) then
+                return false
+            end
             local v6_11 = (p1:IsA("BasePart") and p1.Name == "Nape" and p1) or (v5_8 and v89_2(v5_8))
-            if v5_8 and v6_11 and v91_2(v5_8) then
+            if not v6_11 or not v6_11:IsA("BasePart") or v6_11.Name ~= "Nape" then
+                return false -- 1. Không tìm thấy Gáy thì return false ngay lập tức, không fallback!
+            end
+            if v5_8 and v91_2(v5_8) then
                 table.insert(v2_7, v5_8)
                 table.insert(v3_6, v6_11)
             end
         end
+
+        if #v3_6 == 0 then
+            return false
+        end
+
         -- Khi chém 1 con đơn lẻ: nhân bản 9 dame chí mạng
         -- Khi bật Hit All: giữ nguyên tất cả các gáy của từng con để chém trúng toàn bộ!
         if #v3_6 == 1 then
@@ -1512,9 +1690,7 @@ do
                 table.insert(v3_6, singleNape)
             end
         end
-        if #v3_6 == 0 then
-            return false
-        end
+
         local v5_13 = v71_3()
         if not v5_13 then
             return false
@@ -2733,46 +2909,55 @@ do
         return v3_2 - v2
     end
     v121_4 = function(p1)
-        local v2 = v13_8:FindFirstChild("Titans")
-        if not v2 then
-            return nil
-        end
+        local containers = {
+            v13_8:FindFirstChild("Titans"),
+            v13_8:FindFirstChild("Enemies"),
+            v13_8:FindFirstChild("Spawns"),
+            v13_8:FindFirstChild("Raid"),
+            v13_8:FindFirstChild("Boss"),
+            v13_8:FindFirstChild("Bosses"),
+            v13_8:FindFirstChild("Shifters")
+        }
         local v3_6 = nil
         local v4_2 = -math.huge
-        for v8, v9 in ipairs(v2:GetChildren()) do
-            if v9:IsA("Model") and v9 ~= p1 and v91_2(v9) then
-                local v10_5 = v120_4(v9)
-                if v10_5 > v4_2 then
-                    v4_2 = v10_5
-                    v3_6 = v9
+        for _, c in ipairs(containers) do
+            if c then
+                for _, v9 in ipairs(c:GetChildren()) do
+                    if v9:IsA("Model") and v9 ~= p1 and v91_2(v9) then
+                        local v10_5 = v120_4(v9)
+                        if v10_5 > v4_2 then
+                            v4_2 = v10_5
+                            v3_6 = v9
+                        end
+                    end
                 end
             end
         end
         return v3_6
     end
     v122_3 = function(p1)
-        local v2 = v13_8:FindFirstChild("Titans")
-        if not v2 then
-            return nil
-        end
+        local containers = {
+            v13_8:FindFirstChild("Titans"),
+            v13_8:FindFirstChild("Enemies"),
+            v13_8:FindFirstChild("Spawns"),
+            v13_8:FindFirstChild("Raid"),
+            v13_8:FindFirstChild("Boss"),
+            v13_8:FindFirstChild("Bosses"),
+            v13_8:FindFirstChild("Shifters")
+        }
         local v3_6 = {}
-        for v7, v8 in ipairs(v2:GetChildren()) do
-            local v9_2 = v8:IsA("Model") and v8 ~= p1 and v91_2(v8)
-            if v9_2 then
-                local v11_4 = v8:FindFirstChild("Hitboxes")
-                if not v11_4 then
-                    v9_2 = nil
-                else
-                    local v12_7 = v11_4:FindFirstChild("Hit")
-                    if not v12_7 then
-                        v9_2 = nil
-                    else
-                        v9_2 = v12_7:FindFirstChild("Nape")
+        local visited = {}
+        for _, c in ipairs(containers) do
+            if c then
+                for _, v8 in ipairs(c:GetChildren()) do
+                    if v8:IsA("Model") and v8 ~= p1 and not visited[v8] and v91_2(v8) then
+                        visited[v8] = true
+                        local nape = v89_2(v8)
+                        if nape then
+                            table.insert(v3_6, v8)
+                        end
                     end
                 end
-            end
-            if v9_2 then
-                table.insert(v3_6, v8)
             end
         end
         if #v3_6 == 0 then
@@ -3086,6 +3271,10 @@ do
             Inventory = true,
             Profile = true,
             Party = true,
+            S_Party = true,
+            Trade = true,
+            Trading = true,
+            S_Trading = true,
             Quest = true,
             Quests = true,
             Raid = true,
@@ -4678,18 +4867,9 @@ do
                             local v5_5 = v20_2 and (v20_2.PrimaryPart and v20_2.PrimaryPart.Position or (v20_2:FindFirstChild("HumanoidRootPart") and v20_2.HumanoidRootPart.Position))
                             for v9, v10 in ipairs(v2_31) do
                                 local v12 = v10
-                                local v11
-                                if not v12 or not v12.Parent then
-                                    v11 = false
-                                else
-                                    local v13_3 = v13_8:FindFirstChild("Titans")
-                                    if not v13_3 then
-                                        v11 = false
-                                    elseif v12.Parent ~= v13_3 then
-                                        v11 = false
-                                    else
-                                        v11 = not v90_2(v12)
-                                    end
+                                local v11 = false
+                                if v12 and v12.Parent and v91_2(v12) then
+                                    v11 = true
                                 end
                                 if v11 then
                                     local v11_3 = v89_2(v10)
@@ -4876,15 +5056,8 @@ do
                                                     v14_35 and v14_35:FindFirstChild("Spears") ~= nil or false
                                             end
                                             if v11_38 then
-                                                if v150_10.IsProtectStageActive and v150_10.IsProtectStageActive() then
-                                                    if v97_6(v10_19) then
-                                                        task.wait(v57_3 and v7_18 + 8 <= #v6_10 and math.max(v58_2, 0.12) or 0.12)
-                                                    else
-                                                        task.wait(0.08)
-                                                    end
-                                                elseif v93_2(v10_19) then
-                                                    task.wait(v57_3 and #v6_10 >= v7_18 + 8 and math.max(v58_2, 0.35) or
-                                                        0.35)
+                                                if v93_2(v10_19) then
+                                                    task.wait(v57_3 and #v6_10 >= v7_18 + 8 and math.max(v58_2, 0.35) or 0.35)
                                                 else
                                                     task.wait(0.1)
                                                 end
@@ -4910,27 +5083,10 @@ do
                             if not v18_4 then
                                 break
                             elseif v73_2() then
-                                if v150_10.IsProtectStageActive and v150_10.IsProtectStageActive() then
-                                    local v2_43 = v121_4(v20_2) or v20_2
-                                    v97_6(v2_43)
-                                    task.wait(0.08)
-                                else
-                                    local v2_41 = raidBoss or v122_3(v20_2) or v20_2
-                                    local v4_14 = v2_41:FindFirstChild("Hitboxes")
-                                    local v3_36
-                                    if not v4_14 then
-                                        v3_36 = nil
-                                    else
-                                        local v5_10 = v4_14:FindFirstChild("Hit")
-                                        if not v5_10 then
-                                            v3_36 = nil
-                                        else
-                                            v3_36 = v5_10:FindFirstChild("Nape")
-                                        end
-                                    end
-                                    if v3_36 and v87_2() then
-                                        v93_2(v2_41)
-                                    end
+                                local v2_41 = raidBoss or v122_3(v20_2) or v20_2
+                                local v3_36 = v2_41 and (v89_2(v2_41) or (v2_41:FindFirstChild("Hitboxes") and v2_41.Hitboxes:FindFirstChild("Hit") and v2_41.Hitboxes.Hit:FindFirstChild("Nape")))
+                                if v3_36 and v87_2() then
+                                    v93_2(v2_41)
                                 end
                                 local v4_23 = os.clock()
                                 local v5_12 = v57_3 and math.max(v58_2, 0.45) or 0.5
@@ -8193,15 +8349,17 @@ do
 
         function v150_10.GetDataHost()
             local host = _G.__CachedDataHost or _G.__CachedCustHost or _G.__CachedHost
-            if type(host) == "table" and type(rawget(host, "Cache")) == "table" and type(rawget(host.Cache, "Data")) == "table" then
+            if type(host) == "table" and (type(rawget(host, "Cache")) == "table" or type(rawget(host, "Modules")) == "table") then
                 return host
             end
             if type(getgc) == "function" then
                 pcall(function()
                     for _, v in ipairs(getgc(true)) do
-                        if type(v) == "table" and type(rawget(v, "Cache")) == "table" then
+                        if type(v) == "table" then
                             local cache = rawget(v, "Cache")
-                            if type(rawget(cache, "Data")) == "table" then
+                            local mods = rawget(v, "Modules")
+                            if (type(cache) == "table" and type(rawget(cache, "Data")) == "table")
+                                or (type(mods) == "table" and (mods.Update or mods.Zones or mods.Customisation)) then
                                 _G.__CachedDataHost = v
                                 host = v
                                 return
@@ -8211,6 +8369,25 @@ do
                 end)
             end
             return host
+        end
+
+        function v150_10.GetGameDataCache()
+            local host = v150_10.GetDataHost()
+            local data = nil
+            if type(host) == "table" then
+                local mods = rawget(host, "Modules")
+                local upd = type(mods) == "table" and rawget(mods, "Update")
+                if type(upd) == "table" and type(upd.Get_Data) == "function" then
+                    local okD, d = pcall(upd.Get_Data, host, true)
+                    if okD and type(d) == "table" then
+                        data = d
+                    end
+                end
+                if not data and type(rawget(host, "Cache")) == "table" then
+                    data = rawget(host.Cache, "Data") or host.Cache
+                end
+            end
+            return data, host
         end
 
         v150_10.ShadowBanData = {
@@ -8226,298 +8403,187 @@ do
             local detected = false
             local reason = ""
 
-            local BAD_PHRASES = {
-                "exploiter",
-                "player is an exploiter",
-                "you are an exploiter",
-                "an exploiter",
-                "blacklisted",
-                "blacklist",
-                "shadowban",
-                "shadow ban",
-                "shadow-ban",
-                "trading disabled",
-                "trade locked",
-                "trade restricted",
-                "cannot trade",
-                "trade ban",
-                "trading ban",
-                "bị khóa giao dịch",
-                "bị cấm giao dịch",
-                "không thể giao dịch",
-                "cannot join",
-                "failed to join",
-                "party restricted",
-                "party disabled",
-                "matchmaking restricted",
-                "matchmaking disabled",
-                "cannot play with friends",
-                "session restricted",
-                "rewards disabled",
-                "drops disabled",
-                "bị cấm nhận phần thưởng",
-                "vô hiệu hóa phần thưởng",
-                "suspicious activity",
-                "hành vi bất thường",
-                "gian lận",
-                "anti-cheat",
-                "anticheat violation",
-                "security violation"
-            }
-
             pcall(function()
-                -- 1. Check intercepted Server Moderation errors (e.g. from joining/trading/party)
+                -- 1. Kiểm tra Lỗi Trừng phạt / Moderation đã bị chặn từ Hook trước đó (nếu có)
                 if v150_10.LastModerationError and tostring(v150_10.LastModerationError) ~= "" then
                     detected = true
-                    reason = "Lỗi máy chủ ghi nhận: \"" .. tostring(v150_10.LastModerationError) .. "\""
+                    reason = "Máy chủ phản hồi vi phạm: \"" .. tostring(v150_10.LastModerationError) .. "\""
                     return
                 end
 
-                -- 2. Check Player Attributes (All Attributes dynamically)
-                if lp and type(lp.GetAttributes) == "function" then
-                    for name, val in pairs(lp:GetAttributes()) do
-                        local n = string.lower(tostring(name))
-                        local v = tostring(val):lower()
+                -- 2. GỬI LỆNH TRỰC TIẾP VÀO PARTY HOẶC TRADE (Server Remote Probe)
+                -- Gửi lệnh vào một Party hoặc Trade. Nếu Server trả về một bảng có chứa chữ Error hoặc Success = false -> Bạn bị ban!
+                if v69_2 then
+                    local probeCalls = {
+                        { "Party", "Check" },
+                        { "Party", "Status" },
+                        { "Party", "Create" },
+                        { "S_Party", "Check" },
+                        { "Trading", "Check" },
+                        { "Trading", "Status" },
+                        { "Trade", "Check" },
+                        { "Trade", "Status" },
+                        { "S_Trading", "Check" },
+                        { "S_Trading", "Status" }
+                    }
 
-                        if (n:find("ban") or n:find("shadow") or n:find("blacklist") or n:find("exploit")
-                            or n:find("flag") or n:find("restrict") or n:find("strike") or n:find("violation")
-                            or n:find("cheat") or n:find("sanction") or n:find("penalty")) then
-                            if val == true or (type(val) == "number" and val > 0)
-                                or (type(val) == "string" and val ~= "" and val ~= "false" and val ~= "0" and val ~= "none") then
-                                detected = true
-                                reason = "Player Attribute: " .. name .. " = " .. tostring(val)
-                                return
-                            end
-                        end
+                    for _, args in ipairs(probeCalls) do
+                        local res = nil
+                        local ok = pcall(function()
+                            res = v69_2:InvokeServer(unpack(args))
+                        end)
 
-                        if (n:find("trade") or n:find("party") or n:find("join") or n:find("matchmake")
-                            or n:find("multiplayer") or n:find("reward") or n:find("drop")) then
-                            if val == false or v == "disabled" or v == "blocked" or v == "restricted" then
-                                detected = true
-                                reason = "Quyền Player bị khóa: " .. name .. " = " .. tostring(val)
-                                return
-                            end
-                        end
-
-                        if (n:find("multi") or n:find("drop") or n:find("luck") or n:find("gold") or n:find("exp")) then
-                            if type(val) == "number" and val == 0 then
-                                detected = true
-                                reason = "Hệ số Player bị ép về 0: " .. name .. " = 0"
-                                return
-                            end
-                        end
-                    end
-                end
-
-                -- 3. Check Character Attributes
-                local char = lp and lp.Character
-                if char and type(char.GetAttributes) == "function" then
-                    for name, val in pairs(char:GetAttributes()) do
-                        local n = string.lower(tostring(name))
-                        if (n:find("ban") or n:find("shadow") or n:find("blacklist") or n:find("exploit")
-                            or n:find("flag") or n:find("restrict") or n:find("cheat")) then
-                            if val == true or (type(val) == "number" and val > 0) or (type(val) == "string" and val ~= "" and val ~= "false") then
-                                detected = true
-                                reason = "Character Attribute: " .. name .. " = " .. tostring(val)
-                                return
-                            end
-                        end
-                    end
-                end
-
-                -- 4. Check Value Objects inside Player & Subfolders
-                if lp then
-                    for _, child in ipairs(lp:GetChildren()) do
-                        if child:IsA("ValueBase") then
-                            local cn = string.lower(child.Name)
-                            local cv = tostring(child.Value):lower()
-                            if (cn:find("ban") or cn:find("shadow") or cn:find("blacklist") or cn:find("exploit")
-                                or cn:find("flag") or cn:find("restrict")) then
-                                if child.Value == true or (type(child.Value) == "number" and child.Value > 0) or cv:find("ban") or cv:find("exploit") then
+                        if ok and res ~= nil then
+                            if type(res) == "table" then
+                                -- Nếu Server trả về một bảng có Success = false -> Bị ban!
+                                if res.Success == false or res.success == false then
                                     detected = true
-                                    reason = "Player Value: " .. child.Name .. " = " .. tostring(child.Value)
+                                    local detailErr = tostring(res.Error or res.error or res.Reason or res.reason or res.Message or "Bị máy chủ cấm/từ chối quyền")
+                                    reason = string.format("Server %s phản hồi: Success = false (%s)", args[1], detailErr)
+                                    return
+                                end
+
+                                -- Nếu Server trả về một bảng có chứa Error -> Bị ban!
+                                if res.Error ~= nil and res.Error ~= false and tostring(res.Error) ~= "" then
+                                    detected = true
+                                    reason = string.format("Server %s trả về Error: \"%s\"", args[1], tostring(res.Error))
+                                    return
+                                end
+                                if res.error ~= nil and res.error ~= false and tostring(res.error) ~= "" then
+                                    detected = true
+                                    reason = string.format("Server %s trả về Error: \"%s\"", args[1], tostring(res.error))
+                                    return
+                                end
+
+                                -- Quét các key hoặc giá trị text trong bảng nếu có chứa chữ error / ban / exploit / restrict
+                                for k, v in pairs(res) do
+                                    local kn = string.lower(tostring(k))
+                                    local vn = type(v) == "string" and string.lower(v) or ""
+                                    if kn:find("error") or vn:find("error") or vn:find("banned") or vn:find("exploiter") or vn:find("restricted") then
+                                        detected = true
+                                        reason = string.format("Server %s phát hiện cờ lỗi: %s = %s", args[1], tostring(k), tostring(v))
+                                        return
+                                    end
+                                end
+                            elseif type(res) == "string" then
+                                local rl = string.lower(res)
+                                if rl:find("error") or rl:find("ban") or rl:find("exploit") or rl:find("restrict") or rl:find("fail") then
+                                    detected = true
+                                    reason = string.format("Server %s trả về chuỗi lỗi: \"%s\"", args[1], res)
                                     return
                                 end
                             end
-                        elseif child:IsA("Folder") or child:IsA("Configuration") then
-                            for _, sub in ipairs(child:GetChildren()) do
-                                if sub:IsA("ValueBase") then
-                                    local sn = string.lower(sub.Name)
-                                    local sv = tostring(sub.Value):lower()
-                                    if (sn:find("ban") or sn:find("shadow") or sn:find("blacklist") or sn:find("exploit")
-                                        or sn:find("flag") or sn:find("restrict")) then
-                                        if sub.Value == true or (type(sub.Value) == "number" and sub.Value > 0) or sv:find("ban") or sv:find("exploit") then
-                                            detected = true
-                                            reason = "Player (" .. child.Name .. "): " .. sub.Name .. " = " .. tostring(sub.Value)
-                                            return
-                                        end
-                                    end
-                                end
-                            end
                         end
                     end
                 end
 
-                -- 5. Deep Scan Game Cache Data & Cache tables (Recursive)
-                local host = v150_10.GetDataHost()
-                if host and type(host.Cache) == "table" then
-                    local function scanTbl(tbl, depth, path)
-                        if not tbl or type(tbl) ~= "table" or (depth or 0) > 4 then return false end
+                -- 3. ĐỌC TRỰC TIẾP VÀO DATA CACHE CỦA GAME (Direct Game Data Cache Inspection)
+                -- Khi bị Shadow Ban, server gửi data về máy nhưng đính kèm cờ ẩn: IsBanned, IsExploiter, CanTrade = false
+                local data, host = v150_10.GetGameDataCache()
+
+                local function checkDataFlags(tbl, scopeName)
+                    if type(tbl) ~= "table" then return false end
+
+                    -- Cờ ẩn dạng vi phạm (IsBanned, IsExploiter, ShadowBanned, Blacklisted, v.v.):
+                    local banFlags = {
+                        "isbanned", "banned", "is_banned",
+                        "isexploiter", "exploiter", "is_exploiter",
+                        "shadowbanned", "shadow_banned", "shadowban",
+                        "blacklisted", "isblacklisted", "is_blacklisted",
+                        "restricted", "isrestricted", "is_restricted",
+                        "tradebanned", "trade_banned", "istradebanned",
+                        "tradedisabled", "trade_disabled",
+                        "partydisabled", "party_disabled"
+                    }
+                    for _, flag in ipairs(banFlags) do
                         for k, v in pairs(tbl) do
-                            local kn = string.lower(tostring(k))
-                            local curP = path and (path .. "." .. tostring(k)) or tostring(k)
-                            if kn:find("ban") or kn:find("shadow") or kn:find("blacklist") or kn:find("exploit")
-                                or kn:find("restrict") or kn:find("flag") or kn:find("strike") or kn:find("sanction") then
+                            if string.lower(tostring(k)) == flag then
                                 if v == true or (type(v) == "number" and v > 0) or (type(v) == "string" and v ~= "" and v ~= "false" and v ~= "0") then
-                                    return true, curP .. " = " .. tostring(v)
+                                    return true, string.format("Data Cache (%s): %s = %s", scopeName, tostring(k), tostring(v))
                                 end
                             end
-                            if kn:find("cantrade") or kn:find("trade_enabled") or kn:find("canparty") or kn:find("canjoin") then
+                        end
+                    end
+
+                    -- Cờ ẩn bị khóa quyền (CanTrade = false, CanParty = false, TradeEnabled = false):
+                    local permissionFlags = {
+                        "cantrade", "can_trade", "tradeenabled", "trade_enabled",
+                        "canparty", "can_party", "partyenabled", "party_enabled",
+                        "canjoin", "can_join", "candrop", "can_drop"
+                    }
+                    for _, flag in ipairs(permissionFlags) do
+                        for k, v in pairs(tbl) do
+                            if string.lower(tostring(k)) == flag then
                                 if v == false then
-                                    return true, curP .. " = false"
+                                    return true, string.format("Data Cache (%s): %s = false (Bị tước quyền giao dịch/tổ đội)", scopeName, tostring(k))
                                 end
                             end
-                            if type(v) == "table" then
-                                local found, r = scanTbl(v, (depth or 0) + 1, curP)
-                                if found then return true, r end
-                            end
                         end
-                        return false
                     end
 
-                    if type(host.Cache.Data) == "table" then
-                        local found, r = scanTbl(host.Cache.Data, 0, "Data")
-                        if found then
-                            detected = true
-                            reason = "Game Cache Data: " .. r
-                            return
+                    return false
+                end
+
+                -- Quét trực tiếp Data Cache
+                if type(data) == "table" then
+                    local isFlagged, msg = checkDataFlags(data, "Host.Cache.Data")
+                    if isFlagged then
+                        detected = true
+                        reason = msg
+                        return
+                    end
+
+                    -- Duyệt các nhánh con bên trong Data (Slots, Info, Moderation)
+                    for k, sub in pairs(data) do
+                        if type(sub) == "table" then
+                            local subFlagged, subMsg = checkDataFlags(sub, "Data." .. tostring(k))
+                            if subFlagged then
+                                detected = true
+                                reason = subMsg
+                                return
+                            end
                         end
                     end
-                    local foundC, rC = scanTbl(host.Cache, 0, "Cache")
-                    if foundC then
+                end
+
+                -- Quét thêm toàn bộ Cache của host nếu tồn tại
+                if host and type(host.Cache) == "table" and host.Cache ~= data then
+                    local isFlaggedC, msgC = checkDataFlags(host.Cache, "Host.Cache")
+                    if isFlaggedC then
                         detected = true
-                        reason = "Game Cache: " .. rC
+                        reason = msgC
                         return
                     end
                 end
 
-                -- 6. Check internal player state
-                if v156_4 and v156_4.Player then
-                    if v156_4.Player.ShadowBanned == true or v156_4.Player.IsShadowBanned == true or v156_4.Player.RewardsDisabled == true or v156_4.Player.Blacklisted == true then
+                -- 4. ĐỌC TRỰC TIẾP TỪ THUỘC TÍNH PLAYER (Player Attributes)
+                if lp and type(lp.GetAttributes) == "function" then
+                    local isAttrFlagged, attrMsg = checkDataFlags(lp:GetAttributes(), "Player:GetAttributes")
+                    if isAttrFlagged then
                         detected = true
-                        reason = "Trạng thái người chơi nội bộ: Bị cấm/giới hạn"
+                        reason = attrMsg
                         return
                     end
                 end
 
-                -- 7. Scan PlayerGui for Moderation / Error / Restriction UI Text
-                local pgui = lp and lp:FindFirstChild("PlayerGui")
-                if pgui then
-                    for _, obj in ipairs(pgui:GetDescendants()) do
-                        if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
-                            local raw = tostring(obj.Text or "")
-                            if #raw >= 3 then
-                                local t = string.lower(raw)
-                                for _, phrase in ipairs(BAD_PHRASES) do
-                                    if t:find(phrase, 1, true) then
-                                        detected = true
-                                        reason = "Thông báo giao diện (UI): \"" .. raw:sub(1, 55) .. "\""
-                                        return
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-
-                -- 8. Scan LogService Client Console History
-                pcall(function()
-                    local logService = game:GetService("LogService")
-                    if logService and type(logService.GetLogHistory) == "function" then
-                        local logs = logService:GetLogHistory()
-                        if type(logs) == "table" then
-                            for i = #logs, math.max(1, #logs - 150), -1 do
-                                local entry = logs[i]
-                                local msg = entry and entry.message and string.lower(tostring(entry.message))
-                                if msg and #msg > 0 then
-                                    for _, phrase in ipairs(BAD_PHRASES) do
-                                        if msg:find(phrase, 1, true) then
-                                            detected = true
-                                            reason = "Nhật ký hệ thống (Console Log): \"" .. tostring(entry.message):sub(1, 60) .. "\""
-                                            return
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end)
-
-                -- 9. Active Server Remote Probes (Safe Checks)
-                if isManual and v69_2 then
-                    pcall(function()
-                        local probeCalls = {
-                            { "Trading", "Check" },
-                            { "S_Trading", "Check" },
-                            { "Trading", "Status" },
-                            { "S_Missions", "Check" },
-                            { "Party", "Check" },
-                            { "S_Party", "Check" },
-                            { "Leaderboard", "Check" }
-                        }
-                        for _, args in ipairs(probeCalls) do
-                            local res = nil
-                            local ok = pcall(function()
-                                res = v69_2:InvokeServer(unpack(args))
-                            end)
-                            if ok and res ~= nil then
-                                if type(res) == "string" then
-                                    local rl = res:lower()
-                                    for _, phrase in ipairs(BAD_PHRASES) do
-                                        if rl:find(phrase, 1, true) then
-                                            detected = true
-                                            reason = "Phản hồi máy chủ (" .. args[1] .. "): " .. res
-                                            return
-                                        end
-                                    end
-                                elseif type(res) == "table" then
-                                    if res.Error and type(res.Error) == "string" then
-                                        local el = res.Error:lower()
-                                        for _, phrase in ipairs(BAD_PHRASES) do
-                                            if el:find(phrase, 1, true) then
-                                                detected = true
-                                                reason = "Phản hồi máy chủ (" .. args[1] .. "): " .. res.Error
-                                                return
-                                            end
-                                        end
-                                    end
-                                    if res.Success == false and res.Blacklisted == true then
-                                        detected = true
-                                        reason = "Phản hồi máy chủ (" .. args[1] .. "): Blacklisted = true"
-                                        return
-                                    end
-                                end
-                            end
-                        end
-                    end)
-                end
-
-                -- 10. Memory Scan (getgc) for any table containing Moderation / Blacklist flags
+                -- 5. QUÉT BỘ NHỚ GC (getgc) CHO CÁC BẢNG DATA NỘI BỘ
                 if not detected and type(getgc) == "function" then
-                    pcall(function()
-                        for _, obj in ipairs(getgc(true)) do
-                            if type(obj) == "table" then
-                                if rawget(obj, "Blacklisted") == true or rawget(obj, "IsBlacklisted") == true
-                                    or rawget(obj, "Exploiter") == true or rawget(obj, "IsExploiter") == true
-                                    or rawget(obj, "ShadowBanned") == true or rawget(obj, "IsShadowBanned") == true
-                                    or rawget(obj, "TradeBanned") == true or rawget(obj, "IsTradeBanned") == true then
-                                    detected = true
-                                    reason = "Bộ nhớ Game (GC Memory): Phát hiện cờ Blacklist/Exploiter trong bảng nội bộ"
-                                    return
-                                end
+                    for _, obj in ipairs(getgc(true)) do
+                        if type(obj) == "table" then
+                            if rawget(obj, "IsBanned") == true
+                                or rawget(obj, "IsExploiter") == true
+                                or rawget(obj, "ShadowBanned") == true
+                                or rawget(obj, "IsShadowBanned") == true
+                                or rawget(obj, "Blacklisted") == true
+                                or rawget(obj, "IsBlacklisted") == true
+                                or (rawget(obj, "CanTrade") == false and rawget(obj, "Trade") ~= nil)
+                            then
+                                detected = true
+                                reason = "Bộ nhớ Game (GC Data): Tìm thấy bảng chứa cờ vi phạm (IsBanned / IsExploiter / CanTrade = false)"
+                                return
                             end
                         end
-                    end)
+                    end
                 end
             end)
 
@@ -8538,15 +8604,16 @@ do
                     })
                 end)
             else
-                v150_10.ShadowBanData.Reason = isVi and "Tài khoản sạch 100% (Đã quét Thuộc tính, Bộ nhớ GC, UI, Logs & Server)" or
-                    "100% Clean (Scanned Attributes, GC Memory, UI, Logs & Server)"
+                v150_10.ShadowBanData.Reason = isVi
+                    and "Tài khoản sạch 100% (Đã xác thực Data Cache, Server Party/Trade và GC)"
+                    or "100% Clean (Verified Game Data Cache, Server Party/Trade and GC)"
                 if isManual then
                     pcall(function()
                         v150_8.Rayfield:Notify({
                             Title = isVi and "KIỂM TRA SHADOW BAN" or "SHADOW BAN CHECK",
                             Content = isVi and
-                                "Tài khoản 100% Sạch! Đã kiểm tra Thuộc tính, Bộ nhớ GC, Giao diện và Nhật ký hệ thống." or
-                                "Account is 100% Clean! Checked Attributes, GC Memory, UI and System Logs.",
+                                "Tài khoản 100% Sạch! Đã kiểm tra trực tiếp Data Cache và Server Party/Trade an toàn." or
+                                "Account is 100% Clean! Verified Game Data Cache and Server Party/Trade safely.",
                             Duration = 6,
                             Image = 4483362458
                         })
