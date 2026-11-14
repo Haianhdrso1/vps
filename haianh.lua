@@ -502,9 +502,9 @@ do
         return
     end
     local v80_2 = nil
-    local function v79_2()
-        if v80_2 and v80_2.Parent and (v80_2:IsA("BasePart") or (v80_2:IsA("Model") and (v80_2.PrimaryPart or v80_2:FindFirstChildWhichIsA("BasePart")))) then
-            return v80_2:IsA("BasePart") and v80_2 or (v80_2.PrimaryPart or v80_2:FindFirstChildWhichIsA("BasePart"))
+    local function v79_2(forceRefresh)
+        if not forceRefresh and v80_2 and v80_2.Parent and v80_2:IsA("BasePart") and v80_2.Name == "Refill" then
+            return v80_2
         end
         v80_2 = nil
 
@@ -512,138 +512,187 @@ do
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         local myPos = hrp and hrp.Position
 
-        local candidates = {}
+        local exactCandidates = {}
+        local nearCandidates = {}
+        local fallbackCandidates = {}
+        local seen = {}
 
-        local function checkObject(obj)
-            if not obj or not obj.Parent then return end
-            local name = obj.Name:lower()
-            local isRefillName = name == "refill" or name == "refills" or name:find("refill") or name:find("supply") or name:find("wagon")
-            if isRefillName then
-                local part = nil
-                if obj:IsA("BasePart") then
-                    part = obj
-                elseif obj:IsA("Model") then
-                    part = obj:FindFirstChild("Refill") 
-                        or obj:FindFirstChild("Hitbox")
-                        or obj:FindFirstChild("Main")
-                        or obj.PrimaryPart 
-                        or obj:FindFirstChildWhichIsA("BasePart")
-                end
-                if part and part:IsA("BasePart") then
-                    local dist = myPos and (part.Position - myPos).Magnitude or 0
-                    table.insert(candidates, { part = part, dist = dist })
-                end
+        local function getPartFromObj(obj)
+            if not obj or not obj.Parent then return nil end
+            if obj:IsA("BasePart") then
+                return obj
+            elseif obj:IsA("Model") then
+                return obj:FindFirstChild("Refill", true)
+                    or obj:FindFirstChild("Hitbox", true)
+                    or obj:FindFirstChild("Main", true)
+                    or obj.PrimaryPart
+                    or obj:FindFirstChildWhichIsA("BasePart", true)
             end
+            return nil
+        end
+
+        local function addCandidate(list, part)
+            if not part or not part:IsA("BasePart") or not part.Parent or seen[part] then
+                return
+            end
+            seen[part] = true
+            local dist = myPos and (part.Position - myPos).Magnitude or 0
+            table.insert(list, { part = part, dist = dist })
         end
 
         pcall(function()
-            local searchContainers = {
-                v13_8:FindFirstChild("Unclimbable"),
-                v13_8:FindFirstChild("Climbable"),
-                v13_8:FindFirstChild("Map"),
-                v13_8:FindFirstChild("Environment"),
-                v13_8:FindFirstChild("Buildings"),
-                v13_8:FindFirstChild("Props"),
-                v13_8:FindFirstChild("Interactions"),
-                v13_8
-            }
-            for _, container in ipairs(searchContainers) do
+            -- Uu tien 1: dung BasePart ten "Refill" trong Unclimbable / Climbable (giong logic goc game)
+            for _, containerName in ipairs({ "Unclimbable", "Climbable" }) do
+                local container = v13_8:FindFirstChild(containerName)
                 if container then
-                    for _, child in ipairs(container:GetChildren()) do
-                        checkObject(child)
-                        if child:IsA("Model") or child:IsA("Folder") then
-                            for _, sub in ipairs(child:GetChildren()) do
-                                checkObject(sub)
-                            end
+                    for _, obj in ipairs(container:GetDescendants()) do
+                        if obj:IsA("BasePart") and obj.Name == "Refill" then
+                            addCandidate(exactCandidates, obj)
                         end
                     end
-                    if #candidates > 0 and container ~= v13_8 then
-                        break
+                end
+            end
+
+            -- Uu tien 2 & 3: Quet toan workspace neu map/raid dat Refill o thu muc khac
+            if #exactCandidates == 0 then
+                for _, obj in ipairs(v13_8:GetDescendants()) do
+                    if obj:IsA("BasePart") and obj.Name == "Refill" then
+                        addCandidate(exactCandidates, obj)
+                    elseif obj:IsA("Model") or obj:IsA("BasePart") then
+                        local lname = obj.Name:lower()
+                        if lname == "refill" or lname == "refills" or lname:find("refill") then
+                            addCandidate(nearCandidates, getPartFromObj(obj))
+                        elseif (lname:find("supply") or lname:find("wagon")) and obj:FindFirstChildWhichIsA("ProximityPrompt", true) then
+                            addCandidate(fallbackCandidates, getPartFromObj(obj))
+                        end
                     end
                 end
             end
         end)
 
-        if #candidates == 0 then
-            pcall(function()
-                for _, obj in ipairs(v13_8:GetDescendants()) do
-                    checkObject(obj)
-                end
-            end)
+        local chosen = nil
+        for _, list in ipairs({ exactCandidates, nearCandidates, fallbackCandidates }) do
+            if #list > 0 then
+                table.sort(list, function(a, b) return a.dist < b.dist end)
+                chosen = list[1].part
+                break
+            end
         end
 
-        if #candidates > 0 then
-            table.sort(candidates, function(a, b) return a.dist < b.dist end)
-            v80_2 = candidates[1].part
-            return v80_2
+        if chosen then
+            v80_2 = chosen
         end
-
-        return nil
+        return chosen
     end
     local function v80_3(p1)
+        local targetCF = nil
         pcall(function()
             local v2 = v71_3()
             local v3_4 = v2 and v2:FindFirstChild("HumanoidRootPart")
             if not v3_4 or not p1 then
                 return
             end
-            local targetCF = nil
             if p1:IsA("BasePart") then
                 targetCF = p1.CFrame
             elseif p1:IsA("Model") then
                 targetCF = p1.PrimaryPart and p1.PrimaryPart.CFrame or p1:GetPivot()
             end
             if targetCF then
-                v3_4.CFrame = targetCF + Vector3.new(0, 3, 0)
+                targetCF = targetCF + Vector3.new(0, 3, 0)
+                v3_4.CFrame = targetCF
                 v3_4.AssemblyLinearVelocity = Vector3.zero
                 v3_4.AssemblyAngularVelocity = Vector3.zero
             end
         end)
-        return
+        return targetCF
     end
     local function v81_2(p1)
-        local v2_2 = v79_2()
+        local v2_2 = v79_2(false)
         if not v2_2 then
             return
         end
         v35_2 = true
-        v80_3(v2_2)
-        task.wait(0.4)
-        v70_2()
-        if v68_2 then
-            pcall(function()
-                v68_2:FireServer("Attacks", "Reload", v2_2)
-            end)
-            if v2_2.Parent and v2_2.Parent:IsA("Model") then
-                pcall(function()
-                    v68_2:FireServer("Attacks", "Reload", v2_2.Parent)
-                end)
-            end
-            pcall(function()
-                v68_2:FireServer("Equipment", "Refill")
-                v68_2:FireServer("S_Equipment", "Refill")
-                v68_2:FireServer("Character", "Refill")
-            end)
-        end
+        v61_2.SpearFireFails = 0
         pcall(function()
-            if type(fireproximityprompt) == "function" then
-                for _, prompt in ipairs(v2_2:GetDescendants()) do
-                    if prompt:IsA("ProximityPrompt") then
-                        fireproximityprompt(prompt, 0)
-                        fireproximityprompt(prompt)
-                    end
+            local targetCF = v80_3(v2_2)
+            if targetCF then
+                v61_2.RefillHoldCFrame = targetCF
+            end
+            for _ = 1, 7 do
+                if not v2_2 or not v2_2.Parent then break end
+                local cf = v80_3(v2_2)
+                if cf then
+                    v61_2.RefillHoldCFrame = cf
                 end
-                if v2_2.Parent then
-                    for _, prompt in ipairs(v2_2.Parent:GetDescendants()) do
-                        if prompt:IsA("ProximityPrompt") then
-                            fireproximityprompt(prompt, 0)
-                            fireproximityprompt(prompt)
+                task.wait(0.05)
+            end
+            v70_2()
+
+            local function fireStationReload()
+                if not v2_2 or not v2_2.Parent then return end
+                local cf = v80_3(v2_2)
+                if cf then
+                    v61_2.RefillHoldCFrame = cf
+                end
+                if v68_2 then
+                    pcall(function()
+                        v68_2:FireServer("Attacks", "Reload", v2_2)
+                    end)
+                end
+            end
+
+            fireStationReload()
+
+            local t0 = os.clock()
+            local firedFallback = false
+            while os.clock() - t0 < 1.25 do
+                task.wait(0.08)
+                if not v54_2 and v2_2 and v2_2.Parent then
+                    v80_3(v2_2)
+                end
+                if os.clock() - t0 >= 0.2 then
+                    if p1 then
+                        if not v75_2() then
+                            break
+                        end
+                    else
+                        local sets = v82_2()
+                        if not v83_2() and (sets == nil or sets > 0) then
+                            break
                         end
                     end
                 end
+                if not firedFallback and os.clock() - t0 >= 0.45 then
+                    firedFallback = true
+                    fireStationReload()
+                    pcall(function()
+                        if v68_2 and v2_2 and v2_2.Parent and v2_2.Parent:IsA("Model") then
+                            v68_2:FireServer("Attacks", "Reload", v2_2.Parent)
+                        end
+                        if type(fireproximityprompt) == "function" and v2_2 and v2_2.Parent then
+                            for _, prompt in ipairs(v2_2:GetDescendants()) do
+                                if prompt:IsA("ProximityPrompt") then
+                                    fireproximityprompt(prompt, 0)
+                                    fireproximityprompt(prompt)
+                                end
+                            end
+                            for _, prompt in ipairs(v2_2.Parent:GetDescendants()) do
+                                if prompt:IsA("ProximityPrompt") then
+                                    fireproximityprompt(prompt, 0)
+                                    fireproximityprompt(prompt)
+                                end
+                            end
+                        end
+                    end)
+                end
+            end
+
+            local stillEmpty = (p1 and v75_2()) or (not p1 and v83_2())
+            if stillEmpty then
+                v80_2 = nil
             end
         end)
-        task.wait(0.5)
+        v61_2.RefillHoldCFrame = nil
         v41_2 = os.clock()
         v35_2 = false
         return
@@ -814,32 +863,36 @@ do
             return
         end
         v26_2 = true
-        task.wait(0.05)
-        if v73_2() then
-            v81_2(true)
-        elseif v77_2() then
-            local sets = v82_2()
-            if sets ~= nil and sets == 0 then
-                if v34_2 then
-                    v81_2(false)
-                end
-            else
-                v78_2()
-                local v1_14 = os.clock()
-                local reloaded = false
-                while os.clock() - v1_14 < 1.2 do
-                    task.wait(0.1)
-                    if not v83_2() then
-                        reloaded = true
-                        break
+        pcall(function()
+            task.wait(0.05)
+            if v73_2() then
+                v81_2(true)
+            elseif v77_2() then
+                local sets = v82_2()
+                if sets ~= nil and sets == 0 then
+                    if v34_2 then
+                        v81_2(false)
+                    end
+                else
+                    v78_2()
+                    local v1_14 = os.clock()
+                    local reloaded = false
+                    while os.clock() - v1_14 < 1.2 do
+                        task.wait(0.1)
+                        if not v83_2() then
+                            reloaded = true
+                            break
+                        end
+                    end
+                    if not reloaded and v34_2 and v83_2() then
+                        v81_2(false)
                     end
                 end
-                if not reloaded and v34_2 and v83_2() then
-                    v81_2(false)
-                end
             end
-        end
-        task.wait(0.1)
+            task.wait(0.1)
+        end)
+        v61_2.RefillHoldCFrame = nil
+        v35_2 = false
         v26_2 = false
         return
     end
@@ -851,9 +904,12 @@ do
             return
         end
         v35_2 = true
-        v36_2 = nil
-        v81_2(false)
-        v36_2 = nil
+        pcall(function()
+            v36_2 = nil
+            v81_2(false)
+            v36_2 = nil
+        end)
+        v61_2.RefillHoldCFrame = nil
         v35_2 = false
         return
     end
@@ -1453,6 +1509,7 @@ do
             end
         end
         if v7_8 == true then
+            v61_2.SpearFireFails = 0
             task.wait(0.03)
             for v12_7, v13_7 in ipairs(v2_3) do
                 if v13_7 and v13_7.Parent then
@@ -1469,6 +1526,12 @@ do
             v68_2:FireServer("Spears", "Reset")
             return
         end)
+        v61_2.SpearFireFails = (v61_2.SpearFireFails or 0) + 1
+        local spearAttr = v4_11 and tonumber(v4_11:GetAttribute("Spears"))
+        if (v61_2.SpearFireFails >= 3 or (spearAttr ~= nil and spearAttr <= 0)) and (v25_2 or v34_2) and not v26_2 then
+            v61_2.SpearFireFails = 0
+            v85_2()
+        end
         return false
     end
     v94_2 = function(p1)
@@ -3000,6 +3063,10 @@ do
             end
             local v4_6 = v2_11:FindFirstChild("HumanoidRootPart")
             if not v4_6 then
+                return
+            end
+            if v61_2.RefillHoldCFrame and (v35_2 or v26_2) then
+                v126_3(v4_6, v3_7, v61_2.RefillHoldCFrame)
                 return
             end
             if v61_2.IsUpgrading and v61_2.TargetCFrame then
@@ -4948,12 +5015,21 @@ end)
 task.spawn(function()
     while true do
         task.wait(0.5)
-        if not v34_2 or not v77_2() then
+        if not v34_2 then
             v36_2 = nil
         elseif v18_4 then
         elseif v35_2 or v26_2 then
-        elseif v84_2() then
-            task.spawn(v86_2)
+        elseif v73_2() then
+            v36_2 = nil
+            if v75_2() then
+                v85_2()
+            end
+        elseif v77_2() then
+            if v84_2() then
+                task.spawn(v86_2)
+            end
+        else
+            v36_2 = nil
         end
     end
 end)
