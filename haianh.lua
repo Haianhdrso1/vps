@@ -451,466 +451,245 @@ do
         if v73_2() then
             return false
         end
-        local v1_5 = v72_2() or v71_3()
+        local v1_5 = v72_2()
         if not v1_5 then
-            return true
+            return false
         end
         for v5, v6 in ipairs(v1_5:GetDescendants()) do
-            if v6.Name:sub(1, 5) == "Blade" then
+            if v6:IsA("MeshPart") and v6.Name:sub(1, 5) == "Blade" then
                 return true
             end
         end
-        return true
+        return false
     end
     local function v78_2()
         if not v77_2() then
             return
         end
-        -- 1. VirtualInputManager press R (game keybind)
         pcall(function()
-            if v17_6 then
-                v17_6:SendKeyEvent(true, Enum.KeyCode.R, false, game)
-                task.wait(0.02)
-                v17_6:SendKeyEvent(false, Enum.KeyCode.R, false, game)
-            end
-        end)
-        -- 2. GET remote
-        pcall(function()
-            if v69_2 then
-                v69_2:InvokeServer("Blades", "Reload")
-            end
-        end)
-        -- 3. POST remotes
-        pcall(function()
-            if v68_2 then
-                v68_2:FireServer("Attacks", "Reload")
-                v68_2:FireServer("Equipment", "Reload")
-                v68_2:FireServer("S_Equipment", "Reload")
-            end
-        end)
-        -- 4. Host client module if available
-        pcall(function()
-            local host = _G.__CachedHost
-            if host and host.Modules then
-                if host.Modules.ODMG and type(host.Modules.ODMG.Reload) == "function" then
-                    host.Modules.ODMG.Reload(host)
-                elseif host.Modules.Input and type(host.Modules.Input.Reload) == "function" then
-                    host.Modules.Input.Reload(host)
-                end
-            end
+            v69_2:InvokeServer("Blades", "Reload")
+            return
         end)
         return
     end
     local v80_2 = nil
-    local function v79_2(forceRefresh)
-        if not forceRefresh and v80_2 and v80_2.Parent and v80_2:IsA("BasePart") and v80_2.Name == "Refill" then
+    local function v79_2()
+        if v80_2 and v80_2.Parent and v80_2:IsA("BasePart") then
             return v80_2
         end
         v80_2 = nil
-
-        local char = v71_3()
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        local myPos = hrp and hrp.Position
-
-        local exactCandidates = {}
-        local nearCandidates = {}
-        local fallbackCandidates = {}
-        local seen = {}
-
-        local function getPartFromObj(obj)
-            if not obj or not obj.Parent then return nil end
-            if obj:IsA("BasePart") then
-                return obj
-            elseif obj:IsA("Model") then
-                return obj:FindFirstChild("Refill", true)
-                    or obj:FindFirstChild("Hitbox", true)
-                    or obj:FindFirstChild("Main", true)
-                    or obj.PrimaryPart
-                    or obj:FindFirstChildWhichIsA("BasePart", true)
-            end
-            return nil
-        end
-
-        local function addCandidate(list, part)
-            if not part or not part:IsA("BasePart") or not part.Parent or seen[part] then
-                return
-            end
-            seen[part] = true
-            local dist = myPos and (part.Position - myPos).Magnitude or 0
-            table.insert(list, { part = part, dist = dist })
-        end
-
         pcall(function()
-            -- Uu tien 1: dung BasePart ten "Refill" trong Unclimbable / Climbable (giong logic goc game)
-            for _, containerName in ipairs({ "Unclimbable", "Climbable" }) do
-                local container = v13_8:FindFirstChild(containerName)
-                if container then
-                    for _, obj in ipairs(container:GetDescendants()) do
-                        if obj:IsA("BasePart") and obj.Name == "Refill" then
-                            addCandidate(exactCandidates, obj)
+            for v5, v6 in ipairs({ v13_8:FindFirstChild("Unclimbable"), v13_8:FindFirstChild("Climbable") }) do
+                if v6 then
+                    for v10_2, v11_2 in ipairs(v6:GetDescendants()) do
+                        if v11_2:IsA("BasePart") and v11_2.Name == "Refill" then
+                            v80_2 = v11_2
+                            return
                         end
                     end
                 end
             end
-
-            -- Uu tien 2 & 3: Quet toan workspace neu map/raid dat Refill o thu muc khac
-            if #exactCandidates == 0 then
+            return
+        end)
+        if not v80_2 then
+            pcall(function()
                 for _, obj in ipairs(v13_8:GetDescendants()) do
                     if obj:IsA("BasePart") and obj.Name == "Refill" then
-                        addCandidate(exactCandidates, obj)
-                    elseif obj:IsA("Model") or obj:IsA("BasePart") then
-                        local lname = obj.Name:lower()
-                        if lname == "refill" or lname == "refills" or lname:find("refill") then
-                            addCandidate(nearCandidates, getPartFromObj(obj))
-                        elseif (lname:find("supply") or lname:find("wagon")) and obj:FindFirstChildWhichIsA("ProximityPrompt", true) then
-                            addCandidate(fallbackCandidates, getPartFromObj(obj))
-                        end
+                        v80_2 = obj
+                        return
                     end
                 end
-            end
-        end)
-
-        local chosen = nil
-        for _, list in ipairs({ exactCandidates, nearCandidates, fallbackCandidates }) do
-            if #list > 0 then
-                table.sort(list, function(a, b) return a.dist < b.dist end)
-                chosen = list[1].part
-                break
-            end
+            end)
         end
-
-        if chosen then
-            v80_2 = chosen
-        end
-        return chosen
+        return v80_2
     end
     local function v80_3(p1)
-        local targetCF = nil
-        pcall(function()
-            local v2 = v71_3()
-            local v3_4 = v2 and v2:FindFirstChild("HumanoidRootPart")
-            if not v3_4 or not p1 then
+        local v2 = v13_8:FindFirstChild("Characters") and v13_8.Characters:FindFirstChild(v7_13.Name) or v7_13.Character
+        local v3_4 = v2 and v2:FindFirstChild("HumanoidRootPart")
+        if v3_4 and p1 then
+            v3_4.CFrame = p1.CFrame + Vector3.new(0, 3, 0)
+            pcall(function()
+                local v1 = v3_4
+                local v3 = Vector3
+                v1.AssemblyLinearVelocity = v3.zero
+                v1.AssemblyAngularVelocity = v3.zero
                 return
-            end
-            if p1:IsA("BasePart") then
-                targetCF = p1.CFrame
-            elseif p1:IsA("Model") then
-                targetCF = p1.PrimaryPart and p1.PrimaryPart.CFrame or p1:GetPivot()
-            end
-            if targetCF then
-                targetCF = targetCF + Vector3.new(0, 1.5, 0)
-                v3_4.CFrame = targetCF
-                v3_4.AssemblyLinearVelocity = Vector3.zero
-                v3_4.AssemblyAngularVelocity = Vector3.zero
-            end
-        end)
-        return targetCF
+            end)
+        end
+        return
     end
     local function v81_2(p1)
-        local v2_2 = v79_2(false)
+        local v2_2 = v79_2()
         if not v2_2 then
             return
         end
-        v35_2 = true
-        v61_2.SpearFireFails = 0
-        local refillOk = false
-        pcall(function()
-            if p1 and type(v92_2) == "function" then
-                pcall(v92_2)
-            end
-            local targetCF = v80_3(v2_2)
-            if targetCF then
-                v61_2.RefillHoldCFrame = targetCF
-            end
-            for _ = 1, 5 do
-                if not v2_2 or not v2_2.Parent then break end
-                local cf = v80_3(v2_2)
-                if cf then
-                    v61_2.RefillHoldCFrame = cf
-                end
-                task.wait(0.04)
-            end
-            v70_2()
-
-            local function fireStationReload()
-                if not v2_2 or not v2_2.Parent then return end
-                local cf = v80_3(v2_2)
-                if cf then
-                    v61_2.RefillHoldCFrame = cf
-                end
-                if v68_2 then
-                    pcall(function()
-                        v68_2:FireServer("Attacks", "Reload", v2_2)
-                    end)
-                end
-            end
-
-            fireStationReload()
-
-            local t0 = os.clock()
-            local lastRetry = t0
-            local bestSpearCount = p1 and v74_2() or 0
-            local lastGrowthTime = os.clock()
-
-            while os.clock() - t0 < 1.8 do
-                task.wait(0.08)
-                if not v54_2 and v2_2 and v2_2.Parent then
-                    v80_3(v2_2)
-                end
-                if p1 then
-                    local curCount = v74_2()
-                    if curCount > bestSpearCount then
-                        bestSpearCount = curCount
-                        lastGrowthTime = os.clock()
-                    end
-                    -- Chi roi tram khi thuong da nap day (>= 16) hoac da len duoc va ngung tang trong 0.28s
-                    if curCount >= 16 or (curCount > 0 and os.clock() - lastGrowthTime >= 0.28 and os.clock() - t0 >= 0.45) then
-                        refillOk = true
-                        break
-                    end
-                else
-                    if os.clock() - t0 >= 0.2 then
-                        local sets = v82_2()
-                        if not v83_2() and (sets == nil or sets > 0) then
-                            refillOk = true
-                            break
-                        end
-                    end
-                end
-                if os.clock() - lastRetry >= 0.45 then
-                    lastRetry = os.clock()
-                    fireStationReload()
-                    pcall(function()
-                        if v68_2 and v2_2 and v2_2.Parent and v2_2.Parent:IsA("Model") then
-                            v68_2:FireServer("Attacks", "Reload", v2_2.Parent)
-                        end
-                        if type(fireproximityprompt) == "function" and v2_2 and v2_2.Parent then
-                            for _, prompt in ipairs(v2_2:GetDescendants()) do
-                                if prompt:IsA("ProximityPrompt") then
-                                    fireproximityprompt(prompt, 0)
-                                    fireproximityprompt(prompt)
-                                end
-                            end
-                            for _, prompt in ipairs(v2_2.Parent:GetDescendants()) do
-                                if prompt:IsA("ProximityPrompt") then
-                                    fireproximityprompt(prompt, 0)
-                                    fireproximityprompt(prompt)
-                                end
-                            end
-                        end
-                    end)
-                end
-            end
-
-            if p1 and v74_2() > 0 then
-                refillOk = true
-            end
-            local stillEmpty = (p1 and v75_2()) or (not p1 and v83_2())
-            if stillEmpty and not refillOk then
-                v80_2 = nil
-            end
-        end)
-        v61_2.RefillHoldCFrame = nil
-        v41_2 = refillOk and 0 or os.clock()
-        v35_2 = false
+        v80_3(v2_2)
+        task.wait(0.5)
+        v70_2()
+        if v68_2 then
+            pcall(function()
+                v68_2:FireServer("Attacks", "Reload", v2_2)
+                return
+            end)
+        end
+        v41_2 = os.clock()
         return
     end
     local function v82_2()
         local v1, v2_2 = pcall(function()
-            local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
-            local iface = pgui and pgui:FindFirstChild("Interface")
-            if not iface then return nil end
-
-            local hud = iface:FindFirstChild("HUD")
-            local main = hud and hud:FindFirstChild("Main")
-            local top = main and main:FindFirstChild("Top")
-            if top then
-                local slot7 = top:FindFirstChild("7")
-                local b7 = slot7 and (slot7:FindFirstChild("Blades") or slot7)
-                local s7 = b7 and b7:FindFirstChild("Sets")
-                if s7 and s7:IsA("TextLabel") and s7.Text ~= "" then
-                    local num = s7.Text:match("(%d+)")
-                    if num then return tonumber(num) end
-                end
-
-                for _, child in ipairs(top:GetChildren()) do
-                    local blades = (child.Name == "Blades" and child) or child:FindFirstChild("Blades")
-                    if blades then
-                        local sets = blades:FindFirstChild("Sets") or blades:FindFirstChild("Amount") or blades:FindFirstChild("Count") or blades:FindFirstChildWhichIsA("TextLabel")
-                        if sets and sets:IsA("TextLabel") and sets.Text ~= "" then
-                            local num = sets.Text:match("(%d+)")
-                            if num then return tonumber(num) end
-                        end
-                    end
-                end
+            local v4 = v7_13.PlayerGui.Interface.HUD.Main.Top["7"].Blades.Sets.Text:match("^(%d+)%s*/")
+            if v4 then
+                return tonumber(v4)
             end
-
-            for _, desc in ipairs(iface:GetDescendants()) do
-                if desc:IsA("TextLabel") and desc.Name == "Sets" and desc.Text ~= "" then
-                    local num = desc.Text:match("(%d+)")
-                    if num then return tonumber(num) end
-                end
-            end
-
-            for _, desc in ipairs(iface:GetDescendants()) do
-                if desc:IsA("TextLabel") and desc.Parent and desc.Parent.Name == "Blades" and desc.Text ~= "" then
-                    local num = desc.Text:match("(%d+)")
-                    if num then return tonumber(num) end
-                end
-            end
-
-            for _, desc in ipairs(iface:GetDescendants()) do
-                if desc:IsA("TextLabel") and desc.Text:find("/") then
-                    local nameL = desc.Name:lower()
-                    local parentNameL = desc.Parent and desc.Parent.Name:lower() or ""
-                    if nameL:find("blade") or nameL:find("set") or parentNameL:find("blade") then
-                        local num = desc.Text:match("^(%d+)%s*/") or desc.Text:match("(%d+)")
-                        if num then return tonumber(num) end
-                    end
-                end
-            end
-
             return nil
         end)
         if v1 and v2_2 ~= nil then
             return v2_2
         end
+        local v3, v4_res = pcall(function()
+            local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+            local iface = pgui and pgui:FindFirstChild("Interface")
+            if iface then
+                for _, desc in ipairs(iface:GetDescendants()) do
+                    if desc:IsA("TextLabel") and desc.Visible and desc.Text:find("/") then
+                        local num = desc.Text:match("^(%d+)%s*/")
+                        if num and (desc.Name == "Sets" or (desc.Parent and desc.Parent.Name == "Blades") or desc.Name:find("Blade")) then
+                            return tonumber(num)
+                        end
+                    end
+                end
+            end
+            return nil
+        end)
+        if v3 and v4_res ~= nil then
+            return v4_res
+        end
         return nil
     end
     local function v83_2()
-        local ok, res = pcall(function()
-            local char = v71_3()
-            if not char then
-                return false
+        local v1, v2_2 = pcall(function()
+            local v1_2 = v72_2()
+            if not v1_2 then
+                v1_2 = v71_3()
             end
-
-            -- 1. Character attributes
-            if char:GetAttribute("BladesBroken") == true 
-                or char:GetAttribute("Broken") == true 
-                or char:GetAttribute("BladeBroken") == true 
-            then
+            if not v1_2 then
                 return true
             end
-            local dur = char:GetAttribute("Durability") or char:GetAttribute("BladeDurability")
-            if type(dur) == "number" and dur <= 2 then
-                return true
-            end
-
-            -- 2. Inspect hands in Character AND Rig
-            local rig = v72_2()
-            local handRoots = {}
-            if char then table.insert(handRoots, char) end
-            if rig and rig ~= char then table.insert(handRoots, rig) end
-
-            local foundAnyHand = false
-            local intactBladeFound = false
-            local brokenBladeFound = false
-
-            for _, root in ipairs(handRoots) do
-                local lh = root:FindFirstChild("LeftHand") or root:FindFirstChild("Left Arm")
-                local rh = root:FindFirstChild("RightHand") or root:FindFirstChild("Right Arm")
-                for _, hand in ipairs({ lh, rh }) do
-                    if hand then
-                        foundAnyHand = true
-                        for _, child in ipairs(hand:GetDescendants()) do
-                            if child.Name:sub(1, 5) == "Blade" then
-                                if child:GetAttribute("Broken") == true then
-                                    brokenBladeFound = true
-                                elseif child:IsA("BasePart") then
-                                    if child.Transparency < 0.8 then
-                                        intactBladeFound = true
-                                    end
-                                end
-                            end
-                        end
-                    end
-                end
-            end
-
-            if brokenBladeFound then
-                return true
-            end
-
-            if foundAnyHand and not intactBladeFound then
-                -- Hands exist but have NO visible intact blade -> blades are broken/empty!
-                return true
-            end
-
-            -- 3. Tool Durability
-            local tool = char:FindFirstChildOfClass("Tool")
-            if tool then
-                local tDur = tool:GetAttribute("Durability") or tool:GetAttribute("Dur")
-                if type(tDur) == "number" and tDur <= 2 then
+            local v2_3 = v1_2:FindFirstChild("LeftHand")
+            local v3_3 = v1_2:FindFirstChild("RightHand")
+            if v2_3 then
+                local v4_4 = v2_3:FindFirstChild("Blade_1")
+                if v4_4 and v4_4:GetAttribute("Broken") then
                     return true
                 end
             end
-
-            return false
-        end)
-        if ok then
-            return res
-        end
-        return false
-    end
-    v84_2 = function()
-        if os.clock() - v41_2 < 3 then
-            return false
-        end
-        local sets = v82_2()
-        if sets ~= nil and sets == 0 then
-            return true
-        end
-        if v83_2() then
-            if v36_2 == nil then
-                v36_2 = os.clock()
-                return false
+            if v3_3 then
+                local v4_6 = v3_3:FindFirstChild("Blade_1")
+                if v4_6 and v4_6:GetAttribute("Broken") then
+                    return true
+                end
             end
-            if os.clock() - v36_2 >= 1.5 then
-                return true
-            end
-        else
-            v36_2 = nil
-        end
-        return false
-    end
-    v85_2 = function()
-        if v26_2 or v35_2 then
-            return
-        end
-        if 1.5 > os.clock() - v41_2 then
-            return
-        end
-        v26_2 = true
-        pcall(function()
-            task.wait(0.05)
-            if v73_2() then
-                v81_2(true)
-            elseif v77_2() then
-                local sets = v82_2()
-                if sets ~= nil and sets == 0 then
-                    if v34_2 then
-                        v81_2(false)
-                    end
-                else
-                    v78_2()
-                    local v1_14 = os.clock()
-                    local reloaded = false
-                    while os.clock() - v1_14 < 1.2 do
-                        task.wait(0.1)
-                        if not v83_2() then
-                            reloaded = true
-                            break
-                        end
-                    end
-                    if not reloaded and v34_2 and v83_2() then
-                        v81_2(false)
+            local hasBlade = false
+            for v8, v9 in ipairs(v1_2:GetDescendants()) do
+                if v9:IsA("MeshPart") and v9.Name:sub(1, 5) == "Blade" then
+                    hasBlade = true
+                    if not v9:GetAttribute("Broken") and 0.9 > v9.Transparency then
+                        return false
                     end
                 end
             end
-            task.wait(0.1)
+            -- If no blades exist in hand at all, they are broken/empty -> MUST return true to refill!
+            return true
         end)
-        v61_2.RefillHoldCFrame = nil
-        v35_2 = false
+        if v1 then
+            return v2_2
+        end
+        return true
+    end
+    v84_2 = function()
+        if os.clock() - v41_2 < 5 then
+            return false
+        end
+        local v3_4 = v82_2()
+        if not (v3_4 ~= nil and v3_4 == 0) then
+            v36_2 = nil
+            return false
+        end
+        if v36_2 == nil then
+            v36_2 = os.clock()
+            return false
+        end
+        if 2 > os.clock() - v36_2 then
+            return false
+        end
+        return v83_2()
+    end
+    v85_2 = function()
+        if v26_2 then
+            return
+        end
+        if 5 > os.clock() - v41_2 then
+            return
+        end
+        v26_2 = true
+        task.wait(0.05)
+        if v73_2() then
+            v81_2(true)
+        elseif v77_2() then
+            v78_2()
+            local v1_14 = os.clock()
+            while true do
+                if os.clock() - v1_14 < 1.8 then
+                    task.wait(0.1)
+                    local v4_2, v5_2 = pcall(function()
+                        local v1_2 = v72_2()
+                        if not v1_2 then
+                            return false
+                        end
+                        local v2_3 = v1_2:FindFirstChild("LeftHand")
+                        local v3_3 = v1_2:FindFirstChild("RightHand")
+                        if v2_3 then
+                            local v4_4 = v2_3:FindFirstChild("Blade_1")
+                            if v4_4 and v4_4:GetAttribute("Broken") then
+                                return true
+                            end
+                        end
+                        if v3_3 then
+                            local v4_6 = v3_3:FindFirstChild("Blade_1")
+                            if v4_6 and v4_6:GetAttribute("Broken") then
+                                return true
+                            end
+                        end
+                        local v4_7 = false
+                        for v8, v9 in ipairs(v1_2:GetDescendants()) do
+                            if v9:IsA("MeshPart") and v9.Name:sub(1, 5) == "Blade" then
+                                v4_7 = true
+                                if not v9:GetAttribute("Broken") and v9.Transparency < 0.9 then
+                                    return false
+                                end
+                            end
+                        end
+                        return v4_7
+                    end)
+                    local v3_8
+                    if v4_2 then
+                        v3_8 = v5_2
+                    else
+                        v3_8 = false
+                    end
+                    if not v3_8 then
+                        task.wait(0.2)
+                        v26_2 = false
+                        return
+                    end
+                else
+                    task.wait(0.2)
+                    v26_2 = false
+                    return
+                end
+            end
+        end
+        task.wait(0.2)
         v26_2 = false
         return
     end
@@ -922,12 +701,9 @@ do
             return
         end
         v35_2 = true
-        pcall(function()
-            v36_2 = nil
-            v81_2(false)
-            v36_2 = nil
-        end)
-        v61_2.RefillHoldCFrame = nil
+        v36_2 = nil
+        v81_2(false)
+        v36_2 = nil
         v35_2 = false
         return
     end
@@ -1025,6 +801,13 @@ do
         if not p1 or not p1.Parent then
             return true
         end
+        local v2_4 = p1:FindFirstChild("HumanoidRootPart")
+        if not v2_4 then
+            return true
+        end
+        if v2_4.Anchored == true then
+            return true
+        end
         local v3_8 = p1:GetAttribute("State")
         if v3_8 == "Dead" or v3_8 == "Die" or v3_8 == "Dying" then
             return true
@@ -1032,16 +815,6 @@ do
         local v4_7 = p1:FindFirstChild("Humanoid")
         if v4_7 and v4_7.Health <= 0 then
             return true
-        end
-        local isBoss = v150_10 and v150_10.IsBossModel and v150_10.IsBossModel(p1)
-        local v2_4 = p1:FindFirstChild("HumanoidRootPart")
-        if not isBoss then
-            if not v2_4 then
-                return true
-            end
-            if v2_4.Anchored == true then
-                return true
-            end
         end
         return false
     end
@@ -1051,11 +824,8 @@ do
         end
         local v2_3 = v13_8:FindFirstChild("Titans")
         local pName = p1.Parent.Name
-        local isBoss = v150_10 and v150_10.IsBossModel and v150_10.IsBossModel(p1)
         local isValidParent = (v2_3 and p1.Parent == v2_3)
             or pName == "Boss" or pName == "Bosses" or pName == "Shifters" or pName == "Raid"
-            or pName == "Enemies" or pName == "Spawns" or pName == "Living" or pName == "Entities"
-            or (p1.Parent == v13_8 and isBoss)
         if not isValidParent then
             return false
         end
@@ -1172,10 +942,9 @@ do
 
         local nameLower = string.lower(model.Name)
         local bossKeywords = {
-            "eren", "yeager", "jaeger", "attack titan", "rogue", "colossal", "bertholdt", "armin", "reiner",
-            "armored", "armoured", "braun", "beast", "zeke", "female", "annie", "leonhart", "warhammer",
-            "tybur", "tyber", "founding", "reiss", "rod", "jaw", "cart", "falco", "porco", "galliard",
-            "pieck", "kruger", "larva", "aberrant", "shifter", "raidboss", "boss"
+            "eren", "attack titan", "rogue", "colossal", "bertholdt", "reiner", "armored", "armoured",
+            "beast", "zeke", "female", "annie", "warhammer", "founding", "jaw", "cart",
+            "falco", "porco", "pieck", "larva", "shifter", "raidboss", "boss"
         }
         for _, kw in ipairs(bossKeywords) do
             if string.find(nameLower, kw, 1, true) then
@@ -1191,36 +960,17 @@ do
             return nil
         end
 
-        local dedicatedFolders = {
+        local raidFolders = {
             v13_8:FindFirstChild("Boss"),
             v13_8:FindFirstChild("Bosses"),
             v13_8:FindFirstChild("Shifters"),
-            v13_8:FindFirstChild("Raid")
+            v13_8:FindFirstChild("Raid"),
+            v13_8:FindFirstChild("Titans")
         }
-        for _, container in ipairs(dedicatedFolders) do
+        for _, container in ipairs(raidFolders) do
             if container then
                 for _, child in ipairs(container:GetChildren()) do
-                    if child:IsA("Model") and v91_2(child) then
-                        if v150_10.IsBossModel(child) or container.Name ~= "Raid" then
-                            return child
-                        end
-                    end
-                end
-            end
-        end
-
-        local fallbackFolders = {
-            v13_8:FindFirstChild("Titans"),
-            v13_8:FindFirstChild("Enemies"),
-            v13_8:FindFirstChild("Spawns"),
-            v13_8:FindFirstChild("Living"),
-            v13_8:FindFirstChild("Entities"),
-            v13_8
-        }
-        for _, container in ipairs(fallbackFolders) do
-            if container then
-                for _, child in ipairs(container:GetChildren()) do
-                    if child:IsA("Model") and v150_10.IsBossModel(child) and v91_2(child) then
+                    if child:IsA("Model") and v91_2(child) and v150_10.IsBossModel(child) then
                         return child
                     end
                 end
@@ -1312,8 +1062,7 @@ do
             end
         end)
         if not resTime then
-            local attrSec = tonumber(v13_8:GetAttribute("Seconds")) or tonumber(v13_8:GetAttribute("Time")) or
-                tonumber(v13_8:GetAttribute("Timer"))
+            local attrSec = tonumber(v13_8:GetAttribute("Seconds")) or tonumber(v13_8:GetAttribute("Time")) or tonumber(v13_8:GetAttribute("Timer"))
             if attrSec and attrSec > 0 then
                 resTime = attrSec
             end
@@ -1355,8 +1104,7 @@ do
                             if achFrame then
                                 for _, btn in ipairs(achFrame:GetDescendants()) do
                                     if btn:IsA("GuiButton") and btn.Visible then
-                                        local txt = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or
-                                            btn.Name):upper()
+                                        local txt = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or btn.Name):upper()
                                         if txt:find("CLAIM") or txt:find("NHẬN") or txt:find("COLLECT") or txt:find("ALL") then
                                             if v150_10.ClickGuiButton then
                                                 v150_10.ClickGuiButton(btn)
@@ -1422,8 +1170,7 @@ do
                             if dailyFrame then
                                 for _, btn in ipairs(dailyFrame:GetDescendants()) do
                                     if btn:IsA("GuiButton") and btn.Visible then
-                                        local txt = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or
-                                            btn.Name):upper()
+                                        local txt = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or btn.Name):upper()
                                         if txt:find("CLAIM") or txt:find("NHẬN") or txt:find("COLLECT") or txt:find("DAY") then
                                             if v150_10.ClickGuiButton then
                                                 v150_10.ClickGuiButton(btn)
@@ -1533,7 +1280,7 @@ do
         end
         local v6_17 = v76_2()
         if not v6_17 or v6_17 <= 0 then
-            if (v18_4 or v25_2 or v34_2) and not v26_2 then
+            if (v25_2 or v34_2) and not v26_2 then
                 v85_2()
             end
             return false
@@ -1553,42 +1300,13 @@ do
             end
         end
         if v7_8 == true then
-            v61_2.SpearFireFails = 0
             task.wait(0.03)
-            local function jitterPos(basePos)
-                return basePos + Vector3.new(math.random(-100, 100) / 1000, math.random(-100, 100) / 1000, math.random(-100, 100) / 1000)
-            end
-            if #v2_3 == 1 then
-                local targetPart = v2_3[1]
-                if targetPart and targetPart.Parent then
-                    for _ = 1, 9 do
-                        pcall(function()
-                            v68_2:FireServer("Spears", "S_Explode", jitterPos(targetPart.Position), 2.5)
-                        end)
-                    end
-                end
-            else
-                local sent = 0
-                for _, v13_7 in ipairs(v2_3) do
-                    if v13_7 and v13_7.Parent then
-                        sent = sent + 1
-                        pcall(function()
-                            v68_2:FireServer("Spears", "S_Explode", jitterPos(v13_7.Position), 2.5)
-                        end)
-                    end
-                end
-                if v150_10.AutoRaid and sent > 0 and sent < 9 then
-                    local idx = 1
-                    while sent < 9 do
-                        local v13_7 = v2_3[idx]
-                        if v13_7 and v13_7.Parent then
-                            pcall(function()
-                                v68_2:FireServer("Spears", "S_Explode", jitterPos(v13_7.Position), 2.5)
-                            end)
-                        end
-                        sent = sent + 1
-                        idx = (idx % #v2_3) + 1
-                    end
+            for v12_7, v13_7 in ipairs(v2_3) do
+                if v13_7 and v13_7.Parent then
+                    pcall(function()
+                        v68_2:FireServer("Spears", "S_Explode", v13_7.Position, 2.5)
+                        return
+                    end)
                 end
             end
             v92_2()
@@ -1598,12 +1316,6 @@ do
             v68_2:FireServer("Spears", "Reset")
             return
         end)
-        v61_2.SpearFireFails = (v61_2.SpearFireFails or 0) + 1
-        local spearAttr = v4_11 and tonumber(v4_11:GetAttribute("Spears"))
-        if (v61_2.SpearFireFails >= 3 or (spearAttr ~= nil and spearAttr <= 0)) and (v18_4 or v25_2 or v34_2) and not v26_2 then
-            v61_2.SpearFireFails = 0
-            v85_2()
-        end
         return false
     end
     v94_2 = function(p1)
@@ -2291,8 +2003,7 @@ do
 
                     if not isLobby then
                         local isRetry = t:find("CHƠI LẠI") or t:find("CHOI LAI") or t:find("RETRY") or t:find("REPLAY")
-                            or t:find("THỬ LẠI") or t:find("THU LAI") or t:find("AGAIN") or n:find("RETRY") or
-                            n:find("REPLAY")
+                            or t:find("THỬ LẠI") or t:find("THU LAI") or t:find("AGAIN") or n:find("RETRY") or n:find("REPLAY")
 
                         local isClaim = t:find("NHẬN") or t:find("CLAIM") or t:find("XÁC NHẬN") or t:find("CONFIRM")
                             or t:find("BỎ QUA") or t:find("SKIP") or t:find("OK") or t:find("ACCEPT") or t:find("CLOSE")
@@ -2835,11 +2546,13 @@ do
             return nil
         end
         if v73_2() then
-            local hoverY = 40 + v60_2
-            return CFrame.lookAt(v2.Position + Vector3.new(0, hoverY, 12), v2.Position)
+            return CFrame.lookAt(v2.Position + Vector3.new(0, 48, 0) - v2.CFrame.LookVector * (75 + v60_2), v2.Position)
         end
-        local hoverY = 30 + v60_2
-        return CFrame.lookAt(v2.Position + Vector3.new(0, hoverY, 6), v2.Position)
+        local v3_8 = os.clock() * 8
+        local v4_6 = 55 + v60_2
+        local v6_7 = v3_8 + 0.2
+        return CFrame.lookAt(v2.Position + Vector3.new(math.cos(v3_8) * 32, v4_6, math.sin(v3_8) * 32),
+            v2.Position + Vector3.new(math.cos(v6_7) * 32, v4_6, math.sin(v6_7) * 32))
     end
     local function v120_4(p1)
         local v3 = math
@@ -3042,13 +2755,32 @@ do
         end
         v55_2 = p3
         p1.CFrame = p3
-        if p2 then
-            p2.PlatformStand = true
+        if v73_2() then
+            if p2 then
+                p2.PlatformStand = true
+            end
+            pcall(function()
+                local v1 = p1
+                local v3 = Vector3
+                v1.AssemblyLinearVelocity = v3.zero
+                v1.AssemblyAngularVelocity = v3.zero
+                return
+            end)
+        else
+            if p2 then
+                p2.PlatformStand = false
+                pcall(function()
+                    p2:ChangeState(Enum.HumanoidStateType.Freefall)
+                    return
+                end)
+            end
+            pcall(function()
+                local v1 = p1
+                v1.AssemblyLinearVelocity = p3.LookVector * 160
+                v1.AssemblyAngularVelocity = Vector3.zero
+                return
+            end)
         end
-        pcall(function()
-            p1.AssemblyLinearVelocity = Vector3.zero
-            p1.AssemblyAngularVelocity = Vector3.zero
-        end)
         return
     end
     v127_2 = function(p1)
@@ -3116,10 +2848,6 @@ do
             if not v4_6 then
                 return
             end
-            if v61_2.RefillHoldCFrame and (v35_2 or v26_2) then
-                v126_3(v4_6, v3_7, v61_2.RefillHoldCFrame)
-                return
-            end
             if v61_2.IsUpgrading and v61_2.TargetCFrame then
                 v126_3(v4_6, v3_7, v61_2.TargetCFrame)
                 return
@@ -3155,7 +2883,10 @@ do
                     end
                 end
             end
-            local v11_5 = not v10_4 and v18_4 and not v35_2 and not v26_2
+            local v11_5 = not v10_4 and v18_4 and not v35_2
+            if v11_5 then
+                v11_5 = not (v26_2 and v73_2())
+            end
             if v11_5 then
                 if v20_2 and v91_2(v20_2) then
                     v10_4 = v119_5(v20_2)
@@ -4720,11 +4451,48 @@ do
             if not v18_4 then
                 break
             else
-                if not v26_2 then
-                    if v73_2() and v75_2() and (v18_4 or v25_2 or v34_2) then
+                if (v25_2 or v34_2) and not v26_2 then
+                    if v73_2() and v75_2() then
                         v85_2()
-                    elseif v25_2 then
-                        local v2_13 = v77_2() and v83_2()
+                    else
+                        local v2_13 = v25_2 and v77_2()
+                        if v2_13 then
+                            local v3_8, v4_8 = pcall(function()
+                                local v1_2 = v72_2()
+                                if not v1_2 then
+                                    return false
+                                end
+                                local v2_3 = v1_2:FindFirstChild("LeftHand")
+                                local v3_3 = v1_2:FindFirstChild("RightHand")
+                                if v2_3 then
+                                    local v4_4 = v2_3:FindFirstChild("Blade_1")
+                                    if v4_4 and v4_4:GetAttribute("Broken") then
+                                        return true
+                                    end
+                                end
+                                if v3_3 then
+                                    local v4_6 = v3_3:FindFirstChild("Blade_1")
+                                    if v4_6 and v4_6:GetAttribute("Broken") then
+                                        return true
+                                    end
+                                end
+                                local v4_7 = false
+                                for v8, v9 in ipairs(v1_2:GetDescendants()) do
+                                    if v9:IsA("MeshPart") and v9.Name:sub(1, 5) == "Blade" then
+                                        v4_7 = true
+                                        if not v9:GetAttribute("Broken") and 0.9 > v9.Transparency then
+                                            return false
+                                        end
+                                    end
+                                end
+                                return v4_7
+                            end)
+                            if v3_8 then
+                                v2_13 = v4_8
+                            else
+                                v2_13 = false
+                            end
+                        end
                         if v2_13 then
                             v85_2()
                         end
@@ -4733,9 +4501,12 @@ do
                 if not v18_4 then
                     break
                 else
-                    if v34_2 and not v35_2 and not v26_2 and v77_2() then
+                    if v34_2 and not v35_2 and v77_2() then
                         if v84_2() then
-                            v86_2()
+                            task.spawn(v86_2)
+                            while v35_2 do
+                                task.wait(0.2)
+                            end
                         end
                     end
                     if not v18_4 then
@@ -4755,15 +4526,15 @@ do
                             v127_2(raidBoss)
                             if v73_2() then
                                 if v93_2(raidBoss) then
-                                    task.wait(v57_3 and math.max(v58_2, 0.2) or 0.18)
+                                    task.wait(v57_3 and math.max(v58_2, 0.35) or 0.35)
                                 else
-                                    task.wait(0.06)
+                                    task.wait(0.1)
                                 end
                             else
                                 if v97_6(raidBoss) then
-                                    task.wait(v57_3 and math.max(v58_2, 0.08) or 0.06)
+                                    task.wait(v57_3 and math.max(v58_2, 0.12) or 0.12)
                                 else
-                                    task.wait(0.05)
+                                    task.wait(0.08)
                                 end
                             end
                         elseif v59_2 then
@@ -4821,7 +4592,7 @@ do
                                                 v13_14 and v13_14:FindFirstChild("Spears") ~= nil or false
                                         end
                                         if v10_5 then
-                                            if (v18_4 or v25_2 or v34_2) and not v26_2 and v75_2() then
+                                            if (v25_2 or v34_2) and not v26_2 and v75_2() then
                                                 v85_2()
                                                 if v75_2() then
                                                     break
@@ -4850,10 +4621,83 @@ do
                                                 end
                                             end
                                             if v10_10 then
-                                                local v10_13 = v25_2 and not v26_2 and v83_2()
+                                                local v10_13 = v25_2 and not v26_2
+                                                if v10_13 then
+                                                    local v11_28, v12_24 = pcall(function()
+                                                        local v1_2 = v72_2()
+                                                        if not v1_2 then
+                                                            return false
+                                                        end
+                                                        local v2_3 = v1_2:FindFirstChild("LeftHand")
+                                                        local v3_3 = v1_2:FindFirstChild("RightHand")
+                                                        if v2_3 then
+                                                            local v4_4 = v2_3:FindFirstChild("Blade_1")
+                                                            if v4_4 and v4_4:GetAttribute("Broken") then
+                                                                return true
+                                                            end
+                                                        end
+                                                        if v3_3 then
+                                                            local v4_6 = v3_3:FindFirstChild("Blade_1")
+                                                            if v4_6 and v4_6:GetAttribute("Broken") then
+                                                                return true
+                                                            end
+                                                        end
+                                                        local v4_7 = false
+                                                        for v8, v9 in ipairs(v1_2:GetDescendants()) do
+                                                            if v9:IsA("MeshPart") and v9.Name:sub(1, 5) == "Blade" then
+                                                                v4_7 = true
+                                                                if not v9:GetAttribute("Broken") and 0.9 > v9.Transparency then
+                                                                    return false
+                                                                end
+                                                            end
+                                                        end
+                                                        return v4_7
+                                                    end)
+                                                    if v11_28 then
+                                                        v10_13 = v12_24
+                                                    else
+                                                        v10_13 = false
+                                                    end
+                                                end
                                                 if v10_13 then
                                                     v85_2()
-                                                    if v83_2() then
+                                                    local v11_34, v12_29 = pcall(function()
+                                                        local v1_2 = v72_2()
+                                                        if not v1_2 then
+                                                            return false
+                                                        end
+                                                        local v2_3 = v1_2:FindFirstChild("LeftHand")
+                                                        local v3_3 = v1_2:FindFirstChild("RightHand")
+                                                        if v2_3 then
+                                                            local v4_4 = v2_3:FindFirstChild("Blade_1")
+                                                            if v4_4 and v4_4:GetAttribute("Broken") then
+                                                                return true
+                                                            end
+                                                        end
+                                                        if v3_3 then
+                                                            local v4_6 = v3_3:FindFirstChild("Blade_1")
+                                                            if v4_6 and v4_6:GetAttribute("Broken") then
+                                                                return true
+                                                            end
+                                                        end
+                                                        local v4_7 = false
+                                                        for v8, v9 in ipairs(v1_2:GetDescendants()) do
+                                                            if v9:IsA("MeshPart") and v9.Name:sub(1, 5) == "Blade" then
+                                                                v4_7 = true
+                                                                if not v9:GetAttribute("Broken") and 0.9 > v9.Transparency then
+                                                                    return false
+                                                                end
+                                                            end
+                                                        end
+                                                        return v4_7
+                                                    end)
+                                                    local v10_27
+                                                    if v11_34 then
+                                                        v10_27 = v12_29
+                                                    else
+                                                        v10_27 = false
+                                                    end
+                                                    if v10_27 then
                                                         break
                                                     end
                                                 end
@@ -4880,8 +4724,7 @@ do
                                             end
                                             if v11_38 then
                                                 if v93_2(v10_19) then
-                                                    task.wait(v57_3 and #v6_10 >= v7_18 + 8 and math.max(v58_2, 0.35) or
-                                                        0.35)
+                                                    task.wait(v57_3 and #v6_10 >= v7_18 + 8 and math.max(v58_2, 0.35) or 0.35)
                                                 else
                                                     task.wait(0.1)
                                                 end
@@ -4905,10 +4748,6 @@ do
                                 break
                             elseif v73_2() then
                                 local v2_41 = v122_3(v20_2) or v20_2
-                                if v2_41 and v91_2(v2_41) then
-                                    v20_2 = v2_41
-                                    v127_2(v2_41)
-                                end
                                 local v3_36 = v2_41 and v89_2(v2_41)
                                 if v3_36 and v87_2() then
                                     v93_2(v2_41)
@@ -4948,20 +4787,78 @@ do
                                         if not v18_4 then
                                             break
                                         else
-                                            local v3_40 = v25_2 and not v26_2 and v83_2()
+                                            local v3_40 = v25_2 and not v26_2
+                                            if v3_40 then
+                                                local v4_30, v5_17 = pcall(function()
+                                                    local v1_2 = v72_2()
+                                                    if not v1_2 then
+                                                        return false
+                                                    end
+                                                    local v2_3 = v1_2:FindFirstChild("LeftHand")
+                                                    local v3_3 = v1_2:FindFirstChild("RightHand")
+                                                    if v2_3 then
+                                                        local v4_4 = v2_3:FindFirstChild("Blade_1")
+                                                        if v4_4 and v4_4:GetAttribute("Broken") then
+                                                            return true
+                                                        end
+                                                    end
+                                                    if v3_3 then
+                                                        local v4_6 = v3_3:FindFirstChild("Blade_1")
+                                                        if v4_6 and v4_6:GetAttribute("Broken") then
+                                                            return true
+                                                        end
+                                                    end
+                                                    local v4_7 = false
+                                                    for v8, v9 in ipairs(v1_2:GetDescendants()) do
+                                                        if v9:IsA("MeshPart") and v9.Name:sub(1, 5) == "Blade" then
+                                                            v4_7 = true
+                                                            if not v9:GetAttribute("Broken") and 0.9 > v9.Transparency then
+                                                                return false
+                                                            end
+                                                        end
+                                                    end
+                                                    return v4_7
+                                                end)
+                                                if v4_30 then
+                                                    v3_40 = v5_17
+                                                else
+                                                    v3_40 = false
+                                                end
+                                            end
                                             if v3_40 then
                                                 v85_2()
                                             end
-                                            local v3_42 = v34_2 and not v35_2 and not v26_2
+                                            local v3_42 = v34_2 and not v35_2
                                             if v3_42 then
                                                 if v73_2() then
                                                     v3_42 = false
                                                 else
-                                                    v3_42 = v84_2()
+                                                    local v4_37 = v72_2()
+                                                    if not v4_37 then
+                                                        v3_42 = false
+                                                    else
+                                                        local _brk3 = false
+                                                        for v8_26, v9_15 in ipairs(v4_37:GetDescendants()) do
+                                                            if v9_15:IsA("MeshPart") and v9_15.Name:sub(1, 5) == "Blade" then
+                                                                v3_42 = true
+                                                                _brk3 = true
+                                                                break
+                                                            end
+                                                        end
+                                                        if not _brk3 then
+                                                            v3_42 = false
+                                                        end
+                                                    end
                                                 end
                                             end
                                             if v3_42 then
-                                                v86_2()
+                                                v3_42 = v84_2()
+                                            end
+                                            if v3_42 then
+                                                task.spawn(v86_2)
+                                                while v35_2 do
+                                                    task.wait(0.2)
+                                                end
                                             end
                                             if not v18_4 then
                                                 break
@@ -5060,7 +4957,43 @@ task.spawn(function()
                     v85_2()
                 end
             elseif v77_2() then
-                if v25_2 and not v26_2 and v83_2() then
+                local v2_4, v3_2 = pcall(function()
+                    local v1_2 = v72_2()
+                    if not v1_2 then
+                        return false
+                    end
+                    local v2_3 = v1_2:FindFirstChild("LeftHand")
+                    local v3_3 = v1_2:FindFirstChild("RightHand")
+                    if v2_3 then
+                        local v4_4 = v2_3:FindFirstChild("Blade_1")
+                        if v4_4 and v4_4:GetAttribute("Broken") then
+                            return true
+                        end
+                    end
+                    if v3_3 then
+                        local v4_6 = v3_3:FindFirstChild("Blade_1")
+                        if v4_6 and v4_6:GetAttribute("Broken") then
+                            return true
+                        end
+                    end
+                    local v4_7 = false
+                    for v8, v9 in ipairs(v1_2:GetDescendants()) do
+                        if v9:IsA("MeshPart") and v9.Name:sub(1, 5) == "Blade" then
+                            v4_7 = true
+                            if not v9:GetAttribute("Broken") and 0.9 > v9.Transparency then
+                                return false
+                            end
+                        end
+                    end
+                    return v4_7
+                end)
+                local v1_12
+                if v2_4 then
+                    v1_12 = v3_2
+                else
+                    v1_12 = false
+                end
+                if v1_12 then
                     v85_2()
                 end
             end
@@ -5070,21 +5003,12 @@ end)
 task.spawn(function()
     while true do
         task.wait(0.5)
-        if not v34_2 then
+        if not v34_2 or not v77_2() then
             v36_2 = nil
         elseif v18_4 then
-        elseif v35_2 or v26_2 then
-        elseif v73_2() then
-            v36_2 = nil
-            if v75_2() then
-                v85_2()
-            end
-        elseif v77_2() then
-            if v84_2() then
-                task.spawn(v86_2)
-            end
-        else
-            v36_2 = nil
+        elseif v35_2 then
+        elseif v84_2() then
+            task.spawn(v86_2)
         end
     end
 end)
@@ -7918,31 +7842,16 @@ do
                 return false
             end
             local fired = false
-            local cx = math.floor((target.AbsolutePosition and target.AbsolutePosition.X or 0) +
-                (target.AbsoluteSize and target.AbsoluteSize.X / 2 or 0))
-            local cy = math.floor((target.AbsolutePosition and target.AbsolutePosition.Y or 0) +
-                (target.AbsoluteSize and target.AbsoluteSize.Y / 2 or 0))
+            local cx = math.floor((target.AbsolutePosition and target.AbsolutePosition.X or 0) + (target.AbsoluteSize and target.AbsoluteSize.X / 2 or 0))
+            local cy = math.floor((target.AbsolutePosition and target.AbsolutePosition.Y or 0) + (target.AbsoluteSize and target.AbsoluteSize.Y / 2 or 0))
             local v2Pos = Vector2.new(cx, cy)
             local v3Pos = Vector3.new(cx, cy, 0)
 
             if type(firesignal) == "function" then
-                pcall(function()
-                    firesignal(target.MouseButton1Click)
-                    fired = true
-                end)
-                pcall(function()
-                    firesignal(target.Activated)
-                    fired = true
-                end)
-                pcall(function()
-                    firesignal(target.MouseButton1Down)
-                    firesignal(target.MouseButton1Up)
-                    fired = true
-                end)
-                pcall(function()
-                    firesignal(target.TouchTap)
-                    fired = true
-                end)
+                pcall(function() firesignal(target.MouseButton1Click) fired = true end)
+                pcall(function() firesignal(target.Activated) fired = true end)
+                pcall(function() firesignal(target.MouseButton1Down) firesignal(target.MouseButton1Up) fired = true end)
+                pcall(function() firesignal(target.TouchTap) fired = true end)
                 pcall(function()
                     firesignal(target.InputBegan, {
                         UserInputType = Enum.UserInputType.MouseButton1,
@@ -7976,14 +7885,8 @@ do
                         local sig = target[sigName]
                         if sig then
                             for _, conn in ipairs(getconnections(sig)) do
-                                if conn.Fire then
-                                    pcall(conn.Fire, conn)
-                                    fired = true
-                                end
-                                if conn.Function then
-                                    pcall(conn.Function)
-                                    fired = true
-                                end
+                                if conn.Fire then pcall(conn.Fire, conn) fired = true end
+                                if conn.Function then pcall(conn.Function) fired = true end
                             end
                         end
                     end)
@@ -8176,14 +8079,14 @@ do
                 -- Gửi lệnh vào một Party hoặc Trade. Nếu Server trả về một bảng có chứa chữ Error hoặc Success = false -> Bạn bị ban!
                 if v69_2 then
                     local probeCalls = {
-                        { "Party",     "Check" },
-                        { "Party",     "Status" },
-                        { "Party",     "Create" },
-                        { "S_Party",   "Check" },
-                        { "Trading",   "Check" },
-                        { "Trading",   "Status" },
-                        { "Trade",     "Check" },
-                        { "Trade",     "Status" },
+                        { "Party", "Check" },
+                        { "Party", "Status" },
+                        { "Party", "Create" },
+                        { "S_Party", "Check" },
+                        { "Trading", "Check" },
+                        { "Trading", "Status" },
+                        { "Trade", "Check" },
+                        { "Trade", "Status" },
                         { "S_Trading", "Check" },
                         { "S_Trading", "Status" }
                     }
@@ -8199,8 +8102,7 @@ do
                                 -- Nếu Server trả về một bảng có Success = false -> Bị ban!
                                 if res.Success == false or res.success == false then
                                     detected = true
-                                    local detailErr = tostring(res.Error or res.error or res.Reason or res.reason or
-                                        res.Message or "Bị máy chủ cấm/từ chối quyền")
+                                    local detailErr = tostring(res.Error or res.error or res.Reason or res.reason or res.Message or "Bị máy chủ cấm/từ chối quyền")
                                     reason = string.format("Server %s phản hồi: Success = false (%s)", args[1], detailErr)
                                     return
                                 end
@@ -8223,8 +8125,7 @@ do
                                     local vn = type(v) == "string" and string.lower(v) or ""
                                     if kn:find("error") or vn:find("error") or vn:find("banned") or vn:find("exploiter") or vn:find("restricted") then
                                         detected = true
-                                        reason = string.format("Server %s phát hiện cờ lỗi: %s = %s", args[1],
-                                            tostring(k), tostring(v))
+                                        reason = string.format("Server %s phát hiện cờ lỗi: %s = %s", args[1], tostring(k), tostring(v))
                                         return
                                     end
                                 end
@@ -8262,8 +8163,7 @@ do
                         for k, v in pairs(tbl) do
                             if string.lower(tostring(k)) == flag then
                                 if v == true or (type(v) == "number" and v > 0) or (type(v) == "string" and v ~= "" and v ~= "false" and v ~= "0") then
-                                    return true,
-                                        string.format("Data Cache (%s): %s = %s", scopeName, tostring(k), tostring(v))
+                                    return true, string.format("Data Cache (%s): %s = %s", scopeName, tostring(k), tostring(v))
                                 end
                             end
                         end
@@ -8279,9 +8179,7 @@ do
                         for k, v in pairs(tbl) do
                             if string.lower(tostring(k)) == flag then
                                 if v == false then
-                                    return true,
-                                        string.format("Data Cache (%s): %s = false (Bị tước quyền giao dịch/tổ đội)",
-                                            scopeName, tostring(k))
+                                    return true, string.format("Data Cache (%s): %s = false (Bị tước quyền giao dịch/tổ đội)", scopeName, tostring(k))
                                 end
                             end
                         end
@@ -8345,8 +8243,7 @@ do
                                 or (rawget(obj, "CanTrade") == false and rawget(obj, "Trade") ~= nil)
                             then
                                 detected = true
-                                reason =
-                                "Bộ nhớ Game (GC Data): Tìm thấy bảng chứa cờ vi phạm (IsBanned / IsExploiter / CanTrade = false)"
+                                reason = "Bộ nhớ Game (GC Data): Tìm thấy bảng chứa cờ vi phạm (IsBanned / IsExploiter / CanTrade = false)"
                                 return
                             end
                         end
@@ -8570,18 +8467,18 @@ do
                                     local parsedCap = tonumber(maxCapStr)
                                     -- Strictly require standard AOT:R prestige caps: 100, 125, 150, 175, 200, 225
                                     if parsedCap and parsedCap >= 100 and parsedCap <= 225 and ((parsedCap - 100) % 25 == 0) then
-                                        local derivedP = math.floor((parsedCap - 100) / 25)
-                                        if derivedP >= 0 and derivedP <= 5 then
-                                            prestige = derivedP
-                                            v156_4.Player.Prestige = prestige
-                                        end
-                                        if parsedCur and parsedCur > 0 and parsedCur <= parsedCap then
-                                            level = parsedCur
-                                            v156_4.Player.Level = parsedCur
+                                            local derivedP = math.floor((parsedCap - 100) / 25)
+                                            if derivedP >= 0 and derivedP <= 5 then
+                                                prestige = derivedP
+                                                v156_4.Player.Prestige = prestige
+                                            end
+                                            if parsedCur and parsedCur > 0 and parsedCur <= parsedCap then
+                                                level = parsedCur
+                                                v156_4.Player.Level = parsedCur
+                                            end
                                         end
                                     end
                                 end
-                            end
 
                             -- In-Text Gold Parser
                             local gNorm = normalizeVi(txt)
@@ -9430,10 +9327,7 @@ do
                     or (isVi and "Đã tối đa (MAX S)" or "MAXED (S Grade)")
                 local isMaxPrestige = st.Prestige >= st.MaxPrestigeTarget
                 local prestigeReadyTxt = isMaxPrestige
-                    and
-                    string.format(
-                        isVi and "ĐÃ ĐẠT CẤP TÁI SINH MỤC TIÊU (MAX PRESTIGE %d)" or
-                        "TARGET MAX PRESTIGE REACHED (PRESTIGE %d)", st.MaxPrestigeTarget)
+                    and string.format(isVi and "ĐÃ ĐẠT CẤP TÁI SINH MỤC TIÊU (MAX PRESTIGE %d)" or "TARGET MAX PRESTIGE REACHED (PRESTIGE %d)", st.MaxPrestigeTarget)
                     or (st.ReadyToPrestige
                         and (isVi and "SẴN SÀNG TÁI SINH! (Vào Linh Mục)" or "READY TO PRESTIGE!")
                         or string.format("Lv.%d/%d (XP: %d%%)", st.Level, st.MaxLevelCap, st.XPPercent))
@@ -10126,3 +10020,4 @@ do
     end)
 end
 return
+
