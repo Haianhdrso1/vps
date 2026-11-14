@@ -523,8 +523,6 @@ do
         if not v2_2 then
             return
         end
-        v80_3(v2_2)
-        task.wait(0.5)
         v70_2()
         if v68_2 then
             pcall(function()
@@ -1062,7 +1060,8 @@ do
             end
         end)
         if not resTime then
-            local attrSec = tonumber(v13_8:GetAttribute("Seconds")) or tonumber(v13_8:GetAttribute("Time")) or tonumber(v13_8:GetAttribute("Timer"))
+            local attrSec = tonumber(v13_8:GetAttribute("Seconds")) or tonumber(v13_8:GetAttribute("Time")) or
+                tonumber(v13_8:GetAttribute("Timer"))
             if attrSec and attrSec > 0 then
                 resTime = attrSec
             end
@@ -1104,7 +1103,8 @@ do
                             if achFrame then
                                 for _, btn in ipairs(achFrame:GetDescendants()) do
                                     if btn:IsA("GuiButton") and btn.Visible then
-                                        local txt = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or btn.Name):upper()
+                                        local txt = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or
+                                            btn.Name):upper()
                                         if txt:find("CLAIM") or txt:find("NHẬN") or txt:find("COLLECT") or txt:find("ALL") then
                                             if v150_10.ClickGuiButton then
                                                 v150_10.ClickGuiButton(btn)
@@ -1170,7 +1170,8 @@ do
                             if dailyFrame then
                                 for _, btn in ipairs(dailyFrame:GetDescendants()) do
                                     if btn:IsA("GuiButton") and btn.Visible then
-                                        local txt = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or btn.Name):upper()
+                                        local txt = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or
+                                            btn.Name):upper()
                                         if txt:find("CLAIM") or txt:find("NHẬN") or txt:find("COLLECT") or txt:find("DAY") then
                                             if v150_10.ClickGuiButton then
                                                 v150_10.ClickGuiButton(btn)
@@ -2003,7 +2004,8 @@ do
 
                     if not isLobby then
                         local isRetry = t:find("CHƠI LẠI") or t:find("CHOI LAI") or t:find("RETRY") or t:find("REPLAY")
-                            or t:find("THỬ LẠI") or t:find("THU LAI") or t:find("AGAIN") or n:find("RETRY") or n:find("REPLAY")
+                            or t:find("THỬ LẠI") or t:find("THU LAI") or t:find("AGAIN") or n:find("RETRY") or
+                            n:find("REPLAY")
 
                         local isClaim = t:find("NHẬN") or t:find("CLAIM") or t:find("XÁC NHẬN") or t:find("CONFIRM")
                             or t:find("BỎ QUA") or t:find("SKIP") or t:find("OK") or t:find("ACCEPT") or t:find("CLOSE")
@@ -4724,7 +4726,8 @@ do
                                             end
                                             if v11_38 then
                                                 if v93_2(v10_19) then
-                                                    task.wait(v57_3 and #v6_10 >= v7_18 + 8 and math.max(v58_2, 0.35) or 0.35)
+                                                    task.wait(v57_3 and #v6_10 >= v7_18 + 8 and math.max(v58_2, 0.35) or
+                                                        0.35)
                                                 else
                                                     task.wait(0.1)
                                                 end
@@ -7842,16 +7845,31 @@ do
                 return false
             end
             local fired = false
-            local cx = math.floor((target.AbsolutePosition and target.AbsolutePosition.X or 0) + (target.AbsoluteSize and target.AbsoluteSize.X / 2 or 0))
-            local cy = math.floor((target.AbsolutePosition and target.AbsolutePosition.Y or 0) + (target.AbsoluteSize and target.AbsoluteSize.Y / 2 or 0))
+            local cx = math.floor((target.AbsolutePosition and target.AbsolutePosition.X or 0) +
+                (target.AbsoluteSize and target.AbsoluteSize.X / 2 or 0))
+            local cy = math.floor((target.AbsolutePosition and target.AbsolutePosition.Y or 0) +
+                (target.AbsoluteSize and target.AbsoluteSize.Y / 2 or 0))
             local v2Pos = Vector2.new(cx, cy)
             local v3Pos = Vector3.new(cx, cy, 0)
 
             if type(firesignal) == "function" then
-                pcall(function() firesignal(target.MouseButton1Click) fired = true end)
-                pcall(function() firesignal(target.Activated) fired = true end)
-                pcall(function() firesignal(target.MouseButton1Down) firesignal(target.MouseButton1Up) fired = true end)
-                pcall(function() firesignal(target.TouchTap) fired = true end)
+                pcall(function()
+                    firesignal(target.MouseButton1Click)
+                    fired = true
+                end)
+                pcall(function()
+                    firesignal(target.Activated)
+                    fired = true
+                end)
+                pcall(function()
+                    firesignal(target.MouseButton1Down)
+                    firesignal(target.MouseButton1Up)
+                    fired = true
+                end)
+                pcall(function()
+                    firesignal(target.TouchTap)
+                    fired = true
+                end)
                 pcall(function()
                     firesignal(target.InputBegan, {
                         UserInputType = Enum.UserInputType.MouseButton1,
@@ -7885,8 +7903,14 @@ do
                         local sig = target[sigName]
                         if sig then
                             for _, conn in ipairs(getconnections(sig)) do
-                                if conn.Fire then pcall(conn.Fire, conn) fired = true end
-                                if conn.Function then pcall(conn.Function) fired = true end
+                                if conn.Fire then
+                                    pcall(conn.Fire, conn)
+                                    fired = true
+                                end
+                                if conn.Function then
+                                    pcall(conn.Function)
+                                    fired = true
+                                end
                             end
                         end
                     end)
@@ -8079,14 +8103,14 @@ do
                 -- Gửi lệnh vào một Party hoặc Trade. Nếu Server trả về một bảng có chứa chữ Error hoặc Success = false -> Bạn bị ban!
                 if v69_2 then
                     local probeCalls = {
-                        { "Party", "Check" },
-                        { "Party", "Status" },
-                        { "Party", "Create" },
-                        { "S_Party", "Check" },
-                        { "Trading", "Check" },
-                        { "Trading", "Status" },
-                        { "Trade", "Check" },
-                        { "Trade", "Status" },
+                        { "Party",     "Check" },
+                        { "Party",     "Status" },
+                        { "Party",     "Create" },
+                        { "S_Party",   "Check" },
+                        { "Trading",   "Check" },
+                        { "Trading",   "Status" },
+                        { "Trade",     "Check" },
+                        { "Trade",     "Status" },
                         { "S_Trading", "Check" },
                         { "S_Trading", "Status" }
                     }
@@ -8102,7 +8126,8 @@ do
                                 -- Nếu Server trả về một bảng có Success = false -> Bị ban!
                                 if res.Success == false or res.success == false then
                                     detected = true
-                                    local detailErr = tostring(res.Error or res.error or res.Reason or res.reason or res.Message or "Bị máy chủ cấm/từ chối quyền")
+                                    local detailErr = tostring(res.Error or res.error or res.Reason or res.reason or
+                                        res.Message or "Bị máy chủ cấm/từ chối quyền")
                                     reason = string.format("Server %s phản hồi: Success = false (%s)", args[1], detailErr)
                                     return
                                 end
@@ -8125,7 +8150,8 @@ do
                                     local vn = type(v) == "string" and string.lower(v) or ""
                                     if kn:find("error") or vn:find("error") or vn:find("banned") or vn:find("exploiter") or vn:find("restricted") then
                                         detected = true
-                                        reason = string.format("Server %s phát hiện cờ lỗi: %s = %s", args[1], tostring(k), tostring(v))
+                                        reason = string.format("Server %s phát hiện cờ lỗi: %s = %s", args[1],
+                                            tostring(k), tostring(v))
                                         return
                                     end
                                 end
@@ -8163,7 +8189,8 @@ do
                         for k, v in pairs(tbl) do
                             if string.lower(tostring(k)) == flag then
                                 if v == true or (type(v) == "number" and v > 0) or (type(v) == "string" and v ~= "" and v ~= "false" and v ~= "0") then
-                                    return true, string.format("Data Cache (%s): %s = %s", scopeName, tostring(k), tostring(v))
+                                    return true,
+                                        string.format("Data Cache (%s): %s = %s", scopeName, tostring(k), tostring(v))
                                 end
                             end
                         end
@@ -8179,7 +8206,9 @@ do
                         for k, v in pairs(tbl) do
                             if string.lower(tostring(k)) == flag then
                                 if v == false then
-                                    return true, string.format("Data Cache (%s): %s = false (Bị tước quyền giao dịch/tổ đội)", scopeName, tostring(k))
+                                    return true,
+                                        string.format("Data Cache (%s): %s = false (Bị tước quyền giao dịch/tổ đội)",
+                                            scopeName, tostring(k))
                                 end
                             end
                         end
@@ -8243,7 +8272,8 @@ do
                                 or (rawget(obj, "CanTrade") == false and rawget(obj, "Trade") ~= nil)
                             then
                                 detected = true
-                                reason = "Bộ nhớ Game (GC Data): Tìm thấy bảng chứa cờ vi phạm (IsBanned / IsExploiter / CanTrade = false)"
+                                reason =
+                                "Bộ nhớ Game (GC Data): Tìm thấy bảng chứa cờ vi phạm (IsBanned / IsExploiter / CanTrade = false)"
                                 return
                             end
                         end
@@ -8467,18 +8497,18 @@ do
                                     local parsedCap = tonumber(maxCapStr)
                                     -- Strictly require standard AOT:R prestige caps: 100, 125, 150, 175, 200, 225
                                     if parsedCap and parsedCap >= 100 and parsedCap <= 225 and ((parsedCap - 100) % 25 == 0) then
-                                            local derivedP = math.floor((parsedCap - 100) / 25)
-                                            if derivedP >= 0 and derivedP <= 5 then
-                                                prestige = derivedP
-                                                v156_4.Player.Prestige = prestige
-                                            end
-                                            if parsedCur and parsedCur > 0 and parsedCur <= parsedCap then
-                                                level = parsedCur
-                                                v156_4.Player.Level = parsedCur
-                                            end
+                                        local derivedP = math.floor((parsedCap - 100) / 25)
+                                        if derivedP >= 0 and derivedP <= 5 then
+                                            prestige = derivedP
+                                            v156_4.Player.Prestige = prestige
+                                        end
+                                        if parsedCur and parsedCur > 0 and parsedCur <= parsedCap then
+                                            level = parsedCur
+                                            v156_4.Player.Level = parsedCur
                                         end
                                     end
                                 end
+                            end
 
                             -- In-Text Gold Parser
                             local gNorm = normalizeVi(txt)
@@ -9327,7 +9357,10 @@ do
                     or (isVi and "Đã tối đa (MAX S)" or "MAXED (S Grade)")
                 local isMaxPrestige = st.Prestige >= st.MaxPrestigeTarget
                 local prestigeReadyTxt = isMaxPrestige
-                    and string.format(isVi and "ĐÃ ĐẠT CẤP TÁI SINH MỤC TIÊU (MAX PRESTIGE %d)" or "TARGET MAX PRESTIGE REACHED (PRESTIGE %d)", st.MaxPrestigeTarget)
+                    and
+                    string.format(
+                        isVi and "ĐÃ ĐẠT CẤP TÁI SINH MỤC TIÊU (MAX PRESTIGE %d)" or
+                        "TARGET MAX PRESTIGE REACHED (PRESTIGE %d)", st.MaxPrestigeTarget)
                     or (st.ReadyToPrestige
                         and (isVi and "SẴN SÀNG TÁI SINH! (Vào Linh Mục)" or "READY TO PRESTIGE!")
                         or string.format("Lv.%d/%d (XP: %d%%)", st.Level, st.MaxLevelCap, st.XPPercent))
@@ -10020,4 +10053,3 @@ do
     end)
 end
 return
-
