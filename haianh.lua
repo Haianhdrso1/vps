@@ -598,7 +598,7 @@ do
                 targetCF = p1.PrimaryPart and p1.PrimaryPart.CFrame or p1:GetPivot()
             end
             if targetCF then
-                targetCF = targetCF + Vector3.new(0, 3, 0)
+                targetCF = targetCF + Vector3.new(0, 1.5, 0)
                 v3_4.CFrame = targetCF
                 v3_4.AssemblyLinearVelocity = Vector3.zero
                 v3_4.AssemblyAngularVelocity = Vector3.zero
@@ -613,18 +613,22 @@ do
         end
         v35_2 = true
         v61_2.SpearFireFails = 0
+        local refillOk = false
         pcall(function()
+            if p1 and type(v92_2) == "function" then
+                pcall(v92_2)
+            end
             local targetCF = v80_3(v2_2)
             if targetCF then
                 v61_2.RefillHoldCFrame = targetCF
             end
-            for _ = 1, 7 do
+            for _ = 1, 5 do
                 if not v2_2 or not v2_2.Parent then break end
                 local cf = v80_3(v2_2)
                 if cf then
                     v61_2.RefillHoldCFrame = cf
                 end
-                task.wait(0.05)
+                task.wait(0.04)
             end
             v70_2()
 
@@ -644,26 +648,37 @@ do
             fireStationReload()
 
             local t0 = os.clock()
-            local firedFallback = false
-            while os.clock() - t0 < 1.25 do
+            local lastRetry = t0
+            local bestSpearCount = p1 and v74_2() or 0
+            local lastGrowthTime = os.clock()
+
+            while os.clock() - t0 < 1.8 do
                 task.wait(0.08)
                 if not v54_2 and v2_2 and v2_2.Parent then
                     v80_3(v2_2)
                 end
-                if os.clock() - t0 >= 0.2 then
-                    if p1 then
-                        if not v75_2() then
-                            break
-                        end
-                    else
+                if p1 then
+                    local curCount = v74_2()
+                    if curCount > bestSpearCount then
+                        bestSpearCount = curCount
+                        lastGrowthTime = os.clock()
+                    end
+                    -- Chi roi tram khi thuong da nap day (>= 16) hoac da len duoc va ngung tang trong 0.28s
+                    if curCount >= 16 or (curCount > 0 and os.clock() - lastGrowthTime >= 0.28 and os.clock() - t0 >= 0.45) then
+                        refillOk = true
+                        break
+                    end
+                else
+                    if os.clock() - t0 >= 0.2 then
                         local sets = v82_2()
                         if not v83_2() and (sets == nil or sets > 0) then
+                            refillOk = true
                             break
                         end
                     end
                 end
-                if not firedFallback and os.clock() - t0 >= 0.45 then
-                    firedFallback = true
+                if os.clock() - lastRetry >= 0.45 then
+                    lastRetry = os.clock()
                     fireStationReload()
                     pcall(function()
                         if v68_2 and v2_2 and v2_2.Parent and v2_2.Parent:IsA("Model") then
@@ -687,13 +702,16 @@ do
                 end
             end
 
+            if p1 and v74_2() > 0 then
+                refillOk = true
+            end
             local stillEmpty = (p1 and v75_2()) or (not p1 and v83_2())
-            if stillEmpty then
+            if stillEmpty and not refillOk then
                 v80_2 = nil
             end
         end)
         v61_2.RefillHoldCFrame = nil
-        v41_2 = os.clock()
+        v41_2 = refillOk and 0 or os.clock()
         v35_2 = false
         return
     end
@@ -1007,13 +1025,6 @@ do
         if not p1 or not p1.Parent then
             return true
         end
-        local v2_4 = p1:FindFirstChild("HumanoidRootPart")
-        if not v2_4 then
-            return true
-        end
-        if v2_4.Anchored == true then
-            return true
-        end
         local v3_8 = p1:GetAttribute("State")
         if v3_8 == "Dead" or v3_8 == "Die" or v3_8 == "Dying" then
             return true
@@ -1021,6 +1032,16 @@ do
         local v4_7 = p1:FindFirstChild("Humanoid")
         if v4_7 and v4_7.Health <= 0 then
             return true
+        end
+        local isBoss = v150_10 and v150_10.IsBossModel and v150_10.IsBossModel(p1)
+        local v2_4 = p1:FindFirstChild("HumanoidRootPart")
+        if not isBoss then
+            if not v2_4 then
+                return true
+            end
+            if v2_4.Anchored == true then
+                return true
+            end
         end
         return false
     end
@@ -1030,8 +1051,11 @@ do
         end
         local v2_3 = v13_8:FindFirstChild("Titans")
         local pName = p1.Parent.Name
+        local isBoss = v150_10 and v150_10.IsBossModel and v150_10.IsBossModel(p1)
         local isValidParent = (v2_3 and p1.Parent == v2_3)
             or pName == "Boss" or pName == "Bosses" or pName == "Shifters" or pName == "Raid"
+            or pName == "Enemies" or pName == "Spawns" or pName == "Living" or pName == "Entities"
+            or (p1.Parent == v13_8 and isBoss)
         if not isValidParent then
             return false
         end
@@ -1148,9 +1172,10 @@ do
 
         local nameLower = string.lower(model.Name)
         local bossKeywords = {
-            "eren", "attack titan", "rogue", "colossal", "bertholdt", "reiner", "armored", "armoured",
-            "beast", "zeke", "female", "annie", "warhammer", "founding", "jaw", "cart",
-            "falco", "porco", "pieck", "larva", "shifter", "raidboss", "boss"
+            "eren", "yeager", "jaeger", "attack titan", "rogue", "colossal", "bertholdt", "armin", "reiner",
+            "armored", "armoured", "braun", "beast", "zeke", "female", "annie", "leonhart", "warhammer",
+            "tybur", "tyber", "founding", "reiss", "rod", "jaw", "cart", "falco", "porco", "galliard",
+            "pieck", "kruger", "larva", "aberrant", "shifter", "raidboss", "boss"
         }
         for _, kw in ipairs(bossKeywords) do
             if string.find(nameLower, kw, 1, true) then
@@ -1166,17 +1191,36 @@ do
             return nil
         end
 
-        local raidFolders = {
+        local dedicatedFolders = {
             v13_8:FindFirstChild("Boss"),
             v13_8:FindFirstChild("Bosses"),
             v13_8:FindFirstChild("Shifters"),
-            v13_8:FindFirstChild("Raid"),
-            v13_8:FindFirstChild("Titans")
+            v13_8:FindFirstChild("Raid")
         }
-        for _, container in ipairs(raidFolders) do
+        for _, container in ipairs(dedicatedFolders) do
             if container then
                 for _, child in ipairs(container:GetChildren()) do
-                    if child:IsA("Model") and v91_2(child) and v150_10.IsBossModel(child) then
+                    if child:IsA("Model") and v91_2(child) then
+                        if v150_10.IsBossModel(child) or container.Name ~= "Raid" then
+                            return child
+                        end
+                    end
+                end
+            end
+        end
+
+        local fallbackFolders = {
+            v13_8:FindFirstChild("Titans"),
+            v13_8:FindFirstChild("Enemies"),
+            v13_8:FindFirstChild("Spawns"),
+            v13_8:FindFirstChild("Living"),
+            v13_8:FindFirstChild("Entities"),
+            v13_8
+        }
+        for _, container in ipairs(fallbackFolders) do
+            if container then
+                for _, child in ipairs(container:GetChildren()) do
+                    if child:IsA("Model") and v150_10.IsBossModel(child) and v91_2(child) then
                         return child
                     end
                 end
@@ -1489,7 +1533,7 @@ do
         end
         local v6_17 = v76_2()
         if not v6_17 or v6_17 <= 0 then
-            if (v25_2 or v34_2) and not v26_2 then
+            if (v18_4 or v25_2 or v34_2) and not v26_2 then
                 v85_2()
             end
             return false
@@ -1511,12 +1555,40 @@ do
         if v7_8 == true then
             v61_2.SpearFireFails = 0
             task.wait(0.03)
-            for v12_7, v13_7 in ipairs(v2_3) do
-                if v13_7 and v13_7.Parent then
-                    pcall(function()
-                        v68_2:FireServer("Spears", "S_Explode", v13_7.Position, 2.5)
-                        return
-                    end)
+            local function jitterPos(basePos)
+                return basePos + Vector3.new(math.random(-100, 100) / 1000, math.random(-100, 100) / 1000, math.random(-100, 100) / 1000)
+            end
+            if #v2_3 == 1 then
+                local targetPart = v2_3[1]
+                if targetPart and targetPart.Parent then
+                    for _ = 1, 9 do
+                        pcall(function()
+                            v68_2:FireServer("Spears", "S_Explode", jitterPos(targetPart.Position), 2.5)
+                        end)
+                    end
+                end
+            else
+                local sent = 0
+                for _, v13_7 in ipairs(v2_3) do
+                    if v13_7 and v13_7.Parent then
+                        sent = sent + 1
+                        pcall(function()
+                            v68_2:FireServer("Spears", "S_Explode", jitterPos(v13_7.Position), 2.5)
+                        end)
+                    end
+                end
+                if v150_10.AutoRaid and sent > 0 and sent < 9 then
+                    local idx = 1
+                    while sent < 9 do
+                        local v13_7 = v2_3[idx]
+                        if v13_7 and v13_7.Parent then
+                            pcall(function()
+                                v68_2:FireServer("Spears", "S_Explode", jitterPos(v13_7.Position), 2.5)
+                            end)
+                        end
+                        sent = sent + 1
+                        idx = (idx % #v2_3) + 1
+                    end
                 end
             end
             v92_2()
@@ -1528,7 +1600,7 @@ do
         end)
         v61_2.SpearFireFails = (v61_2.SpearFireFails or 0) + 1
         local spearAttr = v4_11 and tonumber(v4_11:GetAttribute("Spears"))
-        if (v61_2.SpearFireFails >= 3 or (spearAttr ~= nil and spearAttr <= 0)) and (v25_2 or v34_2) and not v26_2 then
+        if (v61_2.SpearFireFails >= 3 or (spearAttr ~= nil and spearAttr <= 0)) and (v18_4 or v25_2 or v34_2) and not v26_2 then
             v61_2.SpearFireFails = 0
             v85_2()
         end
@@ -2763,13 +2835,11 @@ do
             return nil
         end
         if v73_2() then
-            return CFrame.lookAt(v2.Position + Vector3.new(0, 48, 0) - v2.CFrame.LookVector * (75 + v60_2), v2.Position)
+            local hoverY = 40 + v60_2
+            return CFrame.lookAt(v2.Position + Vector3.new(0, hoverY, 12), v2.Position)
         end
-        local v3_8 = os.clock() * 8
-        local v4_6 = 55 + v60_2
-        local v6_7 = v3_8 + 0.2
-        return CFrame.lookAt(v2.Position + Vector3.new(math.cos(v3_8) * 32, v4_6, math.sin(v3_8) * 32),
-            v2.Position + Vector3.new(math.cos(v6_7) * 32, v4_6, math.sin(v6_7) * 32))
+        local hoverY = 30 + v60_2
+        return CFrame.lookAt(v2.Position + Vector3.new(0, hoverY, 6), v2.Position)
     end
     local function v120_4(p1)
         local v3 = math
@@ -2972,32 +3042,13 @@ do
         end
         v55_2 = p3
         p1.CFrame = p3
-        if v73_2() then
-            if p2 then
-                p2.PlatformStand = true
-            end
-            pcall(function()
-                local v1 = p1
-                local v3 = Vector3
-                v1.AssemblyLinearVelocity = v3.zero
-                v1.AssemblyAngularVelocity = v3.zero
-                return
-            end)
-        else
-            if p2 then
-                p2.PlatformStand = false
-                pcall(function()
-                    p2:ChangeState(Enum.HumanoidStateType.Freefall)
-                    return
-                end)
-            end
-            pcall(function()
-                local v1 = p1
-                v1.AssemblyLinearVelocity = p3.LookVector * 160
-                v1.AssemblyAngularVelocity = Vector3.zero
-                return
-            end)
+        if p2 then
+            p2.PlatformStand = true
         end
+        pcall(function()
+            p1.AssemblyLinearVelocity = Vector3.zero
+            p1.AssemblyAngularVelocity = Vector3.zero
+        end)
         return
     end
     v127_2 = function(p1)
@@ -4669,11 +4720,11 @@ do
             if not v18_4 then
                 break
             else
-                if (v25_2 or v34_2) and not v26_2 then
-                    if v73_2() and v75_2() then
+                if not v26_2 then
+                    if v73_2() and v75_2() and (v18_4 or v25_2 or v34_2) then
                         v85_2()
-                    else
-                        local v2_13 = v25_2 and v77_2() and v83_2()
+                    elseif v25_2 then
+                        local v2_13 = v77_2() and v83_2()
                         if v2_13 then
                             v85_2()
                         end
@@ -4704,15 +4755,15 @@ do
                             v127_2(raidBoss)
                             if v73_2() then
                                 if v93_2(raidBoss) then
-                                    task.wait(v57_3 and math.max(v58_2, 0.35) or 0.35)
+                                    task.wait(v57_3 and math.max(v58_2, 0.2) or 0.18)
                                 else
-                                    task.wait(0.1)
+                                    task.wait(0.06)
                                 end
                             else
                                 if v97_6(raidBoss) then
-                                    task.wait(v57_3 and math.max(v58_2, 0.12) or 0.12)
+                                    task.wait(v57_3 and math.max(v58_2, 0.08) or 0.06)
                                 else
-                                    task.wait(0.08)
+                                    task.wait(0.05)
                                 end
                             end
                         elseif v59_2 then
@@ -4770,7 +4821,7 @@ do
                                                 v13_14 and v13_14:FindFirstChild("Spears") ~= nil or false
                                         end
                                         if v10_5 then
-                                            if (v25_2 or v34_2) and not v26_2 and v75_2() then
+                                            if (v18_4 or v25_2 or v34_2) and not v26_2 and v75_2() then
                                                 v85_2()
                                                 if v75_2() then
                                                     break
@@ -4854,6 +4905,10 @@ do
                                 break
                             elseif v73_2() then
                                 local v2_41 = v122_3(v20_2) or v20_2
+                                if v2_41 and v91_2(v2_41) then
+                                    v20_2 = v2_41
+                                    v127_2(v2_41)
+                                end
                                 local v3_36 = v2_41 and v89_2(v2_41)
                                 if v3_36 and v87_2() then
                                     v93_2(v2_41)
