@@ -256,7 +256,7 @@ local function v9_4(p1, p2)
     end
     return
 end
-local v12_4 = loadstring(game:HttpGet("https://raw.githubusercontent.com/Haianhdrso1/vps/refs/heads/main/menuhenu.lua"))()
+local v12_4 = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 local v13_8 = game:GetService("Workspace")
 local v14_9 = game:GetService("RunService")
 local v15_29 = game:GetService("UserInputService")
