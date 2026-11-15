@@ -256,7 +256,38 @@ local function v9_4(p1, p2)
     end
     return
 end
-local v12_4 = loadstring(game:HttpGet("https://raw.githubusercontent.com/Haianhdrso1/vps/refs/heads/main/menuhenu.lua"))()
+local v12_4
+do
+    local uiUrl = "https://raw.githubusercontent.com/Haianhdrso1/vps/refs/heads/main/menuhenu.lua"
+    local okFetch, body = pcall(function()
+        return game:HttpGet(uiUrl)
+    end)
+    if not okFetch or type(body) ~= "string" or body == "" then
+        warn("[senden hub] Khong tai duoc menu tu GitHub:", body)
+    else
+        local chunk, loadErr = loadstring(body)
+        if not chunk then
+            warn("[senden hub] Loi cu phap menu:", loadErr)
+        else
+            local okRun, lib = pcall(chunk)
+            if okRun and type(lib) == "table" then
+                v12_4 = lib
+            else
+                warn("[senden hub] Loi chay menu:", lib)
+            end
+        end
+    end
+    if type(v12_4) ~= "table" then
+        pcall(function()
+            game:GetService("StarterGui"):SetCore("SendNotification", {
+                Title = "senden hub",
+                Text = "Loi tai menu tu GitHub (xem F9)",
+                Duration = 6
+            })
+        end)
+        return
+    end
+end
 local v13_8 = game:GetService("Workspace")
 local v14_9 = game:GetService("RunService")
 local v15_29 = game:GetService("UserInputService")
@@ -5436,6 +5467,8 @@ do
         return currentLang == "Tiếng Việt"
     end
 
+    local isMacUI = type(v12_4) == "table" and (type(v12_4.SetAccent) == "function" or type(v12_4.AddTheme) == "function")
+
     function v150_9.SetLanguage(lang)
         local norm = lang == "Tiếng Việt" and "Tiếng Việt" or "English"
         local changed = currentLang ~= norm
@@ -5443,25 +5476,48 @@ do
         v9_4("Language", norm)
         for _, rec in ipairs(registeredRecords) do
             local nextTxt = tr(rec.key)
-            if rec.kind == "Section" or rec.kind == "Button" then
-                pcall(function()
-                    rec.obj:Set(nextTxt)
-                end)
-            elseif rec.kind == "Paragraph" then
-                pcall(function()
-                    rec.obj:Set({
-                        Title = nextTxt,
-                        Content = rec.lastContent or ""
-                    })
-                end)
-            elseif rec.kind == "Tab" and type(rec.tabData) == "table" then
-                rec.tabData.Name = nextTxt
-            elseif type(rec.obj) == "table" then
-                rec.obj.Name = nextTxt
-                rec.obj.Title = nextTxt
+            if rec.isMac then
+                if rec.kind == "Tab" and type(rec.tabData) == "table" then
+                    pcall(function()
+                        rec.tabData.Title = nextTxt
+                        if rec.tabData.Label then
+                            rec.tabData.Label.Text = nextTxt
+                        end
+                        if rec.tabData.Button then
+                            rec.tabData.Button.Name = nextTxt
+                        end
+                        if rec.tabData.HeroTitle then
+                            rec.tabData.HeroTitle.Text = nextTxt
+                        end
+                    end)
+                elseif type(rec.obj) == "table" and type(rec.obj.SetTitle) == "function" then
+                    pcall(function()
+                        rec.obj:SetTitle(nextTxt)
+                    end)
+                end
+            else
+                if rec.kind == "Section" or rec.kind == "Button" then
+                    pcall(function()
+                        rec.obj:Set(nextTxt)
+                    end)
+                elseif rec.kind == "Paragraph" then
+                    pcall(function()
+                        rec.obj:Set({
+                            Title = nextTxt,
+                            Content = rec.lastContent or ""
+                        })
+                    end)
+                elseif rec.kind == "Tab" and type(rec.tabData) == "table" then
+                    rec.tabData.Name = nextTxt
+                elseif type(rec.obj) == "table" then
+                    rec.obj.Name = nextTxt
+                    rec.obj.Title = nextTxt
+                end
             end
         end
-        syncRayfieldDomLanguage()
+        if not isMacUI then
+            syncRayfieldDomLanguage()
+        end
         if type(v150_9.OnLanguageChanged) == "function" then
             pcall(v150_9.OnLanguageChanged)
         end
@@ -5477,22 +5533,98 @@ do
     end
 
     function v150_9.wrapWindow(win)
-        local wrappedWin = {}
+        local wrappedWin = {
+            Rayfield = v12_4
+        }
+        local macMode = isMacUI or (type(win) == "table" and type(win.AddTab) == "function" and type(win.CreateTab) ~= "function")
+        local macTabIcons = {
+            ["Player"] = "user",
+            ["Auto Farm"] = "swords",
+            ["Various"] = "eye",
+            ["Stats"] = "bar-chart-2",
+            ["Kaitun"] = "activity",
+            ["Settings"] = "settings",
+        }
         function wrappedWin:CreateTab(name, ...)
             local key = tostring(name or "")
+            if macMode then
+                local okTab, tab = pcall(function()
+                    return win:AddTab({
+                        Title = tr(key),
+                        Icon = macTabIcons[key] or "layers",
+                    })
+                end)
+                if not okTab or type(tab) ~= "table" then
+                    warn("[senden hub] AddTab error (" .. key .. "):", tab)
+                    return v150_9.wrapTab(nil, true)
+                end
+                table.insert(registeredRecords, { kind = "Tab", key = key, tabData = tab, isMac = true })
+                return v150_9.wrapTab(tab, true)
+            end
             local tab = win:CreateTab(tr(key), ...)
             table.insert(registeredRecords, { kind = "Tab", key = key, tabData = tab })
-            return v150_9.wrapTab(tab)
+            return v150_9.wrapTab(tab, false)
+        end
+
+        function wrappedWin:EnsureVisible()
+            if macMode and type(win) == "table" then
+                pcall(function()
+                    if type(win.SetSidebarVisible) == "function" then
+                        win:SetSidebarVisible(true)
+                    end
+                    if not win.CurrentTab and type(win.Tabs) == "table" and win.Tabs[1] and type(win.SelectTab) == "function" then
+                        win:SelectTab(win.Tabs[1])
+                    end
+                    if type(win.SetVisible) == "function" and not win.Shown then
+                        win:SetVisible(true, true)
+                    end
+                end)
+            end
         end
 
         return wrappedWin
     end
 
-    function v150_9.wrapTab(rayfieldTab)
+    function v150_9.wrapTab(rayfieldTab, macMode)
         local wrapped = {}
+        local activeSection = nil
+
+        local function getTarget()
+            if macMode then
+                return activeSection or rayfieldTab
+            end
+            return rayfieldTab
+        end
+
+        local function noopObj()
+            return {
+                Set = function() end,
+                SetContent = function() end,
+                SetState = function() end,
+                SetValue = function() end,
+                SetSelected = function() end,
+                SetTitle = function() end,
+            }
+        end
 
         function wrapped:AddLabel(text)
             local key = tostring(text or "")
+            if macMode then
+                local target = rayfieldTab
+                if type(target) ~= "table" or type(target.AddSection) ~= "function" then
+                    return noopObj()
+                end
+                local ok, sec = pcall(function()
+                    return target:AddSection({ Title = tr(key) })
+                end)
+                if not ok or type(sec) ~= "table" then
+                    warn("[senden hub] AddSection error (" .. key .. "):", sec)
+                    return noopObj()
+                end
+                activeSection = sec
+                table.insert(registeredRecords, { kind = "Section", key = key, obj = sec, isMac = true })
+                return sec
+            end
             local sec = rayfieldTab:CreateSection(tr(key))
             table.insert(registeredRecords, { kind = "Section", key = key, obj = sec })
             return sec
@@ -5500,7 +5632,35 @@ do
 
         function wrapped:AddParagraph(title, content)
             local key = tostring(title or "")
-            local rec = { kind = "Paragraph", key = key, lastContent = tostring(content or "") }
+            local rec = { kind = "Paragraph", key = key, lastContent = tostring(content or ""), isMac = macMode }
+            if macMode then
+                local target = getTarget()
+                if type(target) ~= "table" or type(target.AddParagraph) ~= "function" then
+                    return noopObj()
+                end
+                local ok, paragraph = pcall(function()
+                    return target:AddParagraph(nil, {
+                        Title = tr(key),
+                        Content = rec.lastContent
+                    })
+                end)
+                if not ok or type(paragraph) ~= "table" then
+                    warn("[senden hub] AddParagraph error (" .. key .. "):", paragraph)
+                    return noopObj()
+                end
+                rec.obj = paragraph
+                table.insert(registeredRecords, rec)
+                return {
+                    Set = function(_, newContent)
+                        rec.lastContent = tostring(newContent or "")
+                        if paragraph and type(paragraph.SetContent) == "function" then
+                            pcall(function()
+                                paragraph:SetContent(rec.lastContent)
+                            end)
+                        end
+                    end
+                }
+            end
             local paragraph = rayfieldTab:CreateParagraph({
                 Title = tr(key),
                 Content = rec.lastContent
@@ -5520,6 +5680,24 @@ do
 
         function wrapped:AddButton(name, callback)
             local key = tostring(name or "")
+            if macMode then
+                local ok, btn = pcall(function()
+                    return getTarget():AddButton({
+                        Title = tr(key),
+                        Callback = function()
+                            if callback then
+                                callback()
+                            end
+                        end
+                    })
+                end)
+                if not ok or type(btn) ~= "table" then
+                    warn("[senden hub] AddButton error (" .. key .. "):", btn)
+                    return noopObj()
+                end
+                table.insert(registeredRecords, { kind = "Button", key = key, obj = btn, isMac = true })
+                return btn
+            end
             local btn = rayfieldTab:CreateButton({
                 Name = tr(key),
                 Callback = function()
@@ -5535,7 +5713,46 @@ do
         function wrapped:AddToggle(name, callback)
             local key = tostring(name or "")
             local suppressing = true
-            local toggle = rayfieldTab:CreateToggle({
+            local toggle
+            if macMode then
+                local ok, res = pcall(function()
+                    return getTarget():AddToggle(nil, {
+                        Title = tr(key),
+                        Default = false,
+                        Callback = function(value)
+                            if suppressing or v15_isRestoring then
+                                return
+                            end
+                            if callback then
+                                callback(value == true)
+                            end
+                        end
+                    })
+                end)
+                suppressing = false
+                if not ok or type(res) ~= "table" then
+                    warn("[senden hub] AddToggle error (" .. key .. "):", res)
+                    return noopObj()
+                end
+                toggle = res
+                table.insert(registeredRecords, { kind = "Toggle", key = key, obj = toggle, isMac = true })
+                local origSetValue = toggle.SetValue
+                function toggle:SetState(state)
+                    local nextState = state == true
+                    suppressing = true
+                    local ok, err = pcall(function()
+                        if type(origSetValue) == "function" then
+                            origSetValue(self, nextState)
+                        end
+                    end)
+                    suppressing = false
+                    if not ok then
+                        warn("[Symbiote] SetState error:", err)
+                    end
+                end
+                return toggle
+            end
+            toggle = rayfieldTab:CreateToggle({
                 Name = tr(key),
                 CurrentValue = false,
                 Callback = function(value)
@@ -5569,10 +5786,53 @@ do
             local key = tostring(name or "")
             local suppressing = true
             local initialVal = clampNum(defaultVal, minVal, maxVal)
+            local inc = increment or 1
+            if macMode then
+                local rounding = (inc < 1) and 2 or 0
+                local ok, slider = pcall(function()
+                    return getTarget():AddSlider(nil, {
+                        Title = tr(key),
+                        Min = minVal,
+                        Max = maxVal,
+                        Default = initialVal,
+                        Increment = inc,
+                        Rounding = rounding,
+                        Callback = function(value)
+                            if suppressing or v15_isRestoring then
+                                return
+                            end
+                            if callback then
+                                callback(tonumber(value) or initialVal)
+                            end
+                        end
+                    })
+                end)
+                suppressing = false
+                if not ok or type(slider) ~= "table" then
+                    warn("[senden hub] AddSlider error (" .. key .. "):", slider)
+                    return noopObj()
+                end
+                table.insert(registeredRecords, { kind = "Slider", key = key, obj = slider, isMac = true })
+                local origSetValue = slider.SetValue
+                function slider:SetValue(val)
+                    local clamped = clampNum(val, minVal, maxVal)
+                    suppressing = true
+                    local ok, err = pcall(function()
+                        if type(origSetValue) == "function" then
+                            origSetValue(self, clamped)
+                        end
+                    end)
+                    suppressing = false
+                    if not ok then
+                        warn("[Symbiote] SetValue error:", err)
+                    end
+                end
+                return slider
+            end
             local slider = rayfieldTab:CreateSlider({
                 Name = tr(key),
                 Range = { minVal, maxVal },
-                Increment = increment or 1,
+                Increment = inc,
                 CurrentValue = initialVal,
                 Callback = function(value)
                     if suppressing or v15_isRestoring then
@@ -5604,6 +5864,46 @@ do
         function wrapped:AddDropdown(name, options, callback)
             local key = tostring(name or "")
             local suppressing = true
+            if macMode then
+                local ok, dropdown = pcall(function()
+                    return getTarget():AddDropdown(nil, {
+                        Title = tr(key),
+                        Values = options or {},
+                        Multi = true,
+                        Default = {},
+                        AllowNull = true,
+                        Callback = function(selectedVal)
+                            if suppressing or v15_isRestoring then
+                                return
+                            end
+                            if callback then
+                                callback(toOptionSet(selectedVal))
+                            end
+                        end
+                    })
+                end)
+                suppressing = false
+                if not ok or type(dropdown) ~= "table" then
+                    warn("[senden hub] AddDropdown error (" .. key .. "):", dropdown)
+                    return noopObj()
+                end
+                table.insert(registeredRecords, { kind = "Dropdown", key = key, obj = dropdown, isMac = true })
+                local origSetValue = dropdown.SetValue
+                function dropdown:SetSelected(selectedTbl)
+                    local optionSet = toOptionSet(selectedTbl)
+                    suppressing = true
+                    local ok, err = pcall(function()
+                        if type(origSetValue) == "function" then
+                            origSetValue(self, optionSet)
+                        end
+                    end)
+                    suppressing = false
+                    if not ok then
+                        warn("[Symbiote] SetSelected error:", err)
+                    end
+                end
+                return dropdown
+            end
             local dropdown = rayfieldTab:CreateDropdown({
                 Name = tr(key),
                 Options = options or {},
@@ -5638,6 +5938,49 @@ do
         function wrapped:AddSingleDropdown(name, options, defaultOpt, callback)
             local key = tostring(name or "")
             local suppressing = true
+            if macMode then
+                local ok, dropdown = pcall(function()
+                    return getTarget():AddDropdown(nil, {
+                        Title = tr(key),
+                        Values = options or {},
+                        Multi = false,
+                        Default = defaultOpt,
+                        AllowNull = false,
+                        Callback = function(selectedVal)
+                            if suppressing or v15_isRestoring then
+                                return
+                            end
+                            local chosen = type(selectedVal) == "table" and selectedVal[1] or selectedVal
+                            if callback and type(chosen) == "string" then
+                                callback(chosen)
+                            end
+                        end
+                    })
+                end)
+                suppressing = false
+                if not ok or type(dropdown) ~= "table" then
+                    warn("[senden hub] AddSingleDropdown error (" .. key .. "):", dropdown)
+                    return noopObj()
+                end
+                table.insert(registeredRecords, { kind = "Dropdown", key = key, obj = dropdown, isMac = true })
+                local origSetValue = dropdown.SetValue
+                function dropdown:SetSelected(optStr)
+                    if type(optStr) ~= "string" then
+                        return
+                    end
+                    suppressing = true
+                    local ok, err = pcall(function()
+                        if type(origSetValue) == "function" then
+                            origSetValue(self, optStr)
+                        end
+                    end)
+                    suppressing = false
+                    if not ok then
+                        warn("[Symbiote] SetSelected error:", err)
+                    end
+                end
+                return dropdown
+            end
             local dropdown = rayfieldTab:CreateDropdown({
                 Name = tr(key),
                 Options = options or {},
@@ -5677,21 +6020,35 @@ do
 
     v150_9.toOptionSet = toOptionSet
 end
-local v150_8 = v150_9.wrapWindow(v12_4:CreateWindow({
-    Name = "HAIANHHUB (premium)",
-    LoadingTitle = "HAIANHHUB",
-    LoadingSubtitle = "Phiên bản 0.0.1",
-    Theme = "Default",
-    ConfigurationSaving = {
-        Enabled = false
-    }
-}))
+local v150_8 = v150_9.wrapWindow(
+    (type(v12_4) == "table" and (type(v12_4.SetAccent) == "function" or type(v12_4.AddTheme) == "function"))
+    and v12_4:CreateWindow({
+        Title = "senden hub",
+        SubTitle = "Phiên bản 0.0.1",
+        Theme = "Dark",
+        Accent = Color3.fromRGB(146, 66, 255),
+        SidebarStyle = "Tile",
+        Size = UDim2.fromOffset(740, 500),
+        MinSize = UDim2.fromOffset(540, 360),
+        MinimizeKey = Enum.KeyCode.RightShift,
+    })
+    or v12_4:CreateWindow({
+        Name = "HAIANHHUB (premium)",
+        LoadingTitle = "HAIANHHUB",
+        LoadingSubtitle = "Phiên bản 0.0.1",
+        Theme = "Default",
+        ConfigurationSaving = {
+            Enabled = false
+        }
+    })
+)
 local v151_6 = v150_8:CreateTab("Player")
 local v152_7 = v150_8:CreateTab("Auto Farm")
 local v153_9 = v150_8:CreateTab("Various")
 local v154_8 = v150_8:CreateTab("Stats")
 v56_2.KaitunTab = v150_8:CreateTab("Kaitun")
 v56_2.SettingsTab = v150_8:CreateTab("Settings")
+v150_8:EnsureVisible()
 local v157_2 = (function()
     local v1_2 = v10_3("Symbiote_AOTR_Stats.json")
     if not v1_2 then
