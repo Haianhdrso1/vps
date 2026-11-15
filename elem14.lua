@@ -1,11860 +1,10128 @@
---[[
-	 __  __             _   _ ___
-	|  \/  | __ _  ___ | | | |_ _|
-	| |\/| |/ _` |/ __|| | | || |
-	| |  | | (_| | (__ | |_| || |
-	|_|  |_|\__,_|\___| \___/|___|
-
-	MacUI — a macOS System Settings–style interface library for Roblox.
-
-	Version : 4.4.0
-	Author  : Kiwzu  (https://github.com/Kiwzu/Mac-OS-UI-LUA)
-	Icons   : Lucide (ISC license) via the asset ids published with Fluent (MIT)
-
-	The public API is a superset of the Fluent API, so most Fluent scripts
-	work after swapping the loadstring. See README.md for the full reference.
-]]
-
-local MacUI = {
-	Version = "4.4.0",
-	Options = {},
-	Windows = {},
-	Unloaded = false,
-	ThemeName = "Dark",
-	Accent = Color3.fromRGB(10, 132, 255),
-	FontFamily = "rbxasset://fonts/families/BuilderSans.json",
-	MonoFamily = "rbxasset://fonts/families/RobotoMono.json",
-	ReduceMotion = false,
-	UndoEnabled = true,
-	-- when this copy loaded: re-running a script keeps the newest copy
-	LoadedAt = os.clock(),
+if type(game.IsLoaded) == "function" and not game:IsLoaded() then
+    pcall(function()
+        game.Loaded:Wait()
+    end)
+end
+local v5_6 = game:GetService("HttpService")
+local v6_21 = game:GetService("Players")
+local v7_13 = v6_21.LocalPlayer or (v6_21.PlayerAdded and v6_21.PlayerAdded:Wait())
+local v12 = "SymbioteSettings_" .. tostring(game.PlaceId) .. ".json"
+local v13_2 = {
+    NoClip = false,
+    WalkSpeed = false,
+    WalkSpeedAmount = 1,
+    LaggyRun = false,
+    LaggyRunDistance = 1,
+    LaggyRunDelay = 1,
+    CtrlClickTP = false,
+    InfiniteJump = false,
+    AutoFarm = false,
+    DistanceToTitan = 0,
+    AutoReload = false,
+    ExpandNapeHitbox = false,
+    HitboxSize = 20,
+    VisualizeHitbox = false,
+    TitanESP = false,
+    AutoRefill = false,
+    ChangeCursor = false,
+    AutoRetry = false,
+    AutoSkipCutscenes = false,
+    DelayToKill = false,
+    DelayToKillAmount = 1,
+    HitAll = false,
+    FamiliesToStop = {},
+    FamilyTiersToStop = {},
+    AutoSellPerks = false,
+    PerkTiersToSell = {},
+    SpecificPerksToSell = {},
+    AutoCreateTowers = false,
+    AutoRetrieveSupplyCrates = false,
+    AutoVoteReady = false,
+    AutoUpgradeMaxHQHP = false,
+    AutoUpgradeHQHealthRegen = false,
+    AutoUpgradeRefillLimit = false,
+    AutoUpgradeWeapon = false,
+    UpgradeDelay = 0,
+    AutoGetRetrieveSkillCrate = false,
+    AutoOpenRaidChests = false,
+    AutoRaid = false,
+    AutoClaimAchievements = true,
+    AutoResetStreak = false,
+    KaitunEnabled = false,
+    KaitunAutoUpgradeWeapon = true,
+    KaitunWeaponType = "Auto",
+    KaitunMap = "Auto (Best)",
+    KaitunAutoMap = true,
+    KaitunAutoPrestige = true,
+    KaitunMaxPrestige = 5,
+    KaitunPrioritizeBonusMap = true,
+    AutoLoadGlobalConfig = true,
+    SelectedSettingSlot = "Setting 1",
+    CachedWeaponMinLevel = 0,
+    Language = "English"
 }
-MacUI.Flags = MacUI.Options
-
+local v15_isRestoring = true
+local v15_SettingOrderFile = "Symbiote_SettingOrder.json"
+local v15_SettingSlotsList = {
+    "Setting 1",
+    "Setting 2",
+    "Setting 3",
+    "Setting 4",
+    "Setting 5",
+    "Setting 6",
+    "Setting 7",
+    "Setting 8",
+    "Setting 9",
+    "Setting 10"
+}
+local function v10_3(p1)
+    local v2_2, v3_2 = pcall(function()
+        local v1 = syn and syn.read_file or readfile
+        if v1 then
+            return v1(p1)
+        end
+        return nil
+    end)
+    if v2_2 and type(v3_2) == "string" and v3_2 ~= "" then
+        return v3_2
+    end
+    return nil
+end
+local function v11(p1, p2)
+    pcall(function()
+        local v1 = syn and syn.write_file or writefile
+        if v1 then
+            v1(p1, p2)
+        end
+        return
+    end)
+    return
+end
+local function v15_getSlotFile(slotName)
+    local n = tonumber(tostring(slotName or ""):match("(%d+)")) or 1
+    if n < 1 then n = 1 elseif n > 10 then n = 10 end
+    return "Symbiote_Setting_" .. tostring(n) .. ".json", "Setting " .. tostring(n), n
+end
+local v15_orderData = (function()
+    local info = {
+        ActiveSlot = "Setting 1",
+        LastOrder = 0,
+        Created = {}
+    }
+    local rawOrder = v10_3(v15_SettingOrderFile)
+    if rawOrder then
+        local ok, dec = pcall(function()
+            return v5_6:JSONDecode(rawOrder)
+        end)
+        if ok and type(dec) == "table" then
+            if type(dec.ActiveSlot) == "string" and dec.ActiveSlot ~= "" then
+                local _, normSlot = v15_getSlotFile(dec.ActiveSlot)
+                info.ActiveSlot = normSlot
+            end
+            if tonumber(dec.LastOrder) then
+                info.LastOrder = tonumber(dec.LastOrder)
+            end
+            if type(dec.Created) == "table" then
+                info.Created = dec.Created
+            end
+        end
+    end
+    local foundList = {}
+    local maxFound = 0
+    for i = 1, 10 do
+        local fName, sName = v15_getSlotFile("Setting " .. tostring(i))
+        if v10_3(fName) then
+            table.insert(foundList, sName)
+            maxFound = i
+        end
+    end
+    if #foundList > 0 then
+        info.Created = foundList
+        if info.LastOrder < maxFound then
+            info.LastOrder = maxFound
+        end
+        if not rawOrder then
+            info.ActiveSlot = "Setting " .. tostring(maxFound)
+        end
+    end
+    return info
+end)()
+local function v15_saveOrderData()
+    local ok, encoded = pcall(function()
+        return v5_6:JSONEncode(v15_orderData)
+    end)
+    if ok and encoded then
+        v11(v15_SettingOrderFile, encoded)
+    end
+end
+local function v15_markSlotCreated(slotName)
+    local _, normSlot, num = v15_getSlotFile(slotName)
+    v15_orderData.ActiveSlot = normSlot
+    if num > (tonumber(v15_orderData.LastOrder) or 0) then
+        v15_orderData.LastOrder = num
+    end
+    local exists = false
+    if type(v15_orderData.Created) ~= "table" then
+        v15_orderData.Created = {}
+    end
+    for _, s in ipairs(v15_orderData.Created) do
+        if s == normSlot then
+            exists = true
+            break
+        end
+    end
+    if not exists then
+        table.insert(v15_orderData.Created, normSlot)
+        table.sort(v15_orderData.Created, function(a, b)
+            local na = tonumber(tostring(a):match("(%d+)")) or 0
+            local nb = tonumber(tostring(b):match("(%d+)")) or 0
+            return na < nb
+        end)
+    end
+    v15_saveOrderData()
+end
+local function v15_22(p1)
+    if type(p1) ~= "table" then
+        return
+    end
+    local slotFile, normSlot = v15_getSlotFile(p1.SelectedSettingSlot or v15_orderData.ActiveSlot or "Setting 1")
+    p1.SelectedSettingSlot = normSlot
+    v15_orderData.ActiveSlot = normSlot
+    local v2_2, v3_2 = pcall(function()
+        return v5_6:JSONEncode(p1)
+    end)
+    if v2_2 and v3_2 then
+        v11(v12, v3_2)
+        v11(slotFile, v3_2)
+        v15_markSlotCreated(normSlot)
+        if p1.AutoLoadGlobalConfig ~= false then
+            v11("Symbiote_GlobalSettings.json", v3_2)
+        end
+    end
+    if type(_G) == "table" then
+        _G.__SymbioteSavedConfig = p1
+    end
+    return
+end
+local v16_9 = (function()
+    local merged = {}
+    local function mergeFromRaw(rawStr)
+        if not rawStr then
+            return nil
+        end
+        local okD, tbl = pcall(function()
+            return v5_6:JSONDecode(rawStr)
+        end)
+        if okD and type(tbl) == "table" then
+            for k, v in pairs(tbl) do
+                merged[k] = v
+            end
+            return tbl
+        end
+        return nil
+    end
+    mergeFromRaw(v10_3(v12))
+    local rawGlobal = v10_3("Symbiote_GlobalSettings.json")
+    if rawGlobal then
+        local okG, tblG = pcall(function()
+            return v5_6:JSONDecode(rawGlobal)
+        end)
+        if okG and type(tblG) == "table" and tblG.AutoLoadGlobalConfig ~= false then
+            for k, v in pairs(tblG) do
+                merged[k] = v
+            end
+        end
+    end
+    local activeSlot = v15_orderData.ActiveSlot or merged.SelectedSettingSlot or "Setting 1"
+    local slotFile, normSlot = v15_getSlotFile(activeSlot)
+    local rawSlot = v10_3(slotFile)
+    if rawSlot and merged.AutoLoadGlobalConfig ~= false then
+        mergeFromRaw(rawSlot)
+    end
+    merged.SelectedSettingSlot = normSlot
+    v15_orderData.ActiveSlot = normSlot
+    return merged
+end)()
+local function v8_6(p1)
+    if v16_9[p1] ~= nil then
+        return v16_9[p1]
+    end
+    return v13_2[p1]
+end
+local function v9_4(p1, p2)
+    v16_9[p1] = p2
+    if not v15_isRestoring then
+        v15_22(v16_9)
+    end
+    return
+end
+local v12_4 = loadstring(game:HttpGet("https://raw.githubusercontent.com/Haianhdrso1/vps/refs/heads/main/menuhenu.lua"))()
+local v13_8 = game:GetService("Workspace")
+local v14_9 = game:GetService("RunService")
+local v15_29 = game:GetService("UserInputService")
+local v16_15 = game:GetService("ReplicatedStorage")
+local v17_6 = game:GetService("VirtualInputManager")
+local v150_10 = {
+    Caps = {
+        hookmetamethod = type(hookmetamethod) == "function",
+        hookfunction = type(hookfunction) == "function",
+        getnamecallmethod = type(getnamecallmethod) == "function",
+        checkcaller = type(checkcaller) == "function",
+        getconnections = type(getconnections) == "function",
+        newcclosure = type(newcclosure) == "function",
+        run_on_actor = type(run_on_actor) == "function" or
+            (type(syn) == "table" and type(syn.run_on_actor) == "function")
+    },
+    OriginalSizes = setmetatable({}, { __mode = "k" }),
+    HooksInstalled = false,
+    ActorShielded = false,
+    BlockedRemotes = 0,
+    BlockedKicks = 0,
+    LastModerationError = nil,
+    IsolatedScripts = 0,
+    SilencedConnections = 0,
+    AutoGasThread = nil,
+    AutoResetStreak = false,
+    BreakingStreak = false,
+    CurrentKillStreak = 0,
+    StreakThreshold = 1000,
+    AutoRaid = false,
+    AutoClaimAchievements = true,
+    MissionStartTime = os.clock()
+}
+local v18_4 = false
+local v19_3 = false
+local v20_2 = nil
+local v21_2 = false
+local v22_2 = false
+local v23_2 = 20
+local v24_2 = false
+local v25_2 = false
+local v26_2 = false
+local v27_2 = false
+local v28_2 = 1
+local v29_2 = false
+local v30_2 = 1
+local v31_2 = 1
+local v32_2 = false
+local v33_2 = false
+local v34_2 = false
+local v35_2 = false
+local v36_2 = nil
+local v37_2 = false
+local v38_2, v39_2, v40_2, v42_2, v43_2, v44_3, v45_3, v46_2, v47_3, v48_3, v49_2, v52_2, v53_2, v54_2, v55_2, v56_2, v57_3, v58_2, v59_2, v60_2, v61_2, v64_2, v66, v67_2, v68_2, v69_2, v70_2, v71_3, v72_2, v73_2, v75_2, v77_2, v84_2, v85_2, v86_2, v87_2, v88_2, v89_2, v90_2, v91_2, v93_2, v94_2
 do
-	local ok, face = pcall(Font.fromEnum, Enum.Font.BuilderSans)
-	if ok and face then
-		MacUI.FontFamily = face.Family
-	end
-	local okMono, mono = pcall(Font.fromEnum, Enum.Font.RobotoMono)
-	if okMono and mono then
-		MacUI.MonoFamily = mono.Family
-	end
-end
-
---------------------------------------------------------------------------------
--- Services & environment
---------------------------------------------------------------------------------
-
-local cloneref = cloneref or function(object)
-	return object
-end
-
-local function GetService(name)
-	return cloneref(game:GetService(name))
-end
-
-local Players = GetService("Players")
-local TweenService = GetService("TweenService")
-local UserInputService = GetService("UserInputService")
-local TextService = GetService("TextService")
-local GuiService = GetService("GuiService")
-local RunService = GetService("RunService")
-local Workspace = GetService("Workspace")
-
-local LocalPlayer = Players.LocalPlayer
-local rgb = Color3.fromRGB
-
-local function Viewport()
-	local camera = Workspace.CurrentCamera
-	return camera and camera.ViewportSize or Vector2.new(1280, 720)
-end
-
-local function ParentGui(gui)
-	local protect = (syn and syn.protect_gui) or protectgui or protect_gui
-	if type(protect) == "function" then
-		pcall(protect, gui)
-	end
-	if type(gethui) == "function" then
-		local ok, container = pcall(gethui)
-		if ok and typeof(container) == "Instance" then
-			gui.Parent = container
-			return
-		end
-	end
-	local ok = pcall(function()
-		gui.Parent = GetService("CoreGui")
-	end)
-	if not ok then
-		gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
-	end
-end
-
---------------------------------------------------------------------------------
--- Design tokens
---------------------------------------------------------------------------------
-
-MacUI.Themes = {
-	Dark = {
-		Background = rgb(30, 30, 32),
-		Sidebar = rgb(40, 40, 43),
-		SidebarDivider = rgb(14, 14, 16),
-		WindowStroke = rgb(74, 74, 79),
-		Group = rgb(39, 39, 42),
-		GroupStroke = rgb(51, 51, 55),
-		Separator = rgb(53, 53, 57),
-		Text = rgb(242, 242, 245),
-		SubText = rgb(152, 152, 159),
-		Tertiary = rgb(104, 104, 110),
-		SelectionText = rgb(255, 255, 255),
-		Control = rgb(68, 68, 73),
-		ControlHover = rgb(82, 82, 88),
-		ControlStroke = rgb(84, 84, 90),
-		Button = rgb(72, 72, 77),
-		ButtonHover = rgb(86, 86, 92),
-		Field = rgb(28, 28, 30),
-		FieldStroke = rgb(64, 64, 69),
-		Search = rgb(50, 50, 54),
-		SwitchOff = rgb(64, 64, 69),
-		Knob = rgb(248, 248, 250),
-		Track = rgb(62, 62, 67),
-		SegmentBg = rgb(52, 52, 56),
-		SegmentSelected = rgb(96, 96, 102),
-		Hover = rgb(255, 255, 255),
-		HoverTransparency = 0.94,
-		Menu = rgb(42, 42, 45),
-		MenuStroke = rgb(70, 70, 75),
-		Hud = rgb(58, 58, 62),
-		HudStroke = rgb(84, 84, 90),
-		Scrollbar = rgb(122, 122, 128),
-		Shadow = rgb(0, 0, 0),
-		ShadowTransparency = 0.3,
-		Dim = rgb(0, 0, 0),
-		DimTransparency = 0.45,
-		Destructive = rgb(255, 69, 58),
-		WindowBorder = rgb(0, 0, 0),
-		WindowBorderTransparency = 0.3,
-		WindowHighlight = rgb(255, 255, 255),
-		WindowHighlightTransparency = 0.88,
-		Code = rgb(22, 22, 24),
-		GlassTransparency = 0.28,
-	},
-	Light = {
-		Background = rgb(243, 243, 246),
-		Sidebar = rgb(230, 230, 234),
-		SidebarDivider = rgb(208, 208, 213),
-		WindowStroke = rgb(196, 196, 202),
-		Group = rgb(255, 255, 255),
-		GroupStroke = rgb(222, 222, 227),
-		Separator = rgb(229, 229, 234),
-		Text = rgb(28, 28, 30),
-		SubText = rgb(110, 110, 116),
-		Tertiary = rgb(160, 160, 166),
-		SelectionText = rgb(255, 255, 255),
-		Control = rgb(229, 229, 234),
-		ControlHover = rgb(216, 216, 222),
-		ControlStroke = rgb(206, 206, 212),
-		Button = rgb(255, 255, 255),
-		ButtonHover = rgb(246, 246, 248),
-		Field = rgb(255, 255, 255),
-		FieldStroke = rgb(206, 206, 212),
-		Search = rgb(226, 226, 231),
-		SwitchOff = rgb(221, 221, 226),
-		Knob = rgb(255, 255, 255),
-		Track = rgb(218, 218, 224),
-		SegmentBg = rgb(226, 226, 231),
-		SegmentSelected = rgb(255, 255, 255),
-		Hover = rgb(0, 0, 0),
-		HoverTransparency = 0.95,
-		Menu = rgb(249, 249, 251),
-		MenuStroke = rgb(206, 206, 212),
-		Hud = rgb(236, 236, 240),
-		HudStroke = rgb(196, 196, 202),
-		Scrollbar = rgb(150, 150, 156),
-		Shadow = rgb(0, 0, 0),
-		ShadowTransparency = 0.55,
-		Dim = rgb(0, 0, 0),
-		DimTransparency = 0.7,
-		Destructive = rgb(255, 59, 48),
-		WindowBorder = rgb(0, 0, 0),
-		WindowBorderTransparency = 0.8,
-		WindowHighlight = rgb(255, 255, 255),
-		WindowHighlightTransparency = 0.3,
-		Code = rgb(245, 245, 247),
-		GlassTransparency = 0.22,
-	},
-	Midnight = {
-		Background = rgb(0, 0, 0),
-		Sidebar = rgb(15, 15, 17),
-		SidebarDivider = rgb(30, 30, 33),
-		WindowStroke = rgb(52, 52, 56),
-		Group = rgb(21, 21, 23),
-		GroupStroke = rgb(35, 35, 39),
-		Separator = rgb(37, 37, 41),
-		Text = rgb(245, 245, 247),
-		SubText = rgb(142, 142, 148),
-		Tertiary = rgb(92, 92, 98),
-		SelectionText = rgb(255, 255, 255),
-		Control = rgb(50, 50, 54),
-		ControlHover = rgb(63, 63, 68),
-		ControlStroke = rgb(62, 62, 67),
-		Button = rgb(54, 54, 58),
-		ButtonHover = rgb(66, 66, 71),
-		Field = rgb(10, 10, 11),
-		FieldStroke = rgb(50, 50, 54),
-		Search = rgb(28, 28, 31),
-		SwitchOff = rgb(52, 52, 56),
-		Knob = rgb(248, 248, 250),
-		Track = rgb(46, 46, 50),
-		SegmentBg = rgb(32, 32, 35),
-		SegmentSelected = rgb(78, 78, 84),
-		Hover = rgb(255, 255, 255),
-		HoverTransparency = 0.94,
-		Menu = rgb(26, 26, 28),
-		MenuStroke = rgb(56, 56, 60),
-		Hud = rgb(40, 40, 44),
-		HudStroke = rgb(66, 66, 72),
-		Scrollbar = rgb(110, 110, 116),
-		Shadow = rgb(0, 0, 0),
-		ShadowTransparency = 0.25,
-		Dim = rgb(0, 0, 0),
-		DimTransparency = 0.4,
-		Destructive = rgb(255, 69, 58),
-		WindowBorder = rgb(64, 64, 70),
-		WindowBorderTransparency = 0.1,
-		WindowHighlight = rgb(255, 255, 255),
-		WindowHighlightTransparency = 0.94,
-		Code = rgb(12, 12, 14),
-		GlassTransparency = 0.3,
-	},
-}
-MacUI.ThemeData = MacUI.Themes.Dark
-
--- The macOS accent colours (System Settings › Appearance)
-MacUI.Accents = {
-	Blue = rgb(10, 132, 255),
-	Purple = rgb(191, 90, 242),
-	Pink = rgb(255, 55, 95),
-	Red = rgb(255, 69, 58),
-	Orange = rgb(255, 159, 10),
-	Yellow = rgb(255, 204, 0),
-	Green = rgb(48, 209, 88),
-	Graphite = rgb(142, 142, 147),
-}
-MacUI.AccentOrder = { "Blue", "Purple", "Pink", "Red", "Orange", "Yellow", "Green", "Graphite" }
-
--- Colours used for the rounded icon tiles in the sidebar (System Settings style)
-MacUI.TileColors = {
-	rgb(10, 132, 255), -- blue
-	rgb(191, 90, 242), -- purple
-	rgb(255, 159, 10), -- orange
-	rgb(48, 209, 88), -- green
-	rgb(255, 55, 95), -- pink
-	rgb(64, 200, 224), -- teal
-	rgb(94, 92, 230), -- indigo
-	rgb(255, 69, 58), -- red
-	rgb(142, 142, 147), -- gray
-	rgb(0, 199, 190), -- mint
-	rgb(255, 204, 0), -- yellow
-	rgb(172, 142, 104), -- brown
-}
-
-local TRAFFIC = {
-	{ Name = "Close", Color = rgb(255, 95, 87), Stroke = rgb(224, 68, 62), Glyph = rgb(120, 10, 10) },
-	{ Name = "Minimize", Color = rgb(254, 188, 46), Stroke = rgb(222, 161, 35), Glyph = rgb(140, 80, 0) },
-	{ Name = "Zoom", Color = rgb(40, 200, 64), Stroke = rgb(26, 171, 41), Glyph = rgb(0, 90, 10) },
-}
-
-local SHADOW_IMAGE = "rbxassetid://6014261993"
-
---------------------------------------------------------------------------------
--- Icons (Lucide)
---------------------------------------------------------------------------------
-
-local IconData = "accessibility=10709751939;activity=10709752035;air-vent=10709752131;airplay=10709752254;alarm-check=10709752405;alarm-clock=10709752630;alarm-clock-off=10709752508;alarm-minus=10709752732;alarm-plus=10709752825;album=10709752906;alert-circle=10709752996;alert-octagon=10709753064;alert-triangle=10709753149;align-center=10709753570;align-center-horizontal=10709753272;align-center-vertical=10709753421;align-end-horizontal=10709753692;align-end-vertical=10709753808;align-horizontal-distribute-center=10747779791;align-horizontal-distribute-end=10747784534;align-horizontal-distribute-start=10709754118;align-horizontal-justify-center=10709754204;align-horizontal-justify-end=10709754317;align-horizontal-justify-start=10709754436;align-horizontal-space-around=10709754590;align-horizontal-space-between=10709754749;align-justify=10709759610;align-left=10709759764;align-right=10709759895;align-start-horizontal=10709760051;align-start-vertical=10709760244;align-vertical-distribute-center=10709760351;align-vertical-distribute-end=10709760434;align-vertical-distribute-start=10709760612;align-vertical-justify-center=10709760814;align-vertical-justify-end=10709761003;align-vertical-justify-start=10709761176;align-vertical-space-around=10709761324;align-vertical-space-between=10709761434;anchor=10709761530;angry=10709761629;annoyed=10709761722;aperture=10709761813;apple=10709761889;archive=10709762233;archive-restore=10709762058;armchair=10709762327;arrow-big-down=10747796644;arrow-big-left=10709762574;arrow-big-right=10709762727;arrow-big-up=10709762879;arrow-down=10709767827;arrow-down-circle=10709763034;arrow-down-left=10709767656;arrow-down-right=10709767750;arrow-left=10709768114;arrow-left-circle=10709767936;arrow-left-right=10709768019;arrow-right=10709768347;arrow-right-circle=10709768226;arrow-up=10709768939;arrow-up-circle=10709768432;arrow-up-down=10709768538;arrow-up-left=10709768661;arrow-up-right=10709768787;asterisk=10709769095;at-sign=10709769286;award=10709769406;axe=10709769508;axis-3d=10709769598;baby=10709769732;backpack=10709769841;baggage-claim=10709769935;banana=10709770005;banknote=10709770178;bar-chart=10709773755;bar-chart-2=10709770317;bar-chart-3=10709770431;bar-chart-4=10709770560;bar-chart-horizontal=10709773669;barcode=10747360675;baseline=10709773863;bath=10709773963;battery=10709774640;battery-charging=10709774068;battery-full=10709774206;battery-low=10709774370;battery-medium=10709774513;beaker=10709774756;bed=10709775036;bed-double=10709774864;bed-single=10709774968;beer=10709775167;bell=10709775704;bell-minus=10709775241;bell-off=10709775320;bell-plus=10709775448;bell-ring=10709775560;bike=10709775894;binary=10709776050;bitcoin=10709776126;bluetooth=10709776655;bluetooth-connected=10709776240;bluetooth-off=10709776344;bluetooth-searching=10709776501;bold=10747813908;bomb=10709781460;bone=10709781605;book=10709781824;book-open=10709781717;bookmark=10709782154;bookmark-minus=10709781919;bookmark-plus=10709782044;bot=10709782230;box=10709782497;box-select=10709782342;boxes=10709782582;briefcase=10709782662;brush=10709782758;bug=10709782845;building=10709783051;building-2=10709782939;bus=10709783137;cake=10709783217;calculator=10709783311;calendar=10709789505;calendar-check=10709783474;calendar-check-2=10709783392;calendar-clock=10709783577;calendar-days=10709783673;calendar-heart=10709783835;calendar-minus=10709783959;calendar-off=10709788784;calendar-plus=10709788937;calendar-range=10709789053;calendar-search=10709789200;calendar-x=10709789407;calendar-x-2=10709789329;camera=10709789686;camera-off=10747822677;car=10709789810;carrot=10709789960;cast=10709790097;charge=10709790202;check=10709790644;check-circle=10709790387;check-circle-2=10709790298;check-square=10709790537;chef-hat=10709790757;cherry=10709790875;chevron-down=10709790948;chevron-first=10709791015;chevron-last=10709791130;chevron-left=10709791281;chevron-right=10709791437;chevron-up=10709791523;chevrons-down=10709796864;chevrons-down-up=10709791632;chevrons-left=10709797151;chevrons-left-right=10709797006;chevrons-right=10709797382;chevrons-right-left=10709797274;chevrons-up=10709797622;chevrons-up-down=10709797508;chrome=10709797725;circle=10709798174;circle-dot=10709797837;circle-ellipsis=10709797985;circle-slashed=10709798100;citrus=10709798276;clapperboard=10709798350;clipboard=10709799288;clipboard-check=10709798443;clipboard-copy=10709798574;clipboard-edit=10709798682;clipboard-list=10709798792;clipboard-signature=10709798890;clipboard-type=10709798999;clipboard-x=10709799124;clock=10709805144;clock-1=10709799535;clock-10=10709799718;clock-11=10709799818;clock-12=10709799962;clock-2=10709803876;clock-3=10709803989;clock-4=10709804164;clock-5=10709804291;clock-6=10709804435;clock-7=10709804599;clock-8=10709804784;clock-9=10709804996;cloud=10709806740;cloud-cog=10709805262;cloud-drizzle=10709805371;cloud-fog=10709805477;cloud-hail=10709805596;cloud-lightning=10709805727;cloud-moon=10709805942;cloud-moon-rain=10709805838;cloud-off=10709806060;cloud-rain=10709806277;cloud-rain-wind=10709806166;cloud-snow=10709806374;cloud-sun=10709806631;cloud-sun-rain=10709806475;cloudy=10709806859;clover=10709806995;code=10709810463;code-2=10709807111;codepen=10709810534;codesandbox=10709810676;coffee=10709810814;cog=10709810948;coins=10709811110;columns=10709811261;command=10709811365;compass=10709811445;component=10709811595;concierge-bell=10709811706;connection=10747361219;contact=10709811834;contrast=10709811939;cookie=10709812067;copy=10709812159;copyleft=10709812251;copyright=10709812311;corner-down-left=10709812396;corner-down-right=10709812485;corner-left-down=10709812632;corner-left-up=10709812784;corner-right-down=10709812939;corner-right-up=10709813094;corner-up-left=10709813185;corner-up-right=10709813281;cpu=10709813383;croissant=10709818125;crop=10709818245;cross=10709818399;crosshair=10709818534;crown=10709818626;cup-soda=10709818763;curly-braces=10709818847;currency=10709818931;database=10709818996;delete=10709819059;diamond=10709819149;dice-1=10709819266;dice-2=10709819361;dice-3=10709819508;dice-4=10709819670;dice-5=10709819801;dice-6=10709819896;dices=10723343321;diff=10723343416;disc=10723343537;divide=10723343805;divide-circle=10723343636;divide-square=10723343737;dollar-sign=10723343958;download=10723344270;download-cloud=10723344088;droplet=10723344432;droplets=10734883356;drumstick=10723344737;edit=10734883598;edit-2=10723344885;edit-3=10723345088;egg=10723345518;egg-fried=10723345347;electricity=10723345749;electricity-off=10723345643;equal=10723345990;equal-not=10723345866;eraser=10723346158;euro=10723346372;expand=10723346553;external-link=10723346684;eye=10723346959;eye-off=10723346871;factory=10723347051;fan=10723354359;fast-forward=10723354521;feather=10723354671;figma=10723354801;file=10723374641;file-archive=10723354921;file-audio=10723355148;file-audio-2=10723355026;file-axis-3d=10723355272;file-badge=10723355622;file-badge-2=10723355451;file-bar-chart=10723355887;file-bar-chart-2=10723355746;file-box=10723355989;file-check=10723356210;file-check-2=10723356100;file-clock=10723356329;file-code=10723356507;file-cog=10723356830;file-cog-2=10723356676;file-diff=10723357039;file-digit=10723357151;file-down=10723357322;file-edit=10723357495;file-heart=10723357637;file-image=10723357790;file-input=10723357933;file-json=10723364435;file-json-2=10723364361;file-key=10723364605;file-key-2=10723364515;file-line-chart=10723364725;file-lock=10723364957;file-lock-2=10723364861;file-minus=10723365254;file-minus-2=10723365086;file-output=10723365457;file-pie-chart=10723365598;file-plus=10723365877;file-plus-2=10723365766;file-question=10723365987;file-scan=10723366167;file-search=10723366550;file-search-2=10723366340;file-signature=10723366741;file-spreadsheet=10723366962;file-symlink=10723367098;file-terminal=10723367244;file-text=10723367380;file-type=10723367606;file-type-2=10723367509;file-up=10723367734;file-video=10723373884;file-video-2=10723367834;file-volume=10723374172;file-volume-2=10723374030;file-warning=10723374276;file-x=10723374544;file-x-2=10723374378;files=10723374759;film=10723374981;filter=10723375128;fingerprint=10723375250;flag=10723375890;flag-off=10723375443;flag-triangle-left=10723375608;flag-triangle-right=10723375727;flame=10723376114;flashlight=10723376471;flashlight-off=10723376365;flask-conical=10734883986;flask-round=10723376614;flip-horizontal=10723376884;flip-horizontal-2=10723376745;flip-vertical=10723377138;flip-vertical-2=10723377026;flower=10747830374;flower-2=10723377305;focus=10723377537;folder=10723387563;folder-archive=10723384478;folder-check=10723384605;folder-clock=10723384731;folder-closed=10723384893;folder-cog=10723385213;folder-cog-2=10723385036;folder-down=10723385338;folder-edit=10723385445;folder-heart=10723385545;folder-input=10723385721;folder-key=10723385848;folder-lock=10723386005;folder-minus=10723386127;folder-open=10723386277;folder-output=10723386386;folder-plus=10723386531;folder-search=10723386787;folder-search-2=10723386674;folder-symlink=10723386930;folder-tree=10723387085;folder-up=10723387265;folder-x=10723387448;folders=10723387721;form-input=10723387841;forward=10723388016;frame=10723394389;framer=10723394565;frown=10723394681;fuel=10723394846;function-square=10723395041;gamepad=10723395457;gamepad-2=10723395215;gauge=10723395708;gavel=10723395896;gem=10723396000;ghost=10723396107;gift=10723396402;gift-card=10723396225;git-branch=10723396676;git-branch-plus=10723396542;git-commit=10723396812;git-compare=10723396954;git-fork=10723397049;git-merge=10723397165;git-pull-request=10723397431;git-pull-request-closed=10723397268;git-pull-request-draft=10734884302;glass=10723397788;glass-2=10723397529;glass-water=10723397678;glasses=10723397895;globe=10723404337;globe-2=10723398002;grab=10723404472;graduation-cap=10723404691;grape=10723404822;grid=10723404936;grip-horizontal=10723405089;grip-vertical=10723405236;hammer=10723405360;hand=10723405649;hand-metal=10723405508;hard-drive=10723405749;hard-hat=10723405859;hash=10723405975;haze=10723406078;headphones=10723406165;heart=10723406885;heart-crack=10723406299;heart-handshake=10723406480;heart-off=10723406662;heart-pulse=10723406795;help-circle=10723406988;hexagon=10723407092;highlighter=10723407192;history=10723407335;home=10723407389;hourglass=10723407498;ice-cream=10723414308;image=10723415040;image-minus=10723414487;image-off=10723414677;image-plus=10723414827;import=10723415205;inbox=10723415335;indent=10723415494;indian-rupee=10723415642;infinity=10723415766;info=10723415903;inspect=10723416057;italic=10723416195;japanese-yen=10723416363;joystick=10723416527;key=10723416652;keyboard=10723416765;lamp=10723417513;lamp-ceiling=10723416922;lamp-desk=10723417016;lamp-floor=10723417131;lamp-wall-down=10723417240;lamp-wall-up=10723417356;landmark=10723417608;languages=10723417703;laptop=10723423881;laptop-2=10723417797;lasso=10723424235;lasso-select=10723424058;laugh=10723424372;layers=10723424505;layout=10723425376;layout-dashboard=10723424646;layout-grid=10723424838;layout-list=10723424963;layout-template=10723425187;leaf=10723425539;library=10723425615;life-buoy=10723425685;lightbulb=10723425852;lightbulb-off=10723425762;line-chart=10723426393;link=10723426722;link-2=10723426595;link-2-off=10723426513;list=10723433811;list-checks=10734884548;list-end=10723426886;list-minus=10723426986;list-music=10723427081;list-ordered=10723427199;list-plus=10723427334;list-start=10723427494;list-video=10723427619;list-x=10723433655;loader=10723434070;loader-2=10723433935;locate=10723434557;locate-fixed=10723434236;locate-off=10723434379;lock=10723434711;log-in=10723434830;log-out=10723434906;luggage=10723434993;magnet=10723435069;mail=10734885430;mail-check=10723435182;mail-minus=10723435261;mail-open=10723435342;mail-plus=10723435443;mail-question=10723435515;mail-search=10734884739;mail-warning=10734885015;mail-x=10734885247;mails=10734885614;map=10734886202;map-pin=10734886004;map-pin-off=10734885803;maximize=10734886735;maximize-2=10734886496;medal=10734887072;megaphone=10734887454;megaphone-off=10734887311;meh=10734887603;menu=10734887784;message-circle=10734888000;message-square=10734888228;mic=10734888864;mic-2=10734888430;mic-off=10734888646;microscope=10734889106;microwave=10734895076;milestone=10734895310;minimize=10734895698;minimize-2=10734895530;minus=10734896206;minus-circle=10734895856;minus-square=10734896029;monitor=10734896881;monitor-off=10734896360;monitor-speaker=10734896512;moon=10734897102;more-horizontal=10734897250;more-vertical=10734897387;mountain=10734897956;mountain-snow=10734897665;mouse=10734898592;mouse-pointer=10734898476;mouse-pointer-2=10734898194;mouse-pointer-click=10734898355;move=10734900011;move-3d=10734898756;move-diagonal=10734899164;move-diagonal-2=10734898934;move-horizontal=10734899414;move-vertical=10734899821;music=10734905958;music-2=10734900215;music-3=10734905665;music-4=10734905823;navigation=10734906744;navigation-2=10734906332;navigation-2-off=10734906144;navigation-off=10734906580;network=10734906975;newspaper=10734907168;octagon=10734907361;option=10734907649;outdent=10734907933;package=10734909540;package-2=10734908151;package-check=10734908384;package-minus=10734908626;package-open=10734908793;package-plus=10734909016;package-search=10734909196;package-x=10734909375;paint-bucket=10734909847;paintbrush=10734910187;paintbrush-2=10734910030;palette=10734910430;palmtree=10734910680;paperclip=10734910927;party-popper=10734918735;pause=10734919336;pause-circle=10735024209;pause-octagon=10734919143;pen-tool=10734919503;pencil=10734919691;percent=10734919919;person-standing=10734920149;phone=10734921524;phone-call=10734920305;phone-forwarded=10734920508;phone-incoming=10734920694;phone-missed=10734920845;phone-off=10734921077;phone-outgoing=10734921288;pie-chart=10734921727;piggy-bank=10734921935;pin=10734922324;pin-off=10734922180;pipette=10734922497;pizza=10734922774;plane=10734922971;play=10734923549;play-circle=10734923214;plus=10734924532;plus-circle=10734923868;plus-square=10734924219;podcast=10734929553;pointer=10734929723;pound-sterling=10734929981;power=10734930466;power-off=10734930257;printer=10734930632;puzzle=10734930886;quote=10734931234;radio=10734931596;radio-receiver=10734931402;rectangle-horizontal=10734931777;rectangle-vertical=10734932081;recycle=10734932295;redo=10734932822;redo-2=10734932586;refresh-ccw=10734933056;refresh-cw=10734933222;refrigerator=10734933465;regex=10734933655;repeat=10734933966;repeat-1=10734933826;reply=10734934252;reply-all=10734934132;rewind=10734934347;rocket=10734934585;rocking-chair=10734939942;rotate-3d=10734940107;rotate-ccw=10734940376;rotate-cw=10734940654;rss=10734940825;ruler=10734941018;russian-ruble=10734941199;sailboat=10734941354;save=10734941499;scale=10734941912;scale-3d=10734941739;scaling=10734942072;scan=10734942565;scan-face=10734942198;scan-line=10734942351;scissors=10734942778;screen-share=10734943193;screen-share-off=10734942967;scroll=10734943448;search=10734943674;send=10734943902;separator-horizontal=10734944115;separator-vertical=10734944326;server=10734949856;server-cog=10734944444;server-crash=10734944554;server-off=10734944668;settings=10734950309;settings-2=10734950020;share=10734950813;share-2=10734950553;sheet=10734951038;shield=10734951847;shield-alert=10734951173;shield-check=10734951367;shield-close=10734951535;shield-off=10734951684;shirt=10734952036;shopping-bag=10734952273;shopping-cart=10734952479;shovel=10734952773;shower-head=10734952942;shrink=10734953073;shrub=10734953241;shuffle=10734953451;sidebar=10734954301;sidebar-close=10734953715;sidebar-open=10734954000;sigma=10734954538;signal=10734961133;signal-high=10734954807;signal-low=10734955080;signal-medium=10734955336;signal-zero=10734960878;siren=10734961284;skip-back=10734961526;skip-forward=10734961809;skull=10734962068;slack=10734962339;slash=10734962600;slice=10734963024;sliders=10734963400;sliders-horizontal=10734963191;smartphone=10734963940;smartphone-charging=10734963671;smile=10734964441;smile-plus=10734964188;snowflake=10734964600;sofa=10734964852;sort-asc=10734965115;sort-desc=10734965287;speaker=10734965419;sprout=10734965572;square=10734965702;star=10734966248;star-half=10734965897;star-off=10734966097;stethoscope=10734966384;sticker=10734972234;sticky-note=10734972463;stop-circle=10734972621;stretch-horizontal=10734972862;stretch-vertical=10734973130;strikethrough=10734973290;subscript=10734973457;sun=10734974297;sun-dim=10734973645;sun-medium=10734973778;sun-moon=10734973999;sun-snow=10734974130;sunrise=10734974522;sunset=10734974689;superscript=10734974850;swiss-franc=10734975024;switch-camera=10734975214;sword=10734975486;swords=10734975692;syringe=10734975932;table=10734976230;table-2=10734976097;tablet=10734976394;tag=10734976528;tags=10734976739;target=10734977012;tent=10734981750;terminal=10734982144;terminal-square=10734981995;text-cursor=10734982395;text-cursor-input=10734982297;thermometer=10734983134;thermometer-snowflake=10734982571;thermometer-sun=10734982771;thumbs-down=10734983359;thumbs-up=10734983629;ticket=10734983868;timer=10734984606;timer-off=10734984138;timer-reset=10734984355;toggle-left=10734984834;toggle-right=10734985040;tornado=10734985247;toy-brick=10747361919;train=10747362105;trash=10747362393;trash-2=10747362241;tree-deciduous=10747362534;tree-pine=10747362748;trees=10747363016;trending-down=10747363205;trending-up=10747363465;triangle=10747363621;trophy=10747363809;truck=10747364031;tv=10747364593;tv-2=10747364302;type=10747364761;umbrella=10747364971;underline=10747365191;undo=10747365484;undo-2=10747365359;unlink=10747365771;unlink-2=10747397871;unlock=10747366027;upload=10747366434;upload-cloud=10747366266;usb=10747366606;user=10747373176;user-check=10747371901;user-cog=10747372167;user-minus=10747372346;user-plus=10747372702;user-x=10747372992;users=10747373426;utensils=10747373821;utensils-crossed=10747373629;venetian-mask=10747374003;verified=10747374131;vibrate=10747374489;vibrate-off=10747374269;video=10747374938;video-off=10747374721;view=10747375132;voicemail=10747375281;volume=10747376008;volume-1=10747375450;volume-2=10747375679;volume-x=10747375880;wallet=10747376205;wand=10747376565;wand-2=10747376349;watch=10747376722;waves=10747376931;webcam=10747381992;wifi=10747382504;wifi-off=10747382268;wind=10747382750;wrap-text=10747383065;wrench=10747383470;x=10747384394;x-circle=10747383819;x-octagon=10747384037;x-square=10747384217;zoom-in=10747384552;zoom-out=10747384679"
-
-local Icons = {}
-for name, id in string.gmatch(IconData, "([%w%-]+)=(%d+)") do
-	Icons[name] = "rbxassetid://" .. id
-end
-local IconAliases = {
-	["panel-left"] = "sidebar",
-	["store"] = "shopping-bag",
-	["sparkles"] = "star",
-	["user-circle"] = "user",
-	["app-window"] = "layout",
-}
-MacUI.Icons = Icons
-
-function MacUI:GetIcon(name)
-	if name == nil or name == "" then
-		return nil
-	end
-	if type(name) == "number" then
-		return "rbxassetid://" .. name
-	end
-	name = tostring(name)
-	if name:find("^rbxasset") or name:find("^https?://") then
-		return name
-	end
-	if name:match("^%d+$") then
-		return "rbxassetid://" .. name
-	end
-	local key = (name:lower():gsub("^lucide%-", ""))
-	return Icons[key] or Icons[IconAliases[key] or ""]
-end
-
---------------------------------------------------------------------------------
--- Utilities
---------------------------------------------------------------------------------
-
-local function SafeCall(fn, ...)
-	if type(fn) ~= "function" then
-		return
-	end
-	local ok, err = pcall(fn, ...)
-	if not ok then
-		warn("[MacUI] callback error: " .. tostring(err))
-	end
-end
-
-local function Spawn(fn, ...)
-	if type(fn) == "function" then
-		task.spawn(SafeCall, fn, ...)
-	end
-end
-
-local Signal = {}
-Signal.__index = Signal
-
-function Signal.new()
-	return setmetatable({ _handlers = {} }, Signal)
-end
-
-function Signal:Connect(fn)
-	local handler = { Fn = fn, Connected = true }
-	table.insert(self._handlers, handler)
-	local handlers = self._handlers
-	local connection = { Connected = true }
-	function connection.Disconnect()
-		connection.Connected = false
-		handler.Connected = false
-		local index = table.find(handlers, handler)
-		if index then
-			table.remove(handlers, index)
-		end
-	end
-	return connection
-end
-
-function Signal:Fire(...)
-	for _, handler in ipairs(table.clone(self._handlers)) do
-		if handler.Connected then
-			Spawn(handler.Fn, ...)
-		end
-	end
-end
-
-MacUI.ThemeChanged = Signal.new()
-MacUI.AccentChanged = Signal.new()
--- Fires (names) when a theme is added or removed.
-MacUI.ThemesChanged = Signal.new()
--- Fires (idx, value, element) whenever an element with an index changes.
-MacUI.OptionChanged = Signal.new()
--- Fires when keybinds or element shortcuts change (drives the shortcut list).
-local ShortcutsChanged = Signal.new()
--- Fires (element, message) when an element's callback errors.
-MacUI.CallbackError = Signal.new()
--- Fires (paused) when the performance guard pauses or restores effects.
-MacUI.PerformanceChanged = Signal.new()
--- Performance guard state (see MacUI:SetPerformanceGuard).
-local Guard = { Enabled = false, Engaged = false, Applying = false, MinFps = 30, Notify = true }
--- Fires when a timer starts, finishes or is cancelled.
-MacUI.TimersChanged = Signal.new()
-
--- Runs an element's callback on its own thread. An error also shows on the
--- element's row as a red badge with the message (see RowMethods:_ShowError).
-local function RunCallback(element, fn, ...)
-	if type(fn) ~= "function" then
-		return
-	end
-	task.spawn(function(...)
-		local trace
-		local ok, err = xpcall(fn, function(message)
-			trace = debug.traceback(tostring(message), 2)
-			return message
-		end, ...)
-		if ok then
-			return
-		end
-		local message = tostring(err)
-		local title = element and element.Title
-		warn("[MacUI] callback error" .. (title and (' in "' .. tostring(title) .. '"') or "") .. ": " .. message)
-		local row = element and element.Row
-		if row and row._ShowError and not row.Destroyed then
-			row:_ShowError(message, trace)
-		end
-		MacUI.CallbackError:Fire(element, message)
-	end, ...)
-end
-
--- Set while a keybind is recording so the same key press doesn't also
--- trigger other keybinds or the window's show/hide key.
-local KeyCapture = { Active = false, Token = 0, EndedAt = -1 }
-
--- When the user last clicked or typed in the interface (not the game), and
--- whether a press that began on it is still held. Only that counts as the
--- user's own change for undo, macros and suggestions: walking, turning the
--- camera or a script acting on its own doesn't.
-local Activity = { Last = -1, Pressing = nil }
-local function MarkActivity()
-	Activity.Last = os.clock()
-end
-
--- The GUI objects that make up the interface (windows, open menus, banners,
--- the dock...). Presses elsewhere, like the game's own buttons or the mobile
--- thumbstick, aren't the user using the interface.
-local InterfaceRoots = setmetatable({}, { __mode = "k" })
-
-local function OverInterface(position)
-	for root in pairs(InterfaceRoots) do
-		if root.Parent and root.Visible then
-			local layer = root:FindFirstAncestorOfClass("ScreenGui")
-			local corner, size = root.AbsolutePosition, root.AbsoluteSize
-			if
-				(not layer or layer.Enabled)
-				and position.X >= corner.X
-				and position.X <= corner.X + size.X
-				and position.Y >= corner.Y
-				and position.Y <= corner.Y + size.Y
-			then
-				return true
-			end
-		end
-	end
-	return false
-end
-
--- Typing in one of the interface's own text fields (not the chat).
-local function TypingInInterface()
-	local box = UserInputService:GetFocusedTextBox()
-	if not box then
-		return false
-	end
-	for root in pairs(InterfaceRoots) do
-		if box:IsDescendantOf(root) then
-			return true
-		end
-	end
-	return false
-end
-
--- Records the next key press. `done(key)` receives a KeyCode name, "MB2"/"MB3"
--- (keyboard-only captures treat those as cancel), "None" (Backspace/Delete
--- clears) or false (Escape or a click cancels). Returns a handle whose
--- Disconnect() abandons the capture without calling `done`.
-local function CaptureKey(done, keyboardOnly)
-	KeyCapture.Token += 1
-	local token = KeyCapture.Token
-	KeyCapture.Active = true
-	local connection
-	local function Finish()
-		if connection then
-			connection:Disconnect()
-			connection = nil
-		end
-		KeyCapture.EndedAt = os.clock()
-		-- keep the guard up until every other handler has seen this key press,
-		-- unless a newer capture has started in the meantime
-		task.delay(0.1, function()
-			if KeyCapture.Token == token then
-				KeyCapture.Active = false
-			end
-		end)
-	end
-	connection = UserInputService.InputBegan:Connect(function(input)
-		if MacUI.Unloaded then
-			Finish() -- unloaded while waiting: nothing to bind any more
-			return
-		end
-		local key
-		local kind = input.UserInputType
-		if kind == Enum.UserInputType.Keyboard then
-			if input.KeyCode == Enum.KeyCode.None then
-				return
-			elseif input.KeyCode == Enum.KeyCode.Escape then
-				key = false
-			elseif input.KeyCode == Enum.KeyCode.Backspace or input.KeyCode == Enum.KeyCode.Delete then
-				key = "None"
-			else
-				key = input.KeyCode.Name
-			end
-		elseif kind == Enum.UserInputType.MouseButton1 or kind == Enum.UserInputType.Touch then
-			key = false -- clicking anywhere cancels, like the macOS shortcut recorder
-		elseif kind == Enum.UserInputType.MouseButton2 then
-			key = not keyboardOnly and "MB2" or false
-		elseif kind == Enum.UserInputType.MouseButton3 then
-			key = not keyboardOnly and "MB3" or false
-		else
-			return
-		end
-		Finish()
-		MarkActivity()
-		done(key)
-	end)
-	local handle = {}
-	function handle:Disconnect()
-		if connection then
-			Finish()
-		end
-	end
-	return handle
-end
-
--- True for a moment after a capture ends, so the click that ended it isn't
--- also taken as a click on what's under the mouse (a key cap would re-arm).
-local function JustCaptured()
-	return os.clock() - KeyCapture.EndedAt < 0.35
-end
-
-local function KeyMatches(input, key)
-	if not key or key == "None" then
-		return false
-	end
-	local kind = input.UserInputType
-	if kind == Enum.UserInputType.Keyboard then
-		return input.KeyCode.Name == key
-	elseif kind == Enum.UserInputType.MouseButton1 then
-		return key == "MB1"
-	elseif kind == Enum.UserInputType.MouseButton2 then
-		return key == "MB2"
-	elseif kind == Enum.UserInputType.MouseButton3 then
-		return key == "MB3"
-	end
-	return false
-end
-
--- Mouse position in the coordinate space of our ScreenGuis (IgnoreGuiInset = false).
-local function MousePosition()
-	return UserInputService:GetMouseLocation() - GuiService:GetGuiInset()
-end
-
--- For text shown in RichText labels (error messages can contain < and >).
-local function EscapeRich(text)
-	return (tostring(text):gsub("&", "&amp;"):gsub("<", "&lt;"):gsub(">", "&gt;"))
-end
-
-local function CopyToClipboard(text)
-	local copy = setclipboard or toclipboard or set_clipboard or (Clipboard and Clipboard.set)
-	if type(copy) ~= "function" then
-		return false
-	end
-	return (pcall(copy, tostring(text)))
-end
-
-local function SameValue(a, b)
-	if type(a) == "table" and type(b) == "table" then
-		for key, value in pairs(a) do
-			if b[key] ~= value then
-				return false
-			end
-		end
-		for key, value in pairs(b) do
-			if a[key] ~= value then
-				return false
-			end
-		end
-		return true
-	end
-	return a == b
-end
-
-local function CopyValue(value)
-	if type(value) == "table" then
-		return table.clone(value)
-	end
-	return value
-end
-
-local function IsTruthy(value)
-	if type(value) == "table" then
-		return next(value) ~= nil
-	elseif type(value) == "string" then
-		return value ~= "" and value ~= "None"
-	elseif type(value) == "number" then
-		return value ~= 0
-	end
-	return value == true
-end
-
-local function Tween(object, goals, duration, style, direction)
-	if MacUI.ReduceMotion then
-		duration = 0
-	end
-	local tween = TweenService:Create(
-		object,
-		TweenInfo.new(duration or 0.25, style or Enum.EasingStyle.Quint, direction or Enum.EasingDirection.Out),
-		goals
-	)
-	tween:Play()
-	return tween
-end
-
-local function Round(value, decimals)
-	local factor = 10 ^ (decimals or 0)
-	return math.floor(value * factor + 0.5) / factor
-end
-
--- A Rounding option as whole decimal places (a stray 1.5 would break
--- string.format).
-local function Places(value, fallback)
-	value = tonumber(value) or fallback or 0
-	if value ~= value then
-		value = 0
-	end
-	return math.clamp(math.floor(value), -6, 10)
-end
-
--- The decimal places a step needs: 0.25 -> 2, 1e-05 -> 5.
-local function StepPlaces(step)
-	step = tonumber(step)
-	if not step or step <= 0 or step ~= step or step == math.huge then
-		return 0
-	end
-	for places = 0, 10 do
-		local scaled = step * 10 ^ places
-		if math.abs(scaled - math.floor(scaled + 0.5)) < 1e-9 then
-			return places
-		end
-	end
-	return 10
-end
-
--- A finite number, or nil.
-local function Finite(value)
-	value = tonumber(value)
-	if value == nil or value ~= value or value == math.huge or value == -math.huge then
-		return nil
-	end
-	return value
-end
-
-local PushButton -- defined with the element helpers below
-
-local function IsPointer(input)
-	return input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch
-end
-
--- A drag follows the input that started it: the mouse, or that one finger. A
--- second finger (the movement thumbstick, say) neither moves nor ends it.
-local function DragMoves(began, input)
-	if began.UserInputType == Enum.UserInputType.Touch then
-		return input == began
-	end
-	return input.UserInputType == Enum.UserInputType.MouseMovement
-end
-
-local function DragEnds(began, input)
-	if began.UserInputType == Enum.UserInputType.Touch then
-		return input == began
-	end
-	return input.UserInputType == Enum.UserInputType.MouseButton1
-end
-
--- A phone or tablet with no keyboard.
-local function TouchOnly()
-	return UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-end
-
-local function GetFont(weight)
-	return Font.new(MacUI.FontFamily, weight or Enum.FontWeight.Regular, Enum.FontStyle.Normal)
-end
-
-local MeasureFonts = {
-	[Enum.FontWeight.Regular] = Enum.Font.BuilderSans,
-	[Enum.FontWeight.Medium] = Enum.Font.BuilderSansMedium,
-	[Enum.FontWeight.SemiBold] = Enum.Font.BuilderSansBold,
-	[Enum.FontWeight.Bold] = Enum.Font.BuilderSansBold,
-}
-
--- Width of a single line of text in logical (unscaled) pixels.
-local function MeasureText(text, size, weight)
-	local ok, bounds = pcall(function()
-		return TextService:GetTextSize(
-			tostring(text),
-			size,
-			MeasureFonts[weight or Enum.FontWeight.Regular] or Enum.Font.BuilderSans,
-			Vector2.new(10000, 1000)
-		)
-	end)
-	if ok and bounds then
-		return bounds.X
-	end
-	return #tostring(text) * size * 0.52
-end
-
---------------------------------------------------------------------------------
--- Theme registry: every themed property is re-resolved when the theme,
--- accent or an element's state changes.
---------------------------------------------------------------------------------
-
-local ThemeRegistry = {}
-local FontRegistry = {}
-
-local function Resolve(token)
-	if type(token) == "function" then
-		return token(MacUI.ThemeData)
-	elseif token == "Accent" then
-		return MacUI.Accent
-	end
-	local value = MacUI.ThemeData[token]
-	if value == nil then
-		value = MacUI.Themes.Dark[token]
-	end
-	return value
-end
-
--- Drops registry entries when an instance is destroyed so closed popups,
--- banners and dialogs can be garbage collected.
-local function Watch(instance)
-	instance.Destroying:Connect(function()
-		ThemeRegistry[instance] = nil
-		FontRegistry[instance] = nil
-	end)
-end
-
-local function Themed(instance, map)
-	local entry = ThemeRegistry[instance]
-	if not entry then
-		entry = {}
-		if FontRegistry[instance] == nil then
-			Watch(instance)
-		end
-		ThemeRegistry[instance] = entry
-	end
-	for property, token in pairs(map) do
-		entry[property] = token
-		local value = Resolve(token)
-		if value ~= nil then
-			instance[property] = value
-		end
-	end
-	return instance
-end
-
--- Re-resolves an instance's tokens (used after its state changes, e.g. hover).
--- Only what changed is animated: a theme change restyles thousands of objects,
--- and a tween for each would stall a frame. While a restyle tween is still on
--- its way, every goal counts (a hover that ends as it starts must go back).
-local RestyleTweens = setmetatable({}, { __mode = "k" })
--- (Roblox keeps numbers like transparency as 32-bit floats: 0.94 reads back
--- as 0.9399999...)
-local function Same(current, value)
-	if type(current) == "number" and type(value) == "number" then
-		return math.abs(current - value) < 1e-4
-	end
-	return current == value
-end
-local function Restyle(instance, duration)
-	local entry = ThemeRegistry[instance]
-	if not entry then
-		return
-	end
-	local running = RestyleTweens[instance]
-	if running and running.PlaybackState ~= Enum.PlaybackState.Playing then
-		running = nil
-		RestyleTweens[instance] = nil
-	end
-	local goals, any = {}, false
-	for property, token in pairs(entry) do
-		local value = Resolve(token)
-		if value ~= nil and (running or not Same(instance[property], value)) then
-			goals[property] = value
-			any = true
-		end
-	end
-	if not any then
-		return
-	end
-	if duration == 0 then
-		if running then
-			running:Cancel()
-			RestyleTweens[instance] = nil
-		end
-		for property, value in pairs(goals) do
-			instance[property] = value
-		end
-	else
-		RestyleTweens[instance] = Tween(instance, goals, duration or 0.18)
-	end
-end
-
-local function RefreshTheme(duration)
-	for instance in pairs(ThemeRegistry) do
-		if instance.Parent == nil then
-			ThemeRegistry[instance] = nil
-		else
-			Restyle(instance, duration)
-		end
-	end
-end
-
-local Defaults = {
-	Frame = { BorderSizePixel = 0 },
-	CanvasGroup = { BorderSizePixel = 0 },
-	ScrollingFrame = { BorderSizePixel = 0, BackgroundTransparency = 1, ScrollBarThickness = 0 },
-	TextLabel = {
-		BorderSizePixel = 0,
-		BackgroundTransparency = 1,
-		TextSize = 14,
-		TextXAlignment = Enum.TextXAlignment.Left,
-	},
-	TextButton = { BorderSizePixel = 0, BackgroundTransparency = 1, AutoButtonColor = false, Text = "", TextSize = 14 },
-	TextBox = {
-		BorderSizePixel = 0,
-		BackgroundTransparency = 1,
-		ClearTextOnFocus = false,
-		TextSize = 14,
-		TextXAlignment = Enum.TextXAlignment.Left,
-	},
-	ImageLabel = { BorderSizePixel = 0, BackgroundTransparency = 1, ScaleType = Enum.ScaleType.Fit },
-	ImageButton = { BorderSizePixel = 0, BackgroundTransparency = 1, AutoButtonColor = false },
-}
-
-local TextClasses = { TextLabel = true, TextButton = true, TextBox = true }
-
-local function New(className, props)
-	local instance = Instance.new(className)
-	local defaults = Defaults[className]
-	if defaults then
-		for property, value in pairs(defaults) do
-			instance[property] = value
-		end
-	end
-	if TextClasses[className] then
-		local weight = props and props.Weight or Enum.FontWeight.Regular
-		instance.FontFace = GetFont(weight)
-		FontRegistry[instance] = weight
-		Watch(instance)
-	end
-	local parent, theme, children
-	if props then
-		for property, value in pairs(props) do
-			if property == "Parent" then
-				parent = value
-			elseif property == "Theme" then
-				theme = value
-			elseif property == "Children" then
-				children = value
-			elseif property ~= "Weight" then
-				instance[property] = value
-			end
-		end
-	end
-	if theme then
-		Themed(instance, theme)
-	end
-	if children then
-		for _, child in ipairs(children) do
-			child.Parent = instance
-		end
-	end
-	if parent then
-		instance.Parent = parent
-	end
-	return instance
-end
-
-local function Corner(parent, radius)
-	return New("UICorner", { CornerRadius = UDim.new(0, radius), Parent = parent })
-end
-
-local function Stroke(parent, token, thickness, transparency)
-	return New("UIStroke", {
-		Thickness = thickness or 1,
-		Transparency = transparency or 0,
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		Theme = { Color = token },
-		Parent = parent,
-	})
-end
-
-local function Padding(parent, top, right, bottom, left)
-	return New("UIPadding", {
-		PaddingTop = UDim.new(0, top or 0),
-		PaddingRight = UDim.new(0, right or 0),
-		PaddingBottom = UDim.new(0, bottom or 0),
-		PaddingLeft = UDim.new(0, left or 0),
-		Parent = parent,
-	})
-end
-
-local function List(parent, direction, padding, props)
-	local layout = New("UIListLayout", {
-		FillDirection = direction or Enum.FillDirection.Vertical,
-		Padding = UDim.new(0, padding or 0),
-		SortOrder = Enum.SortOrder.LayoutOrder,
-		Parent = parent,
-	})
-	for property, value in pairs(props or {}) do
-		layout[property] = value
-	end
-	return layout
-end
-
--- SHADOW_IMAGE's 49px border is clear on the outside, fades in around the
--- middle and is solid inside. The object's edge sits in the middle of that
--- fade (as in Roblox's own examples) so only the soft half shows; the solid
--- part stays hidden behind the object. `spread` is how far the soft edge
--- reaches, in pixels. Keep it under about a tenth of the object's smallest
--- side so the slices fit.
-local SHADOW_FADE = 0.11 -- visible fade, as a share of the border
-local SHADOW_EDGE = 0.48 -- the object's edge, measured in from the outside
-
-local function Shadow(parent, spread, transparencyToken)
-	local shadow = New("ImageLabel", {
-		Name = "Shadow",
-		Image = SHADOW_IMAGE,
-		ScaleType = Enum.ScaleType.Slice,
-		SliceCenter = Rect.new(49, 49, 450, 450),
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		ZIndex = 0,
-		Theme = { ImageColor3 = "Shadow", ImageTransparency = transparencyToken or "ShadowTransparency" },
-		Parent = parent,
-	})
-	-- The image's corners have to fit inside it. On a small object (a one-item
-	-- menu, an empty Spotlight) full-size corners would be squeezed together
-	-- into a hard dark band, so the shadow shrinks with the object.
-	local function Fit()
-		local size = parent.Size
-		local border = spread / SHADOW_FADE
-		if size.X.Scale == 0 and size.Y.Scale == 0 then
-			local smallest = math.min(size.X.Offset, size.Y.Offset)
-			border = math.clamp(smallest / (2 * (1 - SHADOW_EDGE)), 1, border)
-		end
-		local reach = border * SHADOW_EDGE
-		shadow.SliceScale = border / 49
-		shadow.Size = UDim2.new(1, reach * 2, 1, reach * 2)
-		shadow.Position = UDim2.new(0.5, 0, 0.5, math.floor(border * SHADOW_FADE * 0.3 + 0.5))
-	end
-	Fit()
-	parent:GetPropertyChangedSignal("Size"):Connect(Fit)
-	return shadow
-end
-
-local function IconImage(props)
-	local icon = props.Icon
-	props.Icon = nil
-	local size = props.IconSize or 16
-	props.IconSize = nil
-	props.Image = MacUI:GetIcon(icon) or ""
-	props.Size = props.Size or UDim2.fromOffset(size, size)
-	return New("ImageLabel", props)
-end
-
-local function Lighten(color, amount)
-	return color:Lerp(Color3.new(1, 1, 1), amount)
-end
-
-local function Darken(color, amount)
-	return color:Lerp(Color3.new(0, 0, 0), amount)
-end
-
-local function TileGradient(color)
-	return ColorSequence.new(Lighten(color, 0.14), Darken(color, 0.08))
-end
-
--- A rounded, gradient-filled square with a white glyph: the System Settings icon.
-local function IconTile(parent, icon, color, size, radius, glyphSize, props)
-	local tile = New("Frame", {
-		Name = "Tile",
-		Size = UDim2.fromOffset(size, size),
-		BackgroundColor3 = Color3.new(1, 1, 1),
-		Parent = parent,
-	})
-	for property, value in pairs(props or {}) do
-		tile[property] = value
-	end
-	Corner(tile, radius)
-	local gradient = New("UIGradient", { Rotation = 90, Parent = tile })
-	local glyph = IconImage({
-		Name = "Glyph",
-		Icon = icon,
-		IconSize = glyphSize,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		ImageColor3 = Color3.new(1, 1, 1),
-		ZIndex = 2,
-		Parent = tile,
-	})
-	local function Paint()
-		local value = type(color) == "function" and color() or color
-		gradient.Color = TileGradient(value)
-	end
-	Paint()
-	if type(color) == "function" then
-		local connection = MacUI.AccentChanged:Connect(Paint)
-		tile.Destroying:Connect(connection.Disconnect)
-	end
-	return tile, glyph, gradient
-end
-
-local function ResolveColor(value)
-	if typeof(value) == "Color3" then
-		return value
-	elseif type(value) == "string" then
-		if MacUI.Accents[value] then
-			return MacUI.Accents[value]
-		end
-		local ok, color = pcall(Color3.fromHex, value)
-		if ok then
-			return color
-		end
-	end
-	return nil
-end
-
-local function ParseArgs(idx, info)
-	if type(idx) == "table" and info == nil then
-		info = idx
-		idx = info.Flag or info.Idx or info.Id
-	end
-	return idx, info or {}
-end
-
-local function KeyName(value)
-	local names = {
-		LeftControl = "L-Ctrl",
-		RightControl = "R-Ctrl",
-		LeftShift = "L-Shift",
-		RightShift = "R-Shift",
-		LeftAlt = "L-Alt",
-		RightAlt = "R-Alt",
-		LeftSuper = "L-Cmd",
-		RightSuper = "R-Cmd",
-		Return = "Enter",
-		MB1 = "Mouse 1",
-		MB2 = "Mouse 2",
-		MB3 = "Mouse 3",
-	}
-	return names[value] or tostring(value)
-end
-
---------------------------------------------------------------------------------
--- Library-level settings
---------------------------------------------------------------------------------
-
-function MacUI:SetTheme(name, instant)
-	local theme = self.Themes[name]
-	if not theme then
-		warn("[MacUI] unknown theme: " .. tostring(name))
-		return
-	end
-	self.ThemeName = name
-	self.ThemeData = theme
-	RefreshTheme(instant and 0 or 0.3)
-	self.ThemeChanged:Fire(name)
-end
-
-function MacUI:SetAccent(value, instant)
-	local color = ResolveColor(value)
-	if not color then
-		warn("[MacUI] invalid accent: " .. tostring(value))
-		return
-	end
-	self.Accent = color
-	RefreshTheme(instant and 0 or 0.3)
-	self.AccentChanged:Fire(color)
-end
-
-function MacUI:SetFont(family)
-	if typeof(family) == "EnumItem" then
-		family = Font.fromEnum(family).Family
-	elseif type(family) == "string" and not family:find("://") then
-		family = "rbxasset://fonts/families/" .. family .. ".json"
-	end
-	self.FontFamily = family
-	for instance, weight in pairs(FontRegistry) do
-		if instance.Parent == nil then
-			FontRegistry[instance] = nil
-		else
-			instance.FontFace = GetFont(weight)
-		end
-	end
-end
-
--- Registers a theme that inherits every token it doesn't define from `base` (Dark).
--- Theme colours can be Color3s or hex strings ("#1e1e20").
-local function ThemeValue(token, value)
-	if type(value) ~= "string" then
-		return value
-	end
-	local ok, color = pcall(Color3.fromHex, (value:gsub("^#", "")))
-	if ok then
-		return color
-	end
-	warn(("[MacUI] theme colour %s: %q isn't a hex colour"):format(tostring(token), value))
-	return nil
-end
-
-function MacUI:AddTheme(name, tokens, base)
-	local theme = table.clone(self.Themes[base or "Dark"] or self.Themes.Dark)
-	for token, value in pairs(tokens or {}) do
-		value = ThemeValue(token, value)
-		if value ~= nil then
-			theme[token] = value
-		end
-	end
-	self.Themes[name] = theme
-	if self.ThemeName == name then
-		-- redefining the theme in use: show the new colours straight away
-		self.ThemeData = theme
-		RefreshTheme(0.2)
-	end
-	self.ThemesChanged:Fire(self:GetThemes())
-	return theme
-end
-
-local BUILT_IN_THEMES = { Dark = true, Light = true, Midnight = true }
-
--- Removes a theme added with AddTheme (the built-in ones stay).
-function MacUI:RemoveTheme(name)
-	if BUILT_IN_THEMES[name] or not self.Themes[name] then
-		return false
-	end
-	self.Themes[name] = nil
-	if self.ThemeName == name then
-		self:SetTheme("Dark")
-	end
-	self.ThemesChanged:Fire(self:GetThemes())
-	return true
-end
-
--- Shows `tokens` on top of a theme without registering it (theme editors);
--- SetTheme(MacUI.ThemeName) goes back.
-function MacUI:PreviewTheme(tokens, base)
-	local theme = table.clone(self.Themes[base or self.ThemeName] or self.Themes.Dark)
-	for token, value in pairs(tokens or {}) do
-		value = ThemeValue(token, value)
-		if value ~= nil then
-			theme[token] = value
-		end
-	end
-	self.ThemeData = theme
-	RefreshTheme(0.15)
-end
-
-function MacUI:SetReduceMotion(enabled)
-	if Guard.Engaged and Guard.Saved then
-		-- effects are paused; this becomes the setting once they're restored
-		Guard.Saved.ReduceMotion = enabled == true
-		return
-	end
-	self.ReduceMotion = enabled == true
-end
-
--- The reduce-motion setting as the user chose it, even while the performance
--- guard has effects paused.
-function MacUI:GetReduceMotion()
-	if Guard.Engaged and Guard.Saved then
-		return Guard.Saved.ReduceMotion == true
-	end
-	return self.ReduceMotion == true
-end
-
--- Copies text with the executor's clipboard function. Returns false if there is none.
-function MacUI:SetClipboard(text)
-	return CopyToClipboard(tostring(text or ""))
-end
-
-function MacUI:SetScale(scale)
-	for _, window in ipairs(self.Windows) do
-		window:SetScale(scale)
-	end
-end
-
-function MacUI:SetMinimizeKey(key)
-	for _, window in ipairs(self.Windows) do
-		window:SetMinimizeKey(key)
-	end
-end
-
-function MacUI:GetThemes()
-	local names = {}
-	for name in pairs(self.Themes) do
-		table.insert(names, name)
-	end
-	table.sort(names)
-	return names
-end
-
--- Elements whose callback failed: { Element, Message, Count }.
-function MacUI:GetErrors()
-	local list = {}
-	for _, window in ipairs(self.Windows) do
-		for _, tab in ipairs(window.Tabs or {}) do
-			for _, row in ipairs(tab.Rows) do
-				if row.ErrorMessage then
-					table.insert(list, { Element = row.Element, Message = row.ErrorMessage, Count = row.ErrorCount })
-				end
-			end
-		end
-	end
-	return list
-end
-
-function MacUI:SafeCallback(fn, ...)
-	SafeCall(fn, ...)
-end
-
-function MacUI:Round(value, decimals)
-	return Round(value, decimals)
-end
-
-local UnloadCallbacks = {}
-function MacUI:OnUnload(fn)
-	table.insert(UnloadCallbacks, fn)
-end
-
---------------------------------------------------------------------------------
--- Notifications (macOS Notification Center banners)
---------------------------------------------------------------------------------
-
-local NotificationGui
-local Banners = {}
-
-local function NotificationScale()
-	return math.clamp(Viewport().X / 1150, TouchOnly() and 0.85 or 0.72, 1)
-end
-
-local function LayoutBanners()
-	local y = 12
-	for _, banner in ipairs(Banners) do
-		if not banner.Closing then
-			Tween(banner.Holder, { Position = UDim2.new(1, -14, 0, y) }, 0.45, Enum.EasingStyle.Quint)
-			y += (banner.Height * banner.Scale) + 10
-		end
-	end
-end
-
-function MacUI:Notify(config)
-	config = config or {}
-	if self.Unloaded then
-		return
-	end
-	if not NotificationGui or not NotificationGui.Parent then
-		NotificationGui = New("ScreenGui", {
-			Name = "MacUI_Notifications",
-			ResetOnSpawn = false,
-			DisplayOrder = 1000,
-			ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-		})
-		ParentGui(NotificationGui)
-	end
-
-	local scale = NotificationScale()
-	local width = 344
-	local banner = { Scale = scale, Height = 72, Closing = false }
-
-	local holder = New("Frame", {
-		Name = "Banner",
-		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, width * scale + 40, 0, 12),
-		Size = UDim2.fromOffset(width, banner.Height),
-		Parent = NotificationGui,
-	})
-	InterfaceRoots[holder] = true
-	New("UIScale", { Scale = scale, Parent = holder })
-	-- no drop shadow: over the game it reads as a dark smudge; the hairline
-	-- border sets the banner apart
-	local card = New("CanvasGroup", {
-		Name = "Card",
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		GroupTransparency = 1,
-		ZIndex = 2,
-		Theme = { BackgroundColor3 = "Menu" },
-		Parent = holder,
-	})
-	Corner(card, 16)
-	local border = New("Frame", {
-		Name = "Border",
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(1, 1),
-		Size = UDim2.new(1, -2, 1, -2),
-		ZIndex = 5,
-		Parent = card,
-	})
-	Corner(border, 15)
-	Stroke(border, "HudStroke", 1, 0)
-
-	local content = New("Frame", {
-		Name = "Content",
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		Parent = card,
-	})
-	Padding(content, 12, 14, 13, 12)
-
-	local tileColor = ResolveColor(config.IconColor)
-	IconTile(content, config.Icon or "bell", tileColor or function()
-		return MacUI.Accent
-	end, 36, 9, 20, { Position = UDim2.fromOffset(0, 1) })
-
-	local column = New("Frame", {
-		Name = "Text",
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(48, 0),
-		Size = UDim2.new(1, -48, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		Parent = content,
-	})
-	List(column, nil, 1)
-	local header = New("Frame", {
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 18),
-		LayoutOrder = 1,
-		Parent = column,
-	})
-	New("TextLabel", {
-		Name = "Title",
-		Text = tostring(config.Title or "Notification"),
-		TextSize = 14,
-		Weight = Enum.FontWeight.Bold,
-		Size = UDim2.new(1, -40, 1, 0),
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		Theme = { TextColor3 = "Text" },
-		Parent = header,
-	})
-	New("TextLabel", {
-		Name = "Time",
-		Text = config.Time or "now",
-		TextSize = 12,
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.fromScale(1, 0),
-		Size = UDim2.new(0, 40, 1, 0),
-		TextXAlignment = Enum.TextXAlignment.Right,
-		Theme = { TextColor3 = "SubText" },
-		Parent = header,
-	})
-	if config.SubContent and config.SubContent ~= "" then
-		New("TextLabel", {
-			Name = "Subtitle",
-			Text = tostring(config.SubContent),
-			TextSize = 13,
-			Weight = Enum.FontWeight.Medium,
-			Size = UDim2.new(1, 0, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			TextWrapped = true,
-			LayoutOrder = 2,
-			Theme = { TextColor3 = "Text" },
-			Parent = column,
-		})
-	end
-	if config.Content and config.Content ~= "" then
-		New("TextLabel", {
-			Name = "Body",
-			Text = tostring(config.Content),
-			TextSize = 13,
-			Size = UDim2.new(1, 0, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			TextWrapped = true,
-			RichText = true,
-			LayoutOrder = 3,
-			Theme = { TextColor3 = function(t)
-				return t.Text:Lerp(t.SubText, 0.35)
-			end },
-			Parent = column,
-		})
-	end
-	if type(config.Buttons) == "table" and #config.Buttons > 0 then
-		local actions = New("Frame", {
-			Name = "Actions",
-			BackgroundTransparency = 1,
-			Size = UDim2.new(1, 0, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			LayoutOrder = 4,
-			Parent = column,
-		})
-		Padding(actions, 7, 0, 0, 0)
-		List(actions, Enum.FillDirection.Horizontal, 6)
-		for index, spec in ipairs(config.Buttons) do
-			local push = PushButton(actions, spec.Title or "OK", spec.Style or (index == 1 and "Primary" or "Default"), 24)
-			push.Instance.LayoutOrder = index
-			push.Instance.MouseButton1Click:Connect(function()
-				if banner.Closing then
-					return
-				end
-				banner:Close()
-				Spawn(spec.Callback)
-			end)
-		end
-	end
-
-	-- Sits below the card: clicks on text fall through to it, while the
-	-- action buttons inside the card still receive their own clicks.
-	local hitbox = New("TextButton", {
-		Name = "Hitbox",
-		Size = UDim2.fromScale(1, 1),
-		ZIndex = 1,
-		Parent = holder,
-	})
-	local close = New("TextButton", {
-		Name = "Close",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromOffset(4, 4),
-		Size = UDim2.fromOffset(20, 20),
-		BackgroundTransparency = 1,
-		ZIndex = 6,
-		Theme = { BackgroundColor3 = "Menu" },
-		Parent = holder,
-	})
-	Corner(close, 10)
-	local closeStroke = Stroke(close, "MenuStroke", 1, 1)
-	local closeGlyph = IconImage({
-		Icon = "x",
-		IconSize = 11,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		ImageTransparency = 1,
-		Theme = { ImageColor3 = "SubText" },
-		ZIndex = 7,
-		Parent = close,
-	})
-
-	card:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-		local height = math.max(card.AbsoluteSize.Y / scale, 40)
-		if math.abs(height - banner.Height) > 0.5 then
-			banner.Height = height
-			holder.Size = UDim2.fromOffset(width, height)
-			LayoutBanners()
-		end
-	end)
-
-	banner.Holder = holder
-	function banner:Close()
-		if banner.Closing then
-			return
-		end
-		banner.Closing = true
-		banner.Shown = false
-		local index = table.find(Banners, banner)
-		if index then
-			table.remove(Banners, index)
-		end
-		LayoutBanners()
-		Tween(holder, { Position = holder.Position + UDim2.fromOffset(width * scale + 40, 0) }, 0.4, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-		Tween(card, { GroupTransparency = 1 }, 0.35)
-		task.delay(0.42, function()
-			holder:Destroy()
-		end)
-	end
-
-	hitbox.MouseEnter:Connect(function()
-		Tween(close, { BackgroundTransparency = 0 }, 0.15)
-		Tween(closeStroke, { Transparency = 0.2 }, 0.15)
-		Tween(closeGlyph, { ImageTransparency = 0 }, 0.15)
-	end)
-	hitbox.MouseLeave:Connect(function()
-		Tween(close, { BackgroundTransparency = 1 }, 0.15)
-		Tween(closeStroke, { Transparency = 1 }, 0.15)
-		Tween(closeGlyph, { ImageTransparency = 1 }, 0.15)
-	end)
-	close.MouseButton1Click:Connect(function()
-		banner:Close()
-	end)
-	hitbox.MouseButton1Click:Connect(function()
-		Spawn(config.Callback)
-		banner:Close()
-	end)
-
-	table.insert(Banners, 1, banner)
-	-- no more than fit on the screen, five at most: the oldest make way
-	local function StackHeight()
-		local height = 12
-		for _, other in ipairs(Banners) do
-			height += other.Height * other.Scale + 10
-		end
-		return height
-	end
-	while #Banners > 1 and (#Banners > 5 or StackHeight() > Viewport().Y - 24) do
-		Banners[#Banners]:Close()
-	end
-	holder.Position = UDim2.new(1, width * scale + 40, 0, 12)
-	LayoutBanners()
-	banner.Shown = true
-	Tween(card, { GroupTransparency = 0 }, 0.3)
-
-	local duration = config.Duration
-	if duration == nil then
-		duration = 5
-	end
-	if duration and duration > 0 then
-		task.delay(duration, function()
-			banner:Close()
-		end)
-	end
-	return banner
-end
-
---------------------------------------------------------------------------------
--- Rows: every element lives in a row inside a rounded group box.
---------------------------------------------------------------------------------
-
-local RowMethods = {}
-RowMethods.__index = RowMethods
-
---------------------------------------------------------------------------------
--- Watermark: a floating status pill ("My Hub | 60 fps | 42 ms | 12:30")
---------------------------------------------------------------------------------
-
-local WatermarkGui
-local WATERMARK_ANCHORS = {
-	TopLeft = { Vector2.new(0, 0), UDim2.new(0, 14, 0, 12) },
-	TopCenter = { Vector2.new(0.5, 0), UDim2.new(0.5, 0, 0, 12) },
-	TopRight = { Vector2.new(1, 0), UDim2.new(1, -14, 0, 12) },
-	BottomLeft = { Vector2.new(0, 1), UDim2.new(0, 14, 1, -14) },
-	BottomCenter = { Vector2.new(0.5, 1), UDim2.new(0.5, 0, 1, -14) },
-	BottomRight = { Vector2.new(1, 1), UDim2.new(1, -14, 1, -14) },
-}
-
-local function ReadPing()
-	local ok, ping = pcall(function()
-		return GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue()
-	end)
-	if ok and type(ping) == "number" then
-		return ping
-	end
-	ok, ping = pcall(function()
-		return LocalPlayer:GetNetworkPing() * 2000
-	end)
-	return ok and type(ping) == "number" and ping or nil
-end
-
---[[
-	MacUI:SetWatermark({
-		Text = "My Hub",          -- or a function returning the text
-		Icon = "command",
-		Position = "TopCenter",   -- TopLeft/TopCenter/TopRight/BottomLeft/BottomCenter/BottomRight
-		Fps = true, Ping = true, Clock = false,
-	})
-	MacUI:SetWatermark(false)     -- remove it
-]]
-function MacUI:SetWatermark(options)
-	if WatermarkGui then
-		WatermarkGui:Destroy()
-		WatermarkGui = nil
-	end
-	self.Watermark = nil
-	if not options or self.Unloaded then
-		return nil
-	end
-	if options == true then
-		options = {}
-	elseif type(options) ~= "table" then
-		options = { Text = options }
-	end
-	-- Under the windows: on a small screen it can't cover a window's toolbar
-	-- or take its taps, and it's back in view when the window is hidden.
-	local order = 99
-	for _, window in ipairs(self.Windows) do
-		if window.ScreenGui then
-			order = math.min(order, window.ScreenGui.DisplayOrder - 1)
-		end
-	end
-	local gui = New("ScreenGui", {
-		Name = "MacUI_Watermark",
-		ResetOnSpawn = false,
-		DisplayOrder = order,
-		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-	})
-	ParentGui(gui)
-	WatermarkGui = gui
-	local anchor = WATERMARK_ANCHORS[options.Position or "TopCenter"] or WATERMARK_ANCHORS.TopCenter
-	local holder = New("Frame", {
-		Name = "Watermark",
-		BackgroundTransparency = 1,
-		AnchorPoint = anchor[1],
-		Position = anchor[2],
-		Size = UDim2.fromOffset(120, 28),
-		Parent = gui,
-	})
-	InterfaceRoots[holder] = true
-	New("UIScale", { Scale = NotificationScale(), Parent = holder })
-	-- no drop shadow: around a pill it reads as a dark smudge over the game
-	local body = New("Frame", {
-		Name = "Body",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 0.04,
-		Active = true,
-		ZIndex = 2,
-		Theme = { BackgroundColor3 = "Menu" },
-		Parent = holder,
-	})
-	Corner(body, 14)
-	Stroke(body, "HudStroke", 1, 0)
-	IconTile(body, options.Icon or "command", ResolveColor(options.IconColor) or function()
-		return MacUI.Accent
-	end, 18, 5, 12, {
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 6, 0.5, 0),
-	})
-
-	-- Segments get fixed widths (measured from a template) so the pill doesn't
-	-- twitch as numbers change.
-	local segments = {}
-	local function Segment(template, token, weight)
-		local label = New("TextLabel", {
-			Text = template,
-			TextSize = 12,
-			Weight = weight or Enum.FontWeight.Medium,
-			TextXAlignment = Enum.TextXAlignment.Center,
-			Size = UDim2.fromOffset(math.ceil(MeasureText(template, 12, weight or Enum.FontWeight.Medium)) + 2, 28),
-			ZIndex = 3,
-			Theme = { TextColor3 = token },
-			Parent = body,
-		})
-		table.insert(segments, label)
-		return label
-	end
-	local function TitleText()
-		local text = options.Text
-		if type(text) == "function" then
-			local ok, value = pcall(text)
-			text = ok and value or ""
-		end
-		if text == nil then
-			-- (SetWatermark(true): the window's title)
-			local window = MacUI.Windows[1]
-			text = window and window.Title or "MacUI"
-		end
-		return tostring(text)
-	end
-	local title = Segment(type(options.Text) == "function" and "" or TitleText(), "Text", Enum.FontWeight.Bold)
-	local fps = options.Fps ~= false and Segment("144 fps", "SubText") or nil
-	local ping = options.Ping ~= false and Segment("999 ms", "SubText") or nil
-	local clock = options.Clock and Segment("00:00", "SubText") or nil
-	local dividers = {}
-	for _ = 2, #segments do
-		table.insert(dividers, New("Frame", {
-			Size = UDim2.fromOffset(1, 12),
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			ZIndex = 3,
-			Theme = { BackgroundColor3 = "Separator" },
-			Parent = body,
-		}))
-	end
-	local function Layout()
-		title.Size = UDim2.fromOffset(math.ceil(MeasureText(title.Text, 12, Enum.FontWeight.Bold)) + 2, 28)
-		-- a number longer than its template (1000+ fps) widens its slot; slots
-		-- never shrink, so the pill doesn't twitch
-		for index = 2, #segments do
-			local label = segments[index]
-			local needed = math.ceil(MeasureText(label.Text, 12, Enum.FontWeight.Medium)) + 2
-			if needed > label.Size.X.Offset then
-				label.Size = UDim2.fromOffset(needed, 28)
-			end
-		end
-		local x = 32
-		for index, label in ipairs(segments) do
-			if index > 1 then
-				dividers[index - 1].Position = UDim2.fromOffset(x + 8, 14)
-				x += 17
-			end
-			label.Position = UDim2.fromOffset(x, 0)
-			x += label.Size.X.Offset
-		end
-		holder.Size = UDim2.fromOffset(x + 12, 28)
-	end
-
-	-- dragging
-	local drag
-	body.InputBegan:Connect(function(input)
-		if IsPointer(input) then
-			drag = { Start = input.Position, Origin = holder.Position, Input = input }
-		end
-	end)
-	local connections = {
-		UserInputService.InputChanged:Connect(function(input)
-			if drag and DragMoves(drag.Input, input) then
-				local delta = input.Position - drag.Start
-				holder.Position = drag.Origin + UDim2.fromOffset(delta.X, delta.Y)
-			end
-		end),
-		UserInputService.InputEnded:Connect(function(input)
-			if drag and DragEnds(drag.Input, input) then
-				drag = nil
-			end
-		end),
-	}
-	-- A Text function runs on its own thread, one call at a time: one that
-	-- waits (a web request, say) can't pile up calls or hold the counters.
-	local fetching = false
-	local function RefreshTitle()
-		if type(options.Text) ~= "function" then
-			title.Text = TitleText()
-			return
-		end
-		if fetching then
-			return
-		end
-		fetching = true
-		task.spawn(function()
-			local text = TitleText()
-			fetching = false
-			if gui.Parent then
-				title.Text = text
-				Layout()
-			end
-		end)
-	end
-	local frames, elapsed = 0, 0
-	table.insert(connections, RunService.Heartbeat:Connect(function(dt)
-		frames += 1
-		elapsed += dt
-		if elapsed < 0.5 then
-			return
-		end
-		RefreshTitle()
-		if fps then
-			fps.Text = math.floor(frames / elapsed + 0.5) .. " fps"
-		end
-		if ping then
-			local value = ReadPing()
-			ping.Text = value and (math.floor(value + 0.5) .. " ms") or "— ms"
-		end
-		if clock then
-			clock.Text = os.date("%H:%M")
-		end
-		frames, elapsed = 0, 0
-		Layout()
-	end))
-	gui.Destroying:Connect(function()
-		for _, connection in ipairs(connections) do
-			connection:Disconnect()
-		end
-	end)
-	if fps then
-		fps.Text = "— fps"
-	end
-	if ping then
-		ping.Text = "— ms"
-	end
-	if clock then
-		clock.Text = os.date("%H:%M")
-	end
-	RefreshTitle()
-	Layout()
-
-	local watermark = { Instance = holder }
-	function watermark:SetText(text)
-		options.Text = text
-		RefreshTitle()
-		Layout()
-	end
-	function watermark:SetVisible(visible)
-		holder.Visible = visible ~= false
-	end
-	function watermark:Destroy()
-		if WatermarkGui == gui then
-			WatermarkGui = nil
-		end
-		if MacUI.Watermark == watermark then
-			MacUI.Watermark = nil
-		end
-		gui:Destroy()
-	end
-	self.Watermark = watermark
-	return watermark
-end
-
---------------------------------------------------------------------------------
--- Loading screen: a startup card with the hub's icon and a progress bar
---------------------------------------------------------------------------------
-
---[[
-	local loader = MacUI:ShowLoading({ Title = "My Hub", Subtitle = "Loading…", Icon = "command" })
-	loader:SetProgress(0.5, "Fetching data…")  -- 0 to 1; until then the bar sweeps
-	loader:Finish()                             -- fills the bar and fades out
-]]
-local ActiveLoaders = {}
-
-function MacUI:ShowLoading(options)
-	options = options or {}
-	if self.Unloaded then
-		local function Nothing() end
-		return { Shown = false, Closed = true, SetProgress = Nothing, SetStatus = Nothing, Finish = Nothing, Close = Nothing }
-	end
-	local gui = New("ScreenGui", {
-		Name = "MacUI_Loading",
-		ResetOnSpawn = false,
-		IgnoreGuiInset = true,
-		DisplayOrder = 1001,
-		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-	})
-	ParentGui(gui)
-	local dim = New("Frame", {
-		Name = "Dim",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundColor3 = Color3.new(0, 0, 0),
-		BackgroundTransparency = 1,
-		Parent = gui,
-	})
-	local holder = New("Frame", {
-		Name = "Card",
-		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(300, 200),
-		ZIndex = 2,
-		Parent = gui,
-	})
-	local cardScale = New("UIScale", { Scale = NotificationScale() * 0.94, Parent = holder })
-	local loader = { Shown = true, Progress = nil, Closed = false }
-	ActiveLoaders[loader] = true
-	local shadow = Shadow(holder, 14, function(t)
-		return loader.Shown and t.ShadowTransparency or 1
-	end)
-	shadow.ImageTransparency = 1
-	local card = New("CanvasGroup", {
-		Size = UDim2.fromScale(1, 1),
-		GroupTransparency = 1,
-		ZIndex = 2,
-		Theme = { BackgroundColor3 = "Menu" },
-		Parent = holder,
-	})
-	Corner(card, 18)
-	local border = New("Frame", {
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(1, 1),
-		Size = UDim2.new(1, -2, 1, -2),
-		ZIndex = 5,
-		Parent = card,
-	})
-	Corner(border, 17)
-	Stroke(border, "MenuStroke", 1, 0.1)
-	IconTile(card, options.Icon or "command", ResolveColor(options.IconColor) or function()
-		return MacUI.Accent
-	end, 64, 15, 34, {
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 28),
-	})
-	New("TextLabel", {
-		Name = "Title",
-		Text = tostring(options.Title or "Loading"),
-		TextSize = 18,
-		Weight = Enum.FontWeight.Bold,
-		TextXAlignment = Enum.TextXAlignment.Center,
-		Position = UDim2.fromOffset(16, 104),
-		Size = UDim2.new(1, -32, 0, 22),
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		Theme = { TextColor3 = "Text" },
-		Parent = card,
-	})
-	local status = New("TextLabel", {
-		Name = "Status",
-		Text = tostring(options.Subtitle or "Loading…"),
-		TextSize = 13,
-		TextXAlignment = Enum.TextXAlignment.Center,
-		Position = UDim2.fromOffset(16, 128),
-		Size = UDim2.new(1, -32, 0, 18),
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		Theme = { TextColor3 = "SubText" },
-		Parent = card,
-	})
-	local track = New("Frame", {
-		Name = "Track",
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 166),
-		Size = UDim2.fromOffset(200, 6),
-		ClipsDescendants = true,
-		Theme = { BackgroundColor3 = "Track" },
-		Parent = card,
-	})
-	Corner(track, 3)
-	local fill = New("Frame", {
-		Name = "Fill",
-		Size = UDim2.fromScale(0.3, 1),
-		Theme = { BackgroundColor3 = "Accent" },
-		Parent = track,
-	})
-	Corner(fill, 3)
-
-	-- indeterminate: the fill sweeps across until the first SetProgress
-	local sweep
-	task.spawn(function()
-		while not loader.Closed and loader.Progress == nil do
-			fill.Position = UDim2.fromScale(-0.3, 0)
-			sweep = Tween(fill, { Position = UDim2.fromScale(1, 0) }, 1.1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut)
-			task.wait(1.2)
-		end
-	end)
-
-	function loader:SetProgress(alpha, text)
-		if self.Closed then
-			return
-		end
-		if sweep then
-			sweep:Cancel()
-			sweep = nil
-		end
-		self.Progress = math.clamp(tonumber(alpha) or 0, 0, 1)
-		fill.Position = UDim2.fromScale(0, 0)
-		Tween(fill, { Size = UDim2.fromScale(self.Progress, 1) }, 0.25)
-		if text then
-			status.Text = tostring(text)
-		end
-	end
-	function loader:SetStatus(text)
-		status.Text = tostring(text or "")
-	end
-	function loader:Close()
-		if self.Closed then
-			return
-		end
-		self.Closed = true
-		self.Shown = false
-		ActiveLoaders[self] = nil
-		Tween(card, { GroupTransparency = 1 }, 0.25)
-		Tween(cardScale, { Scale = NotificationScale() * 1.04 }, 0.25)
-		Tween(dim, { BackgroundTransparency = 1 }, 0.3)
-		Restyle(shadow, 0.2)
-		task.delay(0.32, function()
-			gui:Destroy()
-		end)
-	end
-	function loader:Finish(text)
-		if self.Closed then
-			return
-		end
-		self:SetProgress(1, text)
-		task.delay(0.35, function()
-			self:Close()
-		end)
-	end
-
-	Tween(dim, { BackgroundTransparency = options.Dim == false and 1 or 0.55 }, 0.3)
-	Tween(card, { GroupTransparency = 0 }, 0.25)
-	Tween(cardScale, { Scale = NotificationScale() }, 0.35, Enum.EasingStyle.Back)
-	Restyle(shadow, 0.25)
-	return loader
-end
-
---------------------------------------------------------------------------------
--- Dependencies: DependsOn = "Flag" | { "Flag", value } | function() -> bool
---------------------------------------------------------------------------------
-
-local Dependencies = {}
-local dependencyCheckQueued = false
-
-local function EvaluateDependency(dependency)
-	if dependency.Row.Destroyed then
-		return
-	end
-	local ok, result = pcall(dependency.Check)
-	local active = ok and result and true or false
-	if active == dependency.Active then
-		return
-	end
-	dependency.Active = active
-	local row = dependency.Row
-	if dependency.Mode == "Hide" then
-		row.DependencyHidden = not active
-		row:_ApplyVisibility()
-	else
-		row.DependencyDisabled = not active
-		row:_ApplyDisabled()
-	end
-end
-
-local function CheckDependencies()
-	if dependencyCheckQueued then
-		return
-	end
-	dependencyCheckQueued = true
-	task.defer(function()
-		dependencyCheckQueued = false
-		for _, dependency in ipairs(Dependencies) do
-			EvaluateDependency(dependency)
-		end
-	end)
-end
-
-local function ResolveCondition(spec)
-	if type(spec) == "function" then
-		return spec
-	end
-	local flag, expected = spec, nil
-	if type(spec) == "table" then
-		flag = spec.Flag or spec[1]
-		expected = spec.Value
-		if expected == nil then
-			expected = spec[2]
-		end
-	end
-	return function()
-		local option = MacUI.Options[flag]
-		if not option then
-			return false
-		end
-		local value = option.Value
-		if expected == nil then
-			return IsTruthy(value)
-		elseif type(value) == "table" then
-			return value[expected] == true
-		end
-		return value == expected
-	end
-end
-
-local function AddDependency(row, spec, mode)
-	table.insert(Dependencies, { Row = row, Check = ResolveCondition(spec), Mode = mode or "Disable" })
-	CheckDependencies()
-end
-
-MacUI.OptionChanged:Connect(CheckDependencies)
-
---------------------------------------------------------------------------------
--- Timers: "turn this off in 30 minutes", "press this every 5 seconds"
---------------------------------------------------------------------------------
-
-local DURATION_UNITS = {
-	s = 1, sec = 1, secs = 1, second = 1, seconds = 1,
-	m = 60, min = 60, mins = 60, minute = 60, minutes = 60,
-	h = 3600, hr = 3600, hrs = 3600, hour = 3600, hours = 3600,
-}
-
--- "45s", "20m", "1h 30m", "1 hour and 5 minutes", "1:30" (m:ss), "1:02:03",
--- or a bare number in `defaultUnit` ("m" unless given). Returns seconds or nil.
-local function ParseDuration(text, defaultUnit)
-	text = tostring(text or ""):lower():gsub("^%s+", ""):gsub("%s+$", "")
-	if text == "" then
-		return nil
-	end
-	local h, m, s = text:match("^(%d+):(%d%d):(%d%d)$")
-	if h then
-		local total = tonumber(h) * 3600 + tonumber(m) * 60 + tonumber(s)
-		return total > 0 and total or nil
-	end
-	m, s = text:match("^(%d+):(%d%d)$")
-	if m then
-		local total = tonumber(m) * 60 + tonumber(s)
-		return total > 0 and total or nil
-	end
-	local total, matched = 0, false
-	for number, unit in text:gmatch("(%d*%.?%d+)%s*(%a*)") do
-		local multiplier = DURATION_UNITS[unit ~= "" and unit or (defaultUnit or "m")]
-		if not multiplier or not tonumber(number) then
-			return nil
-		end
-		total += tonumber(number) * multiplier
-		matched = true
-	end
-	-- anything left over besides "and" and commas means it wasn't a duration
-	local rest = text:gsub("(%d*%.?%d+)%s*(%a*)", ""):gsub("and", ""):gsub("[%s,]", "")
-	if not matched or rest ~= "" or total <= 0 then
-		return nil
-	end
-	return total
-end
-
--- 75 -> "1:15", 3725 -> "1:02:05"
-local function FormatClock(seconds)
-	seconds = math.max(math.ceil(seconds), 0)
-	local hours = math.floor(seconds / 3600)
-	local minutes = math.floor(seconds % 3600 / 60)
-	if hours > 0 then
-		return string.format("%d:%02d:%02d", hours, minutes, seconds % 60)
-	end
-	return string.format("%d:%02d", minutes, seconds % 60)
-end
-
--- 90 -> "1 min 30 s"; with `long`, "1 Minute 30 Seconds" (menus)
-local function DescribeDuration(seconds, long)
-	seconds = math.max(math.floor(seconds + 0.5), 1)
-	local parts = {}
-	local function Add(amount, short, singular, plural)
-		if amount > 0 then
-			table.insert(parts, amount .. " " .. (long and (amount == 1 and singular or plural) or short))
-		end
-	end
-	local hours = math.floor(seconds / 3600)
-	local minutes = math.floor(seconds % 3600 / 60)
-	Add(hours, "h", "Hour", "Hours")
-	Add(minutes, "min", "Minute", "Minutes")
-	if hours == 0 then
-		Add(seconds % 60, "s", "Second", "Seconds")
-	end
-	return table.concat(parts, " ")
-end
-
--- Running timers by row: { Ends, Value (toggles) or Interval (buttons), Icon, Fire }.
-local ActiveTimers = {}
-local timerLoopRunning = false
-
-local function EnsureTimerLoop()
-	if timerLoopRunning then
-		return
-	end
-	timerLoopRunning = true
-	task.spawn(function()
-		while next(ActiveTimers) ~= nil and not MacUI.Unloaded do
-			local now = os.clock()
-			for row, timer in pairs(table.clone(ActiveTimers)) do
-				if row.Destroyed then
-					ActiveTimers[row] = nil
-				elseif ActiveTimers[row] == timer and now >= timer.Ends then
-					-- (another timer firing this tick may have cancelled it)
-					SafeCall(timer.Fire, timer)
-				end
-				if ActiveTimers[row] == timer then
-					row:_RenderTimer()
-				end
-			end
-			task.wait(0.2)
-		end
-		timerLoopRunning = false
-	end)
-end
-
--- Every running timer, soonest first: { Element, Remaining, Value (toggles)
--- or Interval (buttons) }.
-function MacUI:GetTimers()
-	local list = {}
-	local now = os.clock()
-	for row, timer in pairs(ActiveTimers) do
-		table.insert(list, {
-			Element = row.Element,
-			Remaining = math.max(timer.Ends - now, 0),
-			Value = timer.Value,
-			Interval = timer.Interval,
-		})
-	end
-	table.sort(list, function(a, b)
-		return a.Remaining < b.Remaining
-	end)
-	return list
-end
-
-function MacUI:CancelTimers()
-	for row in pairs(table.clone(ActiveTimers)) do
-		row:_CancelTimer()
-	end
-end
-
-local TOGGLE_TIMER_PRESETS = { 60, 300, 900, 1800, 3600, 7200 }
-local BUTTON_REPEAT_PRESETS = { 5, 10, 30, 60, 300, 900 }
-
-local function CreateRow(container, info, options)
-	options = options or {}
-	local window = container.Window
-	local tab = container.Tab
-	local group = container:_GetGroup()
-
-	local row = setmetatable({
-		Window = window,
-		Tab = tab,
-		Group = group,
-		Title = tostring(info.Title or ""),
-		Description = tostring(info.Description or info.Desc or ""),
-		Keywords = tostring(info.Keywords or ""),
-		UserVisible = true,
-		SearchMatch = true,
-		Hovered = false,
-		Pressed = false,
-		Disabled = false,
-		Connections = {},
-	}, RowMethods)
-
-	group.Order += 1
-	row.Frame = New("Frame", {
-		Name = "Row",
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		LayoutOrder = group.Order,
-		Parent = group.Frame,
-	})
-	row.Separator = New("Frame", {
-		Name = "Separator",
-		Position = UDim2.fromOffset(12, 0),
-		Size = UDim2.new(1, -24, 0, 1),
-		ZIndex = 4,
-		Theme = { BackgroundColor3 = "Separator" },
-		Parent = row.Frame,
-	})
-
-	if options.Clickable then
-		row.Highlight = New("Frame", {
-			Name = "Highlight",
-			Position = UDim2.fromOffset(4, 4),
-			Size = UDim2.new(1, -8, 1, -8),
-			ZIndex = 1,
-			Theme = {
-				BackgroundColor3 = "Hover",
-				BackgroundTransparency = function(t)
-					if row.Pressed then
-						return t.HoverTransparency - 0.04
-					end
-					return row.Hovered and t.HoverTransparency or 1
-				end,
-			},
-			Parent = row.Frame,
-		})
-		Corner(row.Highlight, 7)
-		row.Hitbox = New("TextButton", {
-			Name = "Hitbox",
-			Size = UDim2.fromScale(1, 1),
-			ZIndex = 2,
-			Parent = row.Frame,
-		})
-		row.Hitbox.MouseEnter:Connect(function()
-			row.Hovered = true
-			Restyle(row.Highlight, 0.12)
-		end)
-		row.Hitbox.MouseLeave:Connect(function()
-			row.Hovered = false
-			row.Pressed = false
-			Restyle(row.Highlight, 0.2)
-		end)
-		row.Hitbox.MouseButton1Down:Connect(function()
-			row.Pressed = true
-			Restyle(row.Highlight, 0.08)
-		end)
-		row.Hitbox.MouseButton1Up:Connect(function()
-			row.Pressed = false
-			Restyle(row.Highlight, 0.2)
-		end)
-		row.Hitbox.MouseButton1Click:Connect(function()
-			if not row.Disabled and row.OnClick and not JustCaptured() then
-				row.OnClick()
-			end
-		end)
-	end
-
-	row.Content = New("Frame", {
-		Name = "Content",
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 44),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		ZIndex = 3,
-		Parent = row.Frame,
-	})
-	row.Padding = Padding(row.Content, 13, 12, 13, 12)
-	row.Stack = New("Frame", {
-		Name = "Text",
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		Parent = row.Content,
-	})
-	List(row.Stack, nil, 2)
-	row.TitleWeight = options.TitleWeight or Enum.FontWeight.Regular
-	row.TitleLabel = New("TextLabel", {
-		Name = "Title",
-		Text = row.Title,
-		TextSize = 14,
-		Weight = row.TitleWeight,
-		Size = UDim2.new(1, 0, 0, 18),
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		LayoutOrder = 1,
-		Theme = { TextColor3 = "Text" },
-		Parent = row.Stack,
-	})
-	row.DescLabel = New("TextLabel", {
-		Name = "Description",
-		Text = row.Description,
-		TextSize = 12,
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		TextWrapped = true,
-		RichText = true,
-		LayoutOrder = 2,
-		Theme = { TextColor3 = options.DescToken or "SubText" },
-		Parent = row.Stack,
-	})
-	if options.DescSize then
-		row.DescLabel.TextSize = options.DescSize
-	end
-
-	row.Accessory = New("Frame", {
-		Name = "Accessory",
-		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -12, 0.5, 0),
-		Size = UDim2.fromOffset(0, 0),
-		AutomaticSize = Enum.AutomaticSize.XY,
-		ZIndex = 5,
-		Parent = row.Frame,
-	})
-	List(row.Accessory, Enum.FillDirection.Horizontal, 8, {
-		VerticalAlignment = Enum.VerticalAlignment.Center,
-		HorizontalAlignment = Enum.HorizontalAlignment.Right,
-	})
-
-	row.Accessory:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-		row:_UpdateReserve()
-	end)
-	-- (and when the window's width changes)
-	local lastWidth = 0
-	row.Frame:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-		local width = row.Frame.AbsoluteSize.X
-		if width ~= lastWidth then
-			lastWidth = width
-			row:_UpdateReserve()
-		end
-	end)
-
-	-- Right-click (or long-press on touch) opens the row's context menu.
-	row:Connect(row.Frame.InputBegan, function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton2 then
-			row:_OpenContextMenu()
-		end
-	end)
-	row:Connect(row.Frame.TouchLongPress, function(positions, state)
-		if state == Enum.UserInputState.Begin then
-			row:_OpenContextMenu(positions and positions[1])
-		end
-	end)
-	if row.Hitbox then
-		row:_BindContext(row.Hitbox)
-	end
-	if info.Tooltip then
-		window:_AttachTooltip(row.Frame, info.Tooltip)
-	end
-
-	table.insert(group.Rows, row)
-	table.insert(tab.Rows, row)
-	row:_UpdateLayout()
-	row:_UpdateReserve()
-	group:Refresh()
-	if window.SearchQuery ~= "" then
-		window:_ApplySearch()
-	end
-	if info.DependsOn ~= nil then
-		AddDependency(row, info.DependsOn, info.DependsMode)
-	end
-	return row
-end
-
--- Moves the row's control under its title and back.
-function RowMethods:_WrapAccessory(wrap)
-	if (self.Wrapped == true) == wrap then
-		return
-	end
-	self.Wrapped = wrap
-	local accessory = self.Accessory
-	if wrap then
-		if not self.WrapGap then
-			self.WrapGap = New("Frame", {
-				Name = "WrapGap",
-				BackgroundTransparency = 1,
-				Size = UDim2.new(1, 0, 0, 4),
-				LayoutOrder = 9,
-			})
-		end
-		self.WrapGap.Parent = self.Stack
-		accessory.AnchorPoint = Vector2.zero
-		accessory.Position = UDim2.new()
-		accessory.LayoutOrder = 10
-		accessory.Parent = self.Stack
-	else
-		if self.WrapGap then
-			self.WrapGap.Parent = nil
-		end
-		accessory.AnchorPoint = Vector2.new(1, 0.5)
-		accessory.Position = UDim2.new(1, -12, 0.5, 0)
-		accessory.Parent = self.Frame
-	end
-end
-
-function RowMethods:_UpdateReserve()
-	local scale = self.Window:GetAbsoluteScale()
-	local width = self.Accessory.AbsoluteSize.X / scale
-	if self.FullWidthText then
-		self.Stack.Size = UDim2.new(1, 0, 0, 0)
-		return
-	end
-	-- A control too wide to sit beside the title (a segmented picker in a
-	-- narrow window) moves under it rather than squeezing the title away.
-	local room = self.Frame.AbsoluteSize.X / scale - 24
-	if self.NoWrap or (self.Title == "" and self.Description == "") then
-		-- (with no text there's nothing to make room for, and the text column
-		-- is hidden)
-		self:_WrapAccessory(false)
-	elseif room > 0 and width > 1 then
-		if not self.TextWidth then
-			local description = (self.Description:gsub("<[^>]->", ""))
-			self.TextWidth = math.max(
-				math.ceil(MeasureText(self.Title, 14, self.TitleWeight)),
-				description ~= "" and math.ceil(MeasureText(description, self.DescLabel.TextSize)) or 0
-			)
-		end
-		-- the title and description need their width, or 40% of the row if
-		-- they're longer (they wrap then, in a column that's still readable)
-		self:_WrapAccessory(room - width - 14 < math.min(self.TextWidth + 4, room * 0.4))
-	end
-	if self.Wrapped then
-		self.Stack.Size = UDim2.new(1, 0, 0, 0)
-	else
-		self.Stack.Size = UDim2.new(1, -(width > 1 and width + 14 or 0), 0, 0)
-	end
-end
-
-function RowMethods:_UpdateLayout()
-	local hasTitle = self.Title ~= ""
-	local hasDesc = self.Description ~= ""
-	self.Content.Size = UDim2.new(1, 0, 0, self.MinHeight or 44)
-	self.TitleLabel.Visible = hasTitle
-	self.DescLabel.Visible = hasDesc
-	self.Stack.Visible = hasTitle or hasDesc or self.ForceStack == true
-	local pad = (hasTitle and hasDesc) and 9 or 13
-	if self.TallPadding then
-		pad = math.max(pad, self.TallPadding)
-	end
-	self.Padding.PaddingTop = UDim.new(0, pad)
-	self.Padding.PaddingBottom = UDim.new(0, pad)
-end
-
-function RowMethods:SetTitle(text)
-	self.Title = tostring(text or "")
-	self.TitleLabel.Text = self.Title
-	self.TextWidth = nil
-	self:_UpdateLayout()
-	self:_UpdateReserve()
-end
-
-function RowMethods:SetDesc(text)
-	self.Description = tostring(text or "")
-	self.DescLabel.Text = self.Description
-	self.TextWidth = nil
-	self:_UpdateLayout()
-	self:_UpdateReserve()
-end
-
-function RowMethods:_Matches(query)
-	local haystack = (self.Title .. " " .. self.Description .. " " .. self.Keywords .. " " .. (self.SearchExtra or "")):lower()
-	return haystack:find(query, 1, true) ~= nil
-end
-
--- Shown unless the script hid it or a DependsOn condition is unmet (search aside).
-function RowMethods:_IsShown()
-	return self.UserVisible and not self.DependencyHidden
-end
-
-function RowMethods:_ApplyVisibility()
-	self.Frame.Visible = self:_IsShown() and self.SearchMatch
-	self.Group:Refresh()
-end
-
-function RowMethods:SetVisible(visible)
-	self.UserVisible = visible ~= false
-	self:_ApplyVisibility()
-end
-
-function RowMethods:SetDisabled(disabled)
-	self.UserDisabled = disabled == true
-	self:_ApplyDisabled()
-end
-
-function RowMethods:_ApplyDisabled()
-	self.Disabled = self.UserDisabled == true or self.DependencyDisabled == true
-	if self.Disabled and not self.Blocker then
-		self.Blocker = New("TextButton", {
-			Name = "Disabled",
-			Size = UDim2.fromScale(1, 1),
-			BackgroundTransparency = 1,
-			ZIndex = 20,
-			Theme = { BackgroundColor3 = "Group" },
-			Parent = self.Frame,
-		})
-		Tween(self.Blocker, { BackgroundTransparency = 0.45 }, 0.2)
-	elseif not self.Disabled and self.Blocker then
-		local blocker = self.Blocker
-		self.Blocker = nil
-		Tween(blocker, { BackgroundTransparency = 1 }, 0.2)
-		task.delay(0.2, function()
-			blocker:Destroy()
-		end)
-	end
-end
-
--- Runs fn when the row is destroyed.
-function RowMethods:_OnDestroy(fn)
-	self.DestroyHooks = self.DestroyHooks or {}
-	table.insert(self.DestroyHooks, fn)
-end
-
-function RowMethods:Destroy()
-	self.Destroyed = true
-	for _, fn in ipairs(self.DestroyHooks or {}) do
-		pcall(fn)
-	end
-	if self.Capture then
-		self.Capture:Disconnect()
-		self.Capture = nil
-	end
-	self.Timer = nil
-	if ActiveTimers[self] then
-		ActiveTimers[self] = nil
-		MacUI.TimersChanged:Fire()
-	end
-	for index = #Dependencies, 1, -1 do
-		if Dependencies[index].Row == self then
-			table.remove(Dependencies, index)
-		end
-	end
-	for _, connection in ipairs(self.Connections) do
-		connection:Disconnect()
-	end
-	local index = table.find(self.Group.Rows, self)
-	if index then
-		table.remove(self.Group.Rows, index)
-	end
-	index = table.find(self.Tab.Rows, self)
-	if index then
-		table.remove(self.Tab.Rows, index)
-	end
-	self.Frame:Destroy()
-	self.Group:Refresh()
-end
-
--- A connection that is cleaned up with the row.
-function RowMethods:Connect(signal, fn)
-	local connection = signal:Connect(fn)
-	if MacUI.Unloaded then
-		connection:Disconnect() -- this copy was replaced while it was building
-	else
-		table.insert(self.Connections, connection)
-	end
-	return connection
-end
-
--- Briefly pulses the row in the accent colour (used by search and Spotlight).
-function RowMethods:Flash()
-	local flash = self.FlashFrame
-	if not flash then
-		flash = New("Frame", {
-			Name = "Flash",
-			Position = UDim2.fromOffset(4, 4),
-			Size = UDim2.new(1, -8, 1, -8),
-			BackgroundTransparency = 1,
-			ZIndex = 1,
-			Theme = { BackgroundColor3 = "Accent" },
-			Parent = self.Frame,
-		})
-		Corner(flash, 7)
-		self.FlashFrame = flash
-	end
-	task.spawn(function()
-		for _ = 1, 2 do
-			Tween(flash, { BackgroundTransparency = 0.7 }, 0.18, Enum.EasingStyle.Sine)
-			task.wait(0.22)
-			Tween(flash, { BackgroundTransparency = 1 }, 0.4, Enum.EasingStyle.Sine)
-			task.wait(0.32)
-		end
-	end)
-end
-
-function RowMethods:_BindContext(button)
-	-- plain connections: `button` is inside the row and is destroyed with it
-	button.MouseButton2Click:Connect(function()
-		self:_OpenContextMenu()
-	end)
-	button.TouchLongPress:Connect(function(positions, state)
-		if state == Enum.UserInputState.Begin then
-			self:_OpenContextMenu(positions and positions[1])
-		end
-	end)
-end
-
--- No separator first, last or twice in a row.
-local function TidySeparators(items)
-	local tidy = {}
-	for _, item in ipairs(items) do
-		if item ~= "-" or (#tidy > 0 and tidy[#tidy] ~= "-") then
-			table.insert(tidy, item)
-		end
-	end
-	if tidy[#tidy] == "-" then
-		table.remove(tidy)
-	end
-	return tidy
-end
-
-function RowMethods:_ContextItems()
-	local element = self.Element
-	local items = {}
-	if not element then
-		return items
-	end
-	local window = self.Window
-	if self.ErrorMessage then
-		table.insert(items, {
-			Text = "Show Error…",
-			Icon = "bug",
-			Callback = function()
-				self:_OpenErrorDialog()
-			end,
-		})
-		table.insert(items, {
-			Text = "Clear Error",
-			Icon = "x",
-			Callback = function()
-				self:ClearError()
-			end,
-		})
-		table.insert(items, "-")
-	end
-	if element.Default ~= nil or element._Reset then
-		table.insert(items, {
-			Text = "Reset to Default",
-			Icon = "rotate-ccw",
-			Disabled = self.Disabled or element:IsDefault(),
-			Callback = function()
-				element:Reset()
-				window:Toast(element.Title or "Setting", { Detail = "Reset", Icon = "rotate-ccw" })
-			end,
-		})
-	end
-	local text = not element.NoCopy and element:GetText() or nil
-	if text and text ~= "" then
-		local copyTitle = "Copy Value"
-		if element.Type == "Label" or element.Type == "Paragraph" or element.Type == "Code" then
-			copyTitle = "Copy Text"
-		end
-		table.insert(items, {
-			Text = copyTitle,
-			Icon = "copy",
-			Callback = function()
-				if CopyToClipboard(text) then
-					window:Toast("Copied to Clipboard", { Icon = "clipboard" })
-				else
-					window:Toast("Clipboard isn’t available", { Icon = "x-circle" })
-				end
-			end,
-		})
-	end
-	if element.Type == "Dropdown" and element.Multi and not self.Disabled then
-		table.insert(items, "-")
-		table.insert(items, {
-			Text = "Select All",
-			Icon = "list-checks",
-			Callback = function()
-				element:SetValue(element.Values)
-			end,
-		})
-		table.insert(items, {
-			Text = "Deselect All",
-			Icon = "list",
-			Callback = function()
-				element:SetValue({})
-			end,
-		})
-	end
-	if element._ContextItems then
-		for _, item in ipairs(element:_ContextItems()) do
-			table.insert(items, item)
-		end
-	end
-	if element._Activate and not TouchOnly() then
-		table.insert(items, "-")
-		table.insert(items, {
-			Text = element.Shortcut and "Change Shortcut…" or "Add Shortcut…",
-			Icon = "keyboard",
-			Shortcut = element.Shortcut and KeyName(element.Shortcut) or nil,
-			Callback = function()
-				element:RecordShortcut()
-			end,
-		})
-		if element.Shortcut then
-			table.insert(items, {
-				Text = "Remove Shortcut",
-				Icon = "x",
-				Callback = function()
-					element:SetShortcut(nil)
-				end,
-			})
-		end
-	end
-	if element.Type == "Toggle" or element.Type == "Button" then
-		local isButton = element.Type == "Button"
-		table.insert(items, "-")
-		if self.Timer then
-			table.insert(items, {
-				Text = isButton and "Stop Repeating" or "Cancel Timer",
-				Icon = "timer-off",
-				Shortcut = FormatClock(self.Timer.Ends - os.clock()),
-				Callback = function()
-					self:_CancelTimer()
-				end,
-			})
-		else
-			table.insert(items, {
-				Text = isButton and "Repeat Every…" or (element.Value and "Turn Off After…" or "Turn On After…"),
-				Icon = isButton and "repeat" or "timer",
-				Disabled = self.Disabled,
-				Callback = function()
-					self:_OpenTimerMenu()
-				end,
-			})
-		end
-	end
-	return TidySeparators(items)
-end
-
-function RowMethods:_OpenContextMenu(point)
-	if KeyCapture.Active or JustCaptured() or self.Destroyed then
-		return
-	end
-	local now = os.clock()
-	if now - (self.LastContext or 0) < 0.2 then
-		return
-	end
-	self.LastContext = now
-	-- kept for follow-up menus (timer durations) that open in the same place
-	self.ContextPoint = point or MousePosition()
-	local items = self:_ContextItems()
-	if #items > 0 then
-		self.Window:_OpenContextMenu(self.ContextPoint, items)
-	end
-end
-
--- The little key cap that shows an element's keyboard shortcut.
-function RowMethods:_RenderShortcut()
-	local element = self.Element
-	local key = element and element.Shortcut
-	local show = (key ~= nil or self.RecordingShortcut == true) and not TouchOnly()
-	if show and not self.ShortcutCap then
-		local cap = New("TextButton", {
-			Name = "Shortcut",
-			TextSize = 11,
-			Weight = Enum.FontWeight.Medium,
-			Size = UDim2.fromOffset(24, 20),
-			LayoutOrder = -10,
-			Theme = {
-				BackgroundColor3 = function(t)
-					return self.RecordingShortcut and t.Field or t.Control
-				end,
-				BackgroundTransparency = function()
-					return 0
-				end,
-				TextColor3 = "SubText",
-			},
-			Parent = self.Accessory,
-		})
-		Corner(cap, 5)
-		self.ShortcutStroke = Stroke(cap, function(t)
-			return self.RecordingShortcut and MacUI.Accent or t.ControlStroke
-		end)
-		cap.MouseButton1Click:Connect(function()
-			if self.Element and not self.Disabled and not self.RecordingShortcut and not JustCaptured() then
-				self.Element:RecordShortcut()
-			end
-		end)
-		self:_BindContext(cap)
-		self.ShortcutCap = cap
-	end
-	if self.ShortcutCap then
-		self.ShortcutCap.Visible = show
-		local text = self.RecordingShortcut and "Type a key…" or KeyName(key or "")
-		self.ShortcutCap.Text = text
-		self.ShortcutCap.Size = UDim2.fromOffset(math.max(24, math.ceil(MeasureText(text, 11, Enum.FontWeight.Medium)) + 14), 20)
-		Restyle(self.ShortcutCap, 0.12)
-		Restyle(self.ShortcutStroke, 0.12)
-	end
-end
-
--- "Script.Name:12: attempt to index nil" -> "attempt to index nil", "line 12 of Name"
-local function ErrorParts(message)
-	message = tostring(message)
-	local source, line, text = message:match("^(.-):(%d+): (.+)$")
-	if not source or source == "" or source:find("\n") then
-		return message, nil
-	end
-	if source:match("^%[string ") then
-		return text, "line " .. line
-	end
-	local name = source:match("([^/\\]+)$") or source
-	if not name:match("%.luau?$") then
-		name = name:match("([^%.]+)$") or name -- Roblox paths: just the script's name
-	end
-	return text, "line " .. line .. " of " .. name
-end
-
--- Callback errors: a red badge on the row. Hover it for the message, click it
--- for the details (copy them, or clear the badge).
-function RowMethods:_ShowError(message, trace)
-	self.ErrorCount = (self.ErrorCount or 0) + 1
-	self.ErrorMessage = tostring(message)
-	self.ErrorTrace = trace or self.ErrorMessage
-	if self.Element then
-		self.Element.LastError = self.ErrorMessage
-	end
-	if self.ErrorBadge then
-		return
-	end
-	local badge = New("ImageButton", {
-		Name = "Error",
-		Image = MacUI:GetIcon("alert-triangle") or "",
-		Size = UDim2.fromOffset(0, 16),
-		LayoutOrder = -20,
-		Theme = { ImageColor3 = "Destructive" },
-		Parent = self.Accessory,
-	})
-	Tween(badge, { Size = UDim2.fromOffset(16, 16) }, 0.3, Enum.EasingStyle.Back)
-	badge.MouseButton1Click:Connect(function()
-		self:_OpenErrorDialog()
-	end)
-	self:_BindContext(badge)
-	self.Window:_AttachTooltip(badge, function()
-		local text = ErrorParts(self.ErrorMessage or "")
-		if #text > 200 then
-			text = text:sub(1, 197) .. "…"
-		end
-		local count = self.ErrorCount or 1
-		return text .. (count > 1 and ("  (" .. count .. " times)") or "")
-	end)
-	self.ErrorBadge = badge
-end
-
-function RowMethods:ClearError()
-	self.ErrorCount, self.ErrorMessage, self.ErrorTrace = nil, nil, nil
-	if self.Element then
-		self.Element.LastError = nil
-	end
-	if self.ErrorBadge then
-		self.ErrorBadge:Destroy()
-		self.ErrorBadge = nil
-	end
-end
-
-function RowMethods:_OpenErrorDialog()
-	if not self.ErrorMessage or self.Destroyed then
-		return
-	end
-	local window = self.Window
-	local count = self.ErrorCount or 1
-	local name = self.Title ~= "" and self.Title or "This control"
-	local text, where = ErrorParts(self.ErrorMessage)
-	local notes = {}
-	if where then
-		table.insert(notes, (where:gsub("^%l", string.upper)))
-	end
-	if count > 1 then
-		table.insert(notes, "happened " .. count .. " times")
-	end
-	window:Dialog({
-		Title = "“" .. name .. "” ran into an error",
-		Content = EscapeRich(text) .. (#notes > 0 and ("\n\n" .. EscapeRich(table.concat(notes, " · "))) or ""),
-		Icon = "bug",
-		IconColor = "Red",
-		Buttons = {
-			{
-				Title = "Copy Details",
-				Callback = function()
-					if CopyToClipboard(self.ErrorTrace or self.ErrorMessage or "") then
-						window:Toast("Copied to Clipboard", { Icon = "clipboard" })
-					else
-						window:Toast("Clipboard isn’t available", { Icon = "x-circle" })
-					end
-				end,
-			},
-			{
-				Title = "Clear Error",
-				Callback = function()
-					self:ClearError()
-				end,
-			},
-			{ Title = "Close" },
-		},
-	})
-end
-
-function RowMethods:_SetTimer(timer)
-	if self.Destroyed then
-		timer = nil
-	end
-	self.Timer = timer
-	ActiveTimers[self] = timer
-	if timer then
-		EnsureTimerLoop()
-	end
-	self:_RenderTimer()
-	MacUI.TimersChanged:Fire()
-end
-
--- The countdown chip shown while a timer runs; click it to change or cancel.
-function RowMethods:_RenderTimer()
-	local timer = self.Timer
-	if not timer then
-		if self.TimerChip then
-			self.TimerChip:Destroy()
-			self.TimerChip = nil
-		end
-		return
-	end
-	if not self.TimerChip then
-		local chip = New("TextButton", {
-			Name = "Timer",
-			Size = UDim2.fromOffset(56, 20),
-			LayoutOrder = -15,
-			Theme = {
-				BackgroundColor3 = "Accent",
-				BackgroundTransparency = function()
-					return 0.84
-				end,
-			},
-			Parent = self.Accessory,
-		})
-		Corner(chip, 10)
-		IconImage({
-			Name = "Icon",
-			Icon = timer.Icon or "timer",
-			IconSize = 12,
-			AnchorPoint = Vector2.new(0, 0.5),
-			Position = UDim2.new(0, 7, 0.5, 0),
-			Theme = { ImageColor3 = "Accent" },
-			Parent = chip,
-		})
-		New("TextLabel", {
-			Name = "Remaining",
-			TextSize = 11,
-			Weight = Enum.FontWeight.Medium,
-			Position = UDim2.fromOffset(22, 0),
-			Size = UDim2.new(1, -28, 1, 0),
-			TextXAlignment = Enum.TextXAlignment.Center,
-			Theme = { TextColor3 = "Accent" },
-			Parent = chip,
-		})
-		chip.MouseButton1Click:Connect(function()
-			self:_OpenTimerMenu(MousePosition())
-		end)
-		self:_BindContext(chip)
-		self.Window:_AttachTooltip(chip, function()
-			local current = self.Timer
-			if not current then
-				return nil
-			end
-			if current.Interval then
-				return "Runs every " .. DescribeDuration(current.Interval) .. ". Click to change or stop."
-			end
-			return "Turns " .. (current.Value and "on" or "off") .. " when this reaches zero. Click to change or cancel."
-		end)
-		self.TimerChip = chip
-	end
-	local text = FormatClock(timer.Ends - os.clock())
-	local label = self.TimerChip:FindFirstChild("Remaining")
-	if label and label.Text ~= text then
-		label.Text = text
-		-- sized from zeros so the chip doesn't twitch as the digits change
-		local width = MeasureText((text:gsub("%d", "0")), 11, Enum.FontWeight.Medium)
-		self.TimerChip.Size = UDim2.fromOffset(math.ceil(width) + 34, 20)
-	end
-end
-
-function RowMethods:_CancelTimer()
-	local element = self.Element
-	if element and element.Type == "Button" and element.SetRepeat then
-		element:SetRepeat(nil)
-	elseif element and element.SetTimer then
-		element:SetTimer(nil)
-	else
-		self:_SetTimer(nil)
-	end
-end
-
-function RowMethods:_StartTimer(seconds, target)
-	local element = self.Element
-	if not element or self.Destroyed then
-		return
-	end
-	if element.Type == "Button" then
-		element:SetRepeat(seconds)
-		self.Window:Toast(element.Title or "Button", {
-			Detail = "every " .. DescribeDuration(seconds),
-			Icon = "repeat",
-			Highlight = true,
-		})
-	elseif element.SetTimer then
-		local timer = element:SetTimer(seconds, target)
-		if timer then
-			self.Window:Toast(element.Title or "Toggle", {
-				Detail = (timer.Value and "on" or "off") .. " in " .. DescribeDuration(seconds),
-				Icon = "timer",
-				Highlight = true,
-			})
-		end
-	end
-end
-
--- Asks for a custom duration ("20m", "1h 30m", "45s").
-function RowMethods:_AskTimer(target)
-	local element = self.Element
-	if not element then
-		return
-	end
-	local isButton = element.Type == "Button"
-	local name = tostring(element.Title or "this")
-	self.Window:Dialog({
-		Title = isButton and ("Repeat “" .. name .. "” every")
-			or ((target and "Turn on “" or "Turn off “") .. name .. "” in"),
-		Content = isButton and "Seconds, or a time like 90s, 5m or 1h."
-			or "Minutes, or a time like 45s, 20m or 1h 30m.",
-		Icon = isButton and "repeat" or "timer",
-		Input = { Placeholder = isButton and "30s" or "20m" },
-		Buttons = {
-			{
-				Title = "Start",
-				Callback = function(text)
-					local seconds = ParseDuration(text, isButton and "s" or "m")
-					if seconds then
-						self:_StartTimer(seconds, target)
-					else
-						self.Window:Toast("Couldn’t read that time", { Icon = "x-circle" })
-					end
-				end,
-			},
-			{ Title = "Cancel" },
-		},
-	})
-end
-
--- Durations for a toggle timer or a button repeat, opened from the context
--- menu or the countdown chip.
-function RowMethods:_OpenTimerMenu(point)
-	local element = self.Element
-	if not element or self.Destroyed then
-		return
-	end
-	local isButton = element.Type == "Button"
-	local target = self.Timer and self.Timer.Value
-	if target == nil then
-		target = not element.Value
-	end
-	local items = {}
-	if self.Timer then
-		table.insert(items, {
-			Text = isButton and "Stop Repeating" or "Cancel Timer",
-			Icon = "timer-off",
-			Shortcut = FormatClock(self.Timer.Ends - os.clock()),
-			Callback = function()
-				self:_CancelTimer()
-			end,
-		})
-		table.insert(items, "-")
-	end
-	local verb = isButton and "Repeat Every " or (target and "Turn On in " or "Turn Off in ")
-	for _, seconds in ipairs(isButton and BUTTON_REPEAT_PRESETS or TOGGLE_TIMER_PRESETS) do
-		table.insert(items, {
-			Text = verb .. DescribeDuration(seconds, true),
-			Callback = function()
-				self:_StartTimer(seconds, target)
-			end,
-		})
-	end
-	table.insert(items, "-")
-	table.insert(items, {
-		Text = "Custom…",
-		Icon = isButton and "repeat" or "timer",
-		Callback = function()
-			self:_AskTimer(target)
-		end,
-	})
-	self.Window:_OpenContextMenu(point or self.ContextPoint or MousePosition(), items)
-end
-
---------------------------------------------------------------------------------
--- Element base
---------------------------------------------------------------------------------
-
-local ElementBase = {}
-ElementBase.__index = ElementBase
-
-local function NewElement(kind, row, info)
-	local element = setmetatable({
-		Type = kind,
-		Row = row,
-		Title = info.Title,
-		Description = info.Description,
-		Callback = info.Callback,
-		_listeners = {},
-	}, ElementBase)
-	row.Element = element
-	return element
-end
-
-function ElementBase:SetTitle(text)
-	self.Title = text
-	self.Row:SetTitle(text)
-end
-
-function ElementBase:SetDesc(text)
-	self.Description = text
-	self.Row:SetDesc(text)
-end
-ElementBase.SetDescription = ElementBase.SetDesc
-
-function ElementBase:SetVisible(visible)
-	self.Row:SetVisible(visible)
-end
-
-function ElementBase:SetDisabled(disabled)
-	self.Disabled = disabled == true
-	self.Row:SetDisabled(disabled)
-end
-
-function ElementBase:Lock()
-	self:SetDisabled(true)
-end
-
-function ElementBase:Unlock()
-	self:SetDisabled(false)
-end
-
-function ElementBase:OnChanged(fn)
-	table.insert(self._listeners, fn)
-	SafeCall(fn, self.Value)
-	return self
-end
-
-function ElementBase:_Emit(...)
-	RunCallback(self, self.Callback, ...)
-	for _, fn in ipairs(self._listeners) do
-		RunCallback(self, fn, ...)
-	end
-	if self.Idx ~= nil then
-		MacUI.OptionChanged:Fire(self.Idx, self.Value, self)
-	end
-end
-
-function ElementBase:IsDefault()
-	if self._IsDefault then
-		return self:_IsDefault()
-	end
-	return self.Default == nil or SameValue(self.Value, self.Default)
-end
-
-function ElementBase:Reset()
-	if self._Reset then
-		self:_Reset()
-	elseif self.Default ~= nil and self.SetValue then
-		self:SetValue(CopyValue(self.Default))
-	end
-end
-
--- Human-readable value, used by "Copy Value" and Spotlight.
-function ElementBase:GetText()
-	if self._Text then
-		return self:_Text()
-	end
-	if self.Value == nil then
-		return nil
-	end
-	return tostring(self.Value)
-end
-
--- Binds a key that activates this element (toggles and buttons).
-function ElementBase:SetShortcut(key)
-	if self.Row.Destroyed then
-		return
-	end
-	if typeof(key) == "EnumItem" then
-		key = key.Name
-	end
-	if key == "None" or key == "" or key == false then
-		key = nil
-	end
-	self.Shortcut = key
-	local row = self.Row
-	if row.ShortcutConnection then
-		row.ShortcutConnection:Disconnect()
-		row.ShortcutConnection = nil
-	end
-	if key then
-		row.ShortcutConnection = row:Connect(UserInputService.InputBegan, function(input, processed)
-			-- `processed` covers typing in chat and clicks on other interfaces
-			if processed or KeyCapture.Active or row.Disabled or row.DependencyHidden or UserInputService:GetFocusedTextBox() then
-				return
-			end
-			if KeyMatches(input, key) and self._Activate then
-				MarkActivity()
-				self:_Activate(true)
-			end
-		end)
-	end
-	row:_RenderShortcut()
-	ShortcutsChanged:Fire()
-	if self.Idx ~= nil then
-		MacUI.OptionChanged:Fire(self.Idx, self.Value, self)
-	end
-end
-
-function ElementBase:RecordShortcut()
-	local row = self.Row
-	if row.RecordingShortcut or not self._Activate then
-		return
-	end
-	row.RecordingShortcut = true
-	row:_RenderShortcut()
-	-- keyboard only: a right-click shortcut would fire on every context-menu click
-	row.Capture = CaptureKey(function(key)
-		row.Capture = nil
-		row.RecordingShortcut = false
-		if row.Destroyed then
-			return
-		end
-		if key == false then
-			row:_RenderShortcut()
-			return
-		end
-		self:SetShortcut(key)
-	end, true)
-end
-
--- Removes the error badge left by a failed callback.
-function ElementBase:ClearError()
-	self.Row:ClearError()
-end
-
-function ElementBase:Destroy()
-	self.Row:Destroy()
-	if self.Idx ~= nil and MacUI.Options[self.Idx] == self then
-		MacUI.Options[self.Idx] = nil
-	end
-end
-
---------------------------------------------------------------------------------
--- Undo / redo (Ctrl/Cmd + Z, Ctrl/Cmd + Shift + Z or Ctrl + Y). Records what
--- the user changes on indexed controls. Changes made together (a slider drag,
--- a loaded profile, a toggle's knock-on effects) undo as one step, and changes
--- a script makes on its own aren't recorded.
---------------------------------------------------------------------------------
-
-local UNDOABLE = {
-	Toggle = true,
-	Slider = true,
-	Dropdown = true,
-	Input = true,
-	Keybind = true,
-	Colorpicker = true,
-	Segmented = true,
-	Stepper = true,
-	Radio = true,
-}
-local History = { Undo = {}, Redo = {}, Busy = false, Limit = 100 }
-local Snapshots = setmetatable({}, { __mode = "k" })
-
--- Timers and macros change things through AutomationApply: not undoable, and
--- not recorded into a macro.
-local Automation = { Depth = 0 }
--- The macro that is recording right now, if any.
-local Macros = { Recorder = nil }
-local function AutomationApply(fn, ...)
-	Automation.Depth += 1
-	local busy = History.Busy
-	History.Busy = true
-	local ok, err = pcall(fn, ...)
-	History.Busy = busy
-	Automation.Depth -= 1
-	if not ok then
-		warn("[MacUI] " .. tostring(err))
-	end
-end
-
--- Runs fn with the changes it makes kept out of undo, macros and Spotlight's
--- suggestions: for code that updates controls to match something else (an
--- editor following the current theme, say).
-function MacUI:Quietly(fn, ...)
-	AutomationApply(fn, ...)
-end
-
--- Stands in for a nil value (a cleared menu), so "no snapshot yet" and "empty"
--- aren't confused.
-local NIL_VALUE = setmetatable({}, {
-	__tostring = function()
-		return "nil"
-	end,
-})
-
-local function Snapshot(element)
-	if element.Type == "Colorpicker" then
-		return { Color = element.Value, Transparency = element.Transparency }
-	elseif element.Type == "Keybind" then
-		return { Key = element.Value, Mode = element.Mode }
-	elseif element.Type == "Dropdown" and element.Multi then
-		return element:GetActiveValues()
-	end
-	local value = CopyValue(element.Value)
-	if value == nil then
-		return NIL_VALUE
-	end
-	return value
-end
-
-local function RestoreSnapshot(element, snapshot)
-	if snapshot == NIL_VALUE then
-		element:SetValue(nil)
-	elseif element.Type == "Colorpicker" then
-		element.Transparency = snapshot.Transparency
-		element:SetValueRGB(snapshot.Color)
-	elseif element.Type == "Keybind" then
-		element:SetValue(snapshot.Key, snapshot.Mode)
-	else
-		element:SetValue(CopyValue(snapshot))
-	end
-end
-
--- The user is using the interface: they clicked or typed in it a moment ago,
--- or are still holding a press that began on it (see Activity). The moment is
--- short, so a script's own change right after a click isn't taken for theirs.
-local function UserActive()
-	return os.clock() - Activity.Last < 0.25 or Activity.Pressing ~= nil
-end
-
-local function RecordChange(element, before, after)
-	local now = os.clock()
-	local top = History.Undo[#History.Undo]
-	local merge = top
-		and (now - top.Time < 0.15 or (now - top.Time < 1 and top.Changes[#top.Changes].Element == element))
-	if merge then
-		local existing
-		for _, change in ipairs(top.Changes) do
-			if change.Element == element then
-				existing = change
-				break
-			end
-		end
-		if existing then
-			existing.After = after
-		else
-			table.insert(top.Changes, { Element = element, Before = before, After = after })
-		end
-		top.Time = now
-		-- flipped and flipped back: nothing left to undo
-		for index = #top.Changes, 1, -1 do
-			if SameValue(top.Changes[index].Before, top.Changes[index].After) then
-				table.remove(top.Changes, index)
-			end
-		end
-		if #top.Changes == 0 then
-			table.remove(History.Undo)
-		end
-	else
-		table.insert(History.Undo, { Changes = { { Element = element, Before = before, After = after } }, Time = now })
-		if #History.Undo > History.Limit then
-			table.remove(History.Undo, 1)
-		end
-	end
-	table.clear(History.Redo)
-end
-
-
---------------------------------------------------------------------------------
--- Usage: what the user reaches for, so Spotlight can suggest it ("frecency":
--- how often, weighted by how recently)
---------------------------------------------------------------------------------
-
--- Fires (a couple of seconds after a change) when usage changes; InterfaceManager saves it.
-MacUI.UsageChanged = Signal.new()
-local Usage = {}
-local usageQueued = false
-
-local function UsageKey(element)
-	if element.Idx ~= nil then
-		return "o:" .. tostring(element.Idx)
-	end
-	local tab = element.Row and element.Row.Tab
-	return "p:" .. (tab and tab.Title or "") .. "/" .. tostring(element.Title or "")
-end
-
-local function NoteUsage(key)
-	if not key then
-		return
-	end
-	local entry = Usage[key]
-	local now = os.clock()
-	if entry and entry.Clock and now - entry.Clock < 2 then
-		return -- a drag or a burst of typing counts once
-	end
-	if not entry then
-		entry = { Count = 0, Last = 0 }
-		Usage[key] = entry
-	end
-	entry.Count += 1
-	entry.Last = os.time()
-	entry.Clock = now
-	if not usageQueued then
-		usageQueued = true
-		task.delay(2, function()
-			usageQueued = false
-			if not MacUI.Unloaded then
-				MacUI.UsageChanged:Fire()
-			end
-		end)
-	end
-end
-
-local function Frecency(key)
-	local entry = key and Usage[key]
-	if not entry then
-		return 0
-	end
-	local age = os.time() - (entry.Last or 0)
-	local weight = age < 3600 and 4 or age < 86400 and 2 or age < 604800 and 1 or 0.5
-	return entry.Count * weight
-end
-
--- Usage as a plain table (to save); SetUsage merges a saved one back in.
-function MacUI:GetUsage()
-	local copy = {}
-	for key, entry in pairs(Usage) do
-		copy[key] = { c = entry.Count, t = entry.Last }
-	end
-	return copy
-end
-
-function MacUI:SetUsage(data)
-	if type(data) ~= "table" then
-		return
-	end
-	for key, entry in pairs(data) do
-		local count = type(entry) == "table" and tonumber(entry.c)
-		if type(key) == "string" and count then
-			local current = Usage[key]
-			if not current or current.Count < count then
-				Usage[key] = { Count = count, Last = tonumber(entry.t) or 0, Clock = current and current.Clock }
-			end
-		end
-	end
-	self.UsageChanged:Fire()
-end
-
-function MacUI:ClearUsage()
-	table.clear(Usage)
-	self.UsageChanged:Fire()
-end
-
--- One listener for undo, macro recording and suggestions, so all three agree
--- on what counts: a real change of value that the user made.
-MacUI.OptionChanged:Connect(function(_, _, element)
-	if type(element) ~= "table" or not UNDOABLE[element.Type] then
-		return
-	end
-	local before = Snapshots[element]
-	local after = Snapshot(element)
-	Snapshots[element] = after
-	if before == nil or SameValue(before, after) then
-		return -- nothing changed (a new shortcut, say)
-	end
-	if Automation.Depth > 0 or not UserActive() then
-		return -- a script, a timer or a macro did it
-	end
-	if not History.Busy and MacUI.UndoEnabled then
-		RecordChange(element, before, after)
-	end
-	if Macros.Recorder then
-		Macros.Recorder:_Capture(element, after)
-	end
-	if not MacUI._LoadingProfile then
-		NoteUsage(UsageKey(element))
-	end
+    v38_2 = false
+    v39_2 = false
+    v40_2 = false
+    local v41_2 = 0
+    v42_2 = false
+    v43_2 = {}
+    v44_3 = {}
+    v45_3 = false
+    v46_2 = {}
+    v47_3 = {}
+    v48_3 = false
+    v49_2 = false
+    v52_2 = nil
+    v53_2 = false
+    v54_2 = nil
+    v55_2 = nil
+    v56_2 = {}
+    v57_3 = false
+    v58_2 = 1
+    v59_2 = false
+    v60_2 = 0
+    v61_2 = {
+        AutoVoteReady = false,
+        AutoUpgradeMaxHQHP = false,
+        AutoUpgradeHQHealthRegen = false,
+        AutoUpgradeRefillLimit = false,
+        AutoUpgradeWeapon = false,
+        AutoGetRetrieveSkillCrate = false,
+        UpgradeDelay = 0,
+        LastUpgradeTimestamp = 0,
+        UpgradeIndex = 1,
+        HasVotedReady = false,
+        LoopRunning = false,
+        IsUpgrading = false,
+        IsRetrievingSkillCrate = false,
+        LastSkillCrateTimestamp = 0,
+        TargetCFrame = nil,
+        CachedWeaponMinLevel = 0
+    }
+    v64_2 = false
+    local v65_2 = nil
+    v66 = getactors or syn and syn.getactors
+    v67_2 = run_on_actor or runonactor or syn and (syn.run_on_actor or syn.runonactor) or
+        getgenv and (getgenv().run_on_actor or getgenv().runonactor)
+    v68_2 = nil
+    v69_2 = nil
+    v70_2 = function()
+        if v68_2 and v69_2 then
+            return true
+        end
+        local v1_5 = v16_15:WaitForChild("Assets", 15)
+        local v2 = v1_5 and v1_5:WaitForChild("Remotes", 15)
+        if v2 then
+            v68_2 = v2:FindFirstChild("POST") or v2:WaitForChild("POST", 5)
+            v69_2 = v2:FindFirstChild("GET") or v2:WaitForChild("GET", 5)
+        end
+        return v68_2 ~= nil and v69_2 ~= nil
+    end
+    task.spawn(v70_2)
+    v71_3 = function()
+        local v1_3 = v13_8:FindFirstChild("Characters")
+        return v1_3 and v1_3:FindFirstChild(v7_13.Name) or v7_13.Character
+    end
+    v72_2 = function()
+        local v1_2 = v71_3()
+        return v1_2 and v1_2:FindFirstChild("Rig_" .. v7_13.Name) or nil
+    end
+    v73_2 = function()
+        local v1_2 = v72_2()
+        if not v1_2 then
+            return false
+        end
+        local v2_4 = v1_2:FindFirstChild("LeftLowerArm")
+        local v3_3 = v1_2:FindFirstChild("RightLowerArm")
+        return v2_4 and v2_4:FindFirstChild("Spears") ~= nil or v3_3 and v3_3:FindFirstChild("Spears") ~= nil or false
+    end
+    local function v74_2()
+        local v1_2 = v72_2()
+        if not v1_2 then
+            local v2_3 = v71_3()
+            local v3 = v2_3 and v2_3:GetAttribute("Spears")
+            return v3 and tonumber(v3) or 0
+        end
+        local v2_4 = v1_2:FindFirstChild("LeftLowerArm") and v1_2.LeftLowerArm:FindFirstChild("Spears")
+        local v3_5 = v1_2:FindFirstChild("RightLowerArm") and v1_2.RightLowerArm:FindFirstChild("Spears")
+        if not v2_4 and not v3_5 then
+            local v4_10 = v71_3()
+            local v5_5 = v4_10 and v4_10:GetAttribute("Spears")
+            return v5_5 and tonumber(v5_5) or 0
+        end
+        local v4_11 = 0
+        for v5_6 = 1, 16 do
+            local v8 = v5_6 % 2 == 0 and v3_5 or v2_4
+            local v9_2 = v8 and v8:FindFirstChild(tostring(v5_6))
+            if v9_2 and v9_2:GetAttribute("Used") ~= true and v9_2.Transparency < 0.9 then
+                v4_11 = v4_11 + 1
+            end
+        end
+        return v4_11
+    end
+    local function v76_2()
+        local v1_4 = v72_2()
+        if v1_4 then
+            local v2 = v1_4:FindFirstChild("LeftLowerArm") and v1_4.LeftLowerArm:FindFirstChild("Spears")
+            local v3_3 = v1_4:FindFirstChild("RightLowerArm") and v1_4.RightLowerArm:FindFirstChild("Spears")
+            if v2 or v3_3 then
+                for v4_5 = 16, 1, -1 do
+                    local v7 = v4_5 % 2 == 0 and v3_3 or v2
+                    local v8_2 = v7 and v7:FindFirstChild(tostring(v4_5))
+                    if v8_2 and v8_2:GetAttribute("Used") ~= true and v8_2.Transparency < 0.9 then
+                        return v4_5
+                    end
+                end
+            end
+        end
+        return 0
+    end
+    v75_2 = function()
+        -- Nếu vẫn còn thương trên tay (v76_2 > 0) thì TUYỆT ĐỐI không nạp sớm!
+        local nextSpear = v76_2()
+        if nextSpear and nextSpear > 0 then
+            return false
+        end
+        local v1_2 = v74_2()
+        local v2_2 = v71_3()
+        if v1_2 > 0 then
+            if v2_2 and v2_2:GetAttribute("Spears") ~= v1_2 then
+                pcall(function()
+                    v2_2:SetAttribute("Spears", v1_2)
+                end)
+            end
+            return false
+        end
+        return true
+    end
+    v77_2 = function()
+        if v73_2() then
+            return false
+        end
+        local v1_5 = v72_2() or v71_3()
+        if not v1_5 then
+            return true
+        end
+        for v5, v6 in ipairs(v1_5:GetDescendants()) do
+            if v6.Name:sub(1, 5) == "Blade" then
+                return true
+            end
+        end
+        return true
+    end
+    local function v78_2()
+        if not v77_2() then
+            return
+        end
+        -- 1. VirtualInputManager press R (game keybind)
+        pcall(function()
+            if v17_6 then
+                v17_6:SendKeyEvent(true, Enum.KeyCode.R, false, game)
+                task.wait(0.02)
+                v17_6:SendKeyEvent(false, Enum.KeyCode.R, false, game)
+            end
+        end)
+        -- 2. GET remote
+        pcall(function()
+            if v69_2 then
+                v69_2:InvokeServer("Blades", "Reload")
+            end
+        end)
+        -- 3. POST remotes
+        pcall(function()
+            if v68_2 then
+                v68_2:FireServer("Attacks", "Reload")
+                v68_2:FireServer("Equipment", "Reload")
+                v68_2:FireServer("S_Equipment", "Reload")
+            end
+        end)
+        -- 4. Host client module if available
+        pcall(function()
+            local host = _G.__CachedHost
+            if host and host.Modules then
+                if host.Modules.ODMG and type(host.Modules.ODMG.Reload) == "function" then
+                    host.Modules.ODMG.Reload(host)
+                elseif host.Modules.Input and type(host.Modules.Input.Reload) == "function" then
+                    host.Modules.Input.Reload(host)
+                end
+            end
+        end)
+        return
+    end
+    local v80_2 = nil
+    local function v79_2(forceRefresh)
+        if not forceRefresh and v80_2 and v80_2.Parent and v80_2:IsA("BasePart") and v80_2.Name == "Refill" then
+            return v80_2
+        end
+        v80_2 = nil
+
+        local char = v71_3()
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        local myPos = hrp and hrp.Position
+
+        local exactCandidates = {}
+        local nearCandidates = {}
+        local fallbackCandidates = {}
+        local seen = {}
+
+        local function getPartFromObj(obj)
+            if not obj or not obj.Parent then return nil end
+            if obj:IsA("BasePart") then
+                return obj
+            elseif obj:IsA("Model") then
+                return obj:FindFirstChild("Refill", true)
+                    or obj:FindFirstChild("Hitbox", true)
+                    or obj:FindFirstChild("Main", true)
+                    or obj.PrimaryPart
+                    or obj:FindFirstChildWhichIsA("BasePart", true)
+            end
+            return nil
+        end
+
+        local function addCandidate(list, part)
+            if not part or not part:IsA("BasePart") or not part.Parent or seen[part] then
+                return
+            end
+            seen[part] = true
+            local dist = myPos and (part.Position - myPos).Magnitude or 0
+            table.insert(list, { part = part, dist = dist })
+        end
+
+        pcall(function()
+            -- Uu tien 1: dung BasePart ten "Refill" trong Unclimbable / Climbable (giong logic goc game)
+            for _, containerName in ipairs({ "Unclimbable", "Climbable" }) do
+                local container = v13_8:FindFirstChild(containerName)
+                if container then
+                    for _, obj in ipairs(container:GetDescendants()) do
+                        if obj:IsA("BasePart") and obj.Name == "Refill" then
+                            addCandidate(exactCandidates, obj)
+                        end
+                    end
+                end
+            end
+
+            -- Uu tien 2 & 3: Quet toan workspace neu map/raid dat Refill o thu muc khac
+            if #exactCandidates == 0 then
+                for _, obj in ipairs(v13_8:GetDescendants()) do
+                    if obj:IsA("BasePart") and obj.Name == "Refill" then
+                        addCandidate(exactCandidates, obj)
+                    elseif obj:IsA("Model") or obj:IsA("BasePart") then
+                        local lname = obj.Name:lower()
+                        if lname == "refill" or lname == "refills" or lname:find("refill") then
+                            addCandidate(nearCandidates, getPartFromObj(obj))
+                        elseif (lname:find("supply") or lname:find("wagon")) and obj:FindFirstChildWhichIsA("ProximityPrompt", true) then
+                            addCandidate(fallbackCandidates, getPartFromObj(obj))
+                        end
+                    end
+                end
+            end
+        end)
+
+        local chosen = nil
+        for _, list in ipairs({ exactCandidates, nearCandidates, fallbackCandidates }) do
+            if #list > 0 then
+                table.sort(list, function(a, b) return a.dist < b.dist end)
+                chosen = list[1].part
+                break
+            end
+        end
+
+        if chosen then
+            v80_2 = chosen
+        end
+        return chosen
+    end
+    local function v80_3(p1)
+        local targetCF = nil
+        pcall(function()
+            local v2 = v71_3()
+            local v3_4 = v2 and v2:FindFirstChild("HumanoidRootPart")
+            if not v3_4 or not p1 then
+                return
+            end
+            if p1:IsA("BasePart") then
+                targetCF = p1.CFrame
+            elseif p1:IsA("Model") then
+                targetCF = p1.PrimaryPart and p1.PrimaryPart.CFrame or p1:GetPivot()
+            end
+            if targetCF then
+                targetCF = targetCF + Vector3.new(0, 1.5, 0)
+                v3_4.CFrame = targetCF
+                v3_4.AssemblyLinearVelocity = Vector3.zero
+                v3_4.AssemblyAngularVelocity = Vector3.zero
+            end
+        end)
+        return targetCF
+    end
+    local function v81_2(p1)
+        local v2_2 = v79_2(false)
+        if not v2_2 then
+            return
+        end
+        v35_2 = true
+        v61_2.SpearFireFails = 0
+        local refillOk = false
+        pcall(function()
+            if p1 and type(v92_2) == "function" then
+                pcall(v92_2)
+            end
+            local targetCF = v80_3(v2_2)
+            if targetCF then
+                v61_2.RefillHoldCFrame = targetCF
+            end
+            for _ = 1, 5 do
+                if not v2_2 or not v2_2.Parent then break end
+                local cf = v80_3(v2_2)
+                if cf then
+                    v61_2.RefillHoldCFrame = cf
+                end
+                task.wait(0.04)
+            end
+            v70_2()
+
+            local function fireStationReload()
+                if not v2_2 or not v2_2.Parent then return end
+                local cf = v80_3(v2_2)
+                if cf then
+                    v61_2.RefillHoldCFrame = cf
+                end
+                if v68_2 then
+                    pcall(function()
+                        v68_2:FireServer("Attacks", "Reload", v2_2)
+                    end)
+                end
+            end
+
+            fireStationReload()
+
+            local t0 = os.clock()
+            local lastRetry = t0
+            local bestSpearCount = p1 and v74_2() or 0
+            local lastGrowthTime = os.clock()
+
+            while os.clock() - t0 < 1.8 do
+                task.wait(0.08)
+                if not v54_2 and v2_2 and v2_2.Parent then
+                    v80_3(v2_2)
+                end
+                if p1 then
+                    local curCount = v74_2()
+                    if curCount > bestSpearCount then
+                        bestSpearCount = curCount
+                        lastGrowthTime = os.clock()
+                    end
+                    -- Chi roi tram khi thuong da nap day (>= 16) hoac da len duoc va ngung tang trong 0.28s
+                    if curCount >= 16 or (curCount > 0 and os.clock() - lastGrowthTime >= 0.28 and os.clock() - t0 >= 0.45) then
+                        refillOk = true
+                        break
+                    end
+                else
+                    if os.clock() - t0 >= 0.2 then
+                        local sets = v82_2()
+                        if not v83_2() and (sets == nil or sets > 0) then
+                            refillOk = true
+                            break
+                        end
+                    end
+                end
+                if os.clock() - lastRetry >= 0.45 then
+                    lastRetry = os.clock()
+                    fireStationReload()
+                    pcall(function()
+                        if v68_2 and v2_2 and v2_2.Parent and v2_2.Parent:IsA("Model") then
+                            v68_2:FireServer("Attacks", "Reload", v2_2.Parent)
+                        end
+                        if type(fireproximityprompt) == "function" and v2_2 and v2_2.Parent then
+                            for _, prompt in ipairs(v2_2:GetDescendants()) do
+                                if prompt:IsA("ProximityPrompt") then
+                                    fireproximityprompt(prompt, 0)
+                                    fireproximityprompt(prompt)
+                                end
+                            end
+                            for _, prompt in ipairs(v2_2.Parent:GetDescendants()) do
+                                if prompt:IsA("ProximityPrompt") then
+                                    fireproximityprompt(prompt, 0)
+                                    fireproximityprompt(prompt)
+                                end
+                            end
+                        end
+                    end)
+                end
+            end
+
+            if p1 and v74_2() > 0 then
+                refillOk = true
+            end
+            local stillEmpty = (p1 and v75_2()) or (not p1 and v83_2())
+            if stillEmpty and not refillOk then
+                v80_2 = nil
+            end
+        end)
+        v61_2.RefillHoldCFrame = nil
+        v41_2 = refillOk and 0 or os.clock()
+        v35_2 = false
+        return
+    end
+    local function v82_2()
+        local v1, v2_2 = pcall(function()
+            local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+            local iface = pgui and pgui:FindFirstChild("Interface")
+            if not iface then return nil end
+
+            local hud = iface:FindFirstChild("HUD")
+            local main = hud and hud:FindFirstChild("Main")
+            local top = main and main:FindFirstChild("Top")
+            if top then
+                local slot7 = top:FindFirstChild("7")
+                local b7 = slot7 and (slot7:FindFirstChild("Blades") or slot7)
+                local s7 = b7 and b7:FindFirstChild("Sets")
+                if s7 and s7:IsA("TextLabel") and s7.Text ~= "" then
+                    local num = s7.Text:match("(%d+)")
+                    if num then return tonumber(num) end
+                end
+
+                for _, child in ipairs(top:GetChildren()) do
+                    local blades = (child.Name == "Blades" and child) or child:FindFirstChild("Blades")
+                    if blades then
+                        local sets = blades:FindFirstChild("Sets") or blades:FindFirstChild("Amount") or blades:FindFirstChild("Count") or blades:FindFirstChildWhichIsA("TextLabel")
+                        if sets and sets:IsA("TextLabel") and sets.Text ~= "" then
+                            local num = sets.Text:match("(%d+)")
+                            if num then return tonumber(num) end
+                        end
+                    end
+                end
+            end
+
+            for _, desc in ipairs(iface:GetDescendants()) do
+                if desc:IsA("TextLabel") and desc.Name == "Sets" and desc.Text ~= "" then
+                    local num = desc.Text:match("(%d+)")
+                    if num then return tonumber(num) end
+                end
+            end
+
+            for _, desc in ipairs(iface:GetDescendants()) do
+                if desc:IsA("TextLabel") and desc.Parent and desc.Parent.Name == "Blades" and desc.Text ~= "" then
+                    local num = desc.Text:match("(%d+)")
+                    if num then return tonumber(num) end
+                end
+            end
+
+            for _, desc in ipairs(iface:GetDescendants()) do
+                if desc:IsA("TextLabel") and desc.Text:find("/") then
+                    local nameL = desc.Name:lower()
+                    local parentNameL = desc.Parent and desc.Parent.Name:lower() or ""
+                    if nameL:find("blade") or nameL:find("set") or parentNameL:find("blade") then
+                        local num = desc.Text:match("^(%d+)%s*/") or desc.Text:match("(%d+)")
+                        if num then return tonumber(num) end
+                    end
+                end
+            end
+
+            return nil
+        end)
+        if v1 and v2_2 ~= nil then
+            return v2_2
+        end
+        return nil
+    end
+    local function v83_2()
+        local ok, res = pcall(function()
+            local char = v71_3()
+            if not char then
+                return false
+            end
+
+            -- 1. Character attributes
+            if char:GetAttribute("BladesBroken") == true 
+                or char:GetAttribute("Broken") == true 
+                or char:GetAttribute("BladeBroken") == true 
+            then
+                return true
+            end
+            local dur = char:GetAttribute("Durability") or char:GetAttribute("BladeDurability")
+            if type(dur) == "number" and dur <= 2 then
+                return true
+            end
+
+            -- 2. Inspect hands in Character AND Rig
+            local rig = v72_2()
+            local handRoots = {}
+            if char then table.insert(handRoots, char) end
+            if rig and rig ~= char then table.insert(handRoots, rig) end
+
+            local foundAnyHand = false
+            local intactBladeFound = false
+            local brokenBladeFound = false
+
+            for _, root in ipairs(handRoots) do
+                local lh = root:FindFirstChild("LeftHand") or root:FindFirstChild("Left Arm")
+                local rh = root:FindFirstChild("RightHand") or root:FindFirstChild("Right Arm")
+                for _, hand in ipairs({ lh, rh }) do
+                    if hand then
+                        foundAnyHand = true
+                        for _, child in ipairs(hand:GetDescendants()) do
+                            if child.Name:sub(1, 5) == "Blade" then
+                                if child:GetAttribute("Broken") == true then
+                                    brokenBladeFound = true
+                                elseif child:IsA("BasePart") then
+                                    if child.Transparency < 0.8 then
+                                        intactBladeFound = true
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+
+            if brokenBladeFound then
+                return true
+            end
+
+            if foundAnyHand and not intactBladeFound then
+                -- Hands exist but have NO visible intact blade -> blades are broken/empty!
+                return true
+            end
+
+            -- 3. Tool Durability
+            local tool = char:FindFirstChildOfClass("Tool")
+            if tool then
+                local tDur = tool:GetAttribute("Durability") or tool:GetAttribute("Dur")
+                if type(tDur) == "number" and tDur <= 2 then
+                    return true
+                end
+            end
+
+            return false
+        end)
+        if ok then
+            return res
+        end
+        return false
+    end
+    v84_2 = function()
+        if os.clock() - v41_2 < 3 then
+            return false
+        end
+        local sets = v82_2()
+        if sets ~= nil and sets == 0 then
+            return true
+        end
+        if v83_2() then
+            if v36_2 == nil then
+                v36_2 = os.clock()
+                return false
+            end
+            if os.clock() - v36_2 >= 1.5 then
+                return true
+            end
+        else
+            v36_2 = nil
+        end
+        return false
+    end
+    v85_2 = function()
+        if v26_2 or v35_2 then
+            return
+        end
+        if 1.5 > os.clock() - v41_2 then
+            return
+        end
+        v26_2 = true
+        pcall(function()
+            task.wait(0.05)
+            if v73_2() then
+                v81_2(true)
+            elseif v77_2() then
+                local sets = v82_2()
+                if sets ~= nil and sets == 0 then
+                    if v34_2 then
+                        v81_2(false)
+                    end
+                else
+                    v78_2()
+                    local v1_14 = os.clock()
+                    local reloaded = false
+                    while os.clock() - v1_14 < 1.2 do
+                        task.wait(0.1)
+                        if not v83_2() then
+                            reloaded = true
+                            break
+                        end
+                    end
+                    if not reloaded and v34_2 and v83_2() then
+                        v81_2(false)
+                    end
+                end
+            end
+            task.wait(0.1)
+        end)
+        v61_2.RefillHoldCFrame = nil
+        v35_2 = false
+        v26_2 = false
+        return
+    end
+    v86_2 = function()
+        if v35_2 then
+            return
+        end
+        if os.clock() - v41_2 < 5 then
+            return
+        end
+        v35_2 = true
+        pcall(function()
+            v36_2 = nil
+            v81_2(false)
+            v36_2 = nil
+        end)
+        v61_2.RefillHoldCFrame = nil
+        v35_2 = false
+        return
+    end
+    v87_2 = function()
+        if v26_2 or v35_2 or v61_2.IsUpgrading or v61_2.IsRetrievingSkillCrate then
+            return false
+        end
+        local v1_4 = v71_3()
+        if not v1_4 then
+            return false
+        end
+        local v2_6 = v1_4:FindFirstChild("Humanoid")
+        if not v2_6 or 0 >= v2_6.Health then
+            return false
+        end
+        if v13_8:FindFirstChild("Titans") ~= nil and v1_4:GetAttribute("Setup") ~= true then
+            return false
+        end
+        local v4_8 = v7_13 or v6_21.LocalPlayer
+        local v5_6 = v4_8 and v4_8:FindFirstChild("PlayerGui")
+        local v6_5 = v5_6 and v5_6:FindFirstChild("Fullscreen")
+        local v7_4 = v6_5 and v6_5:FindFirstChild("Loading_Screen")
+        if v7_4 and v7_4.Visible == true then
+            return false
+        end
+        if v1_4:GetAttribute("Ragdolled") ~= nil or v1_4:GetAttribute("Shifter") ~= nil then
+            return false
+        end
+        if v25_2 and v77_2() and v83_2() then
+            return false
+        end
+        local v8_11 = v34_2 and v77_2()
+        if v8_11 then
+            local v9_8 = v82_2()
+            v8_11 = v9_8 ~= nil and v9_8 == 0
+        end
+        if v8_11 then
+            v8_11 = v83_2()
+        end
+        if v8_11 then
+            return false
+        end
+        if v73_2() and v75_2() then
+            return false
+        end
+        return true
+    end
+    v88_2 = function()
+        local v1 = {}
+        local visited = {}
+        local containers = {
+            v13_8:FindFirstChild("Titans"),
+            v13_8:FindFirstChild("Boss"),
+            v13_8:FindFirstChild("Bosses"),
+            v13_8:FindFirstChild("Shifters"),
+            v13_8:FindFirstChild("Raid")
+        }
+        for _, c in ipairs(containers) do
+            if c then
+                for _, v7 in ipairs(c:GetChildren()) do
+                    if v7:IsA("Model") and not visited[v7] then
+                        visited[v7] = true
+                        table.insert(v1, v7)
+                    end
+                end
+            end
+        end
+        return v1
+    end
+    v89_2 = function(p1)
+        if not p1 or not p1.Parent then
+            return nil
+        end
+        local v2_2 = p1:FindFirstChild("Hitboxes")
+        if v2_2 then
+            local v3_5 = v2_2:FindFirstChild("Hit")
+            if v3_5 then
+                local np = v3_5:FindFirstChild("Nape")
+                if np and np:IsA("BasePart") then
+                    return np
+                end
+            end
+            local npDirect = v2_2:FindFirstChild("Nape")
+            if npDirect and npDirect:IsA("BasePart") then
+                return npDirect
+            end
+        end
+        local v3_fallback = p1:FindFirstChild("Nape", true)
+        if v3_fallback and v3_fallback:IsA("BasePart") then
+            return v3_fallback
+        end
+        return nil
+    end
+    v90_2 = function(p1)
+        if not p1 or not p1.Parent then
+            return true
+        end
+        local v3_8 = p1:GetAttribute("State")
+        if v3_8 == "Dead" or v3_8 == "Die" or v3_8 == "Dying" then
+            return true
+        end
+        local v4_7 = p1:FindFirstChild("Humanoid")
+        if v4_7 and v4_7.Health <= 0 then
+            return true
+        end
+        local isBoss = v150_10 and v150_10.IsBossModel and v150_10.IsBossModel(p1)
+        local v2_4 = p1:FindFirstChild("HumanoidRootPart")
+        if not isBoss then
+            if not v2_4 then
+                return true
+            end
+            if v2_4.Anchored == true then
+                return true
+            end
+        end
+        return false
+    end
+    v91_2 = function(p1)
+        if not p1 or not p1.Parent then
+            return false
+        end
+        local v2_3 = v13_8:FindFirstChild("Titans")
+        local pName = p1.Parent.Name
+        local isBoss = v150_10 and v150_10.IsBossModel and v150_10.IsBossModel(p1)
+        local isValidParent = (v2_3 and p1.Parent == v2_3)
+            or pName == "Boss" or pName == "Bosses" or pName == "Shifters" or pName == "Raid"
+            or pName == "Enemies" or pName == "Spawns" or pName == "Living" or pName == "Entities"
+            or (p1.Parent == v13_8 and isBoss)
+        if not isValidParent then
+            return false
+        end
+        if not v89_2(p1) then
+            return false
+        end
+        return not v90_2(p1)
+    end
+
+    function v150_10.IsProtectStageActive()
+        return false
+    end
+
+    function v150_10.IsTitanHardened(target)
+        if not target then return false end
+        local m = (typeof(target) == "Instance" and (target:IsA("Model") and target or target:FindFirstAncestorOfClass("Model")))
+        if not m then return false end
+
+        -- 1. Attributes on Model / Character
+        if m:GetAttribute("Hardened") == true
+            or m:GetAttribute("Hardening") == true
+            or m:GetAttribute("IsHardened") == true
+            or m:GetAttribute("IsHardening") == true
+            or m:GetAttribute("Blocking") == true
+            or m:GetAttribute("IsBlocking") == true
+            or m:GetAttribute("Courage") == true
+            or m:GetAttribute("Crystallized") == true
+            or m:GetAttribute("Defending") == true
+        then
+            return true
+        end
+
+        local shieldVal = m:GetAttribute("Shield") or m:GetAttribute("ShieldHealth")
+        if type(shieldVal) == "number" and shieldVal > 0 then
+            return true
+        end
+
+        local stateStr = tostring(m:GetAttribute("State") or ""):lower()
+        if stateStr:find("harden") or stateStr:find("crystal") or stateStr:find("block") then
+            return true
+        end
+
+        -- 2. Attributes on Nape
+        local nape = v89_2(m)
+        if nape and nape:IsA("BasePart") then
+            if nape:GetAttribute("Hardened") == true
+                or nape:GetAttribute("Protected") == true
+                or nape:GetAttribute("Crystallized") == true
+                or nape:GetAttribute("Immune") == true
+            then
+                return true
+            end
+            local napeState = tostring(nape:GetAttribute("State") or ""):lower()
+            if napeState:find("harden") or napeState:find("crystal") or napeState:find("block") then
+                return true
+            end
+        end
+
+        -- 3. Hardening Crystal Parts attached to Titan
+        for _, child in ipairs(m:GetChildren()) do
+            if child:IsA("BasePart") then
+                local cname = child.Name:lower()
+                if (cname:find("harden") or cname:find("crystal")) and child.Transparency < 0.8 then
+                    return true
+                end
+            elseif child:IsA("Model") then
+                local cname = child.Name:lower()
+                if cname:find("harden") or cname:find("crystal") then
+                    for _, p in ipairs(child:GetChildren()) do
+                        if p:IsA("BasePart") and p.Transparency < 0.8 then
+                            return true
+                        end
+                    end
+                end
+            end
+        end
+
+        -- 4. Active Animation Tracks (Hardening / Crystal / Blocking only)
+        local hum = m:FindFirstChild("Humanoid")
+        local anim = hum and hum:FindFirstChild("Animator")
+        if anim then
+            local okTracks, tracks = pcall(function() return anim:GetPlayingAnimationTracks() end)
+            if okTracks and tracks then
+                for _, track in ipairs(tracks) do
+                    local tname = track.Name:lower()
+                    if tname:find("harden") or tname:find("crystal") or tname:find("block_nape") or tname:find("nape_protect") then
+                        return true
+                    end
+                end
+            end
+        end
+
+        return false
+    end
+
+    function v150_10.IsBossModel(model)
+        if not model or not model.Parent then return false end
+
+        local pName = model.Parent.Name
+        if pName == "Boss" or pName == "Bosses" or pName == "Shifters" or pName == "Raid" then
+            return true
+        end
+
+        if model:GetAttribute("Boss") == true
+            or model:GetAttribute("Shifter") == true
+            or model:GetAttribute("IsBoss") == true
+            or model:GetAttribute("RaidBoss") == true then
+            return true
+        end
+        local titanType = tostring(model:GetAttribute("TitanType") or model:GetAttribute("Type") or ""):lower()
+        if titanType == "boss" or titanType == "shifter" or titanType == "raid" or titanType:find("raidboss") then
+            return true
+        end
+
+        local nameLower = string.lower(model.Name)
+        local bossKeywords = {
+            "eren", "yeager", "jaeger", "attack titan", "rogue", "colossal", "bertholdt", "armin", "reiner",
+            "armored", "armoured", "braun", "beast", "zeke", "female", "annie", "leonhart", "warhammer",
+            "tybur", "tyber", "founding", "reiss", "rod", "jaw", "cart", "falco", "porco", "galliard",
+            "pieck", "kruger", "larva", "aberrant", "shifter", "raidboss", "boss"
+        }
+        for _, kw in ipairs(bossKeywords) do
+            if string.find(nameLower, kw, 1, true) then
+                return true
+            end
+        end
+
+        return false
+    end
+
+    function v150_10.GetRaidBoss()
+        if not v150_10.AutoRaid then
+            return nil
+        end
+
+        local dedicatedFolders = {
+            v13_8:FindFirstChild("Boss"),
+            v13_8:FindFirstChild("Bosses"),
+            v13_8:FindFirstChild("Shifters"),
+            v13_8:FindFirstChild("Raid")
+        }
+        for _, container in ipairs(dedicatedFolders) do
+            if container then
+                for _, child in ipairs(container:GetChildren()) do
+                    if child:IsA("Model") and v91_2(child) then
+                        if v150_10.IsBossModel(child) or container.Name ~= "Raid" then
+                            return child
+                        end
+                    end
+                end
+            end
+        end
+
+        local fallbackFolders = {
+            v13_8:FindFirstChild("Titans"),
+            v13_8:FindFirstChild("Enemies"),
+            v13_8:FindFirstChild("Spawns"),
+            v13_8:FindFirstChild("Living"),
+            v13_8:FindFirstChild("Entities"),
+            v13_8
+        }
+        for _, container in ipairs(fallbackFolders) do
+            if container then
+                for _, child in ipairs(container:GetChildren()) do
+                    if child:IsA("Model") and v150_10.IsBossModel(child) and v91_2(child) then
+                        return child
+                    end
+                end
+            end
+        end
+        return nil
+    end
+
+    function v150_10.GetAliveTitansCount()
+        local count = 0
+        pcall(function()
+            local titanFolders = {
+                v13_8:FindFirstChild("Titans"),
+                v13_8:FindFirstChild("Boss"),
+                v13_8:FindFirstChild("Shifters"),
+                v13_8:FindFirstChild("Bosses"),
+                v13_8:FindFirstChild("Enemies"),
+                v13_8:FindFirstChild("Raid"),
+                v13_8:FindFirstChild("Living")
+            }
+            for _, folder in ipairs(titanFolders) do
+                if folder then
+                    for _, titan in ipairs(folder:GetChildren()) do
+                        if titan:IsA("Model") and not v90_2(titan) then
+                            count = count + 1
+                        end
+                    end
+                end
+            end
+        end)
+        return count
+    end
+
+    function v150_10.CheckMissionSafetyWait(targetTitan)
+        local minSafeDuration = 30
+        local startTime = v150_10.MissionStartTime or os.clock()
+        local elapsed = os.clock() - startTime
+        if elapsed < minSafeDuration then
+            local aliveCount = v150_10.GetAliveTitansCount()
+            if aliveCount <= 1 then
+                while v18_4 and (os.clock() - (v150_10.MissionStartTime or 0) < minSafeDuration) do
+                    if targetTitan and v91_2(targetTitan) and v127_2 then
+                        pcall(function()
+                            v127_2(targetTitan)
+                        end)
+                    end
+                    task.wait(0.2)
+                end
+            end
+        end
+    end
+
+    function v150_10.GetActualGameTime()
+        local resTime = nil
+        pcall(function()
+            local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+            local iface = pgui and pgui:FindFirstChild("Interface")
+            if iface then
+                local rewards = iface:FindFirstChild("Rewards")
+                if rewards and rewards:FindFirstChild("Main") and rewards.Main:FindFirstChild("Info") then
+                    local stats = rewards.Main.Info.Main:FindFirstChild("Stats")
+                    local tt = stats and stats:FindFirstChild("Time_Taken") and stats.Time_Taken:FindFirstChild("Amount")
+                    if tt and tt:IsA("TextLabel") and tt.Text ~= "" and tt.Text ~= "00:00" then
+                        local m, s = string.match(tt.Text, "(%d+):(%d+)")
+                        if m and s then
+                            local total = (tonumber(m) or 0) * 60 + (tonumber(s) or 0)
+                            if total > 0 then
+                                resTime = total
+                                return
+                            end
+                        end
+                    end
+                end
+                local hud = iface:FindFirstChild("HUD")
+                if hud then
+                    for _, desc in ipairs(hud:GetDescendants()) do
+                        if desc:IsA("TextLabel") and desc.Visible and desc.Text:match("^%d+:%d+$") then
+                            local m, s = string.match(desc.Text, "(%d+):(%d+)")
+                            if m and s then
+                                local total = (tonumber(m) or 0) * 60 + (tonumber(s) or 0)
+                                if total > 0 then
+                                    resTime = total
+                                    return
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+        if not resTime then
+            local attrSec = tonumber(v13_8:GetAttribute("Seconds")) or tonumber(v13_8:GetAttribute("Time")) or
+                tonumber(v13_8:GetAttribute("Timer"))
+            if attrSec and attrSec > 0 then
+                resTime = attrSec
+            end
+        end
+        if not resTime then
+            local elapsed = math.floor(os.clock() - (v150_10.MissionStartTime or os.clock()))
+            resTime = math.max(30, elapsed)
+        end
+        return resTime
+    end
+
+    function v150_10.ClaimAchievements()
+        if not v150_10.AutoClaimAchievements then
+            return
+        end
+        task.spawn(function()
+            pcall(function()
+                if v69_2 then
+                    v69_2:InvokeServer("Achievements", "ClaimAll")
+                end
+            end)
+            pcall(function()
+                if v68_2 then
+                    v68_2:FireServer("Achievements", "ClaimAll")
+                end
+            end)
+            pcall(function()
+                if v69_2 then
+                    v69_2:InvokeServer("Functions", "Achievements", "ClaimAll")
+                end
+            end)
+            pcall(function()
+                local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+                if not pgui then return end
+                for _, container in ipairs({ pgui:FindFirstChild("Interface"), pgui }) do
+                    if container then
+                        for _, name in ipairs({ "Achievements", "Achievement", "Tasks", "Quests", "Missions" }) do
+                            local achFrame = container:FindFirstChild(name, true)
+                            if achFrame then
+                                for _, btn in ipairs(achFrame:GetDescendants()) do
+                                    if btn:IsA("GuiButton") and btn.Visible then
+                                        local txt = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or
+                                            btn.Name):upper()
+                                        if txt:find("CLAIM") or txt:find("NHẬN") or txt:find("COLLECT") or txt:find("ALL") then
+                                            if v150_10.ClickGuiButton then
+                                                v150_10.ClickGuiButton(btn)
+                                            else
+                                                pcall(function()
+                                                    if type(firesignal) == "function" then
+                                                        firesignal(btn.MouseButton1Click)
+                                                        firesignal(btn.Activated)
+                                                    end
+                                                end)
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end)
+    end
+
+    function v150_10.ClaimDailyReward()
+        -- Always enabled, no toggle required
+        task.spawn(function()
+            pcall(function()
+                if v69_2 then
+                    v69_2:InvokeServer("Daily", "Claim")
+                end
+            end)
+            pcall(function()
+                if v69_2 then
+                    v69_2:InvokeServer("S_Rewards", "Daily")
+                end
+            end)
+            pcall(function()
+                if v69_2 then
+                    v69_2:InvokeServer("Rewards", "Daily")
+                end
+            end)
+            pcall(function()
+                if v69_2 then
+                    v69_2:InvokeServer("DailyReward", "Claim")
+                end
+            end)
+            pcall(function()
+                if v69_2 then
+                    v69_2:InvokeServer("Lobby", "Daily")
+                end
+            end)
+            pcall(function()
+                if v68_2 then
+                    v68_2:FireServer("Daily", "Claim")
+                end
+            end)
+            pcall(function()
+                local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+                if not pgui then return end
+                for _, container in ipairs({ pgui:FindFirstChild("Interface"), pgui }) do
+                    if container then
+                        for _, name in ipairs({ "Daily", "DailyReward", "DailyRewards", "Calendar", "LoginReward" }) do
+                            local dailyFrame = container:FindFirstChild(name, true)
+                            if dailyFrame then
+                                for _, btn in ipairs(dailyFrame:GetDescendants()) do
+                                    if btn:IsA("GuiButton") and btn.Visible then
+                                        local txt = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or
+                                            btn.Name):upper()
+                                        if txt:find("CLAIM") or txt:find("NHẬN") or txt:find("COLLECT") or txt:find("DAY") then
+                                            if v150_10.ClickGuiButton then
+                                                v150_10.ClickGuiButton(btn)
+                                            else
+                                                pcall(function()
+                                                    if type(firesignal) == "function" then
+                                                        firesignal(btn.MouseButton1Click)
+                                                        firesignal(btn.Activated)
+                                                    end
+                                                end)
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end)
+    end
+
+    local function v92_2()
+        local v1 = pcall
+        v1(function()
+            local v1_2 = v71_3()
+            local v2 = v1_2 and v1_2:FindFirstChild("Actor") or v66 and v66()[1]
+            if v2 and v67_2 then
+                v67_2(v2,
+                    "                pcall(function()\n                    local obj = _G.__CachedHost\n                    if not obj or type(obj) ~= \"table\" or not rawget(obj, \"Cache\") then\n                        for _, v in ipairs(getgc(true)) do\n                            if type(v) == \"table\" and type(rawget(v, \"Cache\")) == \"table\" and rawget(v, \"Services\") and rawget(v, \"Modules\") then\n                                obj = v\n                                _G.__CachedHost = v\n                                break\n                            end\n                        end\n                    end\n                    if obj then\n                        obj.Spear_State = nil\n                        obj.Using_Spear = nil\n                        obj.Detonate = nil\n                        obj.Can_Detonate = nil\n\n                        if type(obj.Cache.Variables) == \"table\" and obj.Cache.Variables.Slash then\n                            obj.Cache.Variables.Slash.Slashing = false\n                            obj.Cache.Variables.Slash.Holding = false\n                            obj.Cache.Variables.Slash.Released = false\n                        end\n\n                        if obj.Events then\n                            if obj.Events.Spear_Stepped_2 then\n                                pcall(function() obj.Events.Spear_Stepped_2:Disconnect() end)\n                                obj.Events.Spear_Stepped_2 = nil\n                            end\n                            if obj.Events.Spear_Stepped then\n                                pcall(function() obj.Events.Spear_Stepped:Disconnect() end)\n                                obj.Events.Spear_Stepped = nil\n                            end\n                        end\n\n                        if type(obj.Cache.Interface) == \"table\" and obj.Cache.Interface.Cursor and obj.Cache.Interface.Cursor.Distance2 then\n                            obj.Cache.Interface.Cursor.Distance2.Visible = false\n                        end\n\n                        if type(obj.Cache.Tracks) == \"table\" then\n                            for name, track in pairs(obj.Cache.Tracks) do\n                                if tostring(name):find(\"Spear\") or tostring(name):find(\"Hit\") or tostring(name):find(\"Slash\") then\n                                    pcall(function() track:Stop(0.1) end)\n                                end\n                            end\n                        end\n\n                        if type(obj.Cache.Animations) == \"table\" then\n                            for name, track in pairs(obj.Cache.Animations) do\n                                if tostring(name):find(\"Spear\") or tostring(name):find(\"Hit\") or tostring(name):find(\"Slash\") then\n                                    pcall(function() track:Stop(0.1) end)\n                                end\n                            end\n                        end\n                    end\n                end)\n            ")
+            end
+            return
+        end)
+        v1(function()
+            local v1_3 = v7_13:FindFirstChild("PlayerGui")
+            local v2 = v1_3 and v1_3:FindFirstChild("Interface")
+            local v3_3 = v2 and v2:FindFirstChild("Cursor")
+            local v4_3 = v3_3 and v3_3:FindFirstChild("Distance2")
+            if v4_3 then
+                v4_3.Visible = false
+            end
+            return
+        end)
+        v1(function()
+            local v1 = v7_13.Character
+            local v2 = v1 and v1:FindFirstChild("Humanoid")
+            local v3_2 = v2 and v2:FindFirstChild("Animator")
+            if v3_2 then
+                for v7, v8 in ipairs(v3_2:GetPlayingAnimationTracks()) do
+                    if v8.Name:find("Spear") or v8.Name:find("Slash") or v8.Name:find("Hit") or v8.Name:find("Throw") then
+                        v8:Stop(0.1)
+                    end
+                end
+            end
+            return
+        end)
+        return
+    end
+    v93_2 = function(p1)
+        if not v87_2() then
+            return false
+        end
+        local v2_3 = {}
+        local v3_3 = v59_2 and 8 or 1
+        if type(p1) == "table" and p1[1] ~= nil then
+            for v7, v8 in ipairs(p1) do
+                if typeof(v8) == "Instance" then
+                    if v8:IsA("BasePart") and v8.Name == "Nape" then
+                        table.insert(v2_3, v8)
+                    else
+                        local v9_7 = v89_2(v8)
+                        if v9_7 then
+                            table.insert(v2_3, v9_7)
+                        end
+                    end
+                    if #v2_3 >= v3_3 then
+                        break
+                    end
+                end
+            end
+        elseif typeof(p1) == "Instance" then
+            if p1:IsA("BasePart") and p1.Name == "Nape" then
+                table.insert(v2_3, p1)
+            else
+                local v4_13 = v89_2(p1)
+                if v4_13 then
+                    table.insert(v2_3, v4_13)
+                end
+            end
+        end
+        if #v2_3 == 0 then
+            return false
+        end
+        local v4_11 = v71_3()
+        if not v4_11 then
+            return false
+        end
+        local v5_16 = v4_11:FindFirstChild("Actor") or v66 and v66()[1]
+        if v5_16 and v67_2 then
+            pcall(function()
+                v67_2(v5_16,
+                    string.format(
+                        "                local host = _G.__CachedHost\n                if type(host) ~= \"table\"\n                    or type(rawget(host, \"Modules\")) ~= \"table\"\n                    or type(rawget(host, \"Cache\")) ~= \"table\"\n                    or not host.Modules.Zones\n                then\n                    host = nil\n                    _G.__CachedHost = nil\n                    for _, obj in ipairs(getgc(true)) do\n                        if type(obj) == \"table\"\n                            and type(rawget(obj, \"Modules\")) == \"table\"\n                            and type(rawget(obj, \"Cache\")) == \"table\"\n                            and rawget(obj, \"Services\")\n                            and obj.Modules.Zones\n                        then\n                            host = obj\n                            _G.__CachedHost = obj\n                            break\n                        end\n                    end\n                end\n\n                if host then\n                    if host.Loadout and host.Loadout.Stats then\n                        host.Loadout.Stats.Crit_Chance = 100\n                        host.Loadout.Stats.Strike = %d\n                    end\n                    local zones = host.Modules.Zones\n                    if zones and not zones.__SymbioteCritHooked and type(zones.Damage_Check) == \"function\" then\n                        zones.__SymbioteCritHooked = true\n                        local origDamageCheck = zones.Damage_Check\n                        zones.Damage_Check = function(p2, p3, p4, p5, p6, p7, p8, p9)\n                            return origDamageCheck(p2, p3, p4, true, p6, p7, p8, p9)\n                        end\n                    end\n                end\n            ",
+                        #v2_3))
+                return
+            end)
+        end
+        local v6_17 = v76_2()
+        if not v6_17 or v6_17 <= 0 then
+            if (v18_4 or v25_2 or v34_2) and not v26_2 then
+                v85_2()
+            end
+            return false
+        end
+        local v7_8 = nil
+        if not pcall(function()
+                v7_8 = v69_2:InvokeServer("Spears", "S_Fire", tostring(v6_17))
+                return
+            end) or v7_8 ~= true then
+            local v9_11 = v76_2()
+            if v9_11 and 0 < v9_11 and v9_11 ~= v6_17 then
+                local v6_18 = v9_11
+                pcall(function()
+                    v7_8 = v69_2:InvokeServer("Spears", "S_Fire", tostring(v6_18))
+                    return
+                end)
+            end
+        end
+        if v7_8 == true then
+            v61_2.SpearFireFails = 0
+            task.wait(0.03)
+            local function jitterPos(basePos)
+                return basePos + Vector3.new(math.random(-100, 100) / 1000, math.random(-100, 100) / 1000, math.random(-100, 100) / 1000)
+            end
+            if #v2_3 == 1 then
+                local targetPart = v2_3[1]
+                if targetPart and targetPart.Parent then
+                    for _ = 1, 9 do
+                        pcall(function()
+                            v68_2:FireServer("Spears", "S_Explode", jitterPos(targetPart.Position), 2.5)
+                        end)
+                    end
+                end
+            else
+                local sent = 0
+                for _, v13_7 in ipairs(v2_3) do
+                    if v13_7 and v13_7.Parent then
+                        sent = sent + 1
+                        pcall(function()
+                            v68_2:FireServer("Spears", "S_Explode", jitterPos(v13_7.Position), 2.5)
+                        end)
+                    end
+                end
+                if v150_10.AutoRaid and sent > 0 and sent < 9 then
+                    local idx = 1
+                    while sent < 9 do
+                        local v13_7 = v2_3[idx]
+                        if v13_7 and v13_7.Parent then
+                            pcall(function()
+                                v68_2:FireServer("Spears", "S_Explode", jitterPos(v13_7.Position), 2.5)
+                            end)
+                        end
+                        sent = sent + 1
+                        idx = (idx % #v2_3) + 1
+                    end
+                end
+            end
+            v92_2()
+            return true
+        end
+        pcall(function()
+            v68_2:FireServer("Spears", "Reset")
+            return
+        end)
+        v61_2.SpearFireFails = (v61_2.SpearFireFails or 0) + 1
+        local spearAttr = v4_11 and tonumber(v4_11:GetAttribute("Spears"))
+        if (v61_2.SpearFireFails >= 3 or (spearAttr ~= nil and spearAttr <= 0)) and (v18_4 or v25_2 or v34_2) and not v26_2 then
+            v61_2.SpearFireFails = 0
+            v85_2()
+        end
+        return false
+    end
+    v94_2 = function(p1)
+        if v65_2 then
+            v65_2:Disconnect()
+            v65_2 = nil
+        end
+        if not p1 then
+            return
+        end
+        local v2_7 = p1:WaitForChild("Humanoid", 5)
+        local v3_2 = v2_7 and v2_7:WaitForChild("Animator", 5)
+        if v3_2 then
+            v65_2 = v3_2.AnimationPlayed:Connect(function(p1)
+                if v18_4 and (p1.Priority == Enum.AnimationPriority.Action4 or p1.Priority == Enum.AnimationPriority.Action3 or p1.Name:find("Hit") or p1.Name:find("Slash")) then
+                    p1:Stop(0)
+                end
+                return
+            end)
+        end
+        return
+    end
+end
+v7_13.CharacterAdded:Connect(v94_2)
+do
+    local v95_2 = v13_8:FindFirstChild("Characters") and v13_8.Characters:FindFirstChild(v7_13.Name) or v7_13.Character
+    if v95_2 then
+        v94_2(v95_2)
+    end
+end
+local v96_6, v97_6, v98_2, v99_2, v100_3, v101_2, v102_3, v103_2, v104_3, v105_3, v106_3, v107_2, v108_3, v109_2, v111_3, v110_3, v113_3, v112_3, v115_3, v114_3, v116_4, v117_4, v121_3, v118_4
+do
+    local function v95_8(p1, p2)
+        local v3 = p1 and p1:FindFirstChild("Hitboxes")
+        local v4_2 = v3 and v3:FindFirstChild("Hit")
+        if v4_2 then
+            for v8, v9 in ipairs(v4_2:GetChildren()) do
+                if v9:IsA("BasePart") then
+                    v9.CanTouch = p2 and v9.Name == "Nape" or false
+                end
+            end
+        end
+        return
+    end
+    v96_6 = function(p1)
+        local searchFolders = {
+            v13_8:FindFirstChild("Titans"),
+            v13_8:FindFirstChild("Boss"),
+            v13_8:FindFirstChild("Shifters")
+        }
+        for _, fld in ipairs(searchFolders) do
+            if fld then
+                for _, child in ipairs(fld:GetChildren()) do
+                    v95_8(child, p1)
+                end
+            end
+        end
+        return
+    end
+    v97_6 = function(p1)
+        if v64_2 or not v87_2() then
+            return false
+        end
+        if v73_2() then
+            return v93_2(p1)
+        end
+        local v2_7 = {}
+        local v3_6 = {}
+        local v4_2 = v59_2 and 8 or 1
+        if type(p1) == "table" then
+            for v8_2, v9_2 in ipairs(p1) do
+                if typeof(v9_2) == "Instance" then
+                    local v10_4 = v9_2:IsA("Model") and v9_2 or v9_2:FindFirstAncestorOfClass("Model")
+                    local v11_5 = v9_2:IsA("BasePart") and v9_2.Name == "Nape" and v9_2 or (v10_4 and v89_2(v10_4))
+                    if v10_4 and v11_5 and v91_2(v10_4) then
+                        table.insert(v2_7, v10_4)
+                        table.insert(v3_6, v11_5)
+                        if v4_2 <= #v3_6 then
+                            break
+                        end
+                    end
+                end
+            end
+        elseif typeof(p1) == "Instance" then
+            local v5_8 = p1:IsA("Model") and p1 or p1:FindFirstAncestorOfClass("Model")
+            local v6_11 = p1:IsA("BasePart") and p1.Name == "Nape" and p1 or v5_8 and v89_2(v5_8)
+            if v5_8 and v6_11 and v91_2(v5_8) then
+                table.insert(v2_7, v5_8)
+                table.insert(v3_6, v6_11)
+            end
+        end
+        if #v3_6 == 0 then
+            return false
+        end
+        local v5_13 = v71_3()
+        if not v5_13 then
+            return false
+        end
+        local v6_16 = v5_13:FindFirstChild("HumanoidRootPart")
+        local v7_9 = v5_13:FindFirstChild("Humanoid")
+        local v8_8 = v5_13:FindFirstChild("Hitbox")
+        local v9_6 = v5_13:FindFirstChild("Actor")
+        if not v6_16 or not v7_9 then
+            return false
+        end
+        local v10_11 = v8_8 and v8_8.CollisionGroup
+        local v11_9 = v8_8 and v8_8.Size
+        local v12_10 = math.max(100, (55 + v60_2) * 2 + 30)
+        if v8_8 and v8_8:IsA("BasePart") then
+            if not v150_10.OriginalSizes[v8_8] then
+                v150_10.OriginalSizes[v8_8] = v11_9
+            end
+            v8_8.CollisionGroup = "Default"
+            v8_8.CanTouch = true
+            v8_8.Size = Vector3.new(v12_10, v12_10, v12_10)
+        end
+        for v16_6, v17_3 in ipairs(v2_7) do
+            local v18_3 = v17_3:FindFirstChild("Hitboxes")
+            local v19_2 = v18_3 and v18_3:FindFirstChild("Hit")
+            if v19_2 then
+                for v23_3, v24_3 in ipairs(v19_2:GetChildren()) do
+                    if v24_3:IsA("BasePart") then
+                        v24_3.CollisionGroup = "Default"
+                        v24_3.CanTouch = v24_3.Name == "Nape"
+                    end
+                end
+            end
+        end
+        v64_2 = true
+        local v13_27 = v7_9:FindFirstChild("Animator")
+        if v13_27 then
+            for v17_4, v18_4 in ipairs(v13_27:GetPlayingAnimationTracks()) do
+                if v18_4.Priority == Enum.AnimationPriority.Action4 or v18_4.Priority == Enum.AnimationPriority.Action3 or v18_4.Name:find("Hit") or v18_4.Name:find("Slash") then
+                    v18_4:Stop(0)
+                end
+            end
+        end
+        local v14_25 = false
+        if v9_6 and v67_2 then
+            local v15_18 = tostring(os.clock()) .. "_" .. tostring(math.random(1000, 9999))
+            local v16_16 = {}
+            for v20_9, v21_9 in ipairs(v2_7) do
+                table.insert(v16_16, v21_9.Name)
+                v21_9:SetAttribute("__SymbioteTarget", v15_18)
+            end
+            v9_6:SetAttribute("TargetTitanNames", table.concat(v16_16, ","))
+            v9_6:SetAttribute("TargetTitan", v15_18)
+            v9_6:SetAttribute("SlashMaxTargets", #v3_6)
+            v9_6:SetAttribute("SlashDone", false)
+            v9_6:SetAttribute("SlashHandled", false)
+            pcall(function()
+                v67_2(v9_6,
+                    "                local Players = game:GetService(\"Players\")\n                local lp = Players.LocalPlayer\n                local chars = workspace:FindFirstChild(\"Characters\")\n                local c = (chars and chars:FindFirstChild(lp.Name)) or lp.Character\n                local act = c and c:FindFirstChild(\"Actor\")\n                if not act then return end\n\n                local targetId = act:GetAttribute(\"TargetTitan\")\n                local targetNamesStr = act:GetAttribute(\"TargetTitanNames\") or \"\"\n                local nameMap = {}\n                for name in string.gmatch(targetNamesStr, \"[^,]+\") do\n                    nameMap[name] = true\n                end\n                local maxTargets = tonumber(act:GetAttribute(\"SlashMaxTargets\")) or 1\n                local folders = { workspace:FindFirstChild(\"Titans\"), workspace:FindFirstChild(\"Boss\"), workspace:FindFirstChild(\"Bosses\"), workspace:FindFirstChild(\"Shifters\"), workspace:FindFirstChild(\"Raid\") }\n                local napes = {}\n                for _, tit in ipairs(folders) do\n                    if tit then\n                        for _, m in ipairs(tit:GetChildren()) do\n                            if targetId and m:GetAttribute(\"__SymbioteTarget\") == targetId then\n                                local np = (m:FindFirstChild(\"Hitboxes\") and m.Hitboxes:FindFirstChild(\"Hit\") and m.Hitboxes.Hit:FindFirstChild(\"Nape\")) or m:FindFirstChild(\"Nape\", true)\n                                if np then\n                                    table.insert(napes, np)\n                                    if #napes >= maxTargets then\n                                        break\n                                    end\n                                end\n                            end\n                        end\n                        if #napes >= maxTargets then break end\n                    end\n                end\n                if #napes == 0 then\n                    for _, tit in ipairs(folders) do\n                        if tit then\n                            for _, m in ipairs(tit:GetChildren()) do\n                                local hrp = m:FindFirstChild(\"HumanoidRootPart\")\n                                if m:IsA(\"Model\") and hrp and not hrp.Anchored and not m:GetAttribute(\"State\") then\n                                    local np = (m:FindFirstChild(\"Hitboxes\") and m.Hitboxes:FindFirstChild(\"Hit\") and m.Hitboxes.Hit:FindFirstChild(\"Nape\")) or m:FindFirstChild(\"Nape\", true)\n                                    if np then\n                                        table.insert(napes, np)\n                                        if #napes >= maxTargets then break end\n                                    end\n                                end\n                            end\n                            if #napes >= maxTargets then break end\n                        end\n                    end\n                end\n\n                local h = c and c:FindFirstChild(\"HumanoidRootPart\")\n                local hm = c and c:FindFirstChild(\"Humanoid\")\n                local hb = c and c:FindFirstChild(\"Hitbox\")\n                if hb and hb:IsA(\"BasePart\") then\n                    hb.CanTouch = true\n                end\n\n                local host = _G.__CachedHost\n                if type(host) ~= \"table\"\n                    or type(rawget(host, \"Modules\")) ~= \"table\"\n                    or type(rawget(host, \"Cache\")) ~= \"table\"\n                    or host.Cache.Character ~= c\n                    or not host.Modules.Zones\n                    or not host.Modules.Input\n                    or not host.Modules.ODMG\n                    or not host.Modules.Effects\n                then\n                    host = nil\n                    _G.__CachedHost = nil\n                    local now = os.clock()\n                    local lastScan = _G.__LastHostScan or 0\n                    if (now - lastScan) >= 1 then\n                        _G.__LastHostScan = now\n                        for _, obj in ipairs(getgc(true)) do\n                            if type(obj) == \"table\"\n                                and type(rawget(obj, \"Modules\")) == \"table\"\n                                and type(rawget(obj, \"Cache\")) == \"table\"\n                                and obj.Cache.Character == c\n                                and obj.Modules.Zones\n                            then\n                                host = obj\n                                _G.__CachedHost = obj\n                                break\n                            end\n                        end\n                    end\n                end\n\n                if host and #napes > 0 and h and hm then\n                    act:SetAttribute(\"SlashHandled\", true)\n                    pcall(function()\n                        local slash = host.Cache.Variables.Slash\n                        local odmg = host.Modules.ODMG\n                        local inputMod = host.Modules.Input\n                        local effects = host.Modules.Effects\n                        local zones = host.Modules.Zones\n\n                        if inputMod.Slashing then\n                            pcall(function() task.cancel(inputMod.Slashing) end)\n                            inputMod.Slashing = nil\n                        end\n                        if type(odmg.Events) == \"table\" then\n                            for _, ev in pairs(odmg.Events) do\n                                pcall(function() task.cancel(ev) end)\n                            end\n                            table.clear(odmg.Events)\n                        end\n\n                        if effects.Slash_State == true then\n                            pcall(function() effects.Slash(host, false, true) end)\n                            effects.Slash_State = false\n                        end\n\n                        host.Invoked = false\n                        if host.Modules.Shift then\n                            host.Modules.Shift.Stunned = false\n                        end\n\n                        if host.Loadout and host.Loadout.Stats then\n                            host.Loadout.Stats.Crit_Chance = 100\n                            host.Loadout.Stats.Strike = #napes\n                        end\n\n                        if not zones.__SymbioteCritHooked and type(zones.Damage_Check) == \"function\" then\n                            zones.__SymbioteCritHooked = true\n                            local origDamageCheck = zones.Damage_Check\n                            zones.Damage_Check = function(p2, p3, p4, p5, p6, p7, p8, p9)\n                                return origDamageCheck(p2, p3, p4, true, p6, p7, p8, p9)\n                            end\n                        end\n\n                        slash.Slashing = false\n                        slash.Released = false\n                        slash.Holding = false\n                        slash.Cooldown = false\n                        slash.Combo = 0\n                        table.clear(zones.Hit)\n\n                        if not host.__OrigTasks and type(odmg.Tasks) == \"function\" then\n                            host.__OrigTasks = odmg.Tasks\n                        end\n                        odmg.Tasks = function() end\n                        pcall(function() odmg.M1(host, false) end)\n                        if host.__OrigTasks then\n                            odmg.Tasks = host.__OrigTasks\n                        end\n\n                        slash.Slashing = true\n                        slash.Released = false\n                        slash.Holding = false\n                        slash.Type = \"Air\"\n                        slash.Last = tick() - 0.65\n                        zones.Time_Difference = 0.65\n\n                        task.wait(0.04)\n\n                        table.clear(zones.Hit)\n                        pcall(function() inputMod.Slash(host, h, hm) end)\n                        slash.Slashing = true\n                        slash.Released = true\n                        slash.Holding = false\n                        slash.Type = \"Air\"\n\n                        if effects.Slash_State ~= true then\n                            pcall(function() effects.Slash(host, true, true) end)\n                            effects.Slash_State = true\n                        end\n                        host:Send(\"Attacks\", \"Slash\", true)\n\n                        local a = hm:FindFirstChild(\"Animator\")\n                        if a then\n                            for _, track in ipairs(a:GetPlayingAnimationTracks()) do\n                                if track.Priority == Enum.AnimationPriority.Action4 or track.Priority == Enum.AnimationPriority.Action3 or track.Name:find(\"Hit\") or track.Name:find(\"Slash\") then\n                                    track:Stop(0)\n                                end\n                            end\n                        end\n\n                        for _, np in ipairs(napes) do\n                            table.insert(zones.Hit, np)\n                            host:Send(\"Hitboxes\", \"Register\", np, 0.65)\n                        end\n\n                        task.wait(0.12)\n\n                        if inputMod.Slashing then\n                            pcall(function() task.cancel(inputMod.Slashing) end)\n                            inputMod.Slashing = nil\n                        end\n                        slash.Slashing = false\n                        slash.Released = false\n                        slash.Holding = false\n                        pcall(function() effects.Slash(host, false, true) end)\n                        if effects.Slash_State ~= false then\n                            effects.Slash_State = false\n                        end\n                        host:Send(\"Attacks\", \"Slash\", false)\n                    end)\n                end\n\n                act:SetAttribute(\"SlashDone\", true)\n            ")
+                return
+            end)
+            local v17_20 = os.clock()
+            while os.clock() - v17_20 < 0.22 do
+                if v9_6:GetAttribute("SlashDone") == true then
+                    break
+                else
+                    task.wait(0.02)
+                end
+            end
+            v14_25 = v9_6:GetAttribute("SlashHandled") == true
+        end
+        if not v14_25 then
+            local v15_20 = _G.__CachedHost
+            if type(v15_20) ~= "table" or type(rawget(v15_20, "Modules")) ~= "table" or type(rawget(v15_20, "Cache")) ~= "table" or v15_20.Cache.Character ~= v5_13 or not v15_20.Modules.Zones or not v15_20.Modules.Input or not v15_20.Modules.ODMG or not v15_20.Modules.Effects then
+                v15_20 = nil
+                _G.__CachedHost = nil
+                if getgc then
+                    for v19_36, v20_31 in ipairs(getgc(true)) do
+                        if type(v20_31) == "table" and type(rawget(v20_31, "Modules")) == "table" and type(rawget(v20_31, "Cache")) == "table" and v20_31.Cache.Character == v5_13 and v20_31.Modules.Zones then
+                            v15_20 = v20_31
+                            _G.__CachedHost = v20_31
+                            break
+                        end
+                    end
+                end
+            end
+            if v15_20 then
+                pcall(function()
+                    local v4 = v15_20
+                    local v1 = v4.Cache.Variables.Slash
+                    local v2_2 = v4.Modules.ODMG
+                    local v5 = v4
+                    local v3_3 = v5.Modules.Input
+                    local v6_2 = v5
+                    local v4_4 = v6_2.Modules.Effects
+                    local v5_3 = v6_2.Modules.Zones
+                    if v3_3.Slashing then
+                        pcall(function()
+                            task.cancel(v3_3.Slashing)
+                            return
+                        end)
+                        v3_3.Slashing = nil
+                    end
+                    if type(v2_2.Events) == "table" then
+                        for v9, v10 in pairs(v2_2.Events) do
+                            pcall(function()
+                                task.cancel(v10)
+                                return
+                            end)
+                        end
+                        table.clear(v2_2.Events)
+                    end
+                    if v4_4.Slash_State == true then
+                        pcall(function()
+                            v4_4.Slash(v15_20, false, true)
+                            return
+                        end)
+                        v4_4.Slash_State = false
+                    end
+                    local v6_15 = v15_20
+                    v6_15.Invoked = false
+                    if v6_15.Modules.Shift then
+                        v15_20.Modules.Shift.Stunned = false
+                    end
+                    if v15_20.Loadout and v15_20.Loadout.Stats then
+                        local v8_6 = v15_20
+                        v8_6.Loadout.Stats.Crit_Chance = 100
+                        v8_6.Loadout.Stats.Strike = #v3_6
+                    end
+                    if not v5_3.__SymbioteCritHooked and type(v5_3.Damage_Check) == "function" then
+                        v5_3.__SymbioteCritHooked = true
+                        local v6_23 = v5_3.Damage_Check
+                        v5_3.Damage_Check = function(p1, p2, p3, p4, p5, p6, p7, p8)
+                            return v6_23(p1, p2, p3, true, p5, p6, p7, p8)
+                        end
+                    end
+                    v1.Slashing = false
+                    v1.Released = false
+                    v1.Holding = false
+                    v1.Cooldown = false
+                    v1.Combo = 0
+                    table.clear(v5_3.Hit)
+                    if not v15_20.__OrigTasks and type(v2_2.Tasks) == "function" then
+                        v15_20.__OrigTasks = v2_2.Tasks
+                    end
+                    v2_2.Tasks = function()
+                        return
+                    end
+                    pcall(function()
+                        v2_2.M1(v15_20, false)
+                        return
+                    end)
+                    if v15_20.__OrigTasks then
+                        v2_2.Tasks = v15_20.__OrigTasks
+                    end
+                    v1.Slashing = true
+                    v1.Released = false
+                    v1.Holding = false
+                    v1.Type = "Air"
+                    v1.Last = tick() - 0.65
+                    v5_3.Time_Difference = 0.65
+                    task.wait(0.04)
+                    table.clear(v5_3.Hit)
+                    pcall(function()
+                        v3_3.Slash(v15_20, v6_16, v7_9)
+                        return
+                    end)
+                    v1.Slashing = true
+                    v1.Released = true
+                    v1.Holding = false
+                    v1.Type = "Air"
+                    if v4_4.Slash_State ~= true then
+                        pcall(function()
+                            v4_4.Slash(v15_20, true, true)
+                            return
+                        end)
+                        v4_4.Slash_State = true
+                    end
+                    v15_20:Send("Attacks", "Slash", true)
+                    local v6_47 = v7_9:FindFirstChild("Animator")
+                    if v6_47 then
+                        for v10_3, v11_2 in ipairs(v6_47:GetPlayingAnimationTracks()) do
+                            if v11_2.Priority == Enum.AnimationPriority.Action4 or v11_2.Priority == Enum.AnimationPriority.Action3 or v11_2.Name:find("Hit") or v11_2.Name:find("Slash") then
+                                v11_2:Stop(0)
+                            end
+                        end
+                    end
+                    for v10_5, v11_4 in ipairs(v3_6) do
+                        table.insert(v5_3.Hit, v11_4)
+                        v15_20:Send("Hitboxes", "Register", v11_4, 0.65)
+                    end
+                    task.wait(0.12)
+                    if v3_3.Slashing then
+                        pcall(function()
+                            task.cancel(v3_3.Slashing)
+                            return
+                        end)
+                        v3_3.Slashing = nil
+                    end
+                    v1.Slashing = false
+                    v1.Released = false
+                    v1.Holding = false
+                    pcall(function()
+                        v4_4.Slash(v15_20, false, true)
+                        return
+                    end)
+                    if v4_4.Slash_State ~= false then
+                        v4_4.Slash_State = false
+                    end
+                    v15_20:Send("Attacks", "Slash", false)
+                    return
+                end)
+            else
+                pcall(function()
+                    local v7 = game
+                    v17_6:SendMouseButtonEvent(0, 0, 0, true, v7, 0)
+                    task.wait(0.04)
+                    v17_6:SendMouseButtonEvent(0, 0, 0, false, v7, 0)
+                    return
+                end)
+                task.wait(0.08)
+                local v16_27 = v8_8 and getconnections and getconnections(v8_8.Touched) or {}
+                for v20_33, v21_25 in ipairs(v3_6) do
+                    if v21_25 and v21_25.Parent then
+                        for v25_19, v26_14 in ipairs(v16_27) do
+                            pcall(function()
+                                v26_14:Fire(v21_25)
+                                return
+                            end)
+                        end
+                        pcall(function()
+                            v68_2:FireServer("Hitboxes", "Register", v21_25, 0.65)
+                            return
+                        end)
+                    end
+                end
+                task.wait(0.1)
+            end
+        end
+        if v8_8 and v8_8:IsA("BasePart") then
+            v8_8.CollisionGroup = v10_11
+            v8_8.Size = v11_9
+        end
+        for v18_31, v19_33 in ipairs(v2_7) do
+            v95_8(v19_33, true)
+        end
+        v64_2 = false
+        return true
+    end
+    local v100_2 = nil
+    v98_2 = function()
+        if v100_2 then
+            return
+        end
+        v100_2 = v14_9.Stepped:Connect(function()
+            local v1 = v7_13.Character
+            if v1 then
+                for v5, v6 in pairs(v1:GetDescendants()) do
+                    if v6:IsA("BasePart") then
+                        v6.CanCollide = false
+                    end
+                end
+            end
+            return
+        end)
+        return
+    end
+    v99_2 = function()
+        if v100_2 then
+            v100_2:Disconnect()
+            v100_2 = nil
+        end
+        local v1_5 = v7_13.Character
+        if v1_5 then
+            for v5, v6 in pairs(v1_5:GetDescendants()) do
+                if v6:IsA("BasePart") then
+                    v6.CanCollide = true
+                end
+            end
+        end
+        return
+    end
+    local v102_2 = nil
+    v100_3 = function()
+        if v102_2 then
+            v102_2:Disconnect()
+        end
+        v102_2 = v14_9.Heartbeat:Connect(function()
+            if not v27_2 then
+                return
+            end
+            local v1_2 = v7_13.Character
+            if not v1_2 then
+                return
+            end
+            local v2_5 = v1_2:FindFirstChild("HumanoidRootPart")
+            if not v2_5 then
+                return
+            end
+            local v3_4 = v1_2:FindFirstChild("Humanoid")
+            if not v3_4 or v3_4.Health <= 0 then
+                return
+            end
+            local v4_4 = v3_4.MoveDirection
+            if 0.1 > v4_4.Magnitude then
+                return
+            end
+            v2_5.CFrame = v2_5.CFrame + v4_4.Unit * v28_2
+            return
+        end)
+        return
+    end
+    v101_2 = function()
+        if v102_2 then
+            v102_2:Disconnect()
+            v102_2 = nil
+        end
+        return
+    end
+    local v104_2 = nil
+    local v105_2 = 0
+    v102_3 = function()
+        if v104_2 then
+            v104_2:Disconnect()
+        end
+        v105_2 = 0
+        v104_2 = v14_9.Heartbeat:Connect(function(p1)
+            if not v29_2 then
+                return
+            end
+            local v2_2 = v7_13.Character
+            if not v2_2 then
+                return
+            end
+            local v3_5 = v2_2:FindFirstChild("HumanoidRootPart")
+            if not v3_5 then
+                return
+            end
+            local v4_4 = v2_2:FindFirstChild("Humanoid")
+            if not v4_4 or v4_4.Health <= 0 then
+                return
+            end
+            local v5_4 = v4_4.MoveDirection
+            if 0.1 > v5_4.Magnitude then
+                v105_2 = 0
+                return
+            end
+            v105_2 = v105_2 + p1
+            if v31_2 * 0.1 > v105_2 then
+                return
+            end
+            v105_2 = 0
+            v3_5.CFrame = v3_5.CFrame + v5_4.Unit * v30_2
+            return
+        end)
+        return
+    end
+    v103_2 = function()
+        if v104_2 then
+            v104_2:Disconnect()
+            v104_2 = nil
+        end
+        v105_2 = 0
+        return
+    end
+    local v106_2 = nil
+    v104_3 = function()
+        if v106_2 then
+            return
+        end
+        v106_2 = v15_29.InputBegan:Connect(function(p1, p2)
+            if not v32_2 then
+                return
+            end
+            if p2 then
+                return
+            end
+            if p1.UserInputType ~= Enum.UserInputType.MouseButton1 then
+                return
+            end
+            if not (v15_29:IsKeyDown(Enum.KeyCode.LeftControl) or v15_29:IsKeyDown(Enum.KeyCode.RightControl)) then
+                return
+            end
+            local v3_4 = v7_13.Character
+            local v4_8 = v3_4 and v3_4:FindFirstChild("HumanoidRootPart")
+            if not v4_8 then
+                return
+            end
+            local v5_6 = v13_8.CurrentCamera
+            local v6_10 = v15_29:GetMouseLocation()
+            local v7_5 = v5_6:ViewportPointToRay(v6_10.X, v6_10.Y)
+            local v8_3 = RaycastParams.new()
+            v8_3.FilterType = Enum.RaycastFilterType.Exclude
+            v8_3.FilterDescendantsInstances = { v3_4 }
+            local v9 = v13_8:Raycast(v7_5.Origin, v7_5.Direction * 5000, v8_3)
+            if v9 then
+                v4_8.CFrame = CFrame.new(v9.Position + Vector3.new(0, 3, 0)) * (v4_8.CFrame - v4_8.CFrame.Position)
+            end
+            return
+        end)
+        return
+    end
+    v105_3 = function()
+        if v106_2 then
+            v106_2:Disconnect()
+            v106_2 = nil
+        end
+        return
+    end
+    local v108_2 = nil
+    v106_3 = function()
+        if v108_2 then
+            v108_2:Disconnect()
+        end
+        v108_2 = v15_29.JumpRequest:Connect(function()
+            if not v33_2 then
+                return
+            end
+            local v1_2 = v7_13.Character
+            local v2_2 = v1_2 and v1_2:FindFirstChild("Humanoid")
+            if v2_2 then
+                v2_2:ChangeState(Enum.HumanoidStateType.Jumping)
+            end
+            return
+        end)
+        return
+    end
+    v107_2 = function()
+        if v108_2 then
+            v108_2:Disconnect()
+            v108_2 = nil
+        end
+        return
+    end
+    local v110_2 = nil
+    local v111_2 = nil
+    v108_3 = function()
+        local v1_3 = v7_13:FindFirstChild("PlayerGui")
+        local v2 = v1_3 and v1_3:FindFirstChild("Interface")
+        local v3_3 = v2 and v2:FindFirstChild("Cursor")
+        if v3_3 and v111_2 == nil then
+            v111_2 = v3_3.Visible
+        end
+        if v3_3 then
+            v3_3.Visible = false
+        end
+        v15_29.MouseIconEnabled = true
+        if v110_2 then
+            v110_2:Disconnect()
+        end
+        v110_2 = v14_9.Heartbeat:Connect(function()
+            if not v37_2 then
+                return
+            end
+            if not v3_3 or not v3_3.Parent then
+                local v1_5 = v7_13:FindFirstChild("PlayerGui")
+                local v2_4 = v1_5 and v1_5:FindFirstChild("Interface")
+                v3_3 = v2_4 and v2_4:FindFirstChild("Cursor")
+            end
+            if v3_3 then
+                v3_3.Visible = false
+            end
+            return
+        end)
+        return
+    end
+    v109_2 = function()
+        if v110_2 then
+            v110_2:Disconnect()
+            v110_2 = nil
+        end
+        local v1_7 = v7_13:FindFirstChild("PlayerGui")
+        local v2_2 = v1_7 and v1_7:FindFirstChild("Interface")
+        local v3_3 = v2_2 and v2_2:FindFirstChild("Cursor")
+        if v3_3 then
+            v3_3.Visible = v111_2 ~= nil and v111_2 or true
+        end
+        v111_2 = nil
+        return
+    end
+    local v112_2 = nil
+    local v113_2 = nil
+    local autoRetryWatcherThread = nil
+    local lastRetryInvokeTime = 0
+
+    function v150_10.IsMatchEnded()
+        local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+        local iface = pgui and pgui:FindFirstChild("Interface")
+        if not pgui then return false end
+
+        local rewards = iface and iface:FindFirstChild("Rewards")
+        if rewards and (rewards.Visible == true or (rewards:IsA("LayerCollector") and rewards.Enabled == true)) then
+            return true
+        end
+
+        if iface then
+            for _, name in ipairs({ "Result", "Results", "Victory", "Defeat", "MissionComplete", "GameEnd", "MatchEnd", "EndScreen" }) do
+                local f = iface:FindFirstChild(name)
+                if f and (f.Visible == true or (f:IsA("LayerCollector") and f.Enabled == true)) then
+                    return true
+                end
+            end
+        end
+
+        for _, name in ipairs({ "Rewards", "Results", "EndScreen", "Victory", "Defeat" }) do
+            local f = pgui:FindFirstChild(name)
+            if f and f ~= iface and (f.Visible == true or (f:IsA("LayerCollector") and f.Enabled == true)) then
+                return true
+            end
+        end
+
+        return false
+    end
+
+    function v150_10.HandleRetryAndContinueScreen()
+        local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+        local iface = pgui and pgui:FindFirstChild("Interface")
+        if not pgui then
+            lastRetryInvokeTime = 0
+            return false
+        end
+
+        -- STRICT MATCH END CHECK:
+        -- Absolutely NEVER retry, click next, or leave while the mission is still running!
+        if not v150_10.IsMatchEnded() then
+            lastRetryInvokeTime = 0
+            return false
+        end
+
+        -- Mission Safety Timer check: ensure minimum 30 seconds before continuing/retrying
+        local elapsed = os.clock() - (v150_10.MissionStartTime or os.clock())
+        if elapsed < 30 then
+            return false
+        end
+
+        if v150_10.ShouldKaitunReturnToLobby and v150_10.ShouldKaitunReturnToLobby() then
+            v150_10.KaitunReturnToLobby()
+            return true
+        end
+
+        local candidateFrames = {}
+        local rewards = iface and iface:FindFirstChild("Rewards")
+        if rewards and (rewards.Visible == true or (rewards:IsA("LayerCollector") and rewards.Enabled == true)) then
+            table.insert(candidateFrames, rewards)
+        end
+        if iface then
+            for _, name in ipairs({ "Result", "Results", "Victory", "Defeat", "MissionComplete", "GameEnd", "MatchEnd", "EndScreen" }) do
+                local f = iface:FindFirstChild(name)
+                if f and (f.Visible == true or (f:IsA("LayerCollector") and f.Enabled == true)) then
+                    table.insert(candidateFrames, f)
+                end
+            end
+        end
+        for _, name in ipairs({ "Rewards", "Results", "EndScreen", "Victory", "Defeat" }) do
+            local f = pgui:FindFirstChild(name)
+            if f and f ~= iface and (f.Visible == true or (f:IsA("LayerCollector") and f.Enabled == true)) then
+                table.insert(candidateFrames, f)
+            end
+        end
+
+        if #candidateFrames == 0 then
+            lastRetryInvokeTime = 0
+            return false
+        end
+
+        local handled = false
+
+        local function getBtnText(b)
+            if b.Text and b.Text ~= "" then return b.Text end
+            for _, ch in ipairs(b:GetChildren()) do
+                if ch:IsA("TextLabel") and ch.Text and ch.Text ~= "" then
+                    return ch.Text
+                end
+            end
+            return b.Name or ""
+        end
+
+        local retryBtns = {}
+        local claimBtns = {}
+
+        for _, f in ipairs(candidateFrames) do
+            for _, btn in ipairs(f:GetDescendants()) do
+                if btn:IsA("GuiButton") and btn.Visible == true then
+                    local rawText = getBtnText(btn)
+                    local t = tostring(rawText):upper()
+                    local n = tostring(btn.Name):upper()
+
+                    local isLobby = t:find("LOBBY") or t:find("SẢNH") or t:find("TRỞ VỀ")
+                        or t:find("TRỞ LẠI") or t:find("RETURN") or t:find("LEAVE") or t:find("THOÁT")
+                        or n:find("LOBBY")
+
+                    if not isLobby then
+                        local isRetry = t:find("CHƠI LẠI") or t:find("CHOI LAI") or t:find("RETRY") or t:find("REPLAY")
+                            or t:find("THỬ LẠI") or t:find("THU LAI") or t:find("AGAIN") or n:find("RETRY") or
+                            n:find("REPLAY")
+
+                        local isClaim = t:find("NHẬN") or t:find("CLAIM") or t:find("XÁC NHẬN") or t:find("CONFIRM")
+                            or t:find("BỎ QUA") or t:find("SKIP") or t:find("OK") or t:find("ACCEPT") or t:find("CLOSE")
+                            or n:find("CLAIM") or n:find("OK") or n:find("CLOSE")
+
+                        if isRetry then
+                            table.insert(retryBtns, btn)
+                        elseif isClaim then
+                            table.insert(claimBtns, btn)
+                        end
+                    end
+                end
+            end
+        end
+
+        local function doClick(b)
+            if v150_10.ClickGuiButton then
+                v150_10.ClickGuiButton(b)
+            else
+                pcall(function()
+                    if type(firesignal) == "function" then
+                        firesignal(b.MouseButton1Click)
+                        firesignal(b.Activated)
+                    end
+                end)
+            end
+        end
+
+        -- 1. Click reward / confirmation popups first (Claim, OK)
+        for _, btn in ipairs(claimBtns) do
+            doClick(btn)
+            handled = true
+        end
+
+        -- 2. ONLY RETRY if AutoRetry is enabled or Kaitun is active!
+        -- NEVER click Next! Clicking Next advances to another map, which ruins farming!
+        local canRetry = v8_6("AutoRetry") == true or v8_6("KaitunEnabled") == true
+        if canRetry then
+            if #retryBtns > 0 then
+                for _, btn in ipairs(retryBtns) do
+                    doClick(btn)
+                    handled = true
+                end
+            end
+
+            local now = os.clock()
+            if lastRetryInvokeTime == 0 or now - lastRetryInvokeTime >= 1.0 then
+                lastRetryInvokeTime = now
+                if v69_2 then
+                    -- Asynchronous non-blocking invoke to prevent thread hangs after 15-20 matches
+                    task.spawn(function()
+                        pcall(function()
+                            v69_2:InvokeServer("Functions", "Retry", "Add")
+                        end)
+                    end)
+                    v150_10.MissionStartTime = os.clock()
+                    handled = true
+                end
+            end
+        end
+
+        return handled
+    end
+
+    v111_3 = function()
+        if autoRetryWatcherThread then
+            task.cancel(autoRetryWatcherThread)
+            autoRetryWatcherThread = nil
+        end
+        if v112_2 then
+            v112_2:Disconnect()
+            v112_2 = nil
+        end
+        if v113_2 then
+            task.cancel(v113_2)
+            v113_2 = nil
+        end
+        return
+    end
+
+    v110_3 = function()
+        v111_3()
+        autoRetryWatcherThread = task.spawn(function()
+            while v38_2 do
+                pcall(function()
+                    v150_10.HandleRetryAndContinueScreen()
+                end)
+                task.wait(0.8)
+            end
+            autoRetryWatcherThread = nil
+        end)
+        return
+    end
+    local v114_2 = nil
+    local v115_2 = false
+    local v116_2 = nil
+    local function v117_2(p1)
+        local v2 = getnilinstances or get_nil_instances
+        if not v2 then
+            return nil
+        end
+        local v3_4 = v2()
+        if type(v3_4) == "table" then
+            for v7, v8 in ipairs(v3_4) do
+                if v8.Name == p1 then
+                    return v8
+                end
+            end
+        end
+        return nil
+    end
+    local function v118_2(p1)
+        pcall(function()
+            v17_6:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+            task.wait(0.05)
+            v17_6:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+            return
+        end)
+        local v2 = p1 and (p1:FindFirstChild("Interact") or p1:FindFirstChildWhichIsA("GuiButton", true))
+        if v2 then
+            local v3_4 = firesignal
+            if v3_4 then
+                local v4_3 = pcall
+                v4_3(function()
+                    v3_4(v2.MouseButton1Click)
+                    return
+                end)
+                v4_3(function()
+                    v3_4(v2.MouseButton1Down)
+                    return
+                end)
+                v4_3(function()
+                    v3_4(v2.MouseButton1Up)
+                    return
+                end)
+                v4_3(function()
+                    v3_4(v2.Activated)
+                    return
+                end)
+            end
+            if v2.AbsolutePosition and v2.AbsoluteSize then
+                local v4_5 = v2.AbsolutePosition + v2.AbsoluteSize / 2
+                pcall(function()
+                    local v4 = v4_5
+                    local v7 = game
+                    v17_6:SendMouseButtonEvent(v4.X, v4.Y, 0, true, v7, 0)
+                    task.wait(0.05)
+                    local v4_3 = v4_5
+                    v17_6:SendMouseButtonEvent(v4_3.X, v4_3.Y, 0, false, v7, 0)
+                    return
+                end)
+            end
+        end
+        return
+    end
+    local function v119_2(p1)
+        if not v39_2 or v115_2 then
+            return
+        end
+        if not (p1 and p1.Visible) then
+            return
+        end
+        v115_2 = true
+        local v2_3 = v117_2("Middle")
+        if v2_3 then
+            pcall(function()
+                v68_2:FireServer("Functions", "Finished", v2_3)
+                return
+            end)
+        end
+        task.wait(0.3)
+        if v39_2 and p1 and p1.Visible then
+            v118_2(p1)
+        end
+        task.wait(0.5)
+        v115_2 = false
+        return
+    end
+    local autoSkipWatcherThread = nil
+    v113_3 = function()
+        if autoSkipWatcherThread then
+            task.cancel(autoSkipWatcherThread)
+            autoSkipWatcherThread = nil
+        end
+        if v114_2 then
+            v114_2:Disconnect()
+            v114_2 = nil
+        end
+        if v116_2 then
+            task.cancel(v116_2)
+            v116_2 = nil
+        end
+        v115_2 = false
+        return
+    end
+    v112_3 = function()
+        v113_3()
+        autoSkipWatcherThread = task.spawn(function()
+            while v39_2 do
+                pcall(function()
+                    local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+                    local iface = pgui and pgui:FindFirstChild("Interface")
+                    local skipBtn = iface and iface:FindFirstChild("Skip")
+                    if skipBtn and skipBtn.Visible then
+                        v119_2(skipBtn)
+                    end
+                end)
+                task.wait(0.5)
+            end
+            autoSkipWatcherThread = nil
+        end)
+        return
+    end
+    local v116_3 = nil
+    local v117_3 = false
+    local v118_3 = nil
+    local function v119_3(p1)
+        if not v40_2 or v117_3 then
+            return
+        end
+        if not (p1 and p1.Visible) then
+            return
+        end
+        v117_3 = true
+        pcall(function()
+            v70_2()
+            if not v69_2 then
+                return
+            end
+            local v1_5 = p1:FindFirstChild("Free")
+            local v2_5 = p1:FindFirstChild("Premium")
+            local v3_5 = p1:FindFirstChild("Finish")
+            if v1_5 and v1_5.Visible then
+                local v4_4 = firesignal
+                if v4_4 then
+                    pcall(function()
+                        v4_4(v1_5.MouseButton1Click)
+                        return
+                    end)
+                end
+                pcall(function()
+                    v69_2:InvokeServer("S_Rewards", "Chest", "Free")
+                    return
+                end)
+                task.wait(0.3)
+            end
+            if v2_5 and v2_5.Visible then
+                local v4_7 = v2_5:FindFirstChild("Title")
+                local v5_6 = 0
+                if v4_7 and v4_7.Text then
+                    v5_6 = tonumber(v4_7.Text:match("%((%d+)%)")) or 0
+                end
+                if v5_6 > 0 then
+                    local v6_11 = firesignal
+                    if v6_11 then
+                        pcall(function()
+                            v6_11(v2_5.MouseButton1Click)
+                            return
+                        end)
+                    end
+                    pcall(function()
+                        v69_2:InvokeServer("S_Rewards", "Chest", "Premium")
+                        return
+                    end)
+                    task.wait(0.3)
+                end
+            end
+            if v3_5 then
+                local v4_8 = firesignal
+                if v4_8 then
+                    pcall(function()
+                        v4_8(v3_5.MouseButton1Click)
+                        return
+                    end)
+                end
+                local v5_8 = getconnections
+                if v5_8 then
+                    pcall(function()
+                        for v4, v5 in ipairs(v5_8(v3_5.MouseButton1Click)) do
+                            if v5.Fire then
+                                v5:Fire()
+                            end
+                        end
+                        return
+                    end)
+                end
+            end
+            local v4_9 = v7_13 or v6_21.LocalPlayer
+            if v4_9 then
+                local v5_10 = pcall
+                v5_10(function()
+                    v4_9:SetAttribute("Free_Chest", true)
+                    return
+                end)
+                v5_10(function()
+                    v4_9:SetAttribute("Premium_Chest", true)
+                    return
+                end)
+                v5_10(function()
+                    v4_9:SetAttribute("Cutscene", nil)
+                    return
+                end)
+            end
+            local v5_11 = v13_8:FindFirstChild("Chest_End")
+            if v5_11 then
+                pcall(function()
+                    v5_11:Destroy()
+                    return
+                end)
+            end
+            p1.Visible = false
+            local v6_22 = ((v7_13 or v6_21.LocalPlayer)):FindFirstChild("PlayerGui")
+            local v7_11 = v6_22 and v6_22:FindFirstChild("Interface")
+            local v8_9 = v7_11 and v7_11:FindFirstChild("Rewards")
+            if v8_9 then
+                v8_9.Visible = true
+                local v9_5 = v8_9:FindFirstChild("Main")
+                if v9_5 then
+                    v9_5.Visible = true
+                    v9_5.GroupTransparency = 0
+                end
+            end
+            return
+        end)
+        task.wait(0.5)
+        v117_3 = false
+        return
+    end
+    v115_3 = function()
+        if v116_3 then
+            v116_3:Disconnect()
+            v116_3 = nil
+        end
+        if v118_3 then
+            task.cancel(v118_3)
+            v118_3 = nil
+        end
+        v117_3 = false
+        return
+    end
+    v114_3 = function()
+        v115_3()
+        v118_3 = task.spawn(function()
+            local v1_3 = v7_13:WaitForChild("PlayerGui", 15)
+            local v2 = v1_3 and v1_3:WaitForChild("Interface", 15)
+            local v3_3 = v2 and v2:WaitForChild("Chests", 15)
+            if not v3_3 or not v40_2 then
+                return
+            end
+            if v3_3.Visible then
+                task.spawn(function()
+                    v119_3(v3_3)
+                    return
+                end)
+            end
+            v116_3 = v3_3:GetPropertyChangedSignal("Visible"):Connect(function()
+                if not v40_2 or not v3_3.Visible then
+                    return
+                end
+                task.spawn(function()
+                    v119_3(v3_3)
+                    return
+                end)
+                return
+            end)
+            v118_3 = nil
+            return
+        end)
+        return
+    end
+    local v119_4 = {}
+    local v120_3 = {}
+    v116_4 = function(p1)
+        local v2 = p1 or v23_2
+        local searchFolders = {
+            v13_8:FindFirstChild("Titans"),
+            v13_8:FindFirstChild("Boss"),
+            v13_8:FindFirstChild("Bosses"),
+            v13_8:FindFirstChild("Shifters"),
+            v13_8:FindFirstChild("Raid"),
+            v13_8:FindFirstChild("Enemies"),
+            v13_8:FindFirstChild("Spawns"),
+            v13_8:FindFirstChild("Living"),
+            v13_8:FindFirstChild("Entities")
+        }
+        local allModels = {}
+        for _, fld in ipairs(searchFolders) do
+            if fld then
+                for _, child in ipairs(fld:GetChildren()) do
+                    if child:IsA("Model") and not v90_2(child) then
+                        table.insert(allModels, child)
+                    end
+                end
+            end
+        end
+        for _, child in ipairs(v13_8:GetChildren()) do
+            if child:IsA("Model") and not v90_2(child) and (child.Name:find("Titan") or child.Name:find("Boss") or (v150_10.IsBossModel and v150_10.IsBossModel(child))) then
+                table.insert(allModels, child)
+            end
+        end
+
+        for _, v8 in ipairs(allModels) do
+            local v9 = v89_2(v8) or v8:FindFirstChild("Nape", true)
+            if v9 and v9:IsA("BasePart") then
+                if not v119_4[v8] then
+                    v119_4[v8] = v9.Size
+                end
+                if not v150_10.OriginalSizes[v9] then
+                    v150_10.OriginalSizes[v9] = v119_4[v8]
+                end
+                v9.CanCollide = false
+                v9.CanTouch = true
+                if 0.01 < math.abs(math.max(v9.Size.X, v9.Size.Y, v9.Size.Z) - v2) then
+                    v9.Size = Vector3.new(v2, v2, v2)
+                end
+            end
+
+            -- Tắt CanTouch ở toàn bộ bộ phận cơ thể khác để tỉ lệ chém vào người là cực thấp, 100% trúng gáy
+            local v11_2 = v8:FindFirstChild("Hitboxes")
+            if v11_2 then
+                for _, desc in ipairs(v11_2:GetDescendants()) do
+                    if desc:IsA("BasePart") then
+                        if desc.Name == "Nape" then
+                            desc.CanTouch = true
+                            desc.CanCollide = false
+                        else
+                            desc.CanTouch = false
+                        end
+                    end
+                end
+            end
+        end
+        for v7_2, v8_2 in pairs(v119_4) do
+            if not v7_2.Parent then
+                v119_4[v7_2] = nil
+            end
+        end
+        return
+    end
+    v117_4 = function()
+        for v5, v6 in ipairs(v88_2()) do
+            local v9 = v89_2(v6) or v6:FindFirstChild("Nape", true)
+            if v9 and v9:IsA("BasePart") then
+                if v119_4[v6] then
+                    v9.Size = v119_4[v6]
+                    v119_4[v6] = nil
+                    v150_10.OriginalSizes[v9] = nil
+                end
+            end
+            local v11_2 = v6:FindFirstChild("Hitboxes")
+            local v12_5 = v11_2 and v11_2:FindFirstChild("Hit")
+            if v12_5 then
+                for _, part in ipairs(v12_5:GetChildren()) do
+                    if part:IsA("BasePart") then
+                        part.CanTouch = true
+                    end
+                end
+            end
+        end
+        for v5_2, v6_2 in pairs(v119_4) do
+            if not v5_2.Parent then
+                v119_4[v5_2] = nil
+            end
+        end
+        return
+    end
+    v121_3 = function()
+        if not v24_2 then
+            return
+        end
+        local v2_2 = {}
+        for v6, v7 in ipairs(v88_2()) do
+            v2_2[v7] = true
+            local v10_2 = v7:FindFirstChild("Hitboxes")
+            local v8_2
+            if not v10_2 then
+                v8_2 = nil
+            else
+                local v11_5 = v10_2:FindFirstChild("Hit")
+                if not v11_5 then
+                    v8_2 = nil
+                else
+                    v8_2 = v11_5:FindFirstChild("Nape")
+                end
+            end
+            if v8_2 and v8_2:IsA("BasePart") then
+                if not v120_3[v7] then
+                    local v9_9 = Instance.new("SelectionBox")
+                    v9_9.Color3 = Color3.fromRGB(255, 50, 50)
+                    v9_9.LineThickness = 0.08
+                    v9_9.SurfaceTransparency = 1
+                    v9_9.Adornee = v8_2
+                    v9_9.Parent = v13_8.CurrentCamera
+                    v120_3[v7] = v9_9
+                end
+            end
+        end
+        for v6_2, v7_2 in pairs(v120_3) do
+            if not v2_2[v6_2] then
+                if v7_2 and v7_2.Parent then
+                    v7_2:Destroy()
+                end
+                v120_3[v6_2] = nil
+            end
+        end
+        return
+    end
+    v118_4 = function()
+        for v4, v5 in pairs(v120_3) do
+            if v5 and v5.Parent then
+                v5:Destroy()
+            end
+        end
+        v120_3 = {}
+        return
+    end
+end
+do
+    local v122_2 = 0
+    v14_9.Heartbeat:Connect(function()
+        local v1_2 = os.clock()
+        if 0.5 > v1_2 - v122_2 then
+            return
+        end
+        v122_2 = v1_2
+        if v22_2 then
+            v116_4(v23_2)
+        end
+        if v24_2 then
+            v121_3()
+        end
+        return
+    end)
+end
+local v121_4, v122_3, v123_4, v127_2, v128_2, v129_4, v50_2
+do
+    local function v119_5(p1)
+        local v2 = v89_2(p1) or p1 and p1:FindFirstChild("HumanoidRootPart")
+        if not v2 then
+            return nil
+        end
+        if v73_2() then
+            local hoverY = 40 + v60_2
+            return CFrame.lookAt(v2.Position + Vector3.new(0, hoverY, 12), v2.Position)
+        end
+        local hoverY = 30 + v60_2
+        return CFrame.lookAt(v2.Position + Vector3.new(0, hoverY, 6), v2.Position)
+    end
+    local function v120_4(p1)
+        local v3 = math
+        local v2 = v3.huge
+        local v3_2 = -v3.huge
+        for v7, v8 in ipairs(p1:GetDescendants()) do
+            if v8:IsA("BasePart") then
+                local v9_4 = v8.Position.Y + v8.Size.Y / 2
+                local v10_4 = v8.Position.Y - v8.Size.Y / 2
+                if v3_2 < v9_4 then
+                    v3_2 = v9_4
+                end
+                if v10_4 < v2 then
+                    v2 = v10_4
+                end
+            end
+        end
+        if v3_2 == -math.huge then
+            return 0
+        end
+        return v3_2 - v2
+    end
+    v121_4 = function(p1)
+        local containers = {
+            v13_8:FindFirstChild("Titans"),
+            v13_8:FindFirstChild("Enemies"),
+            v13_8:FindFirstChild("Spawns"),
+            v13_8:FindFirstChild("Raid"),
+            v13_8:FindFirstChild("Boss"),
+            v13_8:FindFirstChild("Bosses"),
+            v13_8:FindFirstChild("Shifters")
+        }
+        local v3_6 = nil
+        local v4_2 = -math.huge
+        for _, c in ipairs(containers) do
+            if c then
+                for _, v9 in ipairs(c:GetChildren()) do
+                    if v9:IsA("Model") and v9 ~= p1 and v91_2(v9) then
+                        local v10_5 = v120_4(v9)
+                        if v10_5 > v4_2 then
+                            v4_2 = v10_5
+                            v3_6 = v9
+                        end
+                    end
+                end
+            end
+        end
+        return v3_6
+    end
+    v122_3 = function(p1)
+        local containers = {
+            v13_8:FindFirstChild("Titans"),
+            v13_8:FindFirstChild("Enemies"),
+            v13_8:FindFirstChild("Spawns"),
+            v13_8:FindFirstChild("Raid"),
+            v13_8:FindFirstChild("Boss"),
+            v13_8:FindFirstChild("Bosses"),
+            v13_8:FindFirstChild("Shifters")
+        }
+        local v3_6 = {}
+        local visited = {}
+        for _, c in ipairs(containers) do
+            if c then
+                for _, v8 in ipairs(c:GetChildren()) do
+                    if v8:IsA("Model") and v8 ~= p1 and not visited[v8] and v91_2(v8) then
+                        visited[v8] = true
+                        local nape = v89_2(v8)
+                        if nape then
+                            table.insert(v3_6, v8)
+                        end
+                    end
+                end
+            end
+        end
+        if #v3_6 == 0 then
+            return nil
+        end
+        if #v3_6 == 1 then
+            return v3_6[1]
+        end
+        local v4_9 = v3_6[1]
+        local v5_7 = -1
+        for v9_5, v10_4 in ipairs(v3_6) do
+            local v13_4 = v10_4:FindFirstChild("Hitboxes")
+            local v11_6
+            if not v13_4 then
+                v11_6 = nil
+            else
+                local v14_7 = v13_4:FindFirstChild("Hit")
+                if not v14_7 then
+                    v11_6 = nil
+                else
+                    v11_6 = v14_7:FindFirstChild("Nape")
+                end
+            end
+            local v12_8 = v11_6 and v11_6.Position
+            if v12_8 then
+                local v13_11 = 0
+                for v17_3, v18_2 in ipairs(v3_6) do
+                    local v21_3 = v18_2:FindFirstChild("Hitboxes")
+                    local v19_2
+                    if not v21_3 then
+                        v19_2 = nil
+                    else
+                        local v22_6 = v21_3:FindFirstChild("Hit")
+                        if not v22_6 then
+                            v19_2 = nil
+                        else
+                            v19_2 = v22_6:FindFirstChild("Nape")
+                        end
+                    end
+                    if v19_2 and ((v19_2.Position - v12_8)).Magnitude <= 135 then
+                        v13_11 = v13_11 + 1
+                    end
+                end
+                if v5_7 < v13_11 then
+                    v5_7 = v13_11
+                    v4_9 = v10_4
+                end
+            end
+        end
+        return v4_9
+    end
+    local v126_2 = 0
+    local function v124_3(p1)
+        if not p1 or not p1.Parent then
+            return false
+        end
+        local v2_4 = p1:FindFirstChild("Watch_Tower")
+        if not v2_4 then
+            return false
+        end
+        if v2_4:FindFirstChild("H") then
+            return false
+        end
+        local v3_9 = p1:FindFirstChild("Circle")
+        if not v3_9 then
+            return false
+        end
+        local v4_7 = v3_9:FindFirstChild("Beam1")
+        if not v4_7 or not v4_7:IsA("BasePart") then
+            return false
+        end
+        return true
+    end
+    local function v125_3(p1)
+        local v2 = p1 and p1:FindFirstChild("Circle")
+        local v3_2 = v2 and v2:FindFirstChild("Hitbox")
+        if v3_2 and v3_2:IsA("BasePart") then
+            pcall(function()
+                if not v150_10.OriginalSizes[v3_2] then
+                    v150_10.OriginalSizes[v3_2] = v3_2.Size
+                end
+                v3_2.Size = Vector3.new(1984, 1984, 1984)
+                return
+            end)
+        end
+        return
+    end
+    v123_4 = function()
+        for v4, v5 in ipairs(v13_8:GetChildren()) do
+            if v5:IsA("Model") and v5.Name:find("WatchTower") then
+                v125_3(v5)
+                if v124_3(v5) then
+                    return v5
+                end
+            end
+        end
+        local v1_3 = v13_8:FindFirstChild("Map") or v13_8:FindFirstChild("Unclimbable")
+        if v1_3 then
+            for v5_3, v6_9 in ipairs(v1_3:GetChildren()) do
+                if v6_9:IsA("Model") and v6_9.Name:find("WatchTower") then
+                    v125_3(v6_9)
+                    if v124_3(v6_9) then
+                        return v6_9
+                    end
+                end
+            end
+        end
+        local v2_10 = os.clock()
+        if 2 < v2_10 - v126_2 then
+            v126_2 = v2_10
+            local v3_12 = v13_8:FindFirstChild("Map")
+            if v3_12 then
+                for v7_11, v8_7 in ipairs(v3_12:GetDescendants()) do
+                    if v8_7:IsA("Model") and v8_7.Name:find("WatchTower") then
+                        v125_3(v8_7)
+                        if v124_3(v8_7) then
+                            return v8_7
+                        end
+                    end
+                end
+            end
+        end
+        return nil
+    end
+    local function v126_3(p1, p2, p3)
+        if not p1 or not p3 then
+            return
+        end
+        v55_2 = p3
+        p1.CFrame = p3
+        if p2 then
+            p2.PlatformStand = true
+        end
+        pcall(function()
+            p1.AssemblyLinearVelocity = Vector3.zero
+            p1.AssemblyAngularVelocity = Vector3.zero
+        end)
+        return
+    end
+    v127_2 = function(p1)
+        if not p1 or not v91_2(p1) then
+            return
+        end
+        if v150_10.BreakingStreak or v53_2 or v61_2.IsUpgrading or v61_2.IsRetrievingSkillCrate or v48_3 and v52_2 then
+            return
+        end
+        local v2_4 = v71_3()
+        if not v2_4 then
+            return
+        end
+        local v3_7 = v2_4:FindFirstChild("HumanoidRootPart")
+        local v4_4 = v2_4:FindFirstChild("Humanoid")
+        local v5_4 = v119_5(p1)
+        if v3_7 and v5_4 then
+            v126_3(v3_7, v4_4, v5_4)
+        end
+        return
+    end
+    v128_2 = function()
+        if not (v18_4 or v48_3) then
+            if v54_2 then
+                v54_2:Disconnect()
+                v54_2 = nil
+            end
+            v55_2 = nil
+            local v2_9 = v71_3()
+            local v3_2 = v2_9 and v2_9:FindFirstChild("Humanoid")
+            if v3_2 then
+                v3_2.PlatformStand = false
+            end
+            return
+        end
+        if v54_2 then
+            return
+        end
+        v54_2 = v14_9.Heartbeat:Connect(function()
+            if not (v18_4 or v48_3) then
+                if v54_2 then
+                    v54_2:Disconnect()
+                    v54_2 = nil
+                end
+                v55_2 = nil
+                local v2_9 = v71_3()
+                local v3_2 = v2_9 and v2_9:FindFirstChild("Humanoid")
+                if v3_2 then
+                    v3_2.PlatformStand = false
+                end
+                return
+            end
+            if v150_10.BreakingStreak or v53_2 or v61_2.IsRetrievingSkillCrate then
+                return
+            end
+            local v2_11 = v71_3()
+            if not v2_11 then
+                return
+            end
+            local v3_7 = v2_11:FindFirstChild("Humanoid")
+            if not v3_7 or 0 >= v3_7.Health then
+                return
+            end
+            local v4_6 = v2_11:FindFirstChild("HumanoidRootPart")
+            if not v4_6 then
+                return
+            end
+            if v61_2.RefillHoldCFrame and (v35_2 or v26_2) then
+                v126_3(v4_6, v3_7, v61_2.RefillHoldCFrame)
+                return
+            end
+            if v61_2.IsUpgrading and v61_2.TargetCFrame then
+                v126_3(v4_6, v3_7, v61_2.TargetCFrame)
+                return
+            end
+            if v13_8:FindFirstChild("Titans") ~= nil and v2_11:GetAttribute("Setup") ~= true then
+                return
+            end
+            local v6_10 = v7_13 or v6_21.LocalPlayer
+            local v7_6 = v6_10 and v6_10:FindFirstChild("PlayerGui")
+            local v8_7 = v7_6 and v7_6:FindFirstChild("Fullscreen")
+            local v9_4 = v8_7 and v8_7:FindFirstChild("Loading_Screen")
+            if v9_4 and v9_4.Visible == true then
+                return
+            end
+            local v10_4 = nil
+            if v48_3 then
+                if v52_2 and not v124_3(v52_2) then
+                    v52_2 = nil
+                end
+                if not v52_2 then
+                    v52_2 = v123_4()
+                    if v52_2 then
+                        v125_3(v52_2)
+                    end
+                end
+                if v52_2 and v124_3(v52_2) then
+                    local v12_11 = v52_2
+                    v125_3(v12_11)
+                    local v11_18 = v12_11:FindFirstChild("Circle")
+                    local v12_10 = v11_18 and v11_18:FindFirstChild("Beam1")
+                    if v12_10 and v12_10:IsA("BasePart") then
+                        v10_4 = v12_10.CFrame + Vector3.new(0, 200, 0)
+                    end
+                end
+            end
+            local v11_5 = not v10_4 and v18_4 and not v35_2 and not v26_2
+            if v11_5 then
+                if v20_2 and v91_2(v20_2) then
+                    v10_4 = v119_5(v20_2)
+                else
+                    v10_4 = v55_2 or v4_6.CFrame
+                end
+            end
+            if v10_4 then
+                v126_3(v4_6, v3_7, v10_4)
+            elseif not v18_4 and not v52_2 then
+                v3_7.PlatformStand = false
+            end
+            return
+        end)
+        return
+    end
+    do
+        local ALWAYS_SAFE_CATEGORIES = {
+            Attacks = true,
+            Hitboxes = true,
+            Spears = true,
+            Blades = true,
+            S_Rewards = true,
+            S_Equipment = true,
+            S_Data = true,
+            Data = true,
+            Slots = true,
+            Slot = true,
+            Main_Menu = true,
+            MainMenu = true,
+            Menu = true,
+            Title = true,
+            Teleport = true,
+            Family = true,
+            Skills = true,
+            Upgrades = true,
+            ODMG = true,
+            Shift = true,
+            Waves = true,
+            Cutscene = true,
+            Dialogue = true,
+            Shop = true,
+            Customisation = true,
+            Interact = true,
+            Inventory = true,
+            Profile = true,
+            Party = true,
+            S_Party = true,
+            Trade = true,
+            Trading = true,
+            S_Trading = true,
+            Quest = true,
+            Quests = true,
+            Raid = true,
+            Rewards = true,
+            Titans = true,
+            Carry = true,
+            Emote = true,
+            Chat = true,
+            Codes = true,
+            Market = true,
+            Banners = true,
+            Cosmetics = true,
+            Titles = true,
+            Achievements = true,
+            Prestiges = true,
+            Prestige = true,
+            Progression = true,
+            Missions = true,
+            S_Missions = true,
+            Mission = true,
+            Lobby = true,
+            S_Lobby = true,
+            Memories = true,
+            Memory = true,
+            Battlepass = true,
+            Leaderboard = true,
+            Clans = true
+        }
+        local INSPECTED_SAFE_CATEGORIES = {
+            Functions = true,
+            Movement = true,
+            Combat = true,
+            Stats = true,
+            Lobby = true,
+            Mission = true,
+            Settings = true
+        }
+        local SAFE_SUBACTIONS = {
+            Retry = true,
+            Finished = true,
+            Teleport = true,
+            Start = true,
+            Join = true,
+            Leave = true,
+            Select = true,
+            Equip = true,
+            Unequip = true,
+            Upgrade = true,
+            Claim = true,
+            Roll = true,
+            Spin = true,
+            Save = true,
+            Load = true
+        }
+        local SUSPICIOUS_TOKENS = {
+            "anticheat", "anti_cheat", "antiexploit", "cheat", "exploit",
+            "shadowban", "violation", "tamper", "speedhack", "noclip",
+            "hitbox", "kicklog", "banplayer", "flagplayer", "reportexploit",
+            "sanity", "detected", "macro", "autoclick", "traceback",
+            "memorycheck", " spoof"
+        }
+        local CORE_SCRIPT_WHITELIST = {
+            actor = true,
+            animate = true,
+            playermodule = true,
+            controlmodule = true,
+            cameramodule = true,
+            chat = true,
+            rbxcharactersounds = true,
+            health = true,
+            sound = true
+        }
+        local function containsToken(str, tokens)
+            if type(str) ~= "string" or str == "" then
+                return false
+            end
+            local lower = string.lower(str)
+            for _, tok in ipairs(tokens) do
+                if string.find(lower, tok, 1, true) then
+                    return true
+                end
+            end
+            return false
+        end
+        local function valueContainsSuspiciousToken(val, depth)
+            if (depth or 0) > 2 then
+                return false
+            end
+            local t = type(val)
+            if t == "string" then
+                if containsToken(val, SUSPICIOUS_TOKENS) then
+                    return true
+                end
+            elseif t == "table" then
+                for k, v in pairs(val) do
+                    if valueContainsSuspiciousToken(k, (depth or 0) + 1) or valueContainsSuspiciousToken(v, (depth or 0) + 1) then
+                        return true
+                    end
+                end
+            end
+            return false
+        end
+        local function isAntiCheatName(name)
+            if type(name) ~= "string" or name == "" then
+                return false
+            end
+            local lower = string.lower(name)
+            if CORE_SCRIPT_WHITELIST[lower] then
+                return false
+            end
+            return containsToken(lower, {
+                "anticheat", "anti_cheat", "antiexploit", "cheatdetect",
+                "securitycheck", "tamper", "ac_client", "ac_check",
+                "sanitycheck", "flagcheck", "telemetry"
+            })
+        end
+        local function isSuspiciousRemoteCall(remote, arg1, arg2, arg3, arg4)
+            if typeof(remote) ~= "Instance" then
+                return false
+            end
+            local rName = remote.Name
+            if remote == v68_2 or remote == v69_2 or rName == "POST" or rName == "GET" then
+                if type(arg1) == "string" then
+                    if ALWAYS_SAFE_CATEGORIES[arg1] then
+                        return false
+                    end
+                    if INSPECTED_SAFE_CATEGORIES[arg1] then
+                        if type(arg2) == "string" and SAFE_SUBACTIONS[arg2] and type(arg3) ~= "table" and type(arg4) ~= "table" then
+                            if not valueContainsSuspiciousToken(arg3, 0) and not valueContainsSuspiciousToken(arg4, 0) then
+                                return false
+                            end
+                        end
+                        if valueContainsSuspiciousToken(arg2, 0)
+                            or valueContainsSuspiciousToken(arg3, 0)
+                            or valueContainsSuspiciousToken(arg4, 0)
+                        then
+                            return true
+                        end
+                        return false
+                    end
+                    if valueContainsSuspiciousToken(arg1, 0)
+                        or valueContainsSuspiciousToken(arg2, 0)
+                        or valueContainsSuspiciousToken(arg3, 0)
+                        or valueContainsSuspiciousToken(arg4, 0)
+                    then
+                        return true
+                    end
+                end
+                return false
+            end
+            if containsToken(rName, SUSPICIOUS_TOKENS) then
+                return true
+            end
+            if valueContainsSuspiciousToken(arg1, 0)
+                or valueContainsSuspiciousToken(arg2, 0)
+                or valueContainsSuspiciousToken(arg3, 0)
+            then
+                return true
+            end
+            return false
+        end
+
+        function v150_10.InstallHooks()
+            if v150_10.HooksInstalled then
+                return true
+            end
+            if not (v150_10.Caps.hookmetamethod and v150_10.Caps.getnamecallmethod and v150_10.Caps.checkcaller) then
+                return false
+            end
+            local wrapC = type(newcclosure) == "function" and newcclosure or function(fn) return fn end
+            local ok = pcall(function()
+                local origNamecall
+                origNamecall = hookmetamethod(game, "__namecall", wrapC(function(self, ...)
+                    if checkcaller() then
+                        return origNamecall(self, ...)
+                    end
+                    local method = getnamecallmethod()
+                    if (method == "Kick" or method == "kick") and self == v7_13 then
+                        v150_10.BlockedKicks = v150_10.BlockedKicks + 1
+                        return nil
+                    end
+                    if method == "FireServer" or method == "fireServer" then
+                        local a1, a2, a3, a4 = ...
+                        local okCheck, shouldBlock = pcall(isSuspiciousRemoteCall, self, a1, a2, a3, a4)
+                        if okCheck and shouldBlock then
+                            v150_10.BlockedRemotes = v150_10.BlockedRemotes + 1
+                            return nil
+                        end
+                    elseif method == "InvokeServer" or method == "invokeServer" then
+                        local a1, a2, a3, a4 = ...
+                        local okCheck, shouldBlock = pcall(isSuspiciousRemoteCall, self, a1, a2, a3, a4)
+                        if okCheck and shouldBlock then
+                            v150_10.BlockedRemotes = v150_10.BlockedRemotes + 1
+                            return nil
+                        end
+                        local res = origNamecall(self, ...)
+                        pcall(function()
+                            if type(res) == "string" then
+                                local rl = res:lower()
+                                if rl:find("exploiter") or rl:find("blacklisted") or rl:find("shadowban") or rl:find("restricted") then
+                                    v150_10.LastModerationError = res
+                                    if v150_10.CheckShadowBan then pcall(v150_10.CheckShadowBan, false) end
+                                end
+                            elseif type(res) == "table" and res.Error and type(res.Error) == "string" then
+                                local el = res.Error:lower()
+                                if el:find("exploiter") or el:find("blacklisted") or el:find("shadowban") or el:find("restricted") then
+                                    v150_10.LastModerationError = res.Error
+                                    if v150_10.CheckShadowBan then pcall(v150_10.CheckShadowBan, false) end
+                                end
+                            end
+                        end)
+                        return res
+                    end
+                    return origNamecall(self, ...)
+                end))
+
+                local origIndex
+                origIndex = hookmetamethod(game, "__index", wrapC(function(self, key)
+                    if checkcaller() then
+                        return origIndex(self, key)
+                    end
+                    if key == "Size" then
+                        local origSize = v150_10.OriginalSizes[self]
+                        if origSize ~= nil then
+                            return origSize
+                        end
+                    elseif key == "CanTouch" then
+                        if v150_10.OriginalSizes[self] ~= nil then
+                            return true
+                        end
+                    elseif key == "CollisionGroup" then
+                        if v150_10.OriginalSizes[self] ~= nil then
+                            return "Default"
+                        end
+                    elseif key == "CanCollide" and v19_3 then
+                        local okCol, isCharPart = pcall(function()
+                            local char = v7_13 and v7_13.Character
+                            return char ~= nil and typeof(self) == "Instance" and self:IsDescendantOf(char)
+                        end)
+                        if okCol and isCharPart then
+                            return true
+                        end
+                    elseif key == "PlatformStand" and (v18_4 or v48_3) then
+                        local okPs, isHum = pcall(function()
+                            local char = v7_13 and v7_13.Character
+                            return char ~= nil and typeof(self) == "Instance" and self == char:FindFirstChild("Humanoid")
+                        end)
+                        if okPs and isHum then
+                            return false
+                        end
+                    elseif (key == "AssemblyLinearVelocity" or key == "Velocity") and v18_4 then
+                        local okVel, isHrp = pcall(function()
+                            local char = v7_13 and v7_13.Character
+                            return char ~= nil and typeof(self) == "Instance" and
+                                self == char:FindFirstChild("HumanoidRootPart")
+                        end)
+                        if okVel and isHrp then
+                            local realVel = origIndex(self, key)
+                            if typeof(realVel) == "Vector3" and realVel.Magnitude > 80 then
+                                return realVel.Unit * 80
+                            end
+                            return realVel
+                        end
+                    end
+                    return origIndex(self, key)
+                end))
+
+                if v150_10.Caps.hookfunction and v7_13 and type(v7_13.Kick) == "function" then
+                    pcall(function()
+                        local origKick
+                        origKick = hookfunction(v7_13.Kick, wrapC(function(self, ...)
+                            if not checkcaller() and self == v7_13 then
+                                v150_10.BlockedKicks = v150_10.BlockedKicks + 1
+                                return nil
+                            end
+                            return origKick(self, ...)
+                        end))
+                    end)
+                end
+            end)
+            if ok then
+                v150_10.HooksInstalled = true
+            end
+            return ok
+        end
+
+        function v150_10.IsolateLocalAntiCheat()
+            local isolated = 0
+            local silenced = 0
+            pcall(function()
+                local containers = {
+                    v7_13 and v7_13:FindFirstChild("PlayerScripts"),
+                    v7_13 and v7_13:FindFirstChild("PlayerGui"),
+                    v7_13 and v7_13.Character
+                }
+                for _, root in ipairs(containers) do
+                    if root then
+                        for _, inst in ipairs(root:GetDescendants()) do
+                            if inst:IsA("LocalScript") and isAntiCheatName(inst.Name) and not inst.Disabled then
+                                inst.Disabled = true
+                                isolated = isolated + 1
+                            end
+                        end
+                    end
+                end
+                if type(getconnections) == "function" and v7_13 and v7_13.Character then
+                    local char = v7_13.Character
+                    local hum = char:FindFirstChild("Humanoid")
+                    local hrp = char:FindFirstChild("HumanoidRootPart")
+                    local signals = {}
+                    if hum then
+                        table.insert(signals, hum:GetPropertyChangedSignal("WalkSpeed"))
+                        table.insert(signals, hum:GetPropertyChangedSignal("JumpPower"))
+                        table.insert(signals, hum:GetPropertyChangedSignal("PlatformStand"))
+                        if hum.StateChanged then
+                            table.insert(signals, hum.StateChanged)
+                        end
+                    end
+                    if hrp then
+                        table.insert(signals, hrp:GetPropertyChangedSignal("CFrame"))
+                        table.insert(signals, hrp:GetPropertyChangedSignal("Size"))
+                        table.insert(signals, hrp:GetPropertyChangedSignal("Velocity"))
+                        table.insert(signals, hrp:GetPropertyChangedSignal("AssemblyLinearVelocity"))
+                    end
+                    for _, sig in ipairs(signals) do
+                        for _, conn in ipairs(getconnections(sig)) do
+                            if conn.Function and type(getfenv) == "function" then
+                                local okEnv, env = pcall(getfenv, conn.Function)
+                                local src = okEnv and type(env) == "table" and rawget(env, "script")
+                                if typeof(src) == "Instance" and isAntiCheatName(src.Name) then
+                                    pcall(function() conn:Disable() end)
+                                    isolated = isolated + 1
+                                    silenced = silenced + 1
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+            if isolated > 0 then
+                v150_10.IsolatedScripts = v150_10.IsolatedScripts + isolated
+            end
+            if silenced > 0 then
+                v150_10.SilencedConnections = (v150_10.SilencedConnections or 0) + silenced
+            end
+            return isolated
+        end
+
+        local gasLoopRunning = false
+        local function pulseMobileGasButton()
+            local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+            local iface = pgui and pgui:FindFirstChild("Interface")
+            if not iface then
+                return
+            end
+            for _, rootName in ipairs({ "Mobile", "HUD" }) do
+                local root = iface:FindFirstChild(rootName)
+                if root then
+                    for _, obj in ipairs(root:GetDescendants()) do
+                        if obj:IsA("GuiButton") and obj.Visible then
+                            local lname = string.lower(obj.Name)
+                            if lname == "gas" or lname == "boost" or lname == "odmg_boost" then
+                                if type(firesignal) == "function" then
+                                    pcall(function() firesignal(obj.MouseButton1Down) end)
+                                    pcall(function() firesignal(obj.Activated) end)
+                                    task.delay(0.25, function()
+                                        pcall(function() firesignal(obj.MouseButton1Up) end)
+                                    end)
+                                end
+                                return
+                            end
+                        end
+                    end
+                end
+            end
+        end
+
+        function v150_10.StopAutoGas()
+            gasLoopRunning = false
+            pcall(function()
+                v17_6:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+            end)
+        end
+
+        function v150_10.StartAutoGas()
+            if gasLoopRunning then
+                return
+            end
+            gasLoopRunning = true
+            task.spawn(function()
+                while v18_4 and gasLoopRunning do
+                    if v13_8:FindFirstChild("Titans") ~= nil and v87_2() then
+                        pcall(function()
+                            v17_6:SendKeyEvent(true, Enum.KeyCode.Space, false, game)
+                        end)
+                        pcall(pulseMobileGasButton)
+                        task.wait(0.25)
+                        pcall(function()
+                            v17_6:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                        end)
+                    end
+                    task.wait(0.55)
+                end
+                gasLoopRunning = false
+                pcall(function()
+                    v17_6:SendKeyEvent(false, Enum.KeyCode.Space, false, game)
+                end)
+            end)
+        end
+
+        local lastGcScan = -100
+        local lastResetAttempt = -100
+        local streakNotified = false
+        local streakResetting = false
+
+        local function isLobbyPlace()
+            return game.PlaceId == 14916516914 or game.PlaceId == 13379208636
+        end
+
+        local function readNumericField(tbl, keys)
+            if type(tbl) ~= "table" then
+                return nil
+            end
+            for _, k in ipairs(keys) do
+                local v = rawget(tbl, k)
+                if type(v) == "number" then
+                    return v
+                end
+            end
+            return nil
+        end
+
+        local function parseHudNumber(text)
+            if type(text) ~= "string" or text == "" or text:find("/", 1, true) then
+                return nil
+            end
+            local num = tonumber((text:gsub(",", "")):match("(%d+)"))
+            return num
+        end
+
+        function v150_10.GetKillStreak()
+            local best = 0
+            local function bump(val)
+                if type(val) == "number" and val > best then
+                    best = val
+                end
+            end
+
+            pcall(function()
+                local char = v71_3()
+                for _, src in ipairs({ v7_13, char }) do
+                    if src then
+                        for _, attr in ipairs({ "Streak", "KillStreak", "Kill_Streak", "TitansStreak" }) do
+                            bump(tonumber(src:GetAttribute(attr)))
+                        end
+                    end
+                end
+                local ls = v7_13 and v7_13:FindFirstChild("leaderstats")
+                if ls then
+                    for _, cname in ipairs({ "Streak", "KillStreak", "Kill Streak" }) do
+                        local st = ls:FindFirstChild(cname)
+                        if st and st.Value ~= nil then
+                            bump(tonumber(st.Value))
+                        end
+                    end
+                end
+            end)
+
+            pcall(function()
+                local host = _G.__CachedCustHost or _G.__CachedHost
+                if type(host) ~= "table" and type(getgc) == "function" and os.clock() - lastGcScan >= 12 then
+                    lastGcScan = os.clock()
+                    for _, obj in ipairs(getgc(true)) do
+                        if type(obj) == "table" and type(rawget(obj, "Cache")) == "table" and type(rawget(obj, "Modules")) == "table" then
+                            host = obj
+                            _G.__CachedHost = obj
+                            break
+                        end
+                    end
+                end
+                if type(host) == "table" then
+                    local data, slot = nil, nil
+                    local mods = rawget(host, "Modules")
+                    local upd = type(mods) == "table" and rawget(mods, "Update")
+                    if type(upd) == "table" and type(upd.Get_Data) == "function" then
+                        local okD, d, s = pcall(upd.Get_Data, host, true)
+                        if okD then
+                            data, slot = d, s
+                        end
+                    end
+                    if not data and type(rawget(host, "Cache")) == "table" then
+                        data = rawget(host.Cache, "Data")
+                    end
+                    if not slot and type(data) == "table" and type(data.Slots) == "table" and data.Current_Slot then
+                        slot = data.Slots[data.Current_Slot]
+                    end
+                    local streakKeys = { "Streak", "Kill_Streak", "KillStreak" }
+                    bump(readNumericField(data, streakKeys))
+                    bump(readNumericField(slot, streakKeys))
+                    if type(slot) == "table" then
+                        bump(readNumericField(rawget(slot, "Stats"), streakKeys))
+                        bump(readNumericField(rawget(slot, "Records"), streakKeys))
+                    end
+                end
+            end)
+
+            pcall(function()
+                local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+                local iface = pgui and pgui:FindFirstChild("Interface")
+                local hud = iface and iface:FindFirstChild("HUD")
+                if not hud then
+                    return
+                end
+                for _, obj in ipairs(hud:GetDescendants()) do
+                    if obj:IsA("TextLabel") and obj.Visible ~= false then
+                        local lname = string.lower(obj.Name)
+                        local pname = obj.Parent and string.lower(obj.Parent.Name) or ""
+                        local ltext = string.lower(obj.Text or "")
+                        local isIgnored = ltext:find("best", 1, true) or ltext:find("max", 1, true) or
+                            ltext:find("high", 1, true) or pname:find("best", 1, true)
+                        if not isIgnored then
+                            if lname:find("streak", 1, true) or pname:find("streak", 1, true) or ltext:find("streak", 1, true) then
+                                bump(parseHudNumber(obj.Text))
+                            elseif (lname == "amount" and pname == "kills") or lname == "kills" or ltext:match("^kills%s*:") then
+                                bump(parseHudNumber(obj.Text))
+                            end
+                        end
+                    end
+                end
+            end)
+
+            v150_10.CurrentKillStreak = best
+            return best
+        end
+
+        function v150_10.PerformStreakReset()
+            if streakResetting then
+                return
+            end
+            streakResetting = true
+            lastResetAttempt = os.clock()
+            task.spawn(function()
+                pcall(function()
+                    local char = v71_3()
+                    local hum = char and char:FindFirstChild("Humanoid")
+                    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                    if not (char and hum and hum.Health > 0) then
+                        return
+                    end
+                    v150_10.StopAutoGas()
+                    v128_2()
+                    v96_6(true)
+                    local hb = char:FindFirstChild("Hitbox")
+                    if hb and hb:IsA("BasePart") then
+                        hb.CanTouch = true
+                    end
+                    hum.PlatformStand = false
+                    pcall(function()
+                        hum:ChangeState(Enum.HumanoidStateType.Dead)
+                    end)
+                    hum.Health = 0
+                    pcall(function()
+                        char:BreakJoints()
+                    end)
+                    task.wait(0.3)
+                    if v150_10.AutoResetStreak and v150_10.BreakingStreak and hum.Health > 0 and hrp then
+                        local titan = v121_4()
+                        local tPart = titan and
+                            (titan.PrimaryPart or titan:FindFirstChild("HumanoidRootPart") or titan:FindFirstChildWhichIsA("BasePart"))
+                        if tPart then
+                            hrp.CFrame = tPart.CFrame * CFrame.new(0, 2, -5)
+                        end
+                    end
+                end)
+                streakResetting = false
+            end)
+        end
+
+        function v150_10.CheckAutoResetStreak()
+            if not v150_10.AutoResetStreak then
+                v150_10.BreakingStreak = false
+                streakNotified = false
+                return false
+            end
+            local streak = v150_10.GetKillStreak()
+            if isLobbyPlace() or streak <= v150_10.StreakThreshold then
+                v150_10.BreakingStreak = false
+                streakNotified = false
+                return false
+            end
+            local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+            local iface = pgui and pgui:FindFirstChild("Interface")
+            local rewards = iface and iface:FindFirstChild("Rewards")
+            if rewards and rewards.Visible == true then
+                return false
+            end
+            v150_10.BreakingStreak = true
+            v150_10.StopAutoGas()
+            if not streakNotified then
+                streakNotified = true
+                local isVi = v8_6("Language") == "Tiếng Việt"
+                pcall(function()
+                    v12_4:Notify({
+                        Title = isVi and "Hủy Chuỗi Giết" or "Auto Reset Streak",
+                        Content = isVi
+                            and ("Chuỗi giết (" .. tostring(streak) .. ") vượt quá 1000 — đang tự hủy chuỗi để tránh bị quét!")
+                            or ("Kill streak (" .. tostring(streak) .. ") exceeded 1000 — resetting streak to avoid scan!"),
+                        Duration = 5
+                    })
+                end)
+            end
+            if os.clock() - lastResetAttempt >= 2 then
+                v150_10.PerformStreakReset()
+            end
+            return true
+        end
+
+        v150_10.InstallHooks()
+        v150_10.IsolateLocalAntiCheat()
+        v7_13.CharacterAdded:Connect(function()
+            task.delay(0.5, function()
+                v150_10.IsolateLocalAntiCheat()
+            end)
+        end)
+    end
+    v13_8.DescendantAdded:Connect(function(p1)
+        if not v48_3 then
+            return
+        end
+        if p1:IsA("Model") and p1.Name:find("WatchTower") then
+            task.delay(0.2, function()
+                v125_3(p1)
+                return
+            end)
+        elseif p1.Name == "Hitbox" and p1.Parent and p1.Parent.Name == "Circle" and p1.Parent.Parent and p1.Parent.Parent.Name:find("WatchTower") then
+            pcall(function()
+                if not v150_10.OriginalSizes[p1] then
+                    v150_10.OriginalSizes[p1] = p1.Size
+                end
+                p1.Size = Vector3.new(1984, 1984, 1984)
+                return
+            end)
+        end
+        return
+    end)
+    v129_4 = nil
+    local v130_3 = {}
+    v50_2 = function()
+        if not v49_2 then
+            return
+        end
+        local v1_4 = v13_8:FindFirstChild("Unclimbable")
+        if not v1_4 then
+            return
+        end
+        local v2_5 = tick()
+        for v6 in pairs(v130_3) do
+            local v8 = not v6.Parent
+            if not v8 then
+                v8 = v2_5 > (v130_3[v6] or 0)
+            end
+            if v8 then
+                v130_3[v6] = nil
+            end
+        end
+        local v3_4 = {}
+        for v7, v8_2 in ipairs(v1_4:GetChildren()) do
+            if v8_2:IsA("Model") and v8_2.Name:find("ThunderSpear") then
+                if not v130_3[v8_2] or v130_3[v8_2] < v2_5 then
+                    table.insert(v3_4, v8_2)
+                end
+            end
+        end
+        if #v3_4 == 0 then
+            return
+        end
+        local v4_7 = v7_13.Character
+        local v5_7 = v4_7 and v4_7:FindFirstChild("HumanoidRootPart")
+        if not v5_7 then
+            return
+        end
+        v53_2 = true
+        for v9_10, v10_7 in ipairs(v3_4) do
+            if not v49_2 then
+                break
+            else
+                v130_3[v10_7] = tick() + 4
+                local v11_8 = v10_7:FindFirstChild("Hitbox") or v10_7:FindFirstChild("Hitbox", true)
+                if v11_8 and v11_8:IsA("BasePart") then
+                    pcall(function()
+                        if not v150_10.OriginalSizes[v11_8] then
+                            v150_10.OriginalSizes[v11_8] = v11_8.Size
+                        end
+                        v11_8.Size = Vector3.new(1984, 1984, 1984)
+                        return
+                    end)
+                    v5_7.CFrame = v11_8.CFrame
+                    pcall(function()
+                        local v1 = v5_7
+                        local v3 = Vector3
+                        v1.AssemblyLinearVelocity = v3.zero
+                        v1.AssemblyAngularVelocity = v3.zero
+                        return
+                    end)
+                    task.wait(0.2)
+                elseif v10_7.PrimaryPart then
+                    v5_7.CFrame = v10_7.PrimaryPart.CFrame
+                    task.wait(0.2)
+                end
+            end
+        end
+        if v49_2 then
+            local v6_12 = v1_4:FindFirstChild("Supplies_Circle")
+            if v6_12 then
+                local v7_8 = v6_12:FindFirstChild("Hitbox") or v6_12:FindFirstChild("Hitbox", true)
+                if v7_8 and v7_8:IsA("BasePart") then
+                    pcall(function()
+                        v7_8.Size = Vector3.new(1984, 1984, 1984)
+                        return
+                    end)
+                    v5_7.CFrame = v7_8.CFrame
+                    pcall(function()
+                        local v1 = v5_7
+                        local v3 = Vector3
+                        v1.AssemblyLinearVelocity = v3.zero
+                        v1.AssemblyAngularVelocity = v3.zero
+                        return
+                    end)
+                    task.wait(0.2)
+                elseif v6_12.PrimaryPart then
+                    v5_7.CFrame = v6_12.PrimaryPart.CFrame
+                    task.wait(0.2)
+                end
+            end
+        end
+        v53_2 = false
+        return
+    end
+end
+local function v51_2()
+    if v129_4 then
+        return
+    end
+    v129_4 = task.spawn(function()
+        while true do
+            if v49_2 then
+                v50_2()
+                task.wait(0.5)
+            else
+                v129_4 = nil
+                return
+            end
+        end
+    end)
+    return
+end
+do
+    local v131_2 = v13_8:FindFirstChild("Unclimbable")
+    if v131_2 then
+        if v131_2 then
+            v131_2.ChildAdded:Connect(function(p1)
+                if v49_2 and p1:IsA("Model") and p1.Name:find("ThunderSpear") then
+                    task.delay(0.1, v50_2)
+                end
+                return
+            end)
+        end
+    end
+end
+v13_8.ChildAdded:Connect(function(p1)
+    if p1.Name == "Unclimbable" then
+        if p1 then
+            p1.ChildAdded:Connect(function(p1)
+                if v49_2 and p1:IsA("Model") and p1.Name:find("ThunderSpear") then
+                    task.delay(0.1, v50_2)
+                end
+                return
+            end)
+        end
+    end
+    return
 end)
+local v130_4, v63_9, v62_3, v148_4
+do
+    local function v129_5()
+        local v1 = v7_13:FindFirstChild("PlayerGui") and v7_13.PlayerGui:FindFirstChild("Interface")
+        if v1 then
+            local v2_5 = v1:FindFirstChild("Upgrade")
+            local v3_3 = v2_5 and v2_5:FindFirstChild("Gold") and v2_5.Gold:FindFirstChild("Title")
+            if v3_3 and v3_3.Text and v3_3.Text ~= "" then
+                local v5_4 = tonumber(v3_3.Text:gsub(",", ""):gsub("%s+", ""):gsub("%$", ""))
+                if v5_4 then
+                    return v5_4
+                end
+            end
+            local v4_13 = v1:FindFirstChild("Equipment")
+            local v5_9 = v4_13 and v4_13:FindFirstChild("Gold") and v4_13.Gold:FindFirstChild("Title")
+            if v5_9 and v5_9.Text and v5_9.Text ~= "" then
+                local v7_7 = tonumber(v5_9.Text:gsub(",", ""):gsub("%s+", ""):gsub("%$", ""))
+                if v7_7 then
+                    return v7_7
+                end
+            end
+            local v6_18 = v1:FindFirstChild("HUD")
+            local v7_12 = v6_18 and v6_18:FindFirstChild("Main") and v6_18.Main:FindFirstChild("Top")
+            local v8_9 = v7_12 and
+                (v7_12:FindFirstChild("2") and v7_12["2"]:FindFirstChild("Gold") or v7_12:FindFirstChild("Gold", true))
+            local v9_7 = v8_9 and v8_9:FindFirstChild("Title")
+            if v9_7 and v9_7.Text and v9_7.Text ~= "" then
+                local v11_4 = tonumber(v9_7.Text:gsub(",", ""):gsub("%s+", ""):gsub("%$", ""))
+                if v11_4 then
+                    return v11_4
+                end
+            end
+        end
+        return 0
+    end
+    v130_4 = function()
+        if not v61_2.AutoVoteReady then
+            return
+        end
+        if not v68_2 then
+            return
+        end
+        local v1_3 = v7_13:FindFirstChild("PlayerGui") and v7_13.PlayerGui:FindFirstChild("Interface")
+        local v2_6 = v1_3 and v1_3:FindFirstChild("Waves")
+        local v3_5 = v2_6 and v2_6:FindFirstChild("Inner")
+        if v3_5 and v3_5.Visible and 0.5 > v3_5.GroupTransparency then
+            if not v61_2.HasVotedReady then
+                v61_2.HasVotedReady = true
+                pcall(function()
+                    v68_2:FireServer("Waves", "Update")
+                    return
+                end)
+            end
+        else
+            v61_2.HasVotedReady = false
+        end
+        return
+    end
+    local function v131_6()
+        local v1_3 = v13_8:FindFirstChild("Waves")
+        local v2 = v1_3 and v1_3:FindFirstChild("Upgrades")
+        local v3_3 = v2 and v2:FindFirstChild("Max")
+        if not v3_3 then
+            return false
+        end
+        if v3_3:GetAttribute("Cost") == 0 then
+            return true
+        end
+        local v5_5 = v7_13:FindFirstChild("PlayerGui") and v7_13.PlayerGui:FindFirstChild("Interface")
+        local v6_5 = v5_5 and v5_5:FindFirstChild("Upgrade")
+        local v7_4 = v6_5 and v6_5:FindFirstChild("Main") and v6_5.Main:FindFirstChild("Upgrades") and
+            v6_5.Main.Upgrades:FindFirstChild("Max") and v6_5.Main.Upgrades.Max:FindFirstChild("Max_Use")
+        local v8_8 = v7_4 and v7_4:FindFirstChild("Title")
+        return v8_8 and v8_8.Text:find("MAX") ~= nil or false
+    end
+    local function v132_6()
+        local v1_3 = v13_8:FindFirstChild("Waves")
+        local v2 = v1_3 and v1_3:FindFirstChild("Upgrades")
+        local v3_3 = v2 and v2:FindFirstChild("Regen")
+        if not v3_3 then
+            return false
+        end
+        if v3_3:GetAttribute("Cost") == 0 then
+            return true
+        end
+        local v5_5 = v7_13:FindFirstChild("PlayerGui") and v7_13.PlayerGui:FindFirstChild("Interface")
+        local v6_5 = v5_5 and v5_5:FindFirstChild("Upgrade")
+        local v7_4 = v6_5 and v6_5:FindFirstChild("Main") and v6_5.Main:FindFirstChild("Upgrades") and
+            v6_5.Main.Upgrades:FindFirstChild("Regen") and v6_5.Main.Upgrades.Regen:FindFirstChild("Regen_Use")
+        local v8_8 = v7_4 and v7_4:FindFirstChild("Title")
+        return v8_8 and v8_8.Text:find("MAX") ~= nil or false
+    end
+    local function v133_4()
+        local v1_3 = v13_8:FindFirstChild("Waves")
+        local v2 = v1_3 and v1_3:FindFirstChild("Upgrades")
+        local v3_3 = v2 and v2:FindFirstChild("Refills")
+        if not v3_3 then
+            return false
+        end
+        if v3_3:GetAttribute("Cost") == 0 then
+            return true
+        end
+        local v5_5 = v7_13:FindFirstChild("PlayerGui") and v7_13.PlayerGui:FindFirstChild("Interface")
+        local v6_5 = v5_5 and v5_5:FindFirstChild("Upgrade")
+        local v7_4 = v6_5 and v6_5:FindFirstChild("Main") and v6_5.Main:FindFirstChild("Upgrades") and
+            v6_5.Main.Upgrades:FindFirstChild("Refills") and v6_5.Main.Upgrades.Refills:FindFirstChild("Refills_Use")
+        local v8_8 = v7_4 and v7_4:FindFirstChild("Title")
+        return v8_8 and v8_8.Text:find("MAX") ~= nil or false
+    end
+    local v134_3 = {
+        [1] = 500,
+        [2] = 1250,
+        [3] = 2000,
+        [4] = 3000,
+        [5] = 5000,
+        [6] = 7500,
+        [7] = 11000,
+        [8] = 17500,
+        [9] = 25000,
+        [10] = 37500,
+        [11] = 50000,
+        [12] = 70000,
+        [13] = 100000,
+        [14] = 135000,
+        [15] = 169420
+    }
+    local v135_scanning = false
+    local v135_lastScan = 0
+    if tonumber(v8_6("CachedWeaponMinLevel")) and (tonumber(v61_2.CachedWeaponMinLevel) or 0) == 0 then
+        v61_2.CachedWeaponMinLevel = tonumber(v8_6("CachedWeaponMinLevel")) or 0
+    end
+    local function v135_3()
+        local lpAttr = v7_13 and v7_13:GetAttribute("WeaponMinLevel")
+        if type(lpAttr) == "number" and 0 <= lpAttr and 15 >= lpAttr then
+            v61_2.CachedWeaponMinLevel = math.max(v61_2.CachedWeaponMinLevel or 0, lpAttr)
+            v16_9["CachedWeaponMinLevel"] = v61_2.CachedWeaponMinLevel
+        end
+        local now = os.clock()
+        if not v135_scanning and (now - v135_lastScan) > 3.5 then
+            v135_scanning = true
+            v135_lastScan = now
+            task.spawn(function()
+                pcall(function()
+                    -- Direct Main Thread GC Scan First (Works on Mobile and PC without Actor)
+                    if type(getgc) == "function" then
+                        local foundData = nil
+                        for _, v in ipairs(getgc(true)) do
+                            if type(v) == "table" and rawget(v, "Currency") and rawget(v, "Progression") and rawget(v, "Upgrades") then
+                                if type(v.Currency) == "table" and type(v.Currency.Gold) == "number" then
+                                    foundData = v
+                                    break
+                                end
+                            end
+                        end
+                        if foundData and foundData.Upgrades then
+                            local w = foundData.Weapon or (v73_2() and "Spears" or "Blades")
+                            local upgs = foundData.Upgrades[w]
+                            if type(upgs) == "table" then
+                                local minLvl = 999
+                                for _, lvl in pairs(upgs) do
+                                    if type(lvl) == "number" and lvl < minLvl then
+                                        minLvl = lvl
+                                    end
+                                end
+                                if minLvl < 999 then
+                                    v61_2.CachedWeaponMinLevel = math.max(v61_2.CachedWeaponMinLevel or 0, minLvl)
+                                    v16_9["CachedWeaponMinLevel"] = v61_2.CachedWeaponMinLevel
+                                    if v7_13 then
+                                        pcall(function() v7_13:SetAttribute("WeaponMinLevel", v61_2.CachedWeaponMinLevel) end)
+                                    end
+                                end
+                            end
+                            if type(foundData.Progression) == "table" then
+                                local pLv = tonumber(foundData.Progression.Level)
+                                if pLv and pLv >= 1 and pLv <= 225 then
+                                    v156_4.Player.Level = pLv
+                                    if v7_13 then pcall(function() v7_13:SetAttribute("Level", pLv) end) end
+                                end
+                                local pPr = tonumber(foundData.Progression.Prestige)
+                                if pPr and pPr >= 0 and pPr <= 5 then
+                                    v156_4.Player.Prestige = pPr
+                                    if v7_13 then pcall(function() v7_13:SetAttribute("Prestige", pPr) end) end
+                                end
+                            end
+                            if type(foundData.Currency) == "table" and tonumber(foundData.Currency.Gold) then
+                                v156_4.Player.Gold = tonumber(foundData.Currency.Gold)
+                            end
+                        end
+                    end
 
-local function ReplayHistory(fromStack, toStack, field, verb, icon)
-	local entry = table.remove(fromStack)
-	while entry do
-		local alive = {}
-		for _, change in ipairs(entry.Changes) do
-			if not change.Element.Row.Destroyed then
-				table.insert(alive, change)
-			end
-		end
-		if #alive > 0 then
-			entry.Changes = alive
-			break
-		end
-		entry = table.remove(fromStack)
-	end
-	if not entry then
-		return false
-	end
-	History.Busy = true
-	local first, last = 1, #entry.Changes
-	local step = 1
-	if field == "Before" then
-		first, last, step = last, 1, -1
-	end
-	for index = first, last, step do
-		local change = entry.Changes[index]
-		local ok, err = pcall(RestoreSnapshot, change.Element, change[field])
-		if not ok then
-			warn("[MacUI] couldn't " .. verb:lower() .. ": " .. tostring(err))
-		end
-		Snapshots[change.Element] = Snapshot(change.Element)
-	end
-	History.Busy = false
-	entry.Time = -1 -- never merge a replayed step with the next change
-	table.insert(toStack, entry)
-	local element = entry.Changes[1].Element
-	local detail = #entry.Changes == 1 and tostring(element.Title or element.Idx or "Change") or (#entry.Changes .. " changes")
-	local window = element.Row and element.Row.Window
-	if window and window.Toast then
-		window:Toast(verb, { Detail = detail, Icon = icon })
-	end
-	return true
+                    local v1_2 = v71_3()
+                    local v2 = v1_2 and v1_2:FindFirstChild("Actor") or v66 and v66()[1]
+                    if v2 and v67_2 then
+                        v67_2(v2,
+                            "                local foundData = nil\n                for _, v in ipairs(getgc(true)) do\n                    if type(v) == \"table\" and rawget(v, \"Currency\") and rawget(v, \"Progression\") and rawget(v, \"Upgrades\") then\n                        if type(v.Currency) == \"table\" and type(v.Currency.Gold) == \"number\" then\n                            foundData = v\n                            break\n                        end\n                    end\n                end\n                local minLvl = 999\n                if foundData and foundData.Upgrades then\n                    local w = foundData.Weapon or \"Blades\"\n                    local upgs = foundData.Upgrades[w]\n                    if type(upgs) == \"table\" then\n                        for _, lvl in pairs(upgs) do\n                            if type(lvl) == \"number\" and lvl < minLvl then\n                                minLvl = lvl\n                            end\n                        end\n                    end\n                end\n                local resolvedMin = minLvl < 999 and minLvl or 0\n                local lp = game:GetService(\"Players\").LocalPlayer\n                if lp then\n                    lp:SetAttribute(\"WeaponMinLevel\", resolvedMin)\n                    if foundData and type(foundData.Currency) == \"table\" and type(foundData.Currency.Gold) == \"number\" then\n                        lp:SetAttribute(\"Symbiote_Gold\", foundData.Currency.Gold)\n                    end\n                    if foundData and type(foundData.Progression) == \"table\" then\n                        if type(foundData.Progression.Level) == \"number\" and foundData.Progression.Level <= 225 then\n                            lp:SetAttribute(\"Symbiote_Level\", foundData.Progression.Level)\n                        end\n                        if type(foundData.Progression.Prestige) == \"number\" and foundData.Progression.Prestige <= 5 then\n                            lp:SetAttribute(\"Symbiote_Prestige\", foundData.Progression.Prestige)\n                        end\n                    end\n                end\n                local chars = workspace:FindFirstChild(\"Characters\")\n                local c = (chars and lp and chars:FindFirstChild(lp.Name)) or (lp and lp.Character)\n                local myAct = c and c:FindFirstChild(\"Actor\")\n                if myAct then\n                    myAct:SetAttribute(\"WeaponMinLevel\", resolvedMin)\n                end\n            ")
+                        local v3_7 = (v7_13 and v7_13:GetAttribute("WeaponMinLevel")) or
+                            v2:GetAttribute("WeaponMinLevel")
+                        if type(v3_7) == "number" and 0 <= v3_7 and 15 >= v3_7 then
+                            v61_2.CachedWeaponMinLevel = v3_7
+                            v16_9["CachedWeaponMinLevel"] = v3_7
+                        end
+                    end
+                end)
+                v135_scanning = false
+            end)
+        end
+        return v61_2.CachedWeaponMinLevel or 0
+    end
+    local function v136_17(p1)
+        if type(p1) ~= "table" then
+            return
+        end
+        local v3_3 = p1[v73_2() and "Spears" or "Blades"]
+        if type(v3_3) == "table" then
+            local v4_3 = 999
+            for v8, v9 in pairs(v3_3) do
+                if type(v9) == "number" and v4_3 > v9 then
+                    v4_3 = v9
+                end
+            end
+            if v4_3 < 999 then
+                v61_2.CachedWeaponMinLevel = v4_3
+                local v5_8 = v71_3()
+                local v6_3 = v5_8 and v5_8:FindFirstChild("Actor") or v66 and v66()[1]
+                if v6_3 then
+                    pcall(function()
+                        v6_3:SetAttribute("WeaponMinLevel", v4_3)
+                        return
+                    end)
+                end
+            end
+        end
+        return
+    end
+    local function v137_2()
+        if 15 <= v135_3() then
+            return true
+        end
+        local v2_3 = v7_13:FindFirstChild("PlayerGui") and v7_13.PlayerGui:FindFirstChild("Interface")
+        local v3_4 = v2_3 and v2_3:FindFirstChild("Equipment")
+        local v4_4 = v3_4 and v3_4:FindFirstChild("Stat") and v3_4.Stat:FindFirstChild("Cost") and
+            v3_4.Stat.Cost:FindFirstChild("Title")
+        if v4_4 and v4_4.Text and v4_4.Text:find("MAX") then
+            return true
+        end
+        return false
+    end
+    local function v138_2()
+        if v137_2() then
+            return nil
+        end
+        local v1_4 = v7_13:FindFirstChild("PlayerGui") and v7_13.PlayerGui:FindFirstChild("Interface")
+        local v2_4 = v1_4 and v1_4:FindFirstChild("Equipment")
+        local v3_4 = v2_4 and v2_4:FindFirstChild("Stat") and v2_4.Stat:FindFirstChild("Cost") and
+            v2_4.Stat.Cost:FindFirstChild("Title")
+        if v3_4 and v3_4.Text and v3_4.Text ~= "" and not v3_4.Text:find("MAX") then
+            local v5_12 = tonumber(v3_4.Text:gsub(",", ""):gsub("%s+", ""):gsub("%$", ""))
+            if v5_12 and 0 < v5_12 then
+                return v5_12
+            end
+        end
+        local v4_14 = v135_3()
+        if 15 <= v4_14 then
+            return nil
+        end
+        local v5_15 = v134_3[v4_14 + 1]
+        if not v5_15 then
+            local v6_9 = v134_3
+            v5_15 = v6_9[#v6_9]
+        end
+        return v5_15
+    end
+    local function v139_2(p1)
+        local v2_3 = v13_8:FindFirstChild("Waves")
+        local v3 = v2_3 and v2_3:FindFirstChild("Zones")
+        local v4_3 = v3 and v3:FindFirstChild(p1)
+        if v4_3 then
+            local v5_4 = v4_3:FindFirstChild("Hitbox")
+            if v5_4 and v5_4:IsA("BasePart") then
+                v5_4.Size = Vector3.new(1984, 1984, 1984)
+                v5_4.CanCollide = false
+            end
+        end
+        return
+    end
+    local function v140_2(p1)
+        local v2_3 = v13_8:FindFirstChild("Waves")
+        if not v2_3 then
+            return nil
+        end
+        local v3_5 = v2_3:FindFirstChild("Zones")
+        local v4_2 = v3_5 and v3_5:FindFirstChild(p1)
+        if v4_2 then
+            local v5_4 = v4_2:FindFirstChild("Hitbox")
+            if v5_4 and v5_4:IsA("BasePart") then
+                return v5_4.CFrame + Vector3.new(0, 3, 0)
+            end
+            if v4_2.PrimaryPart then
+                return v4_2.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
+            end
+        end
+        local v5_6 = v2_3:FindFirstChild("NPCs")
+        local v7_6 = v5_6 and v5_6:FindFirstChild(p1 == "Upgrade" and "Cole" or "Lulu")
+        if v7_6 and v7_6.PrimaryPart then
+            return v7_6.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
+        end
+        local v8_11 = v2_3:FindFirstChild("Props")
+        local v9_7 = v8_11 and v8_11:FindFirstChild(p1)
+        if v9_7 and v9_7.PrimaryPart then
+            return v9_7.PrimaryPart.CFrame + Vector3.new(0, 3, 0)
+        end
+        return nil
+    end
+    local function v141_2(p1, p2)
+        v139_2(p1)
+        local v3_3 = v140_2(p1)
+        local v4_4 = v71_3()
+        local v5 = v4_4 and v4_4:FindFirstChild("HumanoidRootPart")
+        if v3_3 and v5 then
+            local v6_3 = v61_2
+            v6_3.IsUpgrading = true
+            v6_3.TargetCFrame = v3_3
+            v5.CFrame = v3_3
+            task.wait(0.08)
+        end
+        local v6_5 = p2()
+        local v7_5 = v61_2
+        v7_5.IsUpgrading = false
+        v7_5.TargetCFrame = nil
+        return v6_5
+    end
+    local function v142_2()
+        local v1_3 = v13_8:FindFirstChild("Waves")
+        local v2 = v1_3 and v1_3:FindFirstChild("Upgrades")
+        local v3_3 = v2 and v2:FindFirstChild("Max")
+        if not v3_3 then
+            return false
+        end
+        local v4_6 = v3_3:GetAttribute("Cost")
+        if not v4_6 or 0 >= v4_6 then
+            return false
+        end
+        if v131_6() then
+            return false
+        end
+        if v129_5() < v4_6 then
+            return false
+        end
+        if not v69_2 then
+            return false
+        end
+        return v141_2("Upgrade", function()
+            local v1_2, v2_2 = pcall(function()
+                return v69_2:InvokeServer("Waves", "Upgrade", { "Max" })
+            end)
+            return v1_2 and v2_2 ~= false and v2_2 ~= nil
+        end)
+    end
+    local function v143_2()
+        local v1_3 = v13_8:FindFirstChild("Waves")
+        local v2 = v1_3 and v1_3:FindFirstChild("Upgrades")
+        local v3_3 = v2 and v2:FindFirstChild("Regen")
+        if not v3_3 then
+            return false
+        end
+        local v4_6 = v3_3:GetAttribute("Cost")
+        if not v4_6 or 0 >= v4_6 then
+            return false
+        end
+        if v132_6() then
+            return false
+        end
+        if v4_6 > v129_5() then
+            return false
+        end
+        if not v69_2 then
+            return false
+        end
+        return v141_2("Upgrade", function()
+            local v1_2, v2_2 = pcall(function()
+                return v69_2:InvokeServer("Waves", "Upgrade", { "Regen" })
+            end)
+            return v1_2 and v2_2 ~= false and v2_2 ~= nil
+        end)
+    end
+    local function v144_2()
+        local v1_3 = v13_8:FindFirstChild("Waves")
+        local v2 = v1_3 and v1_3:FindFirstChild("Upgrades")
+        local v3_3 = v2 and v2:FindFirstChild("Refills")
+        if not v3_3 then
+            return false
+        end
+        local v4_6 = v3_3:GetAttribute("Cost")
+        if not v4_6 or v4_6 <= 0 then
+            return false
+        end
+        if v133_4() then
+            return false
+        end
+        if v129_5() < v4_6 then
+            return false
+        end
+        if not v69_2 then
+            return false
+        end
+        return v141_2("Upgrade", function()
+            local v1_2, v2_2 = pcall(function()
+                return v69_2:InvokeServer("Waves", "Upgrade", { "Refills" })
+            end)
+            return v1_2 and v2_2 ~= false and v2_2 ~= nil
+        end)
+    end
+    local function v145_2()
+        if v137_2() then
+            return false
+        end
+        local v1_5 = v138_2()
+        if not v1_5 or v1_5 <= 0 then
+            return false
+        end
+        if v129_5() < v1_5 then
+            return false
+        end
+        if not v69_2 then
+            return false
+        end
+        local v3_5
+        if v73_2() then
+            v3_5 = {
+                "Crit_Damage",
+                "TS_Damage",
+                "Crit_Chance",
+                "Blast_Radius",
+                "TS_Speed",
+                "TS_Gas",
+                "TS_Control",
+                "TS_Range"
+            }
+        else
+            v3_5 = {
+                "Crit_Damage",
+                "ODM_Damage",
+                "Crit_Chance",
+                "Blade_Durability",
+                "ODM_Speed",
+                "ODM_Gas",
+                "ODM_Control",
+                "ODM_Range"
+            }
+        end
+        return v141_2("Equipment", function()
+            local v1_2, v2_2 = pcall(function()
+                return v69_2:InvokeServer("Equipment", "Upgrade", v3_5)
+            end)
+            if v1_2 and type(v2_2) == "table" then
+                v136_17(v2_2)
+                return true
+            end
+            return v1_2 and v2_2 ~= nil and v2_2 ~= false
+        end)
+    end
+    v150_10.UpgradeCostTable = v134_3
+    v150_10.GetWeaponMinLevel = v135_3
+    v150_10.UpgradeWeaponStep = v145_2
+    v150_10.GetHudGold = v129_5
+    v63_9 = function()
+        if not v61_2.AutoGetRetrieveSkillCrate then
+            return
+        end
+        if v61_2.IsRetrievingSkillCrate then
+            return
+        end
+        if 2 > tick() - (v61_2.LastSkillCrateTimestamp or 0) then
+            return
+        end
+        local v1_6 = v13_8:FindFirstChild("Waves")
+        if not v1_6 then
+            return
+        end
+        local v2_9 = v1_6:FindFirstChild("Crates")
+        if not v2_9 then
+            return
+        end
+        local v3_6 = v7_13 or v6_21.LocalPlayer
+        if not v3_6 then
+            return
+        end
+        local v4_6 = v2_9:FindFirstChild("Crate_" .. v3_6.Name)
+        if not v4_6 or not v4_6:GetAttribute("Skill") then
+            return
+        end
+        local v5_4 = v71_3()
+        local v6_5 = v5_4 and v5_4:FindFirstChild("HumanoidRootPart")
+        if not v6_5 then
+            return
+        end
+        local v7_6 = v1_6:FindFirstChild("Props")
+        local v8_3 = v7_6 and v7_6:FindFirstChild("Dropoff")
+        local v9_3 = v8_3 and
+            (v8_3:FindFirstChild("Bottom") or v8_3.PrimaryPart or v8_3:FindFirstChildWhichIsA("BasePart"))
+        local v10_4 = v1_6:FindFirstChild("Zones")
+        local v11_2 = v10_4 and v10_4:FindFirstChild("Skills")
+        local v12_3 = v11_2 and v11_2:FindFirstChild("Hitbox")
+        if not v9_3 or not v12_3 then
+            return
+        end
+        if v12_3.Size.X > 50 then
+            v12_3.Size = Vector3.new(22.5, 33, 24)
+        end
+        local v13_9 = v61_2
+        v13_9.LastSkillCrateTimestamp = tick()
+        v13_9.IsRetrievingSkillCrate = true
+        if v4_6:GetAttribute("Occupied") ~= true then
+            local v13_11 = v4_6:FindFirstChild("Hitbox") or v4_6:FindFirstChild("Box") or v4_6.PrimaryPart or
+                v4_6:FindFirstChildWhichIsA("BasePart")
+            if v13_11 and v13_11:IsA("BasePart") then
+                v6_5.CFrame = v13_11.CFrame + Vector3.new(0, 3, 0)
+                task.wait(0.1)
+            end
+            if v4_6.Parent == v2_9 and v4_6:GetAttribute("Occupied") ~= true then
+                v6_5.CFrame = v9_3.CFrame + Vector3.new(0, 4, 0)
+                local v14_32 = 0
+                while true do
+                    if 0.3 > v14_32 and v4_6.Parent == v2_9 and v4_6:GetAttribute("Occupied") ~= true then
+                        task.wait(0.05)
+                        v14_32 = v14_32 + 0.05
+                    else
+                        break
+                    end
+                end
+            end
+        end
+        if v4_6.Parent == v2_9 and v4_6:GetAttribute("Occupied") == true then
+            v6_5.CFrame = v12_3.CFrame + Vector3.new(0, 3, 0)
+            task.wait(0.08)
+            if v69_2 then
+                pcall(function()
+                    v69_2:InvokeServer("Equipment", "Crate")
+                    return
+                end)
+            end
+            task.wait(0.08)
+        end
+        local v14_21 = game:GetService("ReplicatedStorage"):FindFirstChild("Modules")
+        local v15_9 = v14_21 and v14_21:FindFirstChild("Utilities")
+        local v16_7 = v15_9 and v15_9:FindFirstChild("Areas")
+        if v16_7 then
+            pcall(function()
+                local v1_2 = require(v16_7)
+                if v1_2 and v1_2.Open and (not v1_2.Selected or not v1_2.Selected.Object) then
+                    v1_2.Open = false
+                    v1_2.Selected = nil
+                    if v1_2.Params and v1_2.Params.FilterDescendantsInstances then
+                        for v5, v6 in pairs(v1_2.Params.FilterDescendantsInstances) do
+                            v6.CanQuery = true
+                        end
+                    end
+                end
+                return
+            end)
+        end
+        v61_2.IsRetrievingSkillCrate = false
+        return
+    end
+    local function v146_2()
+        local v2_3 = tick()
+        local v4 = v61_2
+        if v2_3 - v4.LastUpgradeTimestamp < v4.UpgradeDelay then
+            return
+        end
+        local v1_2 = {}
+        if v61_2.AutoUpgradeMaxHQHP then
+            table.insert(v1_2, {
+                Name = "Max",
+                IsMaxed = v131_6,
+                CanAfford = function()
+                    local v1_3 = v13_8:FindFirstChild("Waves")
+                    local v2 = v1_3 and v1_3:FindFirstChild("Upgrades")
+                    local v3_3 = v2 and v2:FindFirstChild("Max")
+                    local v4_3 = v3_3 and v3_3:GetAttribute("Cost")
+                    return v4_3 and 0 < v4_3 and v129_5() >= v4_3
+                end,
+                TryUpgrade = v142_2
+            })
+        end
+        if v61_2.AutoUpgradeHQHealthRegen then
+            table.insert(v1_2, {
+                Name = "Regen",
+                IsMaxed = v132_6,
+                CanAfford = function()
+                    local v1_3 = v13_8:FindFirstChild("Waves")
+                    local v2 = v1_3 and v1_3:FindFirstChild("Upgrades")
+                    local v3_3 = v2 and v2:FindFirstChild("Regen")
+                    local v4_3 = v3_3 and v3_3:GetAttribute("Cost")
+                    return v4_3 and 0 < v4_3 and v129_5() >= v4_3
+                end,
+                TryUpgrade = v143_2
+            })
+        end
+        if v61_2.AutoUpgradeRefillLimit then
+            table.insert(v1_2, {
+                Name = "Refills",
+                IsMaxed = v133_4,
+                CanAfford = function()
+                    local v1_3 = v13_8:FindFirstChild("Waves")
+                    local v2 = v1_3 and v1_3:FindFirstChild("Upgrades")
+                    local v3_3 = v2 and v2:FindFirstChild("Refills")
+                    local v4_3 = v3_3 and v3_3:GetAttribute("Cost")
+                    return v4_3 and v4_3 > 0 and v129_5() >= v4_3
+                end,
+                TryUpgrade = v144_2
+            })
+        end
+        if v61_2.AutoUpgradeWeapon then
+            table.insert(v1_2, {
+                Name = "Weapon",
+                IsMaxed = v137_2,
+                CanAfford = function()
+                    local v1_2 = v138_2()
+                    return v1_2 and 0 < v1_2 and v1_2 <= v129_5()
+                end,
+                TryUpgrade = v145_2
+            })
+        end
+        if #v1_2 == 0 then
+            return
+        end
+        if v61_2.UpgradeIndex > #v1_2 then
+            v61_2.UpgradeIndex = 1
+        end
+        local v2_16 = #v1_2
+        local v3_19 = false
+        for v4_6 = 1, v2_16 do
+            local v7 = v1_2[v61_2.UpgradeIndex]
+            if v7 then
+                if v7.IsMaxed() then
+                    local v8_4 = v61_2
+                    v8_4.UpgradeIndex = v8_4.UpgradeIndex % v2_16 + 1
+                elseif v7.CanAfford() then
+                    local v8_8 = v7.TryUpgrade()
+                    local v9_3 = v61_2
+                    v9_3.LastUpgradeTimestamp = tick()
+                    v9_3.UpgradeIndex = v9_3.UpgradeIndex % v2_16 + 1
+                    v3_19 = true
+                    break
+                else
+                    local v8_9 = v61_2
+                    v8_9.UpgradeIndex = v8_9.UpgradeIndex % v2_16 + 1
+                end
+            end
+        end
+        if not v3_19 then
+            v61_2.LastUpgradeTimestamp = tick()
+        end
+        return
+    end
+    v62_3 = function()
+        if v61_2.LoopRunning then
+            return
+        end
+        v61_2.LoopRunning = true
+        task.spawn(function()
+            while true do
+                if v61_2.LoopRunning then
+                    task.wait(1)
+                    pcall(function()
+                        v130_4()
+                        v63_9()
+                        v146_2()
+                        return
+                    end)
+                else
+                    return
+                end
+            end
+        end)
+        return
+    end
+    task.spawn(function()
+        local v1_3 = v7_13:WaitForChild("PlayerGui", 10)
+        local v2 = v1_3 and v1_3:WaitForChild("Interface", 10)
+        local v3_3 = v2 and v2:WaitForChild("Waves", 10)
+        local v4_4 = v3_3 and v3_3:WaitForChild("Inner", 5)
+        if v4_4 then
+            v4_4:GetPropertyChangedSignal("Visible"):Connect(function()
+                if v4_4.Visible and v61_2.AutoVoteReady then
+                    task.spawn(v130_4)
+                end
+                return
+            end)
+        end
+        local function v5_7(p1)
+            if not p1 or p1:GetAttribute("__SymbioteCratesConnected") then
+                return
+            end
+            p1:SetAttribute("__SymbioteCratesConnected", true)
+            p1.ChildAdded:Connect(function(p1)
+                local v2 = v7_13 or v6_21.LocalPlayer
+                if v2 and p1.Name == "Crate_" .. v2.Name then
+                    task.wait(0.1)
+                    if v61_2.AutoGetRetrieveSkillCrate then
+                        task.spawn(v63_9)
+                    end
+                end
+                return
+            end)
+            return
+        end
+        local v6_5 = v13_8:FindFirstChild("Waves")
+        if v6_5 then
+            v5_7(v6_5:FindFirstChild("Crates"))
+        end
+        v13_8.ChildAdded:Connect(function(p1)
+            if p1.Name == "Waves" then
+                local v2_2 = p1:WaitForChild("Crates", 5)
+                if v2_2 then
+                    v5_7(v2_2)
+                end
+            end
+            return
+        end)
+        return
+    end)
+    task.spawn(v62_3)
+    v148_4 = function()
+        v128_2()
+        local v1_2 = true
+        while v18_4 do
+            if not v18_4 then
+                break
+            else
+                if not v26_2 then
+                    if v73_2() and v75_2() and (v18_4 or v25_2 or v34_2) then
+                        v85_2()
+                    elseif v25_2 then
+                        local v2_13 = v77_2() and v83_2()
+                        if v2_13 then
+                            v85_2()
+                        end
+                    end
+                end
+                if not v18_4 then
+                    break
+                else
+                    if v34_2 and not v35_2 and not v26_2 and v77_2() then
+                        if v84_2() then
+                            v86_2()
+                        end
+                    end
+                    if not v18_4 then
+                        break
+                    elseif not v87_2() then
+                        task.wait(0.1)
+                    else
+                        local raidBoss = v150_10.AutoRaid and v150_10.GetRaidBoss() or nil
+                        if raidBoss and v91_2(raidBoss) then
+                            v20_2 = raidBoss
+                        elseif not v20_2 or not v91_2(v20_2) then
+                            v20_2 = v73_2() and v122_3() or v121_4()
+                        end
+
+                        if v150_10.AutoRaid and raidBoss and v91_2(raidBoss) then
+                            v20_2 = raidBoss
+                            v127_2(raidBoss)
+                            if v73_2() then
+                                if v93_2(raidBoss) then
+                                    task.wait(v57_3 and math.max(v58_2, 0.2) or 0.18)
+                                else
+                                    task.wait(0.06)
+                                end
+                            else
+                                if v97_6(raidBoss) then
+                                    task.wait(v57_3 and math.max(v58_2, 0.08) or 0.06)
+                                else
+                                    task.wait(0.05)
+                                end
+                            end
+                        elseif v59_2 then
+                            local v2_31 = v88_2()
+                            local v3_22 = {}
+                            local v4_11 = nil
+                            local v5_5 = v20_2 and v20_2.PrimaryPart and v20_2.PrimaryPart.Position
+                            for v9, v10 in ipairs(v2_31) do
+                                if v91_2(v10) then
+                                    local v11_3 = v89_2(v10)
+                                    if v11_3 then
+                                        if v10 == v20_2 then
+                                            v4_11 = { nape = v11_3, titan = v10 }
+                                        else
+                                            local v12_6 = 0
+                                            if v5_5 and v10.PrimaryPart then
+                                                v12_6 = ((v10.PrimaryPart.Position - v5_5)).Magnitude
+                                            end
+                                            table.insert(v3_22, { nape = v11_3, titan = v10, dist = v12_6 })
+                                        end
+                                    end
+                                end
+                            end
+                            table.sort(v3_22, function(p1, p2)
+                                return p2.dist > p1.dist
+                            end)
+                            if not v4_11 and #v3_22 > 0 then
+                                local v6_9 = table.remove(v3_22, 1)
+                                v20_2 = v6_9.titan
+                                v4_11 = v6_9
+                            end
+                            local v6_10 = {}
+                            for v10_2, v11_2 in ipairs(v3_22) do
+                                table.insert(v6_10, v11_2)
+                            end
+                            if v4_11 then
+                                table.insert(v6_10, v4_11)
+                            end
+                            if #v6_10 == 0 then
+                                v20_2 = nil
+                                task.wait(0.2)
+                            else
+                                for v7_18 = 1, #v6_10, 8 do
+                                    if not v87_2() or not v18_4 or not v59_2 then
+                                        break
+                                    else
+                                        local v11_9 = v72_2()
+                                        local v10_5
+                                        if not v11_9 then
+                                            v10_5 = false
+                                        else
+                                            local v12_10 = v11_9:FindFirstChild("LeftLowerArm")
+                                            local v13_14 = v11_9:FindFirstChild("RightLowerArm")
+                                            v10_5 = v12_10 and v12_10:FindFirstChild("Spears") ~= nil or
+                                                v13_14 and v13_14:FindFirstChild("Spears") ~= nil or false
+                                        end
+                                        if v10_5 then
+                                            if (v18_4 or v25_2 or v34_2) and not v26_2 and v75_2() then
+                                                v85_2()
+                                                if v75_2() then
+                                                    break
+                                                end
+                                            end
+                                        else
+                                            local v10_10
+                                            if v73_2() then
+                                                v10_10 = false
+                                            else
+                                                local v11_16 = v72_2()
+                                                if not v11_16 then
+                                                    v10_10 = false
+                                                else
+                                                    local _brk1 = false
+                                                    for v15_18, v16_10 in ipairs(v11_16:GetDescendants()) do
+                                                        if v16_10:IsA("MeshPart") and v16_10.Name:sub(1, 5) == "Blade" then
+                                                            v10_10 = true
+                                                            _brk1 = true
+                                                            break
+                                                        end
+                                                    end
+                                                    if not _brk1 then
+                                                        v10_10 = false
+                                                    end
+                                                end
+                                            end
+                                            if v10_10 then
+                                                local v10_13 = v25_2 and not v26_2 and v83_2()
+                                                if v10_13 then
+                                                    v85_2()
+                                                    if v83_2() then
+                                                        break
+                                                    end
+                                                end
+                                            end
+                                        end
+                                        local v10_19 = {}
+                                        for v11_24 = v7_18, math.min(v7_18 + 8 - 1, #v6_10) do
+                                            local v14_31 = v6_10[v11_24]
+                                            if v14_31.titan and v91_2(v14_31.titan) and v14_31.nape and v14_31.nape.Parent then
+                                                table.insert(v10_19, v14_31.titan)
+                                            end
+                                        end
+                                        if #v10_19 ~= 0 then
+                                            v127_2(v20_2)
+                                            local v12_32 = v72_2()
+                                            local v11_38
+                                            if not v12_32 then
+                                                v11_38 = false
+                                            else
+                                                local v13_30 = v12_32:FindFirstChild("LeftLowerArm")
+                                                local v14_35 = v12_32:FindFirstChild("RightLowerArm")
+                                                v11_38 = v13_30 and v13_30:FindFirstChild("Spears") ~= nil or
+                                                    v14_35 and v14_35:FindFirstChild("Spears") ~= nil or false
+                                            end
+                                            if v11_38 then
+                                                if v93_2(v10_19) then
+                                                    task.wait(v57_3 and #v6_10 >= v7_18 + 8 and math.max(v58_2, 0.35) or
+                                                        0.35)
+                                                else
+                                                    task.wait(0.1)
+                                                end
+                                            elseif v97_6(v10_19) then
+                                                task.wait(v57_3 and v7_18 + 8 <= #v6_10 and math.max(v58_2, 0.12) or 0.12)
+                                            else
+                                                task.wait(0.08)
+                                            end
+                                        end
+                                    end
+                                end
+                                task.wait(0.1)
+                            end
+                        elseif not v20_2 or not v91_2(v20_2) then
+                            task.wait(0.2)
+                        elseif not v87_2() then
+                            task.wait(0.1)
+                        else
+                            v127_2(v20_2)
+                            if not v18_4 then
+                                break
+                            elseif v73_2() then
+                                local v2_41 = v122_3(v20_2) or v20_2
+                                if v2_41 and v91_2(v2_41) then
+                                    v20_2 = v2_41
+                                    v127_2(v2_41)
+                                end
+                                local v3_36 = v2_41 and v89_2(v2_41)
+                                if v3_36 and v87_2() then
+                                    v93_2(v2_41)
+                                end
+                                local v4_23 = os.clock()
+                                local v5_12 = v57_3 and math.max(v58_2, 0.45) or 0.5
+                                while true do
+                                    if v18_4 and not v59_2 and os.clock() - v4_23 < v5_12 then
+                                        task.wait(0.04)
+                                        local v7_31 = v2_41 and v91_2(v2_41)
+                                        if not v7_31 then
+                                            break
+                                        end
+                                    else
+                                        break
+                                    end
+                                end
+                                if not v18_4 then
+                                    break
+                                else
+                                    local v7_36 = v2_41 and v91_2(v2_41)
+                                    if not v7_36 then
+                                        if v2_41 == v20_2 then
+                                            v20_2 = nil
+                                        end
+                                        if v57_3 and not v1_2 then
+                                            task.wait(v58_2)
+                                        end
+                                        v1_2 = false
+                                    end
+                                end
+                            else
+                                local v2_43 = v121_4(v20_2) or v20_2
+                                while true do
+                                    if v18_4 and not v59_2 then
+                                        task.wait(0.06)
+                                        if not v18_4 then
+                                            break
+                                        else
+                                            local v3_40 = v25_2 and not v26_2 and v83_2()
+                                            if v3_40 then
+                                                v85_2()
+                                            end
+                                            local v3_42 = v34_2 and not v35_2 and not v26_2
+                                            if v3_42 then
+                                                if v73_2() then
+                                                    v3_42 = false
+                                                else
+                                                    v3_42 = v84_2()
+                                                end
+                                            end
+                                            if v3_42 then
+                                                v86_2()
+                                            end
+                                            if not v18_4 then
+                                                break
+                                            elseif not v87_2() then
+                                            else
+                                                local v5_27 = v20_2
+                                                local v4_45 = v5_27 and v91_2(v5_27)
+                                                if not v4_45 then
+                                                    v20_2 = v121_4(v20_2)
+                                                    if not v20_2 then
+                                                        break
+                                                    end
+                                                end
+                                                local v3_51 = not v2_43
+                                                if not v3_51 then
+                                                    local v5_30 = v2_43
+                                                    local v4_50 = v5_30 and v91_2(v5_30)
+                                                    v3_51 = not v4_50
+                                                end
+                                                if v3_51 then
+                                                    if v57_3 and not v1_2 then
+                                                        task.wait(v58_2)
+                                                    end
+                                                    v1_2 = false
+                                                    v2_43 = v121_4(v20_2) or v20_2
+                                                elseif v2_43 == v20_2 then
+                                                    local v3_54 = v121_4(v20_2)
+                                                    if v3_54 then
+                                                        v2_43 = v3_54
+                                                    end
+                                                end
+                                                local v3_59 = not v2_43
+                                                if not v3_59 then
+                                                    local v5_31 = v2_43
+                                                    local v4_55 = v5_31 and v91_2(v5_31)
+                                                    v3_59 = not v4_55
+                                                end
+                                                if v3_59 then
+                                                    break
+                                                else
+                                                    local v3_60 = v89_2(v2_43)
+                                                    if v3_60 and v87_2() then
+                                                        pcall(function()
+                                                            v97_6(v2_43)
+                                                            return
+                                                        end)
+                                                        local v4_60 = os.clock()
+                                                        while true do
+                                                            if v18_4 and not v59_2 and 0.22 > os.clock() - v4_60 then
+                                                                task.wait(0.03)
+                                                                local v7_75 = v2_43
+                                                                local v6_54 = v7_75 and v91_2(v7_75)
+                                                                if not v6_54 then
+                                                                    break
+                                                                end
+                                                            else
+                                                                break
+                                                            end
+                                                        end
+                                                    end
+                                                end
+                                            end
+                                        end
+                                    else
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        v96_6(true)
+        local v2_5 = v71_3()
+        local v3_2 = v2_5 and v2_5:FindFirstChild("Hitbox")
+        if v3_2 and v3_2:IsA("BasePart") then
+            v3_2.CanTouch = true
+        end
+        v128_2()
+        v20_2 = nil
+        return
+    end
 end
-
--- Reverts the last change. Returns false when there's nothing to undo.
-function MacUI:Undo()
-	return ReplayHistory(History.Undo, History.Redo, "Before", "Undo", "undo-2")
+task.spawn(function()
+    while true do
+        repeat
+            task.wait(0.2)
+            if not v25_2 then
+                break
+            end
+            if v18_4 then
+            elseif v26_2 or v35_2 then
+            elseif v73_2() then
+                if v75_2() then
+                    v85_2()
+                end
+            elseif v77_2() then
+                if v25_2 and not v26_2 and v83_2() then
+                    v85_2()
+                end
+            end
+        until true
+    end
+end)
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        if not v34_2 then
+            v36_2 = nil
+        elseif v18_4 then
+        elseif v35_2 or v26_2 then
+        elseif v73_2() then
+            v36_2 = nil
+            if v75_2() then
+                v85_2()
+            end
+        elseif v77_2() then
+            if v84_2() then
+                task.spawn(v86_2)
+            end
+        else
+            v36_2 = nil
+        end
+    end
+end)
+local v150_6 = {}
+local function v149_8()
+    for v4, v5 in pairs(v150_6) do
+        if v5.highlight and v5.highlight.Parent then
+            v5.highlight:Destroy()
+        end
+        if v5.billboard and v5.billboard.Parent then
+            v5.billboard:Destroy()
+        end
+    end
+    v150_6 = {}
+    return
 end
-
--- Re-applies the last undone change.
-function MacUI:Redo()
-	return ReplayHistory(History.Redo, History.Undo, "After", "Redo", "redo-2")
+do
+    local function v151_3(p1)
+        if v150_6[p1] then
+            return
+        end
+        local v2_2 = p1:FindFirstChild("HumanoidRootPart") or p1:FindFirstChildWhichIsA("BasePart") or p1.PrimaryPart
+        if not v2_2 then
+            return
+        end
+        local v3_6 = Instance.new("SelectionBox")
+        v3_6.Color3 = Color3.fromRGB(120, 80, 255)
+        v3_6.LineThickness = 0.07
+        v3_6.SurfaceTransparency = 0.85
+        v3_6.SurfaceColor3 = Color3.fromRGB(120, 80, 255)
+        v3_6.Adornee = p1
+        v3_6.Parent = v13_8.CurrentCamera
+        local v4_13 = Instance.new("BillboardGui")
+        v4_13.AlwaysOnTop = true
+        v4_13.Size = UDim2.new(0, 160, 0, 50)
+        v4_13.StudsOffset = Vector3.new(0, 4, 0)
+        v4_13.Adornee = v2_2
+        v4_13.Parent = v13_8.CurrentCamera
+        local v5_15 = Instance.new("TextLabel")
+        v5_15.Size = UDim2.new(1, 0, 0.52, 0)
+        v5_15.BackgroundTransparency = 1
+        v5_15.TextColor3 = Color3.fromRGB(200, 170, 255)
+        v5_15.TextStrokeTransparency = 0.35
+        v5_15.TextStrokeColor3 = Color3.fromRGB(20, 5, 50)
+        v5_15.Font = Enum.Font.GothamBold
+        v5_15.TextSize = 14
+        v5_15.Text = "Titan"
+        v5_15.Parent = v4_13
+        local v6_22 = Instance.new("TextLabel")
+        v6_22.Size = UDim2.new(1, 0, 0.48, 0)
+        v6_22.Position = UDim2.new(0, 0, 0.52, 0)
+        v6_22.BackgroundTransparency = 1
+        v6_22.TextColor3 = Color3.fromRGB(255, 220, 100)
+        v6_22.TextStrokeTransparency = 0.35
+        v6_22.TextStrokeColor3 = Color3.fromRGB(20, 5, 50)
+        v6_22.Font = Enum.Font.GothamBold
+        v6_22.TextSize = 13
+        v6_22.Text = "- m"
+        v6_22.Parent = v4_13
+        v150_6[p1] = {
+            highlight = v3_6,
+            billboard = v4_13,
+            distLabel = v6_22,
+            rootPart = v2_2,
+            lastDist = nil
+        }
+        return
+    end
+    v14_9.Heartbeat:Connect(function()
+        if not v21_2 then
+            return
+        end
+        local v1_2 = v7_13.Character
+        local v2_2 = v1_2 and v1_2:FindFirstChild("HumanoidRootPart")
+        local v3_2 = v13_8:FindFirstChild("Titans")
+        local v4_5 = {}
+        if v3_2 then
+            for v8, v9 in pairs(v3_2:GetChildren()) do
+                if v9:IsA("Model") then
+                    v4_5[v9] = true
+                    if not v150_6[v9] then
+                        v151_3(v9)
+                    end
+                end
+            end
+        end
+        local v5_5 = {}
+        for v9_3 in pairs(v150_6) do
+            if not v4_5[v9_3] then
+                table.insert(v5_5, v9_3)
+            end
+        end
+        for v9_4, v10_4 in ipairs(v5_5) do
+            local v11_6 = v150_6[v10_4]
+            if v11_6.highlight and v11_6.highlight.Parent then
+                v11_6.highlight:Destroy()
+            end
+            if v11_6.billboard and v11_6.billboard.Parent then
+                v11_6.billboard:Destroy()
+            end
+            v150_6[v10_4] = nil
+        end
+        if v2_2 then
+            for v9_5, v10_8 in pairs(v150_6) do
+                if v10_8.rootPart and v10_8.rootPart.Parent then
+                    local v11_9 = math.floor(((v2_2.Position - v10_8.rootPart.Position)).Magnitude)
+                    if v10_8.lastDist ~= v11_9 then
+                        v10_8.lastDist = v11_9
+                        v10_8.distLabel.Text = v11_9 .. " m"
+                    end
+                end
+            end
+        end
+        return
+    end)
 end
+local v150_9 = {}
+do
+    local currentLang = v8_6("Language") == "Tiếng Việt" and "Tiếng Việt" or "English"
+    local VI_MAP = {
+        ["Loading..."] = "Đang tải...",
+        ["Player"] = "Người Chơi",
+        ["Auto Farm"] = "Tự Động Farm",
+        ["Various"] = "Tiện Ích",
+        ["Stats"] = "Thống Kê",
+        ["WAVES"] = "CHẾ ĐỘ WAVES",
+        ["RAID"] = "CHẾ ĐỘ RAID",
+        ["Auto Raid (Focus Boss)"] = "Tự Động Đi Raid (Dồn Dame Boss)",
+        ["VARIOUS"] = "TIỆN ÍCH",
+        ["LANGUAGE / SETTINGS"] = "NGÔN NGỮ / CÀI ĐẶT",
+        ["AUTO FAMILY ROLL"] = "TỰ QUAY GIA TỘC",
+        ["AUTO SELL PERKS"] = "TỰ BÁN PERK",
+        ["THUNDER SPEARS"] = "LÔI THƯƠNG (THUNDER SPEARS)",
+        ["Language / Ngôn Ngữ"] = "Ngôn Ngữ / Language",
+        ["NoClip"] = "Xuyên Tường (NoClip)",
+        ["Walk Speed"] = "Tăng Tốc Chạy",
+        ["Walk Speed Amount"] = "Mức Tốc Độ Chạy",
+        ["Laggy Run"] = "Chạy Giật Tầm Xa (Laggy Run)",
+        ["Laggy Run Distance"] = "Khoảng Cách Chạy Giật",
+        ["Laggy Run Delay"] = "Độ Trễ Chạy Giật",
+        ["CTRL + Click to TP"] = "CTRL + Click Để Dịch Chuyển",
+        ["Infinite Jump"] = "Nhảy Vô Hạn",
+        ["Auto Reset Kill Streak (>1000)"] = "Tự Hủy Chuỗi Giết (>1000 Kill)",
+        ["Hit All"] = "Đánh Tất Cả (Hit All)",
+        ["Distance to Titan"] = "Khoảng Cách Tới Titan",
+        ["Auto Reload"] = "Tự Nạp Kiếm",
+        ["Delay To Kill"] = "Chờ Trước Khi Giết",
+        ["Delay(s)"] = "Thời Gian Chờ (giây)",
+        ["Expand Nape Hitbox"] = "Mở Rộng Gáy Titan",
+        ["Hitbox Size"] = "Kích Thước Hitbox",
+        ["Visualize Hitbox"] = "Hiện Khung Hitbox",
+        ["TP To Base"] = "Dịch Chuyển Về Căn Cứ",
+        ["Auto Vote Ready"] = "Tự Bấm Sẵn Sàng",
+        ["Auto Upgrade Max HQ HP"] = "Tự Nâng Máu Tối Đa HQ",
+        ["Auto Upgrade HQ Health Regen"] = "Tự Nâng Hồi Máu HQ",
+        ["Auto Upgrade Refill Limit"] = "Tự Nâng Giới Hạn Tiếp Tế",
+        ["Auto Upgrade Weapon"] = "Tự Nâng Cấp Vũ Khí",
+        ["Upgrade Delay"] = "Độ Trễ Nâng Cấp",
+        ["Auto Get & Retrieve Skill Crate"] = "Tự Nhặt & Mở Rương Kỹ Năng",
+        ["Titan ESP"] = "Định Vị Titan (ESP)",
+        ["Change Cursor"] = "Đổi Con Trỏ Chuột",
+        ["Auto Refill"] = "Tự Tiếp Tế (Gas & Kiếm)",
+        ["Auto Retry"] = "Tự Chơi Lại (Auto Retry)",
+        ["Auto Skip Cutscenes"] = "Tự Bỏ Qua Cắt Cảnh",
+        ["Auto Open Raid Chests"] = "Tự Mở Rương Raid",
+        ["Auto Claim Achievements"] = "Tự Nhận Thành Tựu (Auto Claim Achievements)",
+        ["Auto Claim Daily Reward"] = "Tự Nhận Quà Hàng Ngày (Auto Claim Daily)",
+        ["Mission Safety Timer"] = "Bộ Đếm An Toàn (Mission Safety Timer)",
+        ["Auto Family Spin"] = "Tự Quay Gia Tộc",
+        ["Families To Stop"] = "Gia Tộc Muốn Dừng",
+        ["Family Tiers To Stop"] = "Bậc Gia Tộc Muốn Dừng",
+        ["Auto Sell Selected Tier Perks"] = "Tự Bán Perk Đã Chọn",
+        ["Perk Tiers To Sell"] = "Bậc Perk Muốn Bán",
+        ["Select Perks To Sell"] = "Chọn Perk Cụ Thể Để Bán",
+        ["Auto Create Towers(Outskirts)"] = "Tự Tạo Tháp (Outskirts)",
+        ["Auto Retrieve Supply Crates(Forest)"] = "Tự Lấy Thùng Tiếp Tế (Forest)",
+        ["PLAYER STATS:"] = "THỐNG KÊ NGƯỜI CHƠI:",
+        ["MISSION STATS (LIVE):"] = "NHIỆM VỤ HIỆN TẠI (LIVE):",
+        ["LAST ROUND STATS:"] = "THỐNG KÊ TRẬN VỪA RỒI:",
+        ["TOTAL SESSION STATS:"] = "TỔNG THỐNG KÊ PHIÊN CHƠI:",
+        ["Reset Session Stats"] = "Đặt Lại Thống Kê Phiên",
+        ["Refresh Stats"] = "Làm Mới Thống Kê",
+        ["In Lobby"] = "Ở Sảnh",
+        ["In Progress"] = "Đang Chơi",
+        ["Ended"] = "Đã Kết Thúc",
+        ["Completed"] = "Hoàn Thành",
+        ["None"] = "Không có",
+        ["Kaitun"] = "Kaitun (Cày Cấp)",
+        ["Settings"] = "Cài Đặt",
+        ["KAITUN STATUS:"] = "TRẠNG THÁI KAITUN:",
+        ["KAITUN AUTOMATION"] = "TỰ ĐỘNG HÓA KAITUN",
+        ["WEAPON & MAP PROGRESSION"] = "NÂNG KIẾM & CHUYỂN MAP (E- -> S)",
+        ["AUTO PRESTIGE (REBIRTH)"] = "TỰ ĐỘNG TÁI SINH (PRESTIGE)",
+        ["Enable Kaitun (Auto Level & Prestige)"] = "Bật Kaitun (Tự Cày Cấp & Tái Sinh)",
+        ["Auto Upgrade Weapon (E- -> S)"] = "Tự Nâng Hạng Kiếm (E- -> S)",
+        ["Kaitun Weapon"] = "Vũ Khí Kaitun",
+        ["Auto Select Map & Difficulty (E- -> S)"] = "Tự Chuyển Map & Độ Khó (E- -> S)",
+        ["Kaitun Map"] = "Bản Đồ Kaitun",
+        ["Auto Prestige (Rebirth)"] = "Tự Động Tái Sinh (Prestige)",
+        ["Target Max Prestige"] = "Giới Hạn Cấp Tái Sinh Tối Đa",
+        ["Upgrade Weapon Now"] = "Nâng Hạng Vũ Khí Ngay",
+        ["SHADOW BAN DETECTION"] = "KIỂM TRA SHADOW BAN LIÊN TỤC",
+        ["SHADOW BAN STATUS:"] = "TRẠNG THÁI SHADOW BAN:",
+        ["Check Shadow Ban Now"] = "Kiểm Tra Shadow Ban Ngay",
+        ["CONFIG & SETTINGS"] = "LƯU TRỮ & ĐỒNG BỘ CÀI ĐẶT",
+        ["CONFIG STATUS:"] = "TRẠNG THÁI CẤU HÌNH:",
+        ["Select Setting File (Order)"] = "Chọn File Setting (Theo Thứ Tự)",
+        ["Create Next Setting File (In Order)"] = "Tạo & Lưu File Setting Tiếp Theo (Theo Thứ Tự)",
+        ["Auto Load Global Settings"] = "Tự Tải Setting Cũ Khi Đổi Map",
+        ["Save Settings Now"] = "Lưu Vào File Setting Đang Chọn",
+        ["Load Saved Settings"] = "Tải File Setting Đang Chọn",
+        ["Reset Default Settings"] = "Đặt Lại Mặc Định"
+    }
+    local REVERSE_KEY = {}
+    for en, vi in pairs(VI_MAP) do
+        REVERSE_KEY[en] = en
+        REVERSE_KEY[vi] = en
+    end
+    local registeredRecords = {}
 
-function MacUI:CanUndo()
-	return #History.Undo > 0
+    local function tr(key)
+        local s = tostring(key or "")
+        if currentLang == "Tiếng Việt" then
+            return VI_MAP[s] or s
+        end
+        return s
+    end
+
+    local function clampNum(val, minVal, maxVal)
+        local n = tonumber(val) or minVal
+        if n < minVal then
+            return minVal
+        elseif n > maxVal then
+            return maxVal
+        end
+        return n
+    end
+
+    local function toOptionSet(tbl)
+        local set = {}
+        if type(tbl) ~= "table" then
+            return set
+        end
+        for k, v in pairs(tbl) do
+            if type(k) == "number" then
+                if type(v) == "string" and v ~= "" then
+                    set[v] = true
+                end
+            elseif v == true and type(k) == "string" and k ~= "" then
+                set[k] = true
+            end
+        end
+        return set
+    end
+
+    local function toOptionList(tbl)
+        local list = {}
+        local seen = {}
+        if type(tbl) ~= "table" then
+            return list
+        end
+        for _, v in ipairs(tbl) do
+            if type(v) == "string" and v ~= "" and not seen[v] then
+                seen[v] = true
+                table.insert(list, v)
+            end
+        end
+        for k, v in pairs(tbl) do
+            if type(k) == "string" and k ~= "" and v == true and not seen[k] then
+                seen[k] = true
+                table.insert(list, k)
+            end
+        end
+        table.sort(list)
+        return list
+    end
+
+    local function syncRayfieldDomLanguage()
+        local roots = {}
+        if type(gethui) == "function" then
+            local ok, uiRoot = pcall(gethui)
+            if ok and uiRoot then
+                table.insert(roots, uiRoot)
+            end
+        end
+        pcall(function()
+            local cg = game:GetService("CoreGui")
+            if cg then
+                table.insert(roots, cg)
+                local rg = cg:FindFirstChild("RobloxGui")
+                if rg then
+                    table.insert(roots, rg)
+                end
+            end
+        end)
+        for _, root in ipairs(roots) do
+            pcall(function()
+                for _, gui in ipairs(root:GetChildren()) do
+                    local main = gui:FindFirstChild("Main")
+                    if main and (main:FindFirstChild("TabList") or main:FindFirstChild("Elements")) then
+                        local tabList = main:FindFirstChild("TabList")
+                        if tabList then
+                            for _, btn in ipairs(tabList:GetChildren()) do
+                                local t = btn:FindFirstChild("Title")
+                                if t and type(t.Text) == "string" and REVERSE_KEY[t.Text] then
+                                    local nextTxt = tr(REVERSE_KEY[t.Text])
+                                    t.Text = nextTxt
+                                    btn.Name = nextTxt
+                                    pcall(function()
+                                        if t.TextBounds and t.TextBounds.X then
+                                            local img = btn:FindFirstChild("Image")
+                                            local pad = (img and img.Visible) and 52 or 30
+                                            btn.Size = UDim2.new(0, t.TextBounds.X + pad, 0, 30)
+                                        end
+                                    end)
+                                end
+                            end
+                        end
+                        local elements = main:FindFirstChild("Elements")
+                        if elements then
+                            for _, page in ipairs(elements:GetChildren()) do
+                                for _, el in ipairs(page:GetChildren()) do
+                                    local t = el:FindFirstChild("Title")
+                                    if t and type(t.Text) == "string" and REVERSE_KEY[t.Text] then
+                                        local nextTxt = tr(REVERSE_KEY[t.Text])
+                                        t.Text = nextTxt
+                                        if el.Name ~= "SectionTitle" and el.Name ~= "Placeholder" and REVERSE_KEY[el.Name] then
+                                            el.Name = nextTxt
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+
+    function v150_9.T(key)
+        return tr(key)
+    end
+
+    function v150_9.GetLanguage()
+        return currentLang
+    end
+
+    function v150_9.IsVietnamese()
+        return currentLang == "Tiếng Việt"
+    end
+
+    function v150_9.SetLanguage(lang)
+        local norm = lang == "Tiếng Việt" and "Tiếng Việt" or "English"
+        local changed = currentLang ~= norm
+        currentLang = norm
+        v9_4("Language", norm)
+        for _, rec in ipairs(registeredRecords) do
+            local nextTxt = tr(rec.key)
+            if rec.kind == "Section" or rec.kind == "Button" then
+                pcall(function()
+                    rec.obj:Set(nextTxt)
+                end)
+            elseif rec.kind == "Paragraph" then
+                pcall(function()
+                    rec.obj:Set({
+                        Title = nextTxt,
+                        Content = rec.lastContent or ""
+                    })
+                end)
+            elseif rec.kind == "Tab" and type(rec.tabData) == "table" then
+                rec.tabData.Name = nextTxt
+            elseif type(rec.obj) == "table" then
+                rec.obj.Name = nextTxt
+                rec.obj.Title = nextTxt
+            end
+        end
+        syncRayfieldDomLanguage()
+        if type(v150_9.OnLanguageChanged) == "function" then
+            pcall(v150_9.OnLanguageChanged)
+        end
+        if changed then
+            pcall(function()
+                v12_4:Notify({
+                    Title = norm == "Tiếng Việt" and "Ngôn Ngữ" or "Language",
+                    Content = norm == "Tiếng Việt" and "Đã chuyển sang Tiếng Việt." or "Switched language to English.",
+                    Duration = 3
+                })
+            end)
+        end
+    end
+
+    function v150_9.wrapWindow(win)
+        local wrappedWin = {}
+        function wrappedWin:CreateTab(name, ...)
+            local key = tostring(name or "")
+            local tab = win:CreateTab(tr(key), ...)
+            table.insert(registeredRecords, { kind = "Tab", key = key, tabData = tab })
+            return v150_9.wrapTab(tab)
+        end
+
+        return wrappedWin
+    end
+
+    function v150_9.wrapTab(rayfieldTab)
+        local wrapped = {}
+
+        function wrapped:AddLabel(text)
+            local key = tostring(text or "")
+            local sec = rayfieldTab:CreateSection(tr(key))
+            table.insert(registeredRecords, { kind = "Section", key = key, obj = sec })
+            return sec
+        end
+
+        function wrapped:AddParagraph(title, content)
+            local key = tostring(title or "")
+            local rec = { kind = "Paragraph", key = key, lastContent = tostring(content or "") }
+            local paragraph = rayfieldTab:CreateParagraph({
+                Title = tr(key),
+                Content = rec.lastContent
+            })
+            rec.obj = paragraph
+            table.insert(registeredRecords, rec)
+            return {
+                Set = function(_, newContent)
+                    rec.lastContent = tostring(newContent or "")
+                    paragraph:Set({
+                        Title = tr(rec.key),
+                        Content = rec.lastContent
+                    })
+                end
+            }
+        end
+
+        function wrapped:AddButton(name, callback)
+            local key = tostring(name or "")
+            local btn = rayfieldTab:CreateButton({
+                Name = tr(key),
+                Callback = function()
+                    if callback then
+                        callback()
+                    end
+                end
+            })
+            table.insert(registeredRecords, { kind = "Button", key = key, obj = btn })
+            return btn
+        end
+
+        function wrapped:AddToggle(name, callback)
+            local key = tostring(name or "")
+            local suppressing = true
+            local toggle = rayfieldTab:CreateToggle({
+                Name = tr(key),
+                CurrentValue = false,
+                Callback = function(value)
+                    if suppressing or v15_isRestoring then
+                        return
+                    end
+                    if callback then
+                        callback(value)
+                    end
+                end
+            })
+            suppressing = false
+            table.insert(registeredRecords, { kind = "Toggle", key = key, obj = toggle })
+            function toggle:SetState(state)
+                local nextState = state == true
+                suppressing = true
+                local ok, err = pcall(function()
+                    self.CurrentValue = nextState
+                    self:Set(nextState)
+                end)
+                suppressing = false
+                if not ok then
+                    warn("[Symbiote] SetState error:", err)
+                end
+            end
+
+            return toggle
+        end
+
+        function wrapped:AddSlider(name, minVal, maxVal, defaultVal, callback, increment)
+            local key = tostring(name or "")
+            local suppressing = true
+            local initialVal = clampNum(defaultVal, minVal, maxVal)
+            local slider = rayfieldTab:CreateSlider({
+                Name = tr(key),
+                Range = { minVal, maxVal },
+                Increment = increment or 1,
+                CurrentValue = initialVal,
+                Callback = function(value)
+                    if suppressing or v15_isRestoring then
+                        return
+                    end
+                    if callback then
+                        callback(value)
+                    end
+                end
+            })
+            suppressing = false
+            table.insert(registeredRecords, { kind = "Slider", key = key, obj = slider })
+            function slider:SetValue(val)
+                local clamped = clampNum(val, minVal, maxVal)
+                suppressing = true
+                local ok, err = pcall(function()
+                    self.CurrentValue = clamped
+                    self:Set(clamped)
+                end)
+                suppressing = false
+                if not ok then
+                    warn("[Symbiote] SetValue error:", err)
+                end
+            end
+
+            return slider
+        end
+
+        function wrapped:AddDropdown(name, options, callback)
+            local key = tostring(name or "")
+            local suppressing = true
+            local dropdown = rayfieldTab:CreateDropdown({
+                Name = tr(key),
+                Options = options or {},
+                CurrentOption = {},
+                MultipleOptions = true,
+                Callback = function(selectedList)
+                    if suppressing or v15_isRestoring then
+                        return
+                    end
+                    if callback then
+                        callback(toOptionSet(selectedList))
+                    end
+                end
+            })
+            suppressing = false
+            table.insert(registeredRecords, { kind = "Dropdown", key = key, obj = dropdown })
+            function dropdown:SetSelected(selectedTbl)
+                local optionList = toOptionList(selectedTbl)
+                suppressing = true
+                local ok, err = pcall(function()
+                    self:Set(optionList)
+                end)
+                suppressing = false
+                if not ok then
+                    warn("[Symbiote] SetSelected error:", err)
+                end
+            end
+
+            return dropdown
+        end
+
+        function wrapped:AddSingleDropdown(name, options, defaultOpt, callback)
+            local key = tostring(name or "")
+            local suppressing = true
+            local dropdown = rayfieldTab:CreateDropdown({
+                Name = tr(key),
+                Options = options or {},
+                CurrentOption = { defaultOpt },
+                MultipleOptions = false,
+                Callback = function(selected)
+                    if suppressing or v15_isRestoring then
+                        return
+                    end
+                    local chosen = type(selected) == "table" and selected[1] or selected
+                    if callback and type(chosen) == "string" then
+                        callback(chosen)
+                    end
+                end
+            })
+            suppressing = false
+            table.insert(registeredRecords, { kind = "Dropdown", key = key, obj = dropdown })
+            function dropdown:SetSelected(optStr)
+                if type(optStr) ~= "string" then
+                    return
+                end
+                suppressing = true
+                local ok, err = pcall(function()
+                    self:Set({ optStr })
+                end)
+                suppressing = false
+                if not ok then
+                    warn("[Symbiote] SetSelected error:", err)
+                end
+            end
+
+            return dropdown
+        end
+
+        return wrapped
+    end
+
+    v150_9.toOptionSet = toOptionSet
 end
-
-function MacUI:CanRedo()
-	return #History.Redo > 0
-end
-
-function MacUI:ClearHistory()
-	table.clear(History.Undo)
-	table.clear(History.Redo)
-end
-
-function MacUI:SetUndoEnabled(enabled)
-	self.UndoEnabled = enabled ~= false
-	if not self.UndoEnabled then
-		self:ClearHistory()
-	end
-end
-
--- Ctrl, or Command on a Mac (reported as Super or Meta).
-local function CommandKeyDown()
-	return UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
-		or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
-		or UserInputService:IsKeyDown(Enum.KeyCode.LeftSuper)
-		or UserInputService:IsKeyDown(Enum.KeyCode.RightSuper)
-		or UserInputService:IsKeyDown(Enum.KeyCode.LeftMeta)
-		or UserInputService:IsKeyDown(Enum.KeyCode.RightMeta)
-end
-
--- One set of listeners per library (not per window): tracks when the user last
--- clicked or typed, and handles Ctrl/Cmd + Z, Ctrl/Cmd + Shift + Z and Ctrl + Y.
-local LibraryConnections = {}
-local function EnsureLibraryInput()
-	if #LibraryConnections > 0 or MacUI.Unloaded then
-		return
-	end
-	local POINTERS = {
-		[Enum.UserInputType.MouseButton1] = true,
-		[Enum.UserInputType.Touch] = true,
-	}
-	local function AnyWindowShown()
-		for _, window in ipairs(MacUI.Windows) do
-			if window.Shown and not window.Minimized then
-				return true
-			end
-		end
-		return false
-	end
-	table.insert(LibraryConnections, UserInputService.InputBegan:Connect(function(input, processed)
-		local kind = input.UserInputType
-		-- only input the interface took: presses on its own GUI and typing in
-		-- its own fields (not the game's buttons, the thumbstick or the chat)
-		if POINTERS[kind] or kind == Enum.UserInputType.MouseButton2 then
-			if processed and OverInterface(input.Position) then
-				MarkActivity()
-				if POINTERS[kind] then
-					Activity.Pressing = input
-				end
-			end
-		elseif kind == Enum.UserInputType.Keyboard and processed and TypingInInterface() then
-			MarkActivity()
-		end
-		if input.KeyCode ~= Enum.KeyCode.Z and input.KeyCode ~= Enum.KeyCode.Y then
-			return
-		end
-		-- undo only while a window is showing: a hidden change is a surprise
-		if processed or KeyCapture.Active or MacUI.Unloaded or UserInputService:GetFocusedTextBox() or not CommandKeyDown() or not AnyWindowShown() then
-			return
-		end
-		local shift = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
-		MarkActivity() -- a recording macro sees what the undo changes
-		if input.KeyCode == Enum.KeyCode.Y or shift then
-			MacUI:Redo()
-		else
-			MacUI:Undo()
-		end
-	end))
-	table.insert(LibraryConnections, UserInputService.InputEnded:Connect(function(input)
-		local pressing = Activity.Pressing
-		if pressing and (input == pressing or (input.UserInputType == pressing.UserInputType and input.UserInputType ~= Enum.UserInputType.Touch)) then
-			Activity.Pressing = nil
-			MarkActivity() -- a slider that reports on release does so now
-		end
-	end))
-end
-
-local function Register(idx, element)
-	if idx ~= nil then
-		element.Idx = idx
-		MacUI.Options[idx] = element
-		CheckDependencies()
-		if UNDOABLE[element.Type] then
-			Snapshots[element] = Snapshot(element)
-		end
-	end
-	return element
-end
-
--- Push button used in rows, dialogs and notifications.
-function PushButton(parent, text, style, height)
-	local button = { Hovered = false, Pressed = false, Style = style or "Default" }
-	button.Instance = New("TextButton", {
-		Name = "PushButton",
-		Text = tostring(text),
-		TextSize = 13,
-		Weight = Enum.FontWeight.Medium,
-		-- measured rather than AutomaticSize: Roblox adds a UISizeConstraint's
-		-- MinSize before the padding, which made short labels too wide
-		Size = UDim2.fromOffset(math.max(56, math.ceil(MeasureText(text, 13, Enum.FontWeight.Medium)) + 24), height or 24),
-		Theme = {
-			BackgroundColor3 = function(t)
-				local base
-				if button.Style == "Primary" then
-					base = MacUI.Accent
-				elseif button.Style == "Destructive" then
-					base = t.Destructive
-				else
-					base = t.Button
-				end
-				if button.Pressed then
-					return Darken(base, 0.12)
-				elseif button.Hovered then
-					return button.Style == "Default" and t.ButtonHover or Lighten(base, 0.1)
-				end
-				return base
-			end,
-			BackgroundTransparency = function()
-				return 0
-			end,
-			TextColor3 = function(t)
-				if button.Style == "Default" then
-					return t.Text
-				end
-				return rgb(255, 255, 255)
-			end,
-		},
-		Parent = parent,
-	})
-	Corner(button.Instance, 6)
-	New("UIGradient", {
-		Rotation = 90,
-		Color = ColorSequence.new(Color3.new(1, 1, 1), Color3.fromRGB(234, 234, 234)),
-		Parent = button.Instance,
-	})
-	button.Stroke = Stroke(button.Instance, function(t)
-		if button.Style == "Primary" then
-			return Darken(MacUI.Accent, 0.2)
-		elseif button.Style == "Destructive" then
-			return Darken(t.Destructive, 0.2)
-		end
-		return t.ControlStroke
-	end, 1, 0.35)
-	button.Instance.MouseEnter:Connect(function()
-		button.Hovered = true
-		Restyle(button.Instance, 0.12)
-	end)
-	button.Instance.MouseLeave:Connect(function()
-		button.Hovered = false
-		button.Pressed = false
-		Restyle(button.Instance, 0.18)
-	end)
-	button.Instance.MouseButton1Down:Connect(function()
-		button.Pressed = true
-		Restyle(button.Instance, 0.06)
-	end)
-	button.Instance.MouseButton1Up:Connect(function()
-		button.Pressed = false
-		Restyle(button.Instance, 0.15)
-	end)
-	return button
-end
-
---------------------------------------------------------------------------------
--- Containers (tabs and sections share these element constructors)
---------------------------------------------------------------------------------
-
-local Container = {}
-
-function Container:AddParagraph(idx, info)
-	if type(idx) == "table" then
-		info = idx
-		idx = info.Flag
-	end
-	info = info or {}
-	local row = CreateRow(self, {
-		Title = info.Title,
-		Description = info.Content or info.Description,
-		Keywords = info.Keywords,
-		Tooltip = info.Tooltip,
-		DependsOn = info.DependsOn,
-		DependsMode = info.DependsMode,
-	}, { TitleWeight = Enum.FontWeight.Medium, DescSize = 13, DescToken = "SubText" })
-	row.FullWidthText = true
-	row:_UpdateReserve()
-	local Paragraph = NewElement("Paragraph", row, info)
-	Paragraph.Content = info.Content
-	function Paragraph:SetContent(text)
-		self.Content = text
-		row:SetDesc(text)
-	end
-	function Paragraph:_Text()
-		return self.Content and tostring(self.Content) or row.Title
-	end
-	Paragraph.SetDesc = Paragraph.SetContent
-	Paragraph.SetValue = Paragraph.SetContent
-	return Register(idx, Paragraph)
-end
-
--- Key/value row: "Status ........ Fighting: Blessed Maiden"
-function Container:AddLabel(idx, info)
-	idx, info = ParseArgs(idx, info)
-	local row = CreateRow(self, info)
-	row.NoWrap = true -- (the value caps its own width instead)
-	local Label = NewElement("Label", row, info)
-	Label.Value = tostring(info.Value or info.Text or "")
-
-	local valueLabel = New("TextLabel", {
-		Name = "Value",
-		Text = Label.Value,
-		TextSize = 14,
-		Size = UDim2.fromOffset(0, 18),
-		AutomaticSize = Enum.AutomaticSize.X,
-		TextXAlignment = Enum.TextXAlignment.Right,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		RichText = true,
-		Theme = {
-			TextColor3 = function(t)
-				return ResolveColor(info.ValueColor) or t.SubText
-			end,
-		},
-		Parent = row.Accessory,
-	})
-	local limit = New("UISizeConstraint", { MaxSize = Vector2.new(320, 18), Parent = valueLabel })
-	local function UpdateLimit()
-		local rowWidth = row.Frame.AbsoluteSize.X / row.Window:GetAbsoluteScale()
-		local share = row.Title == "" and row.Description == "" and 1 or 0.62
-		limit.MaxSize = Vector2.new(math.max(rowWidth * share - 24, 40), 18)
-	end
-	row:Connect(row.Frame:GetPropertyChangedSignal("AbsoluteSize"), UpdateLimit)
-	UpdateLimit()
-
-	function Label:SetValue(text)
-		self.Value = tostring(text or "")
-		valueLabel.Text = self.Value
-		row.SearchExtra = self.Value
-	end
-	Label.SetText = Label.SetValue
-	function Label:SetValueColor(color)
-		info.ValueColor = color
-		Restyle(valueLabel, 0.15)
-	end
-	Label:SetValue(Label.Value)
-	return Register(idx, Label)
-end
-Container.AddStatus = Container.AddLabel
-
-function Container:AddButton(info, callback)
-	local idx
-	if type(info) == "string" and type(callback) == "table" then
-		idx, info = info, callback
-	elseif type(info) == "string" then
-		info = { Title = info, Callback = callback }
-	end
-	info = info or {}
-	idx = idx or info.Flag
-	local row = CreateRow(self, info, { Clickable = true })
-	local Button = NewElement("Button", row, info)
-
-	local function Fire()
-		if row.Disabled then
-			return
-		end
-		if Automation.Depth == 0 then
-			if Macros.Recorder then
-				Macros.Recorder:_CaptureButton(Button)
-			end
-			NoteUsage(UsageKey(Button))
-		end
-		RunCallback(Button, Button.Callback)
-	end
-
-	function Button:_Activate(announce)
-		if row.Disabled then
-			return
-		end
-		Fire()
-		if announce then
-			row.Window:Toast(self.Title or "Button", { Icon = "play" })
-		end
-	end
-
-	if info.ButtonText then
-		local push = PushButton(row.Accessory, info.ButtonText, info.Style)
-		push.Instance.MouseButton1Click:Connect(Fire)
-		Button.PushButton = push
-	else
-		IconImage({
-			Name = "Chevron",
-			Icon = info.Icon or "chevron-right",
-			IconSize = 14,
-			Theme = { ImageColor3 = "Tertiary" },
-			Parent = row.Accessory,
-		})
-	end
-	row.OnClick = Fire
-
-	function Button:SetCallback(fn)
-		self.Callback = fn
-	end
-	function Button:Fire()
-		Fire()
-	end
-	-- Presses the button every `seconds` until SetRepeat(nil). The row shows a
-	-- countdown to the next press.
-	function Button:SetRepeat(seconds)
-		seconds = tonumber(seconds)
-		if not seconds or seconds <= 0 then
-			self.RepeatInterval = nil
-			row:_SetTimer(nil)
-			return nil
-		end
-		seconds = math.max(seconds, 1)
-		self.RepeatInterval = seconds
-		local timer = { Ends = os.clock() + seconds, Interval = seconds, Icon = "repeat", Runs = 0 }
-		function timer.Fire()
-			-- from the time it was due, so the interval doesn't drift
-			timer.Ends += seconds
-			if timer.Ends <= os.clock() then
-				timer.Ends = os.clock() + seconds -- fell far behind (the game froze)
-			end
-			timer.Runs += 1
-			AutomationApply(Fire)
-		end
-		row:_SetTimer(timer)
-		return timer
-	end
-	if info.Shortcut then
-		Button:SetShortcut(info.Shortcut)
-	end
-	if idx ~= nil then
-		Register(idx, Button)
-	end
-	return Button
-end
-
-function Container:AddToggle(idx, info)
-	idx, info = ParseArgs(idx, info)
-	local row = CreateRow(self, info, { Clickable = true })
-	local Toggle = NewElement("Toggle", row, info)
-	Toggle.Value = info.Default == true
-	local checkbox = info.Style == "Checkbox"
-
-	local knob, knobShadow, track, check
-	if checkbox then
-		track = New("Frame", {
-			Name = "Checkbox",
-			Size = UDim2.fromOffset(18, 18),
-			Theme = {
-				BackgroundColor3 = function(t)
-					return Toggle.Value and MacUI.Accent or t.Field
-				end,
-			},
-			Parent = row.Accessory,
-		})
-		Corner(track, 5)
-		Stroke(track, function(t)
-			return Toggle.Value and Darken(MacUI.Accent, 0.15) or t.FieldStroke
-		end)
-		check = IconImage({
-			Icon = "check",
-			IconSize = 13,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			ImageColor3 = Color3.new(1, 1, 1),
-			ImageTransparency = Toggle.Value and 0 or 1,
-			Parent = track,
-		})
-	else
-		track = New("Frame", {
-			Name = "Switch", Size = UDim2.fromOffset(30, 18),
-			Theme = {
-				BackgroundColor3 = function(t)
-					return Toggle.Value and MacUI.Accent or t.SwitchOff
-				end,
-			},
-			Parent = row.Accessory,
-		})
-		Corner(track, 9)
-		knobShadow = New("Frame", {
-			Name = "KnobShadow", Size = UDim2.fromOffset(14, 14), Position = UDim2.fromOffset(Toggle.Value and 14 or 2, 3),
-			BackgroundColor3 = Color3.new(0, 0, 0),
-			BackgroundTransparency = 0.8,
-			Parent = track,
-		})
-		Corner(knobShadow, 7)
-		knob = New("Frame", {
-			Name = "Knob", Size = UDim2.fromOffset(14, 14), Position = UDim2.fromOffset(Toggle.Value and 14 or 2, 2),
-			ZIndex = 2,
-			Theme = { BackgroundColor3 = "Knob" },
-			Parent = track,
-		})
-		Corner(knob, 7)
-	end
-
-	local pressed = false
-	local function Render(duration)
-		Restyle(track, duration)
-		if checkbox then
-			local stroke = track:FindFirstChildOfClass("UIStroke")
-			if stroke then
-				Restyle(stroke, duration)
-			end
-			Tween(check, { ImageTransparency = Toggle.Value and 0 or 1 }, duration)
-			return
-		end
-		local width = pressed and 18 or 14
-		local x = Toggle.Value and (28 - width) or 2
-		Tween(knob, { Position = UDim2.fromOffset(x, 2), Size = UDim2.fromOffset(width, 14) }, duration, Enum.EasingStyle.Quint)
-		Tween(knobShadow, { Position = UDim2.fromOffset(x, 3), Size = UDim2.fromOffset(width, 14) }, duration, Enum.EasingStyle.Quint)
-	end
-
-	function Toggle:SetValue(value)
-		value = value == true
-		self.Value = value
-		if row.Timer and row.Timer.Value == value then
-			row:_SetTimer(nil) -- already where the timer was taking it
-		end
-		Render(0.25)
-		self:_Emit(value)
-		ShortcutsChanged:Fire()
-	end
-
-	function Toggle:_Text()
-		return self.Value and "On" or "Off"
-	end
-
-	function Toggle:_Activate(announce)
-		if row.Disabled then
-			return
-		end
-		self:SetValue(not self.Value)
-		if announce then
-			row.Window:Toast(self.Title or "Toggle", {
-				Detail = self.Value and "On" or "Off",
-				Icon = self.Value and "check-circle" or "circle",
-				Highlight = self.Value,
-			})
-		end
-	end
-
-	-- Flips the toggle after `seconds` (to `value`, or the opposite of what it
-	-- is now); SetTimer(nil) cancels. The row shows a countdown meanwhile.
-	function Toggle:SetTimer(seconds, value)
-		seconds = tonumber(seconds)
-		if value == nil then
-			value = not self.Value
-		end
-		value = value == true
-		if not seconds or seconds <= 0 or value == self.Value then
-			row:_SetTimer(nil)
-			return nil
-		end
-		local timer = { Ends = os.clock() + seconds, Duration = seconds, Value = value, Icon = "timer" }
-		function timer.Fire()
-			row:_SetTimer(nil)
-			AutomationApply(function()
-				Toggle:SetValue(value)
-			end)
-			MacUI:Notify({
-				Title = tostring(Toggle.Title or "Timer"),
-				Content = (value and "Turned on" or "Turned off") .. " by its timer.",
-				Icon = "timer",
-				Duration = 5,
-			})
-		end
-		row:_SetTimer(timer)
-		return timer
-	end
-	-- Seconds left and the value it will switch to, or nil.
-	function Toggle:GetTimer()
-		local timer = row.Timer
-		if timer then
-			return math.max(timer.Ends - os.clock(), 0), timer.Value
-		end
-		return nil
-	end
-
-	row.OnClick = function()
-		Toggle:SetValue(not Toggle.Value)
-	end
-	if not checkbox then
-		row.Hitbox.MouseButton1Down:Connect(function()
-			pressed = true
-			Render(0.2)
-		end)
-		row.Hitbox.MouseButton1Up:Connect(function()
-			pressed = false
-		end)
-		row.Hitbox.MouseLeave:Connect(function()
-			if pressed then
-				pressed = false
-				Render(0.2)
-			end
-		end)
-	end
-
-	Toggle.Default = Toggle.Value
-	Render(0)
-	Register(idx, Toggle)
-	if info.Shortcut then
-		Toggle:SetShortcut(info.Shortcut)
-	end
-	Toggle:_Emit(Toggle.Value)
-	return Toggle
-end
-
-function Container:AddCheckbox(idx, info)
-	idx, info = ParseArgs(idx, info)
-	info.Style = "Checkbox"
-	return self:AddToggle(idx, info)
-end
-
--- A page doesn't scroll under a finger dragging a slider. Counted, since two
--- sliders on a page can be held at once.
-local ScrollLocks = setmetatable({}, { __mode = "k" })
-local function LockPageScrolling(page, lock)
-	if not page then
-		return
-	end
-	local count = math.max((ScrollLocks[page] or 0) + (lock and 1 or -1), 0)
-	ScrollLocks[page] = count
-	page.ScrollingEnabled = count == 0
-end
-
-function Container:AddSlider(idx, info)
-	idx, info = ParseArgs(idx, info)
-	local row = CreateRow(self, info)
-	local Slider = NewElement("Slider", row, info)
-	-- (Min above Max would make every clamp fail: they're put in order)
-	Slider.Min = Finite(info.Min) or 0
-	Slider.Max = Finite(info.Max) or 100
-	Slider.Min, Slider.Max = math.min(Slider.Min, Slider.Max), math.max(Slider.Min, Slider.Max)
-	Slider.Increment = Finite(info.Increment or info.Step)
-	Slider.Rounding = Places(info.Rounding, StepPlaces(Slider.Increment))
-	Slider.Finished = info.Finished == true
-	Slider.Suffix = info.Suffix or ""
-	Slider.Value = math.clamp(Finite(info.Default) or Slider.Min, Slider.Min, Slider.Max)
-
-	local width = info.Width or 170
-	local rail = New("Frame", {
-		Name = "Slider",
-		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(width, 22),
-		LayoutOrder = 1,
-		Parent = row.Accessory,
-	})
-	local bar = New("Frame", {
-		Name = "Track",
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.fromScale(0, 0.5),
-		Size = UDim2.new(1, 0, 0, 4),
-		Theme = { BackgroundColor3 = "Track" },
-		Parent = rail,
-	})
-	Corner(bar, 2)
-	local fill = New("Frame", {
-		Name = "Fill",
-		Size = UDim2.fromScale(0, 1),
-		Theme = { BackgroundColor3 = "Accent" },
-		Parent = bar,
-	})
-	Corner(fill, 2)
-	local knobState = { Hovered = false, Dragging = false }
-	local knob = New("Frame", {
-		Name = "Knob",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0, 0.5),
-		Size = UDim2.fromOffset(18, 18),
-		ZIndex = 3,
-		Theme = { BackgroundColor3 = "Knob" },
-		Parent = rail,
-	})
-	Corner(knob, 9)
-	New("UIStroke", { Color = Color3.new(0, 0, 0), Transparency = 0.82, Thickness = 1, Parent = knob })
-	local hit = New("TextButton", {
-		Name = "Hitbox",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.new(1, 16, 1, 10),
-		ZIndex = 4,
-		Parent = rail,
-	})
-
-	local box = New("TextBox", {
-		Name = "Value",
-		Text = "",
-		TextSize = 13,
-		Size = UDim2.fromOffset(0, 24),
-		AutomaticSize = Enum.AutomaticSize.X,
-		TextXAlignment = Enum.TextXAlignment.Center,
-		BackgroundTransparency = 0,
-		LayoutOrder = 2,
-		Theme = { BackgroundColor3 = "Field", TextColor3 = "Text" },
-		Parent = row.Accessory,
-	})
-	Corner(box, 6)
-	local boxStroke = Stroke(box, "FieldStroke")
-
-	local function Format(value)
-		return string.format("%." .. math.max(Slider.Rounding, 0) .. "f", value) .. Slider.Suffix
-	end
-	box.AutomaticSize = Enum.AutomaticSize.None
-	box.Size = UDim2.fromOffset(
-		math.max(56, math.ceil(math.max(MeasureText(Format(Slider.Max), 13), MeasureText(Format(Slider.Min), 13))) + 16),
-		24
-	)
-
-	local function Render(duration)
-		local range = Slider.Max - Slider.Min
-		local alpha = range == 0 and 0 or (Slider.Value - Slider.Min) / range
-		Tween(fill, { Size = UDim2.fromScale(alpha, 1) }, duration or 0.12, Enum.EasingStyle.Quart)
-		Tween(knob, { Position = UDim2.fromScale(alpha, 0.5) }, duration or 0.12, Enum.EasingStyle.Quart)
-		if not box:IsFocused() then
-			box.Text = Format(Slider.Value)
-		end
-	end
-
-	local function Normalize(value)
-		value = math.clamp(Finite(value) or Slider.Min, Slider.Min, Slider.Max)
-		if Slider.Increment and Slider.Increment > 0 then
-			value = Slider.Min + Round((value - Slider.Min) / Slider.Increment) * Slider.Increment
-		end
-		return math.clamp(Round(value, Slider.Rounding), Slider.Min, Slider.Max)
-	end
-
-	local pendingEmit = false
-	function Slider:SetValue(value)
-		value = Normalize(value)
-		local changed = value ~= self.Value
-		self.Value = value
-		Render()
-		if changed or not self._initialized then
-			if self.Finished and knobState.Dragging then
-				pendingEmit = true
-			else
-				self:_Emit(value)
-			end
-		end
-	end
-
-	-- (a minimum above the maximum moves the maximum up, and the other way round)
-	function Slider:SetMin(value)
-		self.Min = Finite(value) or self.Min
-		self.Max = math.max(self.Max, self.Min)
-		self:SetValue(self.Value)
-	end
-
-	function Slider:SetMax(value)
-		self.Max = Finite(value) or self.Max
-		self.Min = math.min(self.Min, self.Max)
-		self:SetValue(self.Value)
-	end
-
-	local function SetFromPointer(x)
-		MarkActivity()
-		local alpha = math.clamp((x - bar.AbsolutePosition.X) / math.max(bar.AbsoluteSize.X, 1), 0, 1)
-		Slider:SetValue(Slider.Min + (Slider.Max - Slider.Min) * alpha)
-	end
-
-	local function RenderKnob()
-		local size = (knobState.Dragging or knobState.Hovered) and 20 or 18
-		Tween(knob, { Size = UDim2.fromOffset(size, size) }, 0.15)
-	end
-
-	hit.MouseEnter:Connect(function()
-		knobState.Hovered = true
-		RenderKnob()
-	end)
-	hit.MouseLeave:Connect(function()
-		knobState.Hovered = false
-		RenderKnob()
-	end)
-	-- a finger sliding along the track shouldn't also scroll the page
-	local scrollLocked = false
-	local function PageScrolling(enabled)
-		if scrollLocked == not enabled then
-			return
-		end
-		scrollLocked = not enabled
-		LockPageScrolling(row.Tab and row.Tab.Page, scrollLocked)
-	end
-	row:_OnDestroy(function()
-		PageScrolling(true) -- (removed mid-drag)
-	end)
-	hit.InputBegan:Connect(function(input)
-		if IsPointer(input) and not row.Disabled then
-			knobState.Dragging = input
-			PageScrolling(false)
-			RenderKnob()
-			SetFromPointer(input.Position.X)
-		end
-	end)
-	row:Connect(UserInputService.InputChanged, function(input)
-		if knobState.Dragging and DragMoves(knobState.Dragging, input) then
-			SetFromPointer(input.Position.X)
-		end
-	end)
-	row:Connect(UserInputService.InputEnded, function(input)
-		if knobState.Dragging and DragEnds(knobState.Dragging, input) then
-			knobState.Dragging = false
-			PageScrolling(true)
-			RenderKnob()
-			if pendingEmit then
-				pendingEmit = false
-				Slider:_Emit(Slider.Value)
-			end
-		end
-	end)
-
-	box.Focused:Connect(function()
-		box.Text = string.format("%." .. math.max(Slider.Rounding, 0) .. "f", Slider.Value)
-		Themed(boxStroke, { Color = "Accent" })
-	end)
-	box.FocusLost:Connect(function()
-		MarkActivity()
-		Themed(boxStroke, { Color = "FieldStroke" })
-		local number = tonumber((box.Text:gsub("[^%d%.%-]", "")))
-		if number then
-			Slider:SetValue(number)
-		end
-		box.Text = Format(Slider.Value)
-	end)
-
-	Slider.Value = Normalize(Slider.Value)
-	Slider.Default = Slider.Value
-	function Slider:_Text()
-		return Format(self.Value)
-	end
-	row:_BindContext(hit)
-	Render(0)
-	Register(idx, Slider)
-	Slider:_Emit(Slider.Value)
-	Slider._initialized = true
-	return Slider
-end
-
-function Container:AddDropdown(idx, info)
-	idx, info = ParseArgs(idx, info)
-	local row = CreateRow(self, info, { Clickable = true })
-	local window = row.Window
-	local Dropdown = NewElement("Dropdown", row, info)
-	local special = info.SpecialType
-	if info.Values == "Players" then
-		special = "Player"
-	elseif info.Values == "Teams" then
-		special = "Team"
-	end
-	local function SpecialValues()
-		local list = {}
-		if special == "Player" then
-			for _, player in ipairs(Players:GetPlayers()) do
-				if player ~= LocalPlayer or info.ExcludeLocal == false then
-					table.insert(list, player.Name)
-				end
-			end
-		elseif special == "Team" then
-			local ok, teams = pcall(function()
-				return GetService("Teams"):GetTeams()
-			end)
-			for _, team in ipairs(ok and teams or {}) do
-				table.insert(list, team.Name)
-			end
-		end
-		table.sort(list)
-		return list
-	end
-	Dropdown.Values = special and SpecialValues() or (type(info.Values) == "table" and info.Values or {})
-	Dropdown.Multi = info.Multi == true
-	Dropdown.AllowNull = info.AllowNull == true or Dropdown.Multi or special ~= nil
-
-	if Dropdown.Multi then
-		Dropdown.Value = {}
-		local default = info.Default
-		if type(default) == "table" then
-			for key, value in pairs(default) do
-				if type(key) == "number" then
-					Dropdown.Value[value] = true
-				elseif value then
-					Dropdown.Value[key] = true
-				end
-			end
-		elseif type(default) == "string" then
-			Dropdown.Value[default] = true
-		end
-	else
-		local default = info.Default
-		if type(default) == "number" then
-			default = Dropdown.Values[default]
-		end
-		Dropdown.Value = default
-		if Dropdown.Value == nil and not Dropdown.AllowNull then
-			Dropdown.Value = Dropdown.Values[1]
-		end
-	end
-
-	function Dropdown:_Display()
-		if self.Multi then
-			local selected = {}
-			for _, value in ipairs(self.Values) do
-				if self.Value[value] then
-					table.insert(selected, tostring(value))
-				end
-			end
-			if #selected == 0 then
-				return "None"
-			end
-			local joined = table.concat(selected, ", ")
-			if #selected > 2 and #joined > 26 then
-				return #selected .. " selected"
-			end
-			return joined
-		end
-		if self.Value == nil then
-			return "None"
-		end
-		return tostring(self.Value)
-	end
-
-	local popup = New("TextButton", {
-		Name = "PopupButton",
-		Size = UDim2.fromOffset(0, 26),
-		AutomaticSize = Enum.AutomaticSize.X,
-		Parent = row.Accessory,
-	})
-	List(popup, Enum.FillDirection.Horizontal, 7, { VerticalAlignment = Enum.VerticalAlignment.Center })
-	local valueLabel = New("TextLabel", {
-		Name = "Value",
-		TextSize = 14,
-		Size = UDim2.fromOffset(0, 18),
-		AutomaticSize = Enum.AutomaticSize.X,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		LayoutOrder = 1,
-		Theme = {
-			TextColor3 = function(t)
-				return Dropdown:_Display() == "None" and t.SubText or t.Text
-			end,
-		},
-		Parent = popup,
-	})
-	New("UISizeConstraint", { MaxSize = Vector2.new(info.MaxWidth or 200, 18), Parent = valueLabel })
-	local capsuleState = { Hovered = false }
-	local capsule = New("Frame", {
-		Name = "Chevrons",
-		Size = UDim2.fromOffset(17, 21),
-		LayoutOrder = 2,
-		Theme = {
-			BackgroundColor3 = function(t)
-				return capsuleState.Hovered and t.ControlHover or t.Control
-			end,
-		},
-		Parent = popup,
-	})
-	Corner(capsule, 5)
-	IconImage({
-		Icon = "chevrons-up-down",
-		IconSize = 12,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Theme = { ImageColor3 = "Text" },
-		Parent = capsule,
-	})
-
-	function Dropdown:Display()
-		valueLabel.Text = self:_Display()
-		row.SearchExtra = valueLabel.Text
-		Restyle(valueLabel, 0)
-	end
-
-	function Dropdown:GetActiveValues()
-		if self.Multi then
-			local list = {}
-			for _, value in ipairs(self.Values) do
-				if self.Value[value] then
-					table.insert(list, value)
-				end
-			end
-			return list
-		end
-		return self.Value and 1 or 0
-	end
-
-	function Dropdown:SetValue(value)
-		if self.Multi then
-			local set = {}
-			if type(value) == "table" then
-				for key, v in pairs(value) do
-					if type(key) == "number" then
-						set[v] = true
-					elseif v then
-						set[key] = true
-					end
-				end
-			end
-			self.Value = set
-		else
-			if value ~= nil and not table.find(self.Values, value) then
-				value = nil
-			end
-			if value == nil and not self.AllowNull then
-				value = self.Values[1]
-			end
-			self.Value = value
-		end
-		self:Display()
-		self:_Emit(self.Value)
-	end
-
-	function Dropdown:SetValues(values)
-		self.Values = values or {}
-		-- a selection that no longer exists is dropped, and that is a change
-		local changed = false
-		if self.Multi then
-			for key in pairs(self.Value) do
-				if not table.find(self.Values, key) then
-					self.Value[key] = nil
-					changed = true
-				end
-			end
-		elseif self.Value ~= nil and not table.find(self.Values, self.Value) then
-			self.Value = (not self.AllowNull) and self.Values[1] or nil
-			changed = true
-		end
-		self:Display()
-		if changed then
-			self:_Emit(self.Value)
-		end
-	end
-
-	function Dropdown:Open()
-		if row.Disabled then
-			return
-		end
-		window:_OpenMenu(popup, {
-			Values = self.Values,
-			Multi = self.Multi,
-			Searchable = info.Searchable,
-			MinWidth = math.max(popup.AbsoluteSize.X / window:GetAbsoluteScale() + 24, 170),
-			IsSelected = function(value)
-				if self.Multi then
-					return self.Value[value] == true
-				end
-				return self.Value == value
-			end,
-			OnPick = function(value)
-				if self.Multi then
-					self.Value[value] = not self.Value[value] or nil
-					self:Display()
-					self:_Emit(self.Value)
-				else
-					if self.Value == value and self.AllowNull then
-						value = nil
-					end
-					self.Value = value
-					self:Display()
-					self:_Emit(self.Value)
-				end
-			end,
-		})
-	end
-
-	function Dropdown:Close()
-		window:_ClosePopup()
-	end
-
-	function Dropdown:_Text()
-		if self.Multi then
-			local list = {}
-			for _, value in ipairs(self:GetActiveValues()) do
-				table.insert(list, tostring(value))
-			end
-			return #list > 0 and table.concat(list, ", ") or nil
-		end
-		return self.Value ~= nil and tostring(self.Value) or nil
-	end
-
-	if special then
-		local function Refresh()
-			if not row.Destroyed then
-				Dropdown:SetValues(SpecialValues())
-			end
-		end
-		if special == "Player" then
-			row:Connect(Players.PlayerAdded, Refresh)
-			-- the leaving player is still in GetPlayers() while this fires
-			row:Connect(Players.PlayerRemoving, function(leaving)
-				if row.Destroyed then
-					return
-				end
-				local list = SpecialValues()
-				local index = table.find(list, leaving.Name)
-				if index then
-					table.remove(list, index)
-				end
-				Dropdown:SetValues(list)
-			end)
-		else
-			local ok, teams = pcall(GetService, "Teams")
-			if ok and teams then
-				row:Connect(teams.ChildAdded, Refresh)
-				row:Connect(teams.ChildRemoved, function()
-					task.defer(Refresh)
-				end)
-			end
-		end
-	end
-
-	popup.MouseEnter:Connect(function()
-		capsuleState.Hovered = true
-		Restyle(capsule, 0.12)
-	end)
-	popup.MouseLeave:Connect(function()
-		capsuleState.Hovered = false
-		Restyle(capsule, 0.18)
-	end)
-	popup.MouseButton1Click:Connect(function()
-		Dropdown:Open()
-	end)
-	row.OnClick = function()
-		Dropdown:Open()
-	end
-
-	Dropdown.Default = CopyValue(Dropdown.Value)
-	row:_BindContext(popup)
-	Dropdown:Display()
-	return Register(idx, Dropdown)
-end
-
-function Container:AddInput(idx, info)
-	idx, info = ParseArgs(idx, info)
-	local row = CreateRow(self, info)
-	local Input = NewElement("Input", row, info)
-	Input.Value = tostring(info.Default or "")
-	Input.Numeric = info.Numeric == true
-	Input.Finished = info.Finished == true
-
-	local field = New("Frame", {
-		Name = "Field",
-		Size = UDim2.fromOffset(info.Width or 180, 26),
-		Theme = { BackgroundColor3 = "Field" },
-		Parent = row.Accessory,
-	})
-	Corner(field, 6)
-	local stroke = Stroke(field, "FieldStroke")
-	local box = New("TextBox", {
-		Name = "TextBox",
-		Text = Input.Value,
-		PlaceholderText = info.Placeholder or "",
-		TextSize = 13,
-		Position = UDim2.fromOffset(8, 0),
-		Size = UDim2.new(1, -16, 1, 0),
-		ClipsDescendants = true,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		Theme = { TextColor3 = "Text", PlaceholderColor3 = "Tertiary" },
-		Parent = field,
-	})
-	if info.MaxLength then
-		box:GetPropertyChangedSignal("Text"):Connect(function()
-			if #box.Text > info.MaxLength then
-				box.Text = box.Text:sub(1, info.MaxLength)
-			end
-		end)
-	end
-
-	function Input:SetValue(text)
-		text = tostring(text or "")
-		if self.Numeric and text ~= "" and not tonumber(text) then
-			text = text:gsub("[^%d%.%-]", "")
-		end
-		self.Value = text
-		if box.Text ~= text then
-			box.Text = text
-		end
-		self:_Emit(text)
-	end
-
-	box:GetPropertyChangedSignal("Text"):Connect(function()
-		if box:IsFocused() then
-			MarkActivity() -- the user typing
-		end
-		if Input.Numeric then
-			local cleaned = box.Text:gsub("[^%d%.%-]", "")
-			if cleaned ~= box.Text then
-				box.Text = cleaned
-				return
-			end
-		end
-		if not Input.Finished and box.Text ~= Input.Value then
-			Input:SetValue(box.Text)
-		end
-	end)
-	box.Focused:Connect(function()
-		Themed(stroke, { Color = "Accent" })
-		Tween(stroke, { Thickness = 2 }, 0.15)
-	end)
-	box.FocusLost:Connect(function(enterPressed)
-		MarkActivity()
-		Themed(stroke, { Color = "FieldStroke" })
-		Tween(stroke, { Thickness = 1 }, 0.15)
-		if Input.Finished and (enterPressed or info.FinishOnFocusLost) then
-			Input:SetValue(box.Text)
-		end
-	end)
-	Input.Default = Input.Value
-	return Register(idx, Input)
-end
-Container.AddTextbox = Container.AddInput
-
-function Container:AddKeybind(idx, info)
-	idx, info = ParseArgs(idx, info)
-	local row = CreateRow(self, info)
-	local Keybind = NewElement("Keybind", row, info)
-	Keybind.Value = info.Default and (typeof(info.Default) == "EnumItem" and info.Default.Name or tostring(info.Default)) or "None"
-	Keybind.Mode = info.Mode or "Toggle"
-	Keybind.Toggled = false
-	Keybind.Picking = false
-	Keybind.ChangedCallback = info.ChangedCallback
-	local clicked = Signal.new()
-
-	local capState = { Hovered = false }
-	local cap = New("TextButton", {
-		Name = "KeyCap",
-		TextSize = 13,
-		Weight = Enum.FontWeight.Medium,
-		Size = UDim2.fromOffset(58, 24),
-		Theme = {
-			BackgroundColor3 = function(t)
-				return capState.Hovered and t.ControlHover or t.Control
-			end,
-			TextColor3 = function(t)
-				return Keybind.Picking and t.SubText or t.Text
-			end,
-		},
-		Parent = row.Accessory,
-	})
-	Corner(cap, 6)
-	local capStroke = Stroke(cap, function(t)
-		return Keybind.Picking and MacUI.Accent or t.ControlStroke
-	end)
-
-	local function Render()
-		cap.Text = Keybind.Picking and "Press a key…" or KeyName(Keybind.Value)
-		cap.Size = UDim2.fromOffset(math.max(58, math.ceil(MeasureText(cap.Text, 13, Enum.FontWeight.Medium)) + 20), 24)
-		Restyle(cap, 0.12)
-		Restyle(capStroke, 0.12)
-		capStroke.Thickness = Keybind.Picking and 2 or 1
-	end
-
-	local function Matches(input)
-		return KeyMatches(input, Keybind.Value)
-	end
-
-	function Keybind:GetState()
-		if UserInputService:GetFocusedTextBox() and self.Mode ~= "Always" then
-			return false
-		end
-		if self.Mode == "Always" then
-			return true
-		elseif self.Mode == "Hold" then
-			if self.Value == "None" then
-				return false
-			elseif self.Value == "MB1" then
-				return UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton1)
-			elseif self.Value == "MB2" then
-				return UserInputService:IsMouseButtonPressed(Enum.UserInputType.MouseButton2)
-			end
-			local ok, keycode = pcall(function()
-				return Enum.KeyCode[self.Value]
-			end)
-			return ok and keycode and UserInputService:IsKeyDown(keycode) or false
-		end
-		return self.Toggled
-	end
-
-	function Keybind:SetValue(key, mode)
-		if typeof(key) == "EnumItem" then
-			key = key.Name
-		end
-		self.Value = key and tostring(key) or "None"
-		self.Mode = mode or self.Mode
-		Render()
-		RunCallback(self, self.ChangedCallback, self.Value)
-		for _, fn in ipairs(self._listeners) do
-			RunCallback(self, fn, self.Value)
-		end
-		ShortcutsChanged:Fire()
-		if self.Idx ~= nil then
-			MacUI.OptionChanged:Fire(self.Idx, self.Value, self)
-		end
-	end
-
-	function Keybind:OnClick(fn)
-		return clicked:Connect(fn)
-	end
-
-	function Keybind:DoClick()
-		RunCallback(self, self.Callback, self.Toggled)
-		clicked:Fire(self.Toggled)
-		ShortcutsChanged:Fire()
-	end
-
-	Keybind.DefaultKey, Keybind.DefaultMode = Keybind.Value, Keybind.Mode
-	function Keybind:_IsDefault()
-		return self.Value == self.DefaultKey and self.Mode == self.DefaultMode
-	end
-	function Keybind:_Reset()
-		self:SetValue(self.DefaultKey, self.DefaultMode)
-	end
-	function Keybind:_Text()
-		return self.Value ~= "None" and KeyName(self.Value) or nil
-	end
-
-	cap.MouseEnter:Connect(function()
-		capState.Hovered = true
-		Restyle(cap, 0.12)
-	end)
-	cap.MouseLeave:Connect(function()
-		capState.Hovered = false
-		Restyle(cap, 0.18)
-	end)
-	cap.MouseButton1Click:Connect(function()
-		if row.Disabled or Keybind.Picking or JustCaptured() then
-			return
-		end
-		Keybind.Picking = true
-		Render()
-		row.Capture = CaptureKey(function(key)
-			row.Capture = nil
-			Keybind.Picking = false
-			if row.Destroyed then
-				return
-			end
-			if key == false or key == Keybind.Value then
-				Render()
-				return
-			end
-			Keybind:SetValue(key)
-		end)
-	end)
-
-	local holding = false
-	row:Connect(UserInputService.InputBegan, function(input, processed)
-		-- `processed` covers typing in chat and clicks on other interfaces
-		if processed or Keybind.Picking or KeyCapture.Active or row.Disabled or row.DependencyHidden or UserInputService:GetFocusedTextBox() then
-			return
-		end
-		if Matches(input) then
-			if Keybind.Mode == "Toggle" then
-				Keybind.Toggled = not Keybind.Toggled
-			else
-				Keybind.Toggled = true
-				holding = Keybind.Mode == "Hold"
-			end
-			Keybind:DoClick()
-		end
-	end)
-	row:Connect(UserInputService.InputEnded, function(input)
-		if holding and Matches(input) then
-			holding = false
-			Keybind.Toggled = false
-			RunCallback(Keybind, Keybind.Callback, false)
-			clicked:Fire(false)
-			ShortcutsChanged:Fire()
-		end
-	end)
-
-	row:_BindContext(cap)
-	Render()
-	return Register(idx, Keybind)
-end
-
-function Container:AddColorpicker(idx, info)
-	idx, info = ParseArgs(idx, info)
-	local row = CreateRow(self, info, { Clickable = true })
-	local window = row.Window
-	local Picker = NewElement("Colorpicker", row, info)
-	Picker.Value = ResolveColor(info.Default) or MacUI.Accent
-	Picker.Transparency = info.Transparency
-	Picker.Hue, Picker.Sat, Picker.Vib = Picker.Value:ToHSV()
-
-	local wellState = { Hovered = false }
-	local well = New("TextButton", {
-		Name = "ColorWell",
-		Size = UDim2.fromOffset(46, 24),
-		Theme = {
-			BackgroundColor3 = function(t)
-				return wellState.Hovered and t.ControlHover or t.Control
-			end,
-		},
-		Parent = row.Accessory,
-	})
-	Corner(well, 7)
-	Stroke(well, "ControlStroke", 1, 0.3)
-	local swatch = New("Frame", {
-		Name = "Swatch",
-		Position = UDim2.fromOffset(3, 3),
-		Size = UDim2.new(1, -6, 1, -6),
-		BackgroundColor3 = Picker.Value,
-		Parent = well,
-	})
-	Corner(swatch, 5)
-
-	local listeners = {}
-	function Picker:Display()
-		swatch.BackgroundColor3 = self.Value
-		swatch.BackgroundTransparency = self.Transparency or 0
-		row.SearchExtra = "#" .. self.Value:ToHex()
-		for _, fn in ipairs(listeners) do
-			fn()
-		end
-	end
-
-	function Picker:SetValueRGB(color, transparency)
-		color = ResolveColor(color) or self.Value
-		self.Value = color
-		self.Hue, self.Sat, self.Vib = color:ToHSV()
-		if transparency ~= nil then
-			self.Transparency = transparency
-		end
-		self:Display()
-		self:_Emit(self.Value)
-	end
-
-	function Picker:SetValue(hsv, transparency)
-		if typeof(hsv) == "Color3" or type(hsv) == "string" then
-			return self:SetValueRGB(hsv, transparency)
-		end
-		self.Hue, self.Sat, self.Vib = hsv[1], hsv[2], hsv[3]
-		self.Value = Color3.fromHSV(hsv[1], hsv[2], hsv[3])
-		if transparency ~= nil then
-			self.Transparency = transparency
-		end
-		self:Display()
-		self:_Emit(self.Value)
-	end
-
-	local function SetHSV(h, s, v)
-		Picker.Hue, Picker.Sat, Picker.Vib = h, s, v
-		Picker.Value = Color3.fromHSV(h, s, v)
-		Picker:Display()
-		Picker:_Emit(Picker.Value)
-	end
-
-	local function OpenPicker()
-		if row.Disabled then
-			return
-		end
-		local hasAlpha = Picker.Transparency ~= nil
-		-- inner layout: SV box 0-140, hue 152-164, alpha 176-188, hex row, presets
-		local rowY = (hasAlpha and 188 or 164) + 14
-		local presetsY = rowY + 26 + 12
-		local height = presetsY + 18 + 24
-		window:_OpenPopup(well, 240, height, function(canvas, popover)
-			local inner = New("Frame", {
-				BackgroundTransparency = 1,
-				Size = UDim2.fromScale(1, 1),
-				Parent = canvas,
-			})
-			Padding(inner, 12, 12, 12, 12)
-
-			local sv = New("Frame", {
-				Name = "SaturationValue",
-				Size = UDim2.new(1, 0, 0, 140),
-				Parent = inner,
-			})
-			Corner(sv, 8)
-			local white = New("Frame", {
-				Size = UDim2.fromScale(1, 1),
-				BackgroundColor3 = Color3.new(1, 1, 1),
-				Parent = sv,
-			})
-			Corner(white, 8)
-			New("UIGradient", {
-				Transparency = NumberSequence.new(0, 1),
-				Parent = white,
-			})
-			local black = New("Frame", {
-				Size = UDim2.fromScale(1, 1),
-				BackgroundColor3 = Color3.new(0, 0, 0),
-				ZIndex = 2,
-				Parent = sv,
-			})
-			Corner(black, 8)
-			New("UIGradient", {
-				Rotation = 90,
-				Transparency = NumberSequence.new(1, 0),
-				Parent = black,
-			})
-			local svCursor = New("Frame", {
-				AnchorPoint = Vector2.new(0.5, 0.5),
-				Size = UDim2.fromOffset(14, 14),
-				ZIndex = 3,
-				Parent = sv,
-			})
-			Corner(svCursor, 7)
-			New("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 2, Parent = svCursor })
-
-			local hue = New("Frame", {
-				Name = "Hue",
-				Position = UDim2.fromOffset(0, 152),
-				Size = UDim2.new(1, 0, 0, 12),
-				BackgroundColor3 = Color3.new(1, 1, 1),
-				Parent = inner,
-			})
-			Corner(hue, 6)
-			local keypoints = {}
-			for i = 0, 6 do
-				table.insert(keypoints, ColorSequenceKeypoint.new(i / 6, Color3.fromHSV(i / 6 % 1, 1, 1)))
-			end
-			New("UIGradient", { Color = ColorSequence.new(keypoints), Parent = hue })
-			local hueCursor = New("Frame", {
-				AnchorPoint = Vector2.new(0.5, 0.5),
-				Position = UDim2.fromScale(0, 0.5),
-				Size = UDim2.fromOffset(16, 16),
-				ZIndex = 2,
-				Parent = hue,
-			})
-			Corner(hueCursor, 8)
-			New("UIStroke", { Color = Color3.new(1, 1, 1), Thickness = 2, Parent = hueCursor })
-
-			local alpha, alphaFill, alphaCursor
-			if hasAlpha then
-				alpha = New("Frame", {
-					Name = "Alpha",
-					Position = UDim2.fromOffset(0, 176),
-					Size = UDim2.new(1, 0, 0, 12),
-					Theme = { BackgroundColor3 = "Track" },
-					Parent = inner,
-				})
-				Corner(alpha, 6)
-				alphaFill = New("Frame", {
-					Name = "Fill",
-					Size = UDim2.fromScale(1, 1),
-					Parent = alpha,
-				})
-				Corner(alphaFill, 6)
-				New("UIGradient", { Transparency = NumberSequence.new(0, 1), Parent = alphaFill })
-				alphaCursor = New("Frame", {
-					AnchorPoint = Vector2.new(0.5, 0.5),
-					Position = UDim2.fromScale(0, 0.5),
-					Size = UDim2.fromOffset(16, 16),
-					ZIndex = 2,
-					Theme = { BackgroundColor3 = "Knob" },
-					Parent = alpha,
-				})
-				Corner(alphaCursor, 8)
-				New("UIStroke", { Color = Color3.new(0, 0, 0), Transparency = 0.75, Parent = alphaCursor })
-			end
-
-			local preview = New("Frame", {
-				Name = "Preview",
-				Position = UDim2.fromOffset(0, rowY),
-				Size = UDim2.fromOffset(26, 26),
-				Parent = inner,
-			})
-			Corner(preview, 6)
-			Stroke(preview, "FieldStroke")
-			local hexField = New("Frame", {
-				Position = UDim2.fromOffset(36, rowY),
-				Size = UDim2.new(1, -36, 0, 26),
-				Theme = { BackgroundColor3 = "Field" },
-				Parent = inner,
-			})
-			Corner(hexField, 6)
-			local hexStroke = Stroke(hexField, "FieldStroke")
-			local hexBox = New("TextBox", {
-				Position = UDim2.fromOffset(8, 0),
-				Size = UDim2.new(1, -16, 1, 0),
-				TextSize = 13,
-				Theme = { TextColor3 = "Text" },
-				Parent = hexField,
-			})
-			New("TextLabel", {
-				AnchorPoint = Vector2.new(1, 0),
-				Position = UDim2.new(1, -8, 0, 0),
-				Size = UDim2.new(0, 40, 1, 0),
-				Text = "HEX",
-				TextSize = 11,
-				Weight = Enum.FontWeight.Medium,
-				TextXAlignment = Enum.TextXAlignment.Right,
-				Theme = { TextColor3 = "SubText" },
-				Parent = hexField,
-			})
-			local presets = New("Frame", {
-				Name = "Presets",
-				BackgroundTransparency = 1,
-				Position = UDim2.fromOffset(0, presetsY),
-				Size = UDim2.new(1, 0, 0, 18),
-				Parent = inner,
-			})
-			List(presets, Enum.FillDirection.Horizontal, 9, { VerticalAlignment = Enum.VerticalAlignment.Center })
-			for index, name in ipairs(MacUI.AccentOrder) do
-				local color = MacUI.Accents[name]
-				local dot = New("TextButton", {
-					Name = name,
-					Size = UDim2.fromOffset(18, 18),
-					BackgroundTransparency = 0,
-					BackgroundColor3 = color,
-					LayoutOrder = index,
-					Parent = presets,
-				})
-				Corner(dot, 9)
-				New("UIStroke", { Color = Darken(color, 0.25), Transparency = 0.4, Parent = dot })
-				dot.MouseButton1Click:Connect(function()
-					Picker:SetValueRGB(color)
-				end)
-			end
-
-			local function Refresh()
-				sv.BackgroundColor3 = Color3.fromHSV(Picker.Hue, 1, 1)
-				svCursor.Position = UDim2.fromScale(Picker.Sat, 1 - Picker.Vib)
-				svCursor.BackgroundColor3 = Picker.Value
-				hueCursor.Position = UDim2.fromScale(Picker.Hue, 0.5)
-				hueCursor.BackgroundColor3 = Color3.fromHSV(Picker.Hue, 1, 1)
-				preview.BackgroundColor3 = Picker.Value
-				preview.BackgroundTransparency = Picker.Transparency or 0
-				if not hexBox:IsFocused() then
-					hexBox.Text = "#" .. Picker.Value:ToHex():upper()
-				end
-				if alpha then
-					alphaFill.BackgroundColor3 = Picker.Value
-					alphaCursor.Position = UDim2.fromScale(Picker.Transparency or 0, 0.5)
-				end
-			end
-			table.insert(listeners, Refresh)
-			popover.OnClose = function()
-				local index = table.find(listeners, Refresh)
-				if index then
-					table.remove(listeners, index)
-				end
-			end
-			Refresh()
-
-			local dragging, dragInput
-			local function Update(position)
-				MarkActivity()
-				if dragging == "sv" then
-					local s = math.clamp((position.X - sv.AbsolutePosition.X) / sv.AbsoluteSize.X, 0, 1)
-					local v = 1 - math.clamp((position.Y - sv.AbsolutePosition.Y) / sv.AbsoluteSize.Y, 0, 1)
-					SetHSV(Picker.Hue, s, v)
-				elseif dragging == "hue" then
-					local h = math.clamp((position.X - hue.AbsolutePosition.X) / hue.AbsoluteSize.X, 0, 0.999)
-					SetHSV(h, Picker.Sat, Picker.Vib)
-				elseif dragging == "alpha" then
-					Picker.Transparency = Round(math.clamp((position.X - alpha.AbsolutePosition.X) / alpha.AbsoluteSize.X, 0, 1), 2)
-					Picker:Display()
-					Picker:_Emit(Picker.Value)
-				end
-			end
-			local function Begin(kind)
-				return function(input)
-					if IsPointer(input) then
-						dragging, dragInput = kind, input
-						Update(input.Position)
-					end
-				end
-			end
-			sv.InputBegan:Connect(Begin("sv"))
-			hue.InputBegan:Connect(Begin("hue"))
-			if alpha then
-				alpha.InputBegan:Connect(Begin("alpha"))
-			end
-			popover:Connect(UserInputService.InputChanged, function(input)
-				if dragging and DragMoves(dragInput, input) then
-					Update(input.Position)
-				end
-			end)
-			popover:Connect(UserInputService.InputEnded, function(input)
-				if dragging and DragEnds(dragInput, input) then
-					dragging, dragInput = nil, nil
-				end
-			end)
-			hexBox.Focused:Connect(function()
-				Themed(hexStroke, { Color = "Accent" })
-			end)
-			hexBox.FocusLost:Connect(function()
-				MarkActivity()
-				Themed(hexStroke, { Color = "FieldStroke" })
-				local text = hexBox.Text:gsub("#", ""):gsub("%s", "")
-				local ok, color = pcall(Color3.fromHex, text)
-				if ok and color then
-					Picker:SetValueRGB(color)
-				else
-					Refresh()
-				end
-			end)
-		end)
-	end
-
-	well.MouseEnter:Connect(function()
-		wellState.Hovered = true
-		Restyle(well, 0.12)
-	end)
-	well.MouseLeave:Connect(function()
-		wellState.Hovered = false
-		Restyle(well, 0.18)
-	end)
-	well.MouseButton1Click:Connect(OpenPicker)
-	row.OnClick = OpenPicker
-	row:_BindContext(well)
-
-	Picker.DefaultColor, Picker.DefaultTransparency = Picker.Value, Picker.Transparency
-	function Picker:_IsDefault()
-		return self.Value:ToHex() == self.DefaultColor:ToHex() and self.Transparency == self.DefaultTransparency
-	end
-	function Picker:_Reset()
-		self.Transparency = self.DefaultTransparency
-		self:SetValueRGB(self.DefaultColor)
-	end
-	function Picker:_Text()
-		return "#" .. self.Value:ToHex():upper()
-	end
-
-	Picker:Display()
-	return Register(idx, Picker)
-end
-Container.AddColorPicker = Container.AddColorpicker
-
-function Container:AddSegmented(idx, info)
-	idx, info = ParseArgs(idx, info)
-	local row = CreateRow(self, info)
-	local window = row.Window
-	local Segmented = NewElement("Segmented", row, info)
-	Segmented.Values = info.Values or {}
-	local default = info.Default
-	if type(default) == "number" then
-		default = Segmented.Values[default]
-	end
-	Segmented.Value = default or Segmented.Values[1]
-
-	local control = New("Frame", {
-		Name = "Segmented",
-		Size = UDim2.fromOffset(0, 26),
-		AutomaticSize = Enum.AutomaticSize.X,
-		Theme = { BackgroundColor3 = "SegmentBg" },
-		Parent = row.Accessory,
-	})
-	Corner(control, 7)
-	local pill = New("Frame", {
-		Name = "Selection",
-		Position = UDim2.fromOffset(2, 2),
-		Size = UDim2.fromOffset(0, 22),
-		Theme = { BackgroundColor3 = "SegmentSelected" },
-		Parent = control,
-	})
-	Corner(pill, 6)
-	New("UIStroke", { Color = Color3.new(0, 0, 0), Transparency = 0.9, Parent = pill })
-	local items = New("Frame", {
-		Name = "Items",
-		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(0, 26),
-		AutomaticSize = Enum.AutomaticSize.X,
-		ZIndex = 2,
-		Parent = control,
-	})
-	List(items, Enum.FillDirection.Horizontal, 0)
-	Padding(items, 0, 2, 0, 2)
-
-	-- With more options than make sensible segments (a theme list that grew,
-	-- say) it shows as a pop-up menu instead. MaxSegments sets how many.
-	local maxSegments = math.max(math.floor(tonumber(info.MaxSegments) or 5), 2)
-	local menuButton, menuLabel
-	local function MenuButton()
-		if menuButton then
-			return
-		end
-		menuButton = New("TextButton", {
-			Name = "PopupButton",
-			Size = UDim2.fromOffset(0, 26),
-			AutomaticSize = Enum.AutomaticSize.X,
-			Visible = false,
-			Parent = row.Accessory,
-		})
-		List(menuButton, Enum.FillDirection.Horizontal, 7, { VerticalAlignment = Enum.VerticalAlignment.Center })
-		menuLabel = New("TextLabel", {
-			Name = "Value",
-			TextSize = 14,
-			Size = UDim2.fromOffset(0, 18),
-			AutomaticSize = Enum.AutomaticSize.X,
-			TextTruncate = Enum.TextTruncate.AtEnd,
-			LayoutOrder = 1,
-			Theme = { TextColor3 = "Text" },
-			Parent = menuButton,
-		})
-		New("UISizeConstraint", { MaxSize = Vector2.new(200, 18), Parent = menuLabel })
-		local capsule = New("Frame", {
-			Name = "Chevrons",
-			Size = UDim2.fromOffset(17, 21),
-			LayoutOrder = 2,
-			Theme = { BackgroundColor3 = "Control" },
-			Parent = menuButton,
-		})
-		Corner(capsule, 5)
-		IconImage({
-			Icon = "chevrons-up-down",
-			IconSize = 12,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			Theme = { ImageColor3 = "Text" },
-			Parent = capsule,
-		})
-		menuButton.MouseButton1Click:Connect(function()
-			if row.Disabled then
-				return
-			end
-			window:_OpenMenu(menuButton, {
-				Values = Segmented.Values,
-				MinWidth = math.max(menuButton.AbsoluteSize.X / window:GetAbsoluteScale() + 24, 170),
-				IsSelected = function(value)
-					return Segmented.Value == value
-				end,
-				OnPick = function(value)
-					Segmented:SetValue(value)
-				end,
-			})
-		end)
-	end
-	local function UpdateMode()
-		local asMenu = #Segmented.Values > maxSegments
-		if asMenu then
-			MenuButton()
-		end
-		control.Visible = not asMenu
-		if menuButton then
-			menuButton.Visible = asMenu
-			menuLabel.Text = Segmented.Value ~= nil and tostring(Segmented.Value) or "None"
-		end
-	end
-
-	local buttons = {}
-	local function MovePill(duration)
-		local button = buttons[Segmented.Value]
-		if not button then
-			pill.Visible = false
-			return
-		end
-		pill.Visible = true
-		local scale = window:GetAbsoluteScale()
-		local x = (button.AbsolutePosition.X - control.AbsolutePosition.X) / scale
-		local width = button.AbsoluteSize.X / scale
-		local goal = { Position = UDim2.fromOffset(x, 2), Size = UDim2.fromOffset(width, 22) }
-		if duration == 0 or pill.Size.X.Offset == 0 then
-			pill.Position = goal.Position
-			pill.Size = goal.Size
-		else
-			Tween(pill, goal, duration or 0.25, Enum.EasingStyle.Quint)
-		end
-	end
-
-	local function Build()
-		for _, button in pairs(buttons) do
-			button:Destroy()
-		end
-		table.clear(buttons)
-		for index, value in ipairs(Segmented.Values) do
-			local button = New("TextButton", {
-				Name = tostring(value),
-				Text = tostring(value),
-				TextSize = 13,
-				Weight = Enum.FontWeight.Medium,
-				Size = UDim2.fromOffset(0, 26),
-				AutomaticSize = Enum.AutomaticSize.X,
-				LayoutOrder = index,
-				Theme = { TextColor3 = "Text" },
-				Parent = items,
-			})
-			Padding(button, 0, 14, 0, 14)
-			buttons[value] = button
-			button.MouseButton1Click:Connect(function()
-				if not row.Disabled then
-					Segmented:SetValue(value)
-				end
-			end)
-			button:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
-				if Segmented.Value == value then
-					MovePill(0)
-				end
-			end)
-			button:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-				if Segmented.Value == value then
-					MovePill(0)
-				end
-			end)
-		end
-		MovePill(0)
-		UpdateMode()
-	end
-
-	function Segmented:SetValue(value)
-		if not table.find(self.Values, value) then
-			return
-		end
-		self.Value = value
-		MovePill()
-		UpdateMode()
-		self:_Emit(value)
-	end
-
-	function Segmented:SetValues(values)
-		self.Values = values or {}
-		if not table.find(self.Values, self.Value) then
-			self.Value = self.Values[1]
-		end
-		Build()
-	end
-
-	Segmented.Default = Segmented.Value
-	Build()
-	return Register(idx, Segmented)
-end
-Container.AddSegmentedControl = Container.AddSegmented
-
-function Container:AddProgress(idx, info)
-	idx, info = ParseArgs(idx, info)
-	local row = CreateRow(self, info)
-	local Progress = NewElement("Progress", row, info)
-	Progress.Max = math.max(Finite(info.Max) or 100, 0)
-	Progress.Value = math.clamp(tonumber(info.Default or info.Value) or 0, 0, Progress.Max)
-
-	local bar = New("Frame", {
-		Name = "Progress",
-		Size = UDim2.fromOffset(info.Width or 150, 6),
-		LayoutOrder = 1,
-		Theme = { BackgroundColor3 = "Track" },
-		Parent = row.Accessory,
-	})
-	Corner(bar, 3)
-	local fill = New("Frame", {
-		Name = "Fill",
-		Size = UDim2.fromScale(0, 1),
-		Theme = { BackgroundColor3 = "Accent" },
-		Parent = bar,
-	})
-	Corner(fill, 3)
-	local label = New("TextLabel", {
-		Name = "Percent",
-		TextSize = 13,
-		Size = UDim2.fromOffset(38, 18),
-		TextXAlignment = Enum.TextXAlignment.Right,
-		LayoutOrder = 2,
-		Theme = { TextColor3 = "SubText" },
-		Parent = row.Accessory,
-	})
-
-	function Progress:SetValue(value)
-		self.Value = math.clamp(tonumber(value) or 0, 0, self.Max)
-		local alpha = self.Max == 0 and 0 or self.Value / self.Max
-		Tween(fill, { Size = UDim2.fromScale(alpha, 1) }, 0.35)
-		label.Text = math.floor(alpha * 100 + 0.5) .. "%"
-		self:_Emit(self.Value)
-	end
-
-	function Progress:_Text()
-		return label.Text
-	end
-
-	Progress:SetValue(Progress.Value)
-	return Register(idx, Progress)
-end
-Container.AddProgressBar = Container.AddProgress
-
--- Numeric stepper: [ 12 ] [ − | + ]  (hold a button to repeat)
-function Container:AddStepper(idx, info)
-	idx, info = ParseArgs(idx, info)
-	local row = CreateRow(self, info)
-	local Stepper = NewElement("Stepper", row, info)
-	Stepper.Min = Finite(info.Min) or 0
-	Stepper.Max = Finite(info.Max) or 100
-	Stepper.Min, Stepper.Max = math.min(Stepper.Min, Stepper.Max), math.max(Stepper.Min, Stepper.Max)
-	Stepper.Step = Finite(info.Step or info.Increment) or 1
-	Stepper.Rounding = Places(info.Rounding, StepPlaces(Stepper.Step))
-	Stepper.Suffix = info.Suffix or ""
-
-	local function Normalize(value)
-		return math.clamp(Round(Finite(value) or Stepper.Min, Stepper.Rounding), Stepper.Min, Stepper.Max)
-	end
-	local function Format(value)
-		return string.format("%." .. math.max(Stepper.Rounding, 0) .. "f", value) .. Stepper.Suffix
-	end
-	Stepper.Value = Normalize(info.Default or Stepper.Min)
-
-	local box = New("TextBox", {
-		Name = "Value",
-		TextSize = 13,
-		Size = UDim2.fromOffset(
-			math.max(40, math.ceil(math.max(MeasureText(Format(Stepper.Max), 13), MeasureText(Format(Stepper.Min), 13))) + 16),
-			24
-		),
-		TextXAlignment = Enum.TextXAlignment.Center,
-		BackgroundTransparency = 0,
-		LayoutOrder = 1,
-		Theme = { BackgroundColor3 = "Field", TextColor3 = "Text" },
-		Parent = row.Accessory,
-	})
-	Corner(box, 6)
-	local boxStroke = Stroke(box, "FieldStroke")
-
-	local pill = New("Frame", {
-		Name = "Stepper",
-		Size = UDim2.fromOffset(62, 24),
-		LayoutOrder = 2,
-		Theme = { BackgroundColor3 = "Button" },
-		Parent = row.Accessory,
-	})
-	Corner(pill, 6)
-	Stroke(pill, "ControlStroke", 1, 0.35)
-	New("Frame", {
-		Name = "Divider",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.new(0, 1, 1, -10),
-		ZIndex = 3,
-		Theme = { BackgroundColor3 = "ControlStroke" },
-		Parent = pill,
-	})
-
-	local halves = {}
-	local function Half(direction)
-		local state = { Hovered = false, Enabled = true }
-		local button = New("TextButton", {
-			Name = direction < 0 and "Decrement" or "Increment",
-			Position = UDim2.fromScale(direction < 0 and 0 or 0.5, 0),
-			Size = UDim2.fromScale(0.5, 1),
-			Theme = {
-				BackgroundColor3 = "Hover",
-				BackgroundTransparency = function(t)
-					return (state.Hovered and state.Enabled) and t.HoverTransparency - 0.03 or 1
-				end,
-			},
-			Parent = pill,
-		})
-		Corner(button, 6)
-		local glyph = IconImage({
-			Icon = direction < 0 and "minus" or "plus",
-			IconSize = 12,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			ZIndex = 2,
-			Theme = {
-				ImageColor3 = function(t)
-					return state.Enabled and t.Text or t.Tertiary
-				end,
-			},
-			Parent = button,
-		})
-		local holdToken = 0
-		button.MouseEnter:Connect(function()
-			state.Hovered = true
-			Restyle(button, 0.1)
-		end)
-		button.MouseLeave:Connect(function()
-			state.Hovered = false
-			holdToken += 1
-			Restyle(button, 0.15)
-		end)
-		button.MouseButton1Down:Connect(function()
-			if row.Disabled then
-				return
-			end
-			holdToken += 1
-			local token = holdToken
-			Stepper:SetValue(Stepper.Value + direction * Stepper.Step)
-			task.delay(0.4, function()
-				while token == holdToken and button.Parent do
-					Stepper:SetValue(Stepper.Value + direction * Stepper.Step)
-					task.wait(0.07)
-				end
-			end)
-		end)
-		button.MouseButton1Up:Connect(function()
-			holdToken += 1
-		end)
-		row:_BindContext(button)
-		halves[direction] = {
-			State = state,
-			Button = button,
-			Glyph = glyph,
-			StopHold = function()
-				holdToken += 1
-			end,
-		}
-	end
-	Half(-1)
-	Half(1)
-	row:Connect(UserInputService.InputEnded, function(input)
-		if IsPointer(input) then
-			halves[-1].StopHold()
-			halves[1].StopHold()
-		end
-	end)
-
-	local function Render()
-		if not box:IsFocused() then
-			box.Text = Format(Stepper.Value)
-		end
-		for direction, half in pairs(halves) do
-			half.State.Enabled = direction < 0 and Stepper.Value > Stepper.Min or direction > 0 and Stepper.Value < Stepper.Max
-			Restyle(half.Button, 0.12)
-			Restyle(half.Glyph, 0.12)
-		end
-	end
-
-	function Stepper:SetValue(value)
-		value = Normalize(value)
-		local changed = value ~= self.Value
-		self.Value = value
-		Render()
-		if changed then
-			self:_Emit(value)
-		end
-	end
-
-	function Stepper:_Text()
-		return Format(self.Value)
-	end
-
-	box.Focused:Connect(function()
-		box.Text = string.format("%." .. math.max(Stepper.Rounding, 0) .. "f", Stepper.Value)
-		Themed(boxStroke, { Color = "Accent" })
-	end)
-	box.FocusLost:Connect(function()
-		MarkActivity()
-		Themed(boxStroke, { Color = "FieldStroke" })
-		local number = tonumber((box.Text:gsub("[^%d%.%-]", "")))
-		if number then
-			Stepper:SetValue(number)
-		end
-		box.Text = Format(Stepper.Value)
-	end)
-
-	Stepper.Default = Stepper.Value
-	Render()
-	Register(idx, Stepper)
-	Stepper:_Emit(Stepper.Value)
-	return Stepper
-end
-
--- Radio group: the options stack on the right side of the row.
-function Container:AddRadio(idx, info)
-	idx, info = ParseArgs(idx, info)
-	local row = CreateRow(self, info)
-	local Radio = NewElement("Radio", row, info)
-	Radio.Values = info.Values or {}
-	local default = info.Default
-	if type(default) == "number" then
-		default = Radio.Values[default]
-	end
-	Radio.Value = default or Radio.Values[1]
-
-	local list = New("Frame", {
-		Name = "Radio",
-		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(0, 0),
-		AutomaticSize = Enum.AutomaticSize.XY,
-		Parent = row.Accessory,
-	})
-	List(list, nil, 6)
-	local options = {}
-
-	local function Paint(duration)
-		for value, option in pairs(options) do
-			option.Selected = Radio.Value == value
-			Restyle(option.Circle, duration)
-			Restyle(option.Stroke, duration)
-			Tween(option.Dot, { Size = option.Selected and UDim2.fromOffset(6, 6) or UDim2.fromOffset(0, 0) }, duration or 0.2, Enum.EasingStyle.Back)
-		end
-	end
-
-	local function Build()
-		for _, option in pairs(options) do
-			option.Button:Destroy()
-		end
-		table.clear(options)
-		for index, value in ipairs(Radio.Values) do
-			local option = { Selected = false }
-			option.Button = New("TextButton", {
-				Name = tostring(value),
-				Size = UDim2.fromOffset(0, 20),
-				AutomaticSize = Enum.AutomaticSize.X,
-				LayoutOrder = index,
-				Parent = list,
-			})
-			option.Circle = New("Frame", {
-				Name = "Circle",
-				AnchorPoint = Vector2.new(0, 0.5),
-				Position = UDim2.fromScale(0, 0.5),
-				Size = UDim2.fromOffset(16, 16),
-				Theme = {
-					BackgroundColor3 = function(t)
-						return option.Selected and MacUI.Accent or t.Field
-					end,
-				},
-				Parent = option.Button,
-			})
-			Corner(option.Circle, 8)
-			option.Stroke = Stroke(option.Circle, function(t)
-				return option.Selected and Darken(MacUI.Accent, 0.15) or t.FieldStroke
-			end)
-			option.Dot = New("Frame", {
-				Name = "Dot",
-				AnchorPoint = Vector2.new(0.5, 0.5),
-				Position = UDim2.fromScale(0.5, 0.5),
-				Size = UDim2.fromOffset(0, 0),
-				BackgroundColor3 = Color3.new(1, 1, 1),
-				Parent = option.Circle,
-			})
-			Corner(option.Dot, 3)
-			New("TextLabel", {
-				Name = "Label",
-				Text = tostring(value),
-				TextSize = 13,
-				Position = UDim2.fromOffset(24, 0),
-				Size = UDim2.fromOffset(0, 20),
-				AutomaticSize = Enum.AutomaticSize.X,
-				Theme = { TextColor3 = "Text" },
-				Parent = option.Button,
-			})
-			option.Button.MouseButton1Click:Connect(function()
-				if not row.Disabled then
-					Radio:SetValue(value)
-				end
-			end)
-			row:_BindContext(option.Button)
-			options[value] = option
-		end
-		local count = #Radio.Values
-		row.MinHeight = math.max(44, count * 20 + math.max(count - 1, 0) * 6 + 22)
-		row:_UpdateLayout()
-		Paint(0)
-	end
-
-	function Radio:SetValue(value)
-		if not table.find(self.Values, value) then
-			return
-		end
-		self.Value = value
-		Paint(0.2)
-		self:_Emit(value)
-	end
-
-	function Radio:SetValues(values)
-		self.Values = values or {}
-		if not table.find(self.Values, self.Value) then
-			self.Value = self.Values[1]
-		end
-		Build()
-	end
-
-	Radio.Default = Radio.Value
-	Build()
-	return Register(idx, Radio)
-end
-Container.AddRadioGroup = Container.AddRadio
-
--- Monospace block with a copy button, for keys, links and snippets.
-function Container:AddCode(idx, info)
-	idx, info = ParseArgs(idx, info)
-	local row = CreateRow(self, {
-		Title = info.Title,
-		Description = info.Description,
-		Keywords = info.Keywords,
-		Tooltip = info.Tooltip,
-		DependsOn = info.DependsOn,
-		DependsMode = info.DependsMode,
-	}, { TitleWeight = Enum.FontWeight.Medium })
-	row.FullWidthText = true
-	row.ForceStack = true
-	row:_UpdateLayout()
-	row:_UpdateReserve()
-	local Code = NewElement("Code", row, info)
-	Code.Value = tostring(info.Code or info.Content or "")
-
-	New("Frame", { Name = "Gap", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 4), LayoutOrder = 3, Parent = row.Stack })
-	local frame = New("Frame", {
-		Name = "Code",
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		LayoutOrder = 4,
-		Theme = { BackgroundColor3 = "Code" },
-		Parent = row.Stack,
-	})
-	Corner(frame, 8)
-	Stroke(frame, "FieldStroke")
-	Padding(frame, 8, 40, 8, 12)
-	-- at least as tall as the copy button, so one line sits in the middle
-	local source = New("TextLabel", {
-		Name = "Source",
-		Text = Code.Value,
-		TextSize = 12,
-		FontFace = Font.new(MacUI.MonoFamily),
-		Size = UDim2.new(1, 0, 0, 24),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		TextWrapped = true,
-		TextYAlignment = Enum.TextYAlignment.Center,
-		Theme = { TextColor3 = "Text" },
-		Parent = frame,
-	})
-	FontRegistry[source] = nil -- stays monospace when the UI font changes
-
-	local copyState = { Hovered = false }
-	local copy = New("TextButton", {
-		Name = "Copy",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, 33, 0, 0),
-		Size = UDim2.fromOffset(24, 24),
-		Theme = {
-			BackgroundColor3 = "Hover",
-			BackgroundTransparency = function(t)
-				return copyState.Hovered and t.HoverTransparency - 0.03 or 1
-			end,
-		},
-		Parent = frame,
-	})
-	Corner(copy, 6)
-	IconImage({
-		Icon = "copy",
-		IconSize = 14,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Theme = { ImageColor3 = "SubText" },
-		Parent = copy,
-	})
-	copy.MouseEnter:Connect(function()
-		copyState.Hovered = true
-		Restyle(copy, 0.1)
-	end)
-	copy.MouseLeave:Connect(function()
-		copyState.Hovered = false
-		Restyle(copy, 0.15)
-	end)
-	copy.MouseButton1Click:Connect(function()
-		if CopyToClipboard(Code.Value) then
-			row.Window:Toast("Copied to Clipboard", { Icon = "clipboard" })
-		else
-			row.Window:Toast("Clipboard isn’t available", { Icon = "x-circle" })
-		end
-	end)
-	row.Window:_AttachTooltip(copy, "Copy")
-
-	function Code:SetCode(text)
-		self.Value = tostring(text or "")
-		source.Text = self.Value
-	end
-	Code.SetValue = Code.SetCode
-	function Code:_Text()
-		return self.Value
-	end
-	return Register(idx, Code)
-end
-
--- Full-width picture (banners, previews). Title/Description show underneath.
-local function ResolveScaleType(value)
-	if typeof(value) == "EnumItem" and value.EnumType == Enum.ScaleType then
-		return value
-	end
-	local ok, item = pcall(function()
-		return Enum.ScaleType[tostring(value or "Crop")]
-	end)
-	return ok and item or Enum.ScaleType.Crop
-end
-
-function Container:AddImage(idx, info)
-	idx, info = ParseArgs(idx, info)
-	local row = CreateRow(self, {
-		Title = info.Title,
-		Description = info.Description,
-		Keywords = info.Keywords,
-		Tooltip = info.Tooltip,
-		DependsOn = info.DependsOn,
-		DependsMode = info.DependsMode,
-	}, { TitleWeight = Enum.FontWeight.Medium })
-	row.FullWidthText = true
-	row.ForceStack = true
-	row:_UpdateLayout()
-	row:_UpdateReserve()
-	local ImageElement = NewElement("Image", row, info)
-	-- The icon set's glyphs are white: tint them (ImageColor, or the text
-	-- colour) so they show on a light theme too. Pictures keep their colours.
-	local tint = ResolveColor(info.ImageColor)
-	local isIcon = false
-	local function ResolveImage(value)
-		local asset = MacUI:GetIcon(value) or tostring(value or "")
-		isIcon = false
-		for _, id in pairs(Icons) do
-			if id == asset then
-				isIcon = true
-				break
-			end
-		end
-		return asset
-	end
-	local image = New("ImageLabel", {
-		Name = "Image",
-		Image = ResolveImage(info.Image),
-		Size = UDim2.new(1, 0, 0, info.Height or 150),
-		ScaleType = ResolveScaleType(info.ScaleType),
-		BackgroundTransparency = 0,
-		LayoutOrder = -2,
-		Theme = {
-			BackgroundColor3 = "Field",
-			ImageColor3 = function(t)
-				return tint or (isIcon and t.Text) or Color3.new(1, 1, 1)
-			end,
-		},
-		Parent = row.Stack,
-	})
-	Corner(image, 8)
-	Stroke(image, "FieldStroke")
-	if row.Title ~= "" or row.Description ~= "" then
-		New("Frame", { Name = "Gap", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 4), LayoutOrder = -1, Parent = row.Stack })
-	end
-	function ImageElement:SetImage(value)
-		image.Image = ResolveImage(value)
-		Restyle(image, 0)
-	end
-	function ImageElement:SetHeight(height)
-		image.Size = UDim2.new(1, 0, 0, height)
-	end
-	return Register(idx, ImageElement)
-end
-
--- Shared setup for the full-width rows (graph, table): title and description
--- on top, content underneath.
-local function WideRow(container, info)
-	local row = CreateRow(container, {
-		Title = info.Title,
-		Description = info.Description,
-		Keywords = info.Keywords,
-		Tooltip = info.Tooltip,
-		DependsOn = info.DependsOn,
-		DependsMode = info.DependsMode,
-	}, { TitleWeight = Enum.FontWeight.Medium })
-	row.FullWidthText = true
-	row.ForceStack = true
-	row:_UpdateLayout()
-	row:_UpdateReserve()
-	New("Frame", { Name = "Gap", BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 6), LayoutOrder = 3, Parent = row.Stack })
-	return row
-end
-
--- Live bar chart (FPS, ping, earnings...). Graph:Push(value) adds a sample;
--- the oldest one scrolls off the left.
-function Container:AddGraph(idx, info)
-	idx, info = ParseArgs(idx, info)
-	local row = WideRow(self, info)
-	local Graph = NewElement("Graph", row, info)
-	Graph.Points = math.max(math.floor(tonumber(info.Points) or 40), 2)
-	Graph.Min = tonumber(info.Min)
-	Graph.Max = tonumber(info.Max)
-	Graph.Suffix = info.Suffix or ""
-	Graph.Rounding = Places(info.Rounding, 0)
-	Graph.Values = {}
-
-	local chart = New("Frame", {
-		Name = "Graph",
-		Size = UDim2.new(1, 0, 0, tonumber(info.Height) or 76),
-		ClipsDescendants = true,
-		LayoutOrder = 4,
-		Theme = { BackgroundColor3 = "Field" },
-		Parent = row.Stack,
-	})
-	Corner(chart, 8)
-	Stroke(chart, "FieldStroke")
-	local latest = New("TextLabel", {
-		Name = "Latest",
-		TextSize = 12,
-		Weight = Enum.FontWeight.Bold,
-		Position = UDim2.fromOffset(10, 4),
-		Size = UDim2.new(0.5, -10, 0, 16),
-		Theme = { TextColor3 = "Text" },
-		Parent = chart,
-	})
-	local average = New("TextLabel", {
-		Name = "Average",
-		TextSize = 11,
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -10, 0, 4),
-		Size = UDim2.new(0.5, -10, 0, 16),
-		TextXAlignment = Enum.TextXAlignment.Right,
-		Theme = { TextColor3 = "SubText" },
-		Parent = chart,
-	})
-	local plot = New("Frame", {
-		Name = "Plot",
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(8, 24),
-		Size = UDim2.new(1, -16, 1, -30),
-		Parent = chart,
-	})
-	New("Frame", {
-		Name = "Midline",
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.fromScale(0, 0.5),
-		Size = UDim2.new(1, 0, 0, 1),
-		Theme = { BackgroundColor3 = "Separator" },
-		Parent = plot,
-	})
-	local bars = {}
-	for index = 1, Graph.Points do
-		local bar = New("Frame", {
-			Name = "Bar",
-			AnchorPoint = Vector2.new(0, 1),
-			Position = UDim2.new((index - 1) / Graph.Points, 1, 1, 0),
-			Size = UDim2.new(1 / Graph.Points, -2, 0, 0),
-			Visible = false,
-			Theme = {
-				BackgroundColor3 = function()
-					return ResolveColor(info.Color) or MacUI.Accent
-				end,
-			},
-			Parent = plot,
-		})
-		Corner(bar, 2)
-		bars[index] = bar
-	end
-	-- 2px between bars, less when there are too many for that (a fixed gap
-	-- would leave nothing of the bars)
-	local gap = 2
-	local function LayoutBars()
-		local scale = math.max(row.Window:GetAbsoluteScale(), 0.01)
-		local slot = plot.AbsoluteSize.X / scale / Graph.Points
-		gap = slot >= 6 and 2 or (slot >= 3 and 1 or 0)
-		for index, bar in ipairs(bars) do
-			bar.Position = UDim2.new((index - 1) / Graph.Points, gap / 2, 1, 0)
-			bar.Size = UDim2.new(1 / Graph.Points, -gap, bar.Size.Y.Scale, 0)
-		end
-	end
-	plot:GetPropertyChangedSignal("AbsoluteSize"):Connect(LayoutBars)
-
-	local function Format(value)
-		return string.format("%." .. math.max(Graph.Rounding, 0) .. "f", value) .. Graph.Suffix
-	end
-	local function Render()
-		local values = Graph.Values
-		local count = #values
-		local low, high = Graph.Min, Graph.Max
-		local sum, lowest, highest = 0, 0, nil
-		for _, value in ipairs(values) do
-			sum += value
-			lowest = math.min(lowest, value)
-			highest = math.max(highest or value, value)
-		end
-		-- automatic scale: from zero (or the lowest value) to a little above the
-		-- highest, so the tallest bar doesn't touch the labels
-		low = low or lowest
-		if not high then
-			high = highest and highest + (highest - low) * 0.15 or low + 1
-		end
-		if high <= low then
-			high = low + 1
-		end
-		for index, bar in ipairs(bars) do
-			local value = values[count - Graph.Points + index] -- newest on the right
-			if value then
-				local alpha = math.clamp((value - low) / (high - low), 0, 1)
-				bar.Size = UDim2.new(1 / Graph.Points, -gap, math.max(alpha, 0.03), 0)
-				-- older samples fade a little so the latest reads first
-				bar.BackgroundTransparency = 0.5 * (1 - index / Graph.Points)
-				bar.Visible = true
-			else
-				bar.Visible = false
-			end
-		end
-		latest.Text = count > 0 and Format(values[count]) or "—"
-		average.Text = count > 0 and ("avg " .. Format(sum / count)) or ""
-	end
-
-	function Graph:Push(value)
-		value = Finite(value) -- (NaN or infinity would break the scale)
-		if not value then
-			return
-		end
-		table.insert(self.Values, value)
-		while #self.Values > self.Points do
-			table.remove(self.Values, 1)
-		end
-		self.Value = value
-		Render()
-	end
-	Graph.SetValue = Graph.Push
-	function Graph:SetValues(values)
-		self.Values = {}
-		for _, value in ipairs(values or {}) do
-			if Finite(value) then
-				table.insert(self.Values, Finite(value))
-			end
-		end
-		while #self.Values > self.Points do
-			table.remove(self.Values, 1)
-		end
-		self.Value = self.Values[#self.Values]
-		Render()
-	end
-	function Graph:Clear()
-		self:SetValues({})
-	end
-	-- Fixes the vertical scale; nil for automatic.
-	function Graph:SetRange(min, max)
-		self.Min, self.Max = tonumber(min), tonumber(max)
-		Render()
-	end
-	function Graph:_Text()
-		return self.Value and Format(self.Value) or nil
-	end
-	Graph:SetValues(info.Values)
-	return Register(idx, Graph)
-end
-Container.AddChart = Container.AddGraph
-
-local TABLE_ALIGN = {
-	Left = Enum.TextXAlignment.Left,
-	Center = Enum.TextXAlignment.Center,
-	Right = Enum.TextXAlignment.Right,
+local v150_8 = v150_9.wrapWindow(v12_4:CreateWindow({
+    Name = "HAIANHHUB (premium)",
+    LoadingTitle = "HAIANHHUB",
+    LoadingSubtitle = "Phiên bản 0.0.1",
+    Theme = "Default",
+    ConfigurationSaving = {
+        Enabled = false
+    }
+}))
+local v151_6 = v150_8:CreateTab("Player")
+local v152_7 = v150_8:CreateTab("Auto Farm")
+local v153_9 = v150_8:CreateTab("Various")
+local v154_8 = v150_8:CreateTab("Stats")
+v56_2.KaitunTab = v150_8:CreateTab("Kaitun")
+v56_2.SettingsTab = v150_8:CreateTab("Settings")
+local v157_2 = (function()
+    local v1_2 = v10_3("Symbiote_AOTR_Stats.json")
+    if not v1_2 then
+        return nil
+    end
+    local v2_5, v3_2 = pcall(function()
+        return v5_6:JSONDecode(v1_2)
+    end)
+    if v2_5 and type(v3_2) == "table" then
+        return v3_2
+    end
+    return nil
+end)() or {}
+local rawPrestige = tonumber(v157_2.Player and v157_2.Player.Prestige) or 0
+if rawPrestige > 5 or rawPrestige < 0 then rawPrestige = 0 end
+local rawLevel = tonumber(v157_2.Player and v157_2.Player.Level) or 1
+if rawLevel > 225 or rawLevel < 1 then rawLevel = 1 end
+
+local v156_4 = {
+    Player = {
+        Prestige = rawPrestige,
+        Level = rawLevel,
+        Gems = tonumber(v157_2.Player and v157_2.Player.Gems) or 0,
+        Gold = tonumber(v157_2.Player and v157_2.Player.Gold) or 0,
+        Pumpkins = tonumber(v157_2.Player and v157_2.Player.Pumpkins) or 0
+    },
+    LastRound = {
+        TimeTaken = tostring(v157_2.LastRound and v157_2.LastRound.TimeTaken or "00:00"),
+        Difficulty = tostring(v157_2.LastRound and v157_2.LastRound.Difficulty or "N/A"),
+        TitansKilled = tonumber(v157_2.LastRound and v157_2.LastRound.TitansKilled) or 0,
+        DamageDealt = tonumber(v157_2.LastRound and v157_2.LastRound.DamageDealt) or 0,
+        Gold = tonumber(v157_2.LastRound and v157_2.LastRound.Gold) or 0,
+        Gems = tonumber(v157_2.LastRound and v157_2.LastRound.Gems) or 0,
+        Pumpkins = tonumber(v157_2.LastRound and v157_2.LastRound.Pumpkins) or 0,
+        DivineFragments = tonumber(v157_2.LastRound and
+            (v157_2.LastRound.DivineFragments or v157_2.LastRound["Divine Fragments"])) or 0,
+        BP_XP = tonumber(v157_2.LastRound and (v157_2.LastRound.BP_XP or v157_2.LastRound["BP XP"])) or 0,
+        XP = tonumber(v157_2.LastRound and v157_2.LastRound.XP) or 0,
+        Items = v157_2.LastRound and type(v157_2.LastRound.Items) == "table" and v157_2.LastRound.Items or {}
+    },
+    Session = {
+        MissionsCompleted = tonumber(v157_2.Session and v157_2.Session.MissionsCompleted) or 0,
+        TotalSeconds = tonumber(v157_2.Session and v157_2.Session.TotalSeconds) or 0,
+        FastestSeconds = tonumber(v157_2.Session and v157_2.Session.FastestSeconds) or 0,
+        TitansKilled = tonumber(v157_2.Session and v157_2.Session.TitansKilled) or 0,
+        DamageDealt = tonumber(v157_2.Session and v157_2.Session.DamageDealt) or 0,
+        Gold = tonumber(v157_2.Session and v157_2.Session.Gold) or 0,
+        Gems = tonumber(v157_2.Session and v157_2.Session.Gems) or 0,
+        Pumpkins = tonumber(v157_2.Session and v157_2.Session.Pumpkins) or 0,
+        DivineFragments = tonumber(v157_2.Session and
+            (v157_2.Session.DivineFragments or v157_2.Session["Divine Fragments"])) or 0,
+        BP_XP = tonumber(v157_2.Session and (v157_2.Session.BP_XP or v157_2.Session["BP XP"])) or 0,
+        XP = tonumber(v157_2.Session and v157_2.Session.XP) or 0,
+        Items = v157_2.Session and type(v157_2.Session.Items) == "table" and v157_2.Session.Items or {},
+        RarityCounts = v157_2.Session and type(v157_2.Session.RarityCounts) == "table" and v157_2.Session.RarityCounts or
+            {
+                Common = 0,
+                Uncommon = 0,
+                Rare = 0,
+                Epic = 0,
+                Legendary = 0,
+                Mythic = 0,
+                Secret = 0
+            }
+    }
 }
-
--- Sortable table: players, logs, stats. Columns are names or
--- { Title, Width, Align = "Left" | "Center" | "Right", Key }, where Width is a
--- share relative to the other columns (default 1); rows are arrays in column
--- order or tables keyed by column title (or Key). Clicking a row selects it:
--- Table.Value is the row, and Callback(row, index) fires.
-function Container:AddTable(idx, info)
-	idx, info = ParseArgs(idx, info)
-	local row = WideRow(self, info)
-	local Table = NewElement("Table", row, info)
-	local rowHeight, headerHeight = 26, 26
-	Table.MaxRows = math.max(math.floor(tonumber(info.MaxRows) or 6), 1)
-	Table.Rows = {}
-	Table.Value = nil
-	Table.SelectedIndex = nil
-
-	local columns, total = {}, 0
-	for index, spec in ipairs(info.Columns or { "Name" }) do
-		if type(spec) ~= "table" then
-			spec = { Title = tostring(spec) }
-		end
-		local column = {
-			Index = index,
-			Title = tostring(spec.Title or ("Column " .. index)),
-			Key = spec.Key,
-			Weight = math.max(tonumber(spec.Width) or 1, 0.05),
-			Align = TABLE_ALIGN[spec.Align] or (typeof(spec.Align) == "EnumItem" and spec.Align) or Enum.TextXAlignment.Left,
-		}
-		total += column.Weight
-		columns[index] = column
-	end
-	local offset = 0
-	for _, column in ipairs(columns) do
-		column.Scale = column.Weight / total
-		column.X = offset
-		offset += column.Scale
-	end
-	Table.Columns = columns
-
-	local function Cell(data, column)
-		if type(data) ~= "table" then
-			return column.Index == 1 and data or nil
-		end
-		local value = data[column.Index]
-		if value == nil then
-			value = data[column.Key or column.Title]
-		end
-		return value
-	end
-
-	local frame = New("Frame", {
-		Name = "Table",
-		Size = UDim2.new(1, 0, 0, headerHeight + rowHeight),
-		ClipsDescendants = true,
-		LayoutOrder = 4,
-		Theme = { BackgroundColor3 = "Field" },
-		Parent = row.Stack,
-	})
-	Corner(frame, 8)
-	Stroke(frame, "FieldStroke")
-	local header = New("Frame", {
-		Name = "Header",
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, headerHeight),
-		Parent = frame,
-	})
-	New("Frame", {
-		Name = "Rule",
-		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.fromScale(0, 1),
-		Size = UDim2.new(1, 0, 0, 1),
-		Theme = { BackgroundColor3 = "Separator" },
-		Parent = header,
-	})
-	local body = New("ScrollingFrame", {
-		Name = "Rows",
-		Position = UDim2.fromOffset(0, headerHeight),
-		Size = UDim2.new(1, 0, 1, -headerHeight),
-		CanvasSize = UDim2.new(),
-		AutomaticCanvasSize = Enum.AutomaticSize.Y,
-		ScrollingDirection = Enum.ScrollingDirection.Y,
-		ScrollBarThickness = 3,
-		ScrollBarImageTransparency = 0.4,
-		Theme = { ScrollBarImageColor3 = "Scrollbar" },
-		Parent = frame,
-	})
-	List(body, nil, 0)
-	local empty = New("TextLabel", {
-		Name = "Empty",
-		Text = info.EmptyText or "No items",
-		TextSize = 12,
-		TextXAlignment = Enum.TextXAlignment.Center,
-		Size = UDim2.new(1, 0, 0, rowHeight),
-		LayoutOrder = 0,
-		Theme = { TextColor3 = "SubText" },
-		Parent = body,
-	})
-
-	local sortColumn, sortDescending = nil, false
-	local headerLabels = {}
-	local entries = {}
-	-- when each row was added, so sorting is stable and can be undone
-	local sequence, nextSequence = {}, 0
-
-	local function Selected(entry)
-		return Table.SelectedIndex == entry.Index
-	end
-
-	local function Paint(entry, duration)
-		Restyle(entry.Button, duration or 0.1)
-		for _, label in ipairs(entry.Labels) do
-			Restyle(label, duration or 0.1)
-		end
-	end
-
-	local function MakeEntry(index)
-		local entry = { Index = index, Hovered = false, Labels = {} }
-		entry.Button = New("TextButton", {
-			Name = "Row",
-			Size = UDim2.new(1, 0, 0, rowHeight),
-			LayoutOrder = index,
-			Theme = {
-				BackgroundColor3 = function(t)
-					return Selected(entry) and MacUI.Accent or t.Hover
-				end,
-				BackgroundTransparency = function(t)
-					if Selected(entry) then
-						return 0
-					elseif entry.Hovered then
-						return t.HoverTransparency - 0.02
-					end
-					return entry.Index % 2 == 0 and math.min(t.HoverTransparency + 0.025, 1) or 1
-				end,
-			},
-			Parent = body,
-		})
-		for _, column in ipairs(columns) do
-			table.insert(entry.Labels, New("TextLabel", {
-				Text = "",
-				TextSize = 13,
-				TextXAlignment = column.Align,
-				Position = UDim2.new(column.X, 10, 0, 0),
-				Size = UDim2.new(column.Scale, -20, 1, 0),
-				TextTruncate = Enum.TextTruncate.AtEnd,
-				Theme = {
-					TextColor3 = function(t)
-						if Selected(entry) then
-							return t.SelectionText
-						end
-						return column.Index == 1 and t.Text or t.SubText
-					end,
-				},
-				Parent = entry.Button,
-			}))
-		end
-		entry.Button.MouseEnter:Connect(function()
-			entry.Hovered = true
-			Paint(entry)
-		end)
-		entry.Button.MouseLeave:Connect(function()
-			entry.Hovered = false
-			Paint(entry)
-		end)
-		entry.Button.MouseButton1Click:Connect(function()
-			if not row.Disabled then
-				Table:Select(entry.Index)
-			end
-		end)
-		row:_BindContext(entry.Button)
-		return entry
-	end
-
-	-- Shows the rows, reusing the ones already on screen (a live list can
-	-- change every second).
-	local function Render()
-		for index, data in ipairs(Table.Rows) do
-			local entry = entries[index]
-			if not entry then
-				entry = MakeEntry(index)
-				entries[index] = entry
-			end
-			for columnIndex, column in ipairs(columns) do
-				local value = Cell(data, column)
-				local text = value == nil and "" or tostring(value)
-				local label = entry.Labels[columnIndex]
-				if label.Text ~= text then
-					label.Text = text
-				end
-			end
-			Paint(entry, 0) -- (the selection may have moved)
-		end
-		for index = #entries, #Table.Rows + 1, -1 do
-			entries[index].Button:Destroy()
-			entries[index] = nil
-		end
-		empty.Visible = #Table.Rows == 0
-		local shown = math.clamp(#Table.Rows, 1, Table.MaxRows)
-		frame.Size = UDim2.new(1, 0, 0, headerHeight + shown * rowHeight)
-		for _, column in ipairs(columns) do
-			local label = headerLabels[column.Index]
-			local arrow = sortColumn == column and (sortDescending and "  ↓" or "  ↑") or ""
-			label.Text = column.Title .. arrow
-			Restyle(label, 0.1)
-		end
-	end
-
-	-- Numbers, and text that is a number ("10"), sort by value and before
-	-- other text; text ignores case.
-	local function SortKey(value)
-		if type(value) == "number" then
-			return value == value and value or "nan"
-		end
-		local text = value == nil and "" or tostring(value)
-		local number = tonumber(text)
-		if number and number == number then
-			return number
-		end
-		return text:lower()
-	end
-	local function Before(a, b)
-		local x, y = SortKey(a), SortKey(b)
-		local numberX, numberY = type(x) == "number", type(y) == "number"
-		if numberX ~= numberY then
-			return numberX
-		end
-		return x < y
-	end
-
-	-- Puts the rows in order (the sort, else the order they were added in),
-	-- keeping the selected row selected.
-	local function Arrange()
-		local order = {}
-		for index, data in ipairs(Table.Rows) do
-			order[index] = { Data = data, Sequence = sequence[index], Index = index }
-		end
-		table.sort(order, function(a, b)
-			if sortColumn then
-				local x, y = Cell(a.Data, sortColumn), Cell(b.Data, sortColumn)
-				if sortDescending then
-					x, y = y, x
-				end
-				if Before(x, y) then
-					return true
-				elseif Before(y, x) then
-					return false
-				end
-			end
-			return a.Sequence < b.Sequence
-		end)
-		local selected = Table.SelectedIndex
-		Table.SelectedIndex = nil
-		for index, item in ipairs(order) do
-			Table.Rows[index] = item.Data
-			sequence[index] = item.Sequence
-			if item.Index == selected then
-				Table.SelectedIndex = index
-			end
-		end
-		Table.Value = Table.SelectedIndex and Table.Rows[Table.SelectedIndex] or nil
-	end
-
-	-- Sorts by a column (its title, index or table); nil goes back to the
-	-- order the rows were added in.
-	function Table:SortBy(column, descending)
-		if column ~= nil and type(column) ~= "table" then
-			local found
-			for _, candidate in ipairs(columns) do
-				if candidate.Title == column or candidate.Index == column then
-					found = candidate
-					break
-				end
-			end
-			if not found then
-				return
-			end
-			column = found
-		end
-		sortColumn, sortDescending = column, column ~= nil and descending == true
-		Arrange()
-		Render()
-	end
-
-	for _, column in ipairs(columns) do
-		local label = New("TextButton", {
-			Name = "Column",
-			Text = column.Title,
-			TextSize = 11,
-			Weight = Enum.FontWeight.Medium,
-			TextXAlignment = column.Align,
-			Position = UDim2.new(column.X, 10, 0, 0),
-			Size = UDim2.new(column.Scale, -20, 1, 0),
-			TextTruncate = Enum.TextTruncate.AtEnd,
-			Theme = {
-				TextColor3 = function(t)
-					return sortColumn == column and t.Text or t.SubText
-				end,
-			},
-			Parent = header,
-		})
-		headerLabels[column.Index] = label
-		-- up, down, then back to the order they were added in
-		label.MouseButton1Click:Connect(function()
-			if info.Sortable == false then
-				return
-			end
-			if sortColumn ~= column then
-				Table:SortBy(column, false)
-			elseif not sortDescending then
-				Table:SortBy(column, true)
-			else
-				Table:SortBy(nil)
-			end
-		end)
-	end
-
-	-- Selects a row (its index, or the row itself); nil clears the selection.
-	function Table:Select(target)
-		local index
-		if type(target) == "number" then
-			index = self.Rows[target] ~= nil and target or nil
-		elseif target ~= nil then
-			index = table.find(self.Rows, target)
-		end
-		self.SelectedIndex = index
-		self.Value = index and self.Rows[index] or nil
-		for _, entry in ipairs(entries) do
-			Paint(entry)
-		end
-		self:_Emit(self.Value, self.SelectedIndex)
-	end
-	Table.SetValue = Table.Select
-
-	function Table:SetRows(rows)
-		local previous = self.Value
-		self.Rows, sequence = {}, {}
-		for _, data in ipairs(rows or {}) do
-			nextSequence += 1
-			table.insert(self.Rows, data)
-			table.insert(sequence, nextSequence)
-		end
-		-- the same row stays selected if it's still there
-		self.SelectedIndex = previous ~= nil and table.find(self.Rows, previous) or nil
-		Arrange()
-		Render()
-	end
-	function Table:AddRow(data)
-		nextSequence += 1
-		table.insert(self.Rows, data)
-		table.insert(sequence, nextSequence)
-		Arrange()
-		Render()
-		return data
-	end
-	function Table:RemoveRow(target)
-		local index = type(target) == "number" and target or table.find(self.Rows, target)
-		if not index or self.Rows[index] == nil then
-			return
-		end
-		table.remove(self.Rows, index)
-		table.remove(sequence, index)
-		if self.SelectedIndex == index then
-			self.SelectedIndex = nil
-		elseif self.SelectedIndex and self.SelectedIndex > index then
-			self.SelectedIndex -= 1
-		end
-		self.Value = self.SelectedIndex and self.Rows[self.SelectedIndex] or nil
-		Render()
-	end
-	function Table:Clear()
-		self:SetRows({})
-	end
-	function Table:GetSelected()
-		return self.Value, self.SelectedIndex
-	end
-	function Table:_Text()
-		if self.Value == nil then
-			return nil
-		end
-		local parts = {}
-		for _, column in ipairs(columns) do
-			local value = Cell(self.Value, column)
-			table.insert(parts, value == nil and "" or tostring(value))
-		end
-		return table.concat(parts, ", ")
-	end
-
-	Table:SetRows(info.Rows)
-	if info.SortBy then
-		Table:SortBy(info.SortBy, info.Descending)
-	end
-	return Register(idx, Table)
+local function v157_5()
+    if v156_4 and v156_4.Player then
+        v156_4.Player.Prestige = math.min(5, math.max(0, tonumber(v156_4.Player.Prestige) or 0))
+        v156_4.Player.Level = math.min(225, math.max(1, tonumber(v156_4.Player.Level) or 1))
+    end
+    local v1_2, v2_2 = pcall(function()
+        return v5_6:JSONEncode(v156_4)
+    end)
+    if v1_2 and v2_2 then
+        v11("Symbiote_AOTR_Stats.json", v2_2)
+    end
+    return
 end
-Container.AddList = Container.AddTable
-
-local function SectionTitle(row)
-	local block = row.Group and row.Group.Block
-	return block and block.Title and tostring(block.Title) or ""
+local v158_4 = { Status = "In Progress", Seconds = 0, Difficulty = "N/A" }
+local v159_6 = {
+    Gold = 0,
+    Gems = 0,
+    Pumpkins = 0,
+    DivineFragments = 0,
+    BP_XP = 0,
+    XP = 0,
+    Items = {},
+    Rarities = {}
+}
+local v160_9 = {
+    Common_Perk = true,
+    Uncommon_Perk = true,
+    Rare_Perk = true,
+    Epic_Perk = true,
+    Legendary_Perk = true,
+    Mythic_Perk = true,
+    ["Common Perk"] = true,
+    ["Uncommon Perk"] = true,
+    ["Rare Perk"] = true,
+    ["Epic Perk"] = true,
+    ["Legendary Perk"] = true,
+    ["Mythic Perk"] = true,
+    Gold = true,
+    Gems = true,
+    Pumpkins = true,
+    Pumpkin = true,
+    XP = true,
+    ["BP XP"] = true,
+    BP_XP = true,
+    BPXP = true
+}
+local function v161_61(p1)
+    if not p1 or p1 == "" then
+        return true
+    end
+    if v160_9[p1] then
+        return true
+    end
+    if p1:match("^BP[%s_]?XP") then
+        return true
+    end
+    return false
 end
-
--- How a macro step finds its control again: by index, or else by page,
--- section, title and which of any same-titled controls it is.
-local function MacroKey(element)
-	if element.Idx ~= nil then
-		return { i = element.Idx }
-	end
-	local row = element.Row
-	local tab = row and row.Tab
-	local section = row and SectionTitle(row) or ""
-	local title = tostring(element.Title or "")
-	local nth = 0
-	for _, other in ipairs(tab and tab.Rows or {}) do
-		if other.Element and tostring(other.Element.Title or "") == title and SectionTitle(other) == section then
-			nth += 1
-			if other == row then
-				break
-			end
-		end
-	end
-	return { t = tab and tab.Title or "", s = section, n = title, k = math.max(nth, 1) }
+local v162_72 = "Playing"
+local v163_11 = false
+local v164_3 = os.clock()
+local function v165_3(p1)
+    if not p1 then
+        return "0"
+    end
+    local v3_11 = tostring(math.floor(tonumber(p1) or 0)):reverse():gsub("(%d%d%d)", "%1,"):reverse()
+    if v3_11:sub(1, 1) == "," then
+        v3_11 = v3_11:sub(2)
+    end
+    return v3_11
 end
-
-local function FindMacroTarget(step)
-	if step.i ~= nil then
-		return MacUI.Options[step.i]
-	end
-	local tabTitle, section, title = step.t, step.s, step.n
-	local nth = tonumber(step.k) or 1
-	if tabTitle == nil and step.p then
-		tabTitle, title = tostring(step.p):match("^(.*)/(.-)$") -- older "Page/Title" keys
-	end
-	if tabTitle == nil or title == nil then
-		return nil
-	end
-	for _, window in ipairs(MacUI.Windows) do
-		for _, tab in ipairs(window.Tabs or {}) do
-			if tab.Title == tabTitle then
-				local seen = 0
-				for _, row in ipairs(tab.Rows) do
-					local element = row.Element
-					if element and tostring(element.Title or "") == title and (section == nil or SectionTitle(row) == section) then
-						seen += 1
-						if seen == nth then
-							return element
-						end
-					end
-				end
-			end
-		end
-	end
-	return nil
+local function v166_2(p1)
+    local v2_2 = math.max(0, math.floor(tonumber(p1) or 0))
+    return string.format("%02d:%02d", math.floor(v2_2 / 60), v2_2 % 60)
 end
-
-local function EncodeSnapshot(element, snapshot)
-	if snapshot == NIL_VALUE then
-		return { none = true }
-	elseif element.Type == "Colorpicker" then
-		return { color = snapshot.Color:ToHex(), alpha = snapshot.Transparency }
-	elseif element.Type == "Keybind" then
-		return { key = snapshot.Key, mode = snapshot.Mode }
-	end
-	return snapshot -- a boolean, number, string or list (multi-select)
+local function v167_2(p1, p2)
+    if not p2 or p2 <= 0 then
+        return "00:00"
+    end
+    local v4_5 = math.max(0, math.floor(math.floor(p1 / p2) / 5) * 5)
+    return string.format("%s - %s", v166_2(v4_5), v166_2(v4_5 + 5))
 end
-
-local function DecodeSnapshot(element, value)
-	if type(value) == "table" and value.none == true then
-		return NIL_VALUE
-	elseif element.Type == "Colorpicker" then
-		local ok, color = pcall(Color3.fromHex, tostring(type(value) == "table" and value.color or ""))
-		return ok and { Color = color, Transparency = value.alpha } or nil
-	elseif element.Type == "Keybind" then
-		return type(value) == "table" and { Key = value.key, Mode = value.mode } or nil
-	end
-	return value
+local v168_2 = {}
+local function v169_3()
+    if not v168_2.Perks then
+        pcall(function()
+            v168_2.Perks = require(v16_15.Modules.Storage.Perks)
+            return
+        end)
+    end
+    return v168_2.Perks
 end
-
---[[
-	Records what the user changes and presses, then plays it back with the
-	same timing, once or on a loop.
-
-	local Routine = Section:AddMacro("Routine", { Title = "Farming routine", Loop = false, Speed = 1 })
-	Routine:Record()  Routine:StopRecording()  Routine:Play()  Routine:Stop()
-	Routine:SetLoop(true)  Routine:SetSpeed(2)  Routine:Clear()
-	Routine:Export() -> table   Routine:Import(table)   (SaveManager saves it)
-]]
-function Container:AddMacro(idx, info)
-	idx, info = ParseArgs(idx, info)
-	local row = CreateRow(self, info)
-	local Macro = NewElement("Macro", row, info)
-	Macro.Steps = {}
-	Macro.Value = 0
-	Macro.Loop = info.Loop == true
-	Macro.Speed = math.clamp(tonumber(info.Speed) or 1, 0.1, 10)
-	Macro.Recording = false
-	Macro.Playing = false
-	Macro.NoCopy = true
-	local baseDescription = info.Description and tostring(info.Description) or nil
-	local playToken = 0
-
-	local function RoundButton(order)
-		local state = { Hovered = false }
-		local button = New("TextButton", {
-			Name = "MacroButton",
-			Size = UDim2.fromOffset(26, 26),
-			LayoutOrder = order,
-			Theme = {
-				BackgroundColor3 = function(t)
-					return state.Hovered and t.ButtonHover or t.Button
-				end,
-			},
-			Parent = row.Accessory,
-		})
-		Corner(button, 13)
-		Stroke(button, "ControlStroke", 1, 0.35)
-		button.MouseEnter:Connect(function()
-			state.Hovered = true
-			Restyle(button, 0.12)
-		end)
-		button.MouseLeave:Connect(function()
-			state.Hovered = false
-			Restyle(button, 0.18)
-		end)
-		row:_BindContext(button)
-		return button
-	end
-
-	local recordButton = RoundButton(1)
-	recordButton.Name = "Record"
-	local recordDot = New("Frame", {
-		Name = "Dot",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(10, 10),
-		Theme = { BackgroundColor3 = "Destructive" },
-		Parent = recordButton,
-	})
-	local recordCorner = Corner(recordDot, 5)
-	local playButton = RoundButton(2)
-	playButton.Name = "Play"
-	local playIcon = IconImage({
-		Name = "Icon",
-		Icon = "play",
-		IconSize = 12,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.new(0.5, 1, 0.5, 0),
-		Theme = {
-			ImageColor3 = function(t)
-				return #Macro.Steps > 0 and t.Text or t.Tertiary
-			end,
-		},
-		Parent = playButton,
-	})
-	local stopSquare = New("Frame", {
-		Name = "Stop",
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(9, 9),
-		Visible = false,
-		Theme = { BackgroundColor3 = "Text" },
-		Parent = playButton,
-	})
-	Corner(stopSquare, 2)
-	row.Window:_AttachTooltip(recordButton, function()
-		return Macro.Recording and "Stop recording" or "Record"
-	end)
-	row.Window:_AttachTooltip(playButton, function()
-		return Macro.Playing and "Stop" or (#Macro.Steps > 0 and "Play" or "Record something first")
-	end)
-
-	local function Render()
-		recordCorner.CornerRadius = UDim.new(0, Macro.Recording and 2 or 5)
-		Tween(recordDot, { Size = Macro.Recording and UDim2.fromOffset(9, 9) or UDim2.fromOffset(10, 10) }, 0.15)
-		playIcon.Visible = not Macro.Playing
-		stopSquare.Visible = Macro.Playing
-		Restyle(playIcon, 0.15)
-	end
-
-	local function Plural(count, word)
-		return count .. " " .. word .. (count == 1 and "" or "s")
-	end
-
-	local function UpdateStatus()
-		local text
-		if Macro.Recording then
-			text = "Recording: change settings or press buttons. " .. Plural(#(Macro._pending or {}), "step") .. " so far."
-		elseif Macro.Playing then
-			text = ("Playing step %d of %d"):format(Macro.Position or 1, #Macro.Steps)
-				.. ((Macro.Run or 1) > 1 and (" · run " .. Macro.Run) or "")
-		elseif #Macro.Steps > 0 then
-			text = Plural(#Macro.Steps, "step") .. " · " .. DescribeDuration(math.max(Macro:GetDuration(), 1))
-				.. (Macro.Loop and " · loops" or "")
-		else
-			text = baseDescription or "Press record, change some settings, then stop. Play repeats them."
-		end
-		row:SetDesc(text)
-	end
-
-	local function SetState(state)
-		RunCallback(Macro, info.Callback, state)
-	end
-
-	local function Changed()
-		Macro.Value = #Macro.Steps
-		if Macro.Idx ~= nil then
-			MacUI.OptionChanged:Fire(Macro.Idx, Macro.Value, Macro)
-		end
-	end
-
-	function Macro:GetDuration()
-		local total = 0
-		for _, step in ipairs(self.Steps) do
-			total += step.Delay
-		end
-		return total
-	end
-
-	function Macro:Record()
-		if self.Recording or row.Destroyed then
-			return
-		end
-		if self.Playing then
-			self:Stop()
-		end
-		if Macros.Recorder and Macros.Recorder ~= self then
-			Macros.Recorder:StopRecording()
-		end
-		self.Recording = true
-		self._pending = {}
-		self._last = os.clock()
-		Macros.Recorder = self
-		row.Window:_SetRecording(self)
-		Render()
-		UpdateStatus()
-		SetState("Recording")
-	end
-
-	function Macro:_Capture(element, snapshot)
-		if element == self or element.Type == "Macro" or not self.Recording then
-			return
-		end
-		local now = os.clock()
-		local steps = self._pending
-		local last = steps[#steps]
-		if last and last.Element == element and not last.Button and now - self._last < 0.4 then
-			last.Snapshot = snapshot -- a drag or quick typing: keep where it ended
-		else
-			table.insert(steps, { Delay = now - self._last, Element = element, Snapshot = snapshot })
-		end
-		self._last = now
-		row.Window:_SetRecording(self)
-		UpdateStatus()
-	end
-
-	function Macro:_CaptureButton(button)
-		if not self.Recording then
-			return
-		end
-		local now = os.clock()
-		table.insert(self._pending, { Delay = now - self._last, Element = button, Button = true })
-		self._last = now
-		row.Window:_SetRecording(self)
-		UpdateStatus()
-	end
-
-	function Macro:StopRecording(silent)
-		if not self.Recording then
-			return
-		end
-		self.Recording = false
-		if Macros.Recorder == self then
-			Macros.Recorder = nil
-		end
-		row.Window:_SetRecording(nil)
-		local steps = self._pending or {}
-		self._pending = nil
-		if #steps > 0 then
-			-- the pause before the first change isn't part of the routine
-			steps[1].Delay = math.min(steps[1].Delay, 0.3)
-			self.Steps = steps
-			Changed()
-		elseif not row.Destroyed and not silent then
-			row.Window:Toast("Nothing recorded", { Detail = "change a setting while recording", Icon = "circle-dot" })
-		end
-		Render()
-		UpdateStatus()
-		SetState("Idle")
-	end
-
-	local function ApplyStep(step)
-		local element = step.Element
-		if not element or (element.Row and element.Row.Destroyed) then
-			return
-		end
-		if step.Button then
-			AutomationApply(element.Fire, element)
-		elseif step.Snapshot ~= nil then
-			AutomationApply(RestoreSnapshot, element, step.Snapshot)
-		end
-	end
-
-	-- Plays the recording; options { Loop, Speed } override the macro's own.
-	function Macro:Play(options)
-		if self.Recording then
-			self:StopRecording()
-		end
-		if self.Playing or #self.Steps == 0 or row.Destroyed then
-			return false
-		end
-		options = options or {}
-		local loop = options.Loop
-		if loop == nil then
-			loop = self.Loop
-		end
-		-- read on every step, so SetLoop / SetSpeed apply to a playback in progress
-		self._loop = loop
-		self._speed = math.clamp(tonumber(options.Speed) or self.Speed, 0.1, 10)
-		self.Playing = true
-		self.Run = 1
-		self.Position = 1
-		playToken += 1
-		local token = playToken
-		local steps = self.Steps
-		task.spawn(function()
-			local run = 0
-			repeat
-				run += 1
-				self.Run = run
-				for index, step in ipairs(steps) do
-					self.Position = index
-					UpdateStatus()
-					if step.Delay > 0 then
-						task.wait(step.Delay / self._speed)
-					end
-					if token ~= playToken or MacUI.Unloaded or row.Destroyed then
-						return
-					end
-					ApplyStep(step)
-				end
-				-- always yield between runs, even for a recording with no pauses
-				task.wait(math.max(0.25 / self._speed, 0.03))
-			until not self._loop or token ~= playToken or MacUI.Unloaded or row.Destroyed
-			if token == playToken and not row.Destroyed then
-				self.Playing = false
-				Render()
-				UpdateStatus()
-				SetState("Idle")
-			end
-		end)
-		Render()
-		SetState("Playing")
-		return true
-	end
-
-	-- Stops recording or playback.
-	function Macro:Stop()
-		if self.Recording then
-			self:StopRecording()
-			return
-		end
-		if self.Playing then
-			playToken += 1
-			self.Playing = false
-			Render()
-			UpdateStatus()
-			SetState("Idle")
-		end
-	end
-
-	function Macro:Clear()
-		self:Stop()
-		self.Steps = {}
-		Changed()
-		Render()
-		UpdateStatus()
-	end
-
-	function Macro:SetLoop(loop)
-		self.Loop = loop == true
-		self._loop = self.Loop
-		UpdateStatus()
-		Changed()
-	end
-
-	function Macro:SetSpeed(speed)
-		self.Speed = math.clamp(tonumber(speed) or 1, 0.1, 10)
-		self._speed = self.Speed
-		Changed()
-	end
-
-	function Macro:Destroy()
-		if self.Recording then
-			self:StopRecording(true)
-		end
-		self:Stop()
-		ElementBase.Destroy(self)
-	end
-
-	-- A plain table (JSON-safe) with the steps, loop and speed.
-	function Macro:Export()
-		local steps = {}
-		for _, step in ipairs(self.Steps) do
-			local element = step.Element
-			if element and not (element.Row and element.Row.Destroyed) then
-				local entry = MacroKey(element)
-				entry.d = math.floor(step.Delay * 1000 + 0.5) / 1000
-				if step.Button then
-					entry.b = true
-				else
-					entry.v = EncodeSnapshot(element, step.Snapshot)
-				end
-				table.insert(steps, entry)
-			end
-		end
-		return { v = 1, loop = self.Loop, speed = self.Speed, steps = steps }
-	end
-
-	-- Loads steps from Export(). Steps whose control no longer exists are skipped.
-	function Macro:Import(data)
-		if type(data) ~= "table" or type(data.steps) ~= "table" then
-			return false
-		end
-		self:Stop()
-		local steps = {}
-		for _, entry in ipairs(data.steps) do
-			local element = type(entry) == "table" and FindMacroTarget(entry)
-			if element then
-				local step = { Delay = math.max(tonumber(entry.d) or 0, 0), Element = element }
-				if entry.b then
-					step.Button = element.Type == "Button"
-				else
-					step.Snapshot = DecodeSnapshot(element, entry.v)
-				end
-				if step.Button or step.Snapshot ~= nil then
-					table.insert(steps, step)
-				end
-			end
-		end
-		self.Steps = steps
-		if data.loop ~= nil then
-			self.Loop = data.loop == true
-		end
-		if tonumber(data.speed) then
-			self.Speed = math.clamp(tonumber(data.speed), 0.1, 10)
-		end
-		Changed()
-		Render()
-		UpdateStatus()
-		return true
-	end
-
-	function Macro:_Text()
-		if self.Recording then
-			return "Recording"
-		elseif self.Playing then
-			return "Playing"
-		end
-		return #self.Steps > 0 and Plural(#self.Steps, "step") or nil
-	end
-
-	-- Spotlight and keyboard shortcuts: play, or stop whatever is running.
-	function Macro:_Activate(announce)
-		if row.Disabled then
-			return
-		end
-		NoteUsage(UsageKey(self))
-		local window = row.Window
-		if self.Recording then
-			self:StopRecording()
-		elseif self.Playing then
-			self:Stop()
-			if announce then
-				window:Toast(self.Title or "Macro", { Detail = "Stopped", Icon = "square" })
-			end
-		elseif #self.Steps > 0 then
-			self:Play()
-			if announce then
-				window:Toast(self.Title or "Macro", { Detail = "Playing", Icon = "play", Highlight = true })
-			end
-		else
-			window:Toast("Nothing recorded yet", { Icon = "circle-dot" })
-		end
-	end
-
-	function Macro:_ContextItems()
-		return {
-			"-",
-			{
-				Text = self.Recording and "Stop Recording" or (#self.Steps > 0 and "Record Again" or "Record"),
-				Icon = "circle-dot",
-				Disabled = row.Disabled,
-				Callback = function()
-					if self.Recording then
-						self:StopRecording()
-					else
-						self:Record()
-					end
-				end,
-			},
-			{
-				Text = self.Loop and "Stop Looping" or "Loop Playback",
-				Icon = "repeat",
-				Callback = function()
-					self:SetLoop(not self.Loop)
-				end,
-			},
-			{
-				Text = "Clear Recording",
-				Icon = "trash-2",
-				Destructive = true,
-				Disabled = #self.Steps == 0 or self.Recording,
-				Callback = function()
-					self:Clear()
-				end,
-			},
-		}
-	end
-
-	recordButton.MouseButton1Click:Connect(function()
-		if row.Disabled then
-			return
-		end
-		if Macro.Recording then
-			Macro:StopRecording()
-		else
-			Macro:Record()
-		end
-	end)
-	playButton.MouseButton1Click:Connect(function()
-		if row.Disabled then
-			return
-		end
-		if Macro.Playing then
-			Macro:Stop()
-		elseif #Macro.Steps > 0 then
-			NoteUsage(UsageKey(Macro))
-			Macro:Play()
-		else
-			row.Window:Toast("Nothing recorded yet", { Detail = "press record first", Icon = "circle-dot" })
-		end
-	end)
-
-	Render()
-	UpdateStatus()
-	Register(idx, Macro)
-	if info.Shortcut then
-		Macro:SetShortcut(info.Shortcut)
-	end
-	return Macro
+local function v170_2()
+    if not v168_2.Items then
+        pcall(function()
+            v168_2.Items = require(v16_15.Modules.Storage.Items)
+            return
+        end)
+    end
+    return v168_2.Items
 end
-
---------------------------------------------------------------------------------
--- Groups, sections and tabs
---------------------------------------------------------------------------------
-
-local GroupMethods = {}
-GroupMethods.__index = GroupMethods
-
-local function CreateGroup(tab, block)
-	local group = setmetatable({ Tab = tab, Block = block, Rows = {}, Order = 0 }, GroupMethods)
-	group.Frame = New("Frame", {
-		Name = "Group",
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		LayoutOrder = tab:_NextOrder(),
-		Visible = false,
-		Theme = { BackgroundColor3 = "Group" },
-		Parent = tab.Content,
-	})
-	Corner(group.Frame, 10)
-	Stroke(group.Frame, "GroupStroke")
-	List(group.Frame, nil, 0)
-	return group
+local function v171_2(p1)
+    local v2_2 = v169_3()
+    if type(v2_2) == "table" then
+        local v3_4 = string.gsub(p1, "_", " ")
+        for v7, v8 in pairs(v2_2) do
+            if type(v8) == "table" and (v8[p1] or v8[v3_4]) then
+                return v7
+            end
+        end
+    end
+    return "Rare"
 end
-
-function GroupMethods:Refresh()
-	local first = true
-	for _, row in ipairs(self.Rows) do
-		if row.Frame.Visible then
-			row.Separator.Visible = not first
-			first = false
-		end
-	end
-	local visible = not first
-	-- a collapsed section keeps its header; searching shows its matches anyway
-	local collapsed = self.Block.Collapsed == true and (self.Tab.SearchQuery or "") == ""
-	self.Frame.Visible = visible and not collapsed
-	if self.Block.Header then
-		self.Block.Header.Visible = visible
-	end
-	self.Tab:_RefreshSpacers()
+local function v172_2(p1)
+    local v2_2 = v170_2()
+    if type(v2_2) == "table" then
+        local v3_4 = string.gsub(p1, "_", " ")
+        if v2_2[p1] then
+            return v2_2[p1].Rarity
+        end
+        if v2_2[v3_4] then
+            return v2_2[v3_4].Rarity
+        end
+    end
+    return nil
 end
-
-local TabMethods = setmetatable({}, { __index = Container })
-TabMethods.__index = TabMethods
-
-local SectionMethods = setmetatable({}, { __index = Container })
-SectionMethods.__index = SectionMethods
-
-function TabMethods:_NextOrder()
-	self.Order += 1
-	return self.Order
+local v173_2 = {}
+do
+    local function v176_4(title)
+        return v154_8:AddParagraph(title, v150_9.T("Loading..."))
+    end
+    v173_2.Player = v176_4("PLAYER STATS:")
+    v173_2.LiveMission = v176_4("MISSION STATS (LIVE):")
+    v173_2.LastRound = v176_4("LAST ROUND STATS:")
+    v173_2.Session = v176_4("TOTAL SESSION STATS:")
 end
-
-function TabMethods:_NewBlock(spacing)
-	local block = {}
-	block.Spacer = New("Frame", {
-		Name = "Spacer",
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, spacing),
-		LayoutOrder = self:_NextOrder(),
-		Parent = self.Content,
-	})
-	block.Spacing = spacing
-	table.insert(self.Blocks, block)
-	return block
+local function v174_5()
+    local isVi = v150_9.IsVietnamese()
+    local v6 = v156_4
+    local pPrestige = math.min(5, math.max(0, tonumber(v6.Player.Prestige) or 0))
+    local pLevel = math.min(225, math.max(1, tonumber(v6.Player.Level) or 1))
+    v173_2.Player:Set(string.format(
+        isVi and "Prestige: %s\nCấp Độ (Level): %s\nGems: %s\nGold: %s\nPumpkins: %s"
+        or "Prestige: %s\nLevel: %s\nGems: %s\nGold: %s\nPumpkins: %s",
+        v165_3(pPrestige),
+        v165_3(pLevel),
+        v165_3(v6.Player.Gems),
+        v165_3(v6.Player.Gold),
+        v165_3(v6.Player.Pumpkins or 0)
+    ))
+    v173_2.LiveMission:Set(string.format(
+        isVi and "Trạng Thái: %s\nThời Gian: %s\nĐộ Khó: %s\nChuỗi Giết (Streak): %s"
+        or "Status: %s\nTime: %s\nDifficulty: %s\nKill Streak: %s",
+        v150_9.T(v158_4.Status),
+        v166_2(v158_4.Seconds),
+        v158_4.Difficulty,
+        v165_3(v150_10.CurrentKillStreak or 0)
+    ))
+    local v1_3 = v156_4.LastRound
+    local v2_3 = v1_3.Items and #v1_3.Items or 0
+    local v3_6 = {
+        (isVi and "Thời Gian Hoàn Thành: " or "Time Taken: ") .. tostring(v1_3.TimeTaken),
+        (isVi and "Độ Khó: " or "Difficulty: ") .. tostring(v1_3.Difficulty),
+        (isVi and "Titan Đã Giết: " or "Titans Killed: ") .. v165_3(v1_3.TitansKilled or 0),
+        (isVi and "Sát Thương Gây Ra: " or "Damage Dealt: ") .. v165_3(v1_3.DamageDealt or 0),
+        "Gold: " .. v165_3(v1_3.Gold),
+        "Gems: " .. v165_3(v1_3.Gems),
+        "Pumpkins: " .. v165_3(v1_3.Pumpkins or 0),
+        "Divine Fragments: " .. v165_3(v1_3.DivineFragments or 0),
+        "BP XP: " .. v165_3(v1_3.BP_XP or 0),
+        "XP: " .. v165_3(v1_3.XP),
+        (isVi and "Vật Phẩm Rơi (" or "Drops (") .. tostring(v2_3) .. "):"
+    }
+    if 0 < v2_3 then
+        for _, v8_11 in ipairs(v1_3.Items) do
+            table.insert(v3_6, "  " .. v8_11)
+        end
+    else
+        table.insert(v3_6, "  " .. v150_9.T("None"))
+    end
+    v173_2.LastRound:Set(table.concat(v3_6, "\n"))
+    local v4_10 = v156_4.Session
+    local v5_13 = v4_10.MissionsCompleted or 0
+    local v6_17 = v4_10.FastestSeconds and 0 < v4_10.FastestSeconds and v166_2(v4_10.FastestSeconds) or "00:00"
+    local v7_16 = v167_2(v4_10.TotalSeconds or 0, v5_13)
+    local v8_14 = v4_10.RarityCounts or {}
+    local v9_12 = {
+        string.format("Common: %s | Uncommon: %s | Rare: %s", v165_3(v8_14.Common or 0), v165_3(v8_14.Uncommon or 0),
+            v165_3(v8_14.Rare or 0)),
+        string.format("Epic: %s | Legendary: %s | Mythic: %s", v165_3(v8_14.Epic or 0), v165_3(v8_14.Legendary or 0),
+            v165_3(v8_14.Mythic or 0))
+    }
+    if 0 < (v8_14.Secret or 0) then
+        table.insert(v9_12, string.format("Secret: %s", v165_3(v8_14.Secret)))
+    end
+    local v11_13 = {
+        (isVi and "Số Trận Hoàn Thành: " or "Missions Completed: ") .. v165_3(v5_13),
+        (isVi and "Trận Nhanh Nhất: " or "Fastest Time: ") .. v6_17,
+        (isVi and "Thời Gian Trung Bình: " or "Average Time: ") .. v7_16,
+        (isVi and "Tổng Titan Đã Giết: " or "Titans Killed: ") .. v165_3(v4_10.TitansKilled or 0),
+        (isVi and "Tổng Sát Thương: " or "Damage Dealt: ") .. v165_3(v4_10.DamageDealt or 0),
+        "Gold: " .. v165_3(v4_10.Gold or 0),
+        "Gems: " .. v165_3(v4_10.Gems or 0),
+        "Pumpkins: " .. v165_3(v4_10.Pumpkins or 0),
+        "Divine Fragments: " .. v165_3(v4_10.DivineFragments or 0),
+        "BP XP: " .. v165_3(v4_10.BP_XP or 0),
+        "XP: " .. v165_3(v4_10.XP or 0),
+        (isVi and "Tổng Vật Phẩm Rơi: " or "Total Drops: ") .. tostring(#(v4_10.Items or {})),
+        (isVi and "Thống Kê Độ Hiếm:\n  " or "Rarity Breakdown:\n  ") .. table.concat(v9_12, "\n  ")
+    }
+    v173_2.Session:Set(table.concat(v11_13, "\n"))
+    if v150_10.UpdateKaitunParagraph then
+        pcall(v150_10.UpdateKaitunParagraph)
+    end
+    if v150_10.UpdateConfigParagraph then
+        pcall(v150_10.UpdateConfigParagraph)
+    end
+    return
 end
-
-function TabMethods:_RefreshSpacers()
-	local first = true
-	for _, block in ipairs(self.Blocks) do
-		local visible = (block.Group and (block.Group.Frame.Visible or (block.Header ~= nil and block.Header.Visible)))
-			or (block.Hero ~= nil and block.Hero.Visible)
-		block.Spacer.Visible = visible and not first
-		if visible then
-			first = false
-		end
-	end
+v150_9.OnLanguageChanged = v174_5
+local function v175_4(p1)
+    if type(p1) ~= "table" then
+        return false
+    end
+    local v2_4 = false
+    if type(p1.Progression) == "table" then
+        if p1.Progression.Prestige ~= nil then
+            local pVal = tonumber(p1.Progression.Prestige)
+            if pVal and pVal >= 0 and pVal <= 5 then
+                v156_4.Player.Prestige = pVal
+                v2_4 = true
+            end
+        end
+        if p1.Progression.Level ~= nil then
+            local lVal = tonumber(p1.Progression.Level)
+            if lVal and lVal >= 1 and lVal <= 225 then
+                v156_4.Player.Level = lVal
+                v2_4 = true
+            end
+        end
+    end
+    if type(p1.Currency) == "table" then
+        if p1.Currency.Gold ~= nil then
+            v156_4.Player.Gold = tonumber(p1.Currency.Gold) or v156_4.Player.Gold
+            v2_4 = true
+        end
+        if p1.Currency.Gems ~= nil then
+            v156_4.Player.Gems = tonumber(p1.Currency.Gems) or v156_4.Player.Gems
+            v2_4 = true
+        end
+        if p1.Currency.Pumpkins ~= nil then
+            v156_4.Player.Pumpkins = tonumber(p1.Currency.Pumpkins) or v156_4.Player.Pumpkins
+            v2_4 = true
+        end
+    end
+    return v2_4
 end
-
-function TabMethods:_GetGroup()
-	if not self.CurrentGroup then
-		local block = self:_NewBlock(16)
-		block.Group = CreateGroup(self, block)
-		self.CurrentGroup = block.Group
-	end
-	return self.CurrentGroup
+local function v176_5()
+    local v1 = false
+    local v2 = game.PlaceId == 14916516914 or game.PlaceId == 13379208636
+    local v3_2 = v7_13:GetAttribute("Prestige")
+    if v3_2 ~= nil then
+        local pVal = tonumber(v3_2)
+        if pVal and pVal >= 0 and pVal <= 5 then
+            v156_4.Player.Prestige = pVal
+            v1 = true
+        end
+    end
+    local v4_8 = v7_13:GetAttribute("Level")
+    if v4_8 ~= nil then
+        local lVal = tonumber(v4_8)
+        if lVal and lVal >= 1 and lVal <= 225 then
+            v156_4.Player.Level = lVal
+            v1 = true
+        end
+    end
+    if v2 then
+        local v5_10 = v7_13:FindFirstChild("PlayerGui")
+        local v6_7 = v5_10 and v5_10:FindFirstChild("Interface")
+        local v7_7 = v6_7 and v6_7:FindFirstChild("Topbar")
+        if v7_7 and v7_7:FindFirstChild("Main") and v7_7.Main:FindFirstChild("Currencies") then
+            local v8_10 = v7_7.Main.Currencies
+            local v9_5 = v8_10:FindFirstChild("Gold") and v8_10.Gold:FindFirstChild("Amount")
+            local v10_5 = v8_10:FindFirstChild("Gems") and v8_10.Gems:FindFirstChild("Amount")
+            local v11_5 = v8_10:FindFirstChild("Pumpkins") and v8_10.Pumpkins:FindFirstChild("Amount")
+            if v9_5 and v9_5:IsA("TextLabel") then
+                local v12_7 = tonumber(v9_5.Text:gsub(",", ""):gsub("%s", ""))
+                if v12_7 then
+                    v156_4.Player.Gold = v12_7
+                    v1 = true
+                end
+            end
+            if v10_5 and v10_5:IsA("TextLabel") then
+                local v12_11 = tonumber(v10_5.Text:gsub(",", ""):gsub("%s", ""))
+                if v12_11 then
+                    v156_4.Player.Gems = v12_11
+                    v1 = true
+                end
+            end
+            if v11_5 and v11_5:IsA("TextLabel") then
+                local v12_15 = tonumber(v11_5.Text:gsub(",", ""):gsub("%s", ""))
+                if v12_15 then
+                    v156_4.Player.Pumpkins = v12_15
+                    v1 = true
+                end
+            end
+        end
+    else
+        local v5_12, v6_10, v7_5 = pcall(function()
+            return v69_2:InvokeServer("S_Rewards", "Get")
+        end)
+        if v5_12 and v175_4(v7_5) then
+            v1 = true
+        end
+    end
+    if v1 then
+        v157_5()
+    end
+    v174_5()
+    return
 end
-
-function TabMethods:AddSection(info)
-	if type(info) ~= "table" then
-		info = { Title = tostring(info or "") }
-	end
-	local window = self.Window
-	local block = self:_NewBlock(22)
-	local header = New("Frame", {
-		Name = "SectionHeader",
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		LayoutOrder = self:_NextOrder(),
-		Visible = false,
-		Parent = self.Content,
-	})
-	Padding(header, 0, 12, 8, 12)
-	List(header, nil, 2)
-	local titleRow = New("Frame", {
-		Name = "TitleRow",
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 20),
-		LayoutOrder = 1,
-		Parent = header,
-	})
-	local offset = 0
-	if info.Icon and MacUI:GetIcon(info.Icon) then
-		IconImage({
-			Name = "Icon",
-			Icon = info.Icon,
-			IconSize = 16,
-			AnchorPoint = Vector2.new(0, 0.5),
-			Position = UDim2.fromScale(0, 0.5),
-			Theme = { ImageColor3 = info.IconColor and function()
-				return ResolveColor(info.IconColor)
-			end or "Accent" },
-			Parent = titleRow,
-		})
-		offset = 22
-	end
-	local titleLabel = New("TextLabel", {
-		Name = "Title",
-		Text = info.Title or "",
-		TextSize = 15,
-		Weight = Enum.FontWeight.Bold,
-		Position = UDim2.fromOffset(offset, 0),
-		Size = UDim2.new(1, -offset, 1, 0),
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		Theme = { TextColor3 = "Text" },
-		Parent = titleRow,
-	})
-	local descLabel = New("TextLabel", {
-		Name = "Description",
-		Text = info.Description or "",
-		TextSize = 12,
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		TextWrapped = true,
-		RichText = true,
-		LayoutOrder = 2,
-		Visible = (info.Description or "") ~= "",
-		Theme = { TextColor3 = "SubText" },
-		Parent = header,
-	})
-	block.Header = header
-	block.Title = info.Title
-	block.SearchText = ((info.Title or "") .. " " .. (info.Description or "")):lower()
-	block.Collapsible = info.Collapsible == true
-	block.Collapsed = block.Collapsible and info.Collapsed == true
-	local disclosure
-	if block.Collapsible then
-		-- macOS disclosure chevron: click the title to show or hide the group
-		disclosure = IconImage({
-			Name = "Disclosure",
-			Icon = "chevron-right",
-			IconSize = 14,
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.fromScale(1, 0.5),
-			Rotation = block.Collapsed and 0 or 90,
-			Theme = { ImageColor3 = "SubText" },
-			Parent = titleRow,
-		})
-		titleLabel.Size = UDim2.new(1, -offset - 22, 1, 0)
-		New("TextButton", { Name = "Toggle", Size = UDim2.fromScale(1, 1), ZIndex = 2, Parent = titleRow }).MouseButton1Click:Connect(function()
-			block.Section:SetCollapsed(not block.Collapsed)
-		end)
-	end
-	block.Group = CreateGroup(self, block)
-	self.CurrentGroup = nil
-
-	local section = setmetatable({
-		Window = window,
-		Tab = self,
-		Title = info.Title,
-		Block = block,
-		Group = block.Group,
-		Collapsed = block.Collapsed,
-	}, SectionMethods)
-	block.Section = section
-	-- Collapsible sections only. Search results and Window:Reveal open them.
-	function section:SetCollapsed(collapsed)
-		if not block.Collapsible then
-			return
-		end
-		block.Collapsed = collapsed == true
-		self.Collapsed = block.Collapsed
-		Tween(disclosure, { Rotation = block.Collapsed and 0 or 90 }, 0.2)
-		block.Group:Refresh()
-	end
-	function section:SetTitle(text)
-		self.Title = text
-		block.Title = tostring(text)
-		titleLabel.Text = tostring(text)
-		block.SearchText = (tostring(text) .. " " .. descLabel.Text):lower()
-	end
-	function section:SetDesc(text)
-		descLabel.Text = tostring(text or "")
-		descLabel.Visible = descLabel.Text ~= ""
-		block.SearchText = (titleLabel.Text .. " " .. descLabel.Text):lower()
-	end
-	return section
+local function v177_13()
+    if v162_72 == "Ended" or v163_11 then
+        return
+    end
+    v163_11 = true
+    v162_72 = "Ended"
+    task.wait(0.6)
+    v158_4.Status = "Completed"
+    local v1_7 = v150_10.GetActualGameTime and v150_10.GetActualGameTime()
+    if not v1_7 or v1_7 <= 0 then
+        v1_7 = tonumber(v13_8:GetAttribute("Seconds")) or math.max(30, v158_4.Seconds)
+    end
+    local v2_13 = v13_8:GetAttribute("Difficulty")
+    if not v2_13 or tostring(v2_13) == "" or tostring(v2_13) == "N/A" then
+        if v158_4.Difficulty and v158_4.Difficulty ~= "N/A" then
+            v2_13 = v158_4.Difficulty
+        elseif v156_4.LastRound.Difficulty and v156_4.LastRound.Difficulty ~= "N/A" then
+            v2_13 = v156_4.LastRound.Difficulty
+        else
+            v2_13 = "Easy"
+        end
+    end
+    local v2_14 = tostring(v2_13)
+    local v3_12 = 0
+    local v4_12 = v3_12
+    local v5_8 = v7_13:FindFirstChild("PlayerGui")
+    local v6_2 = v5_8 and v5_8:FindFirstChild("Interface")
+    local v7_4 = v6_2 and v6_2:FindFirstChild("Rewards")
+    local v8_4 = nil
+    if v7_4 and v7_4:FindFirstChild("Main") and v7_4.Main:FindFirstChild("Info") then
+        local v9_7 = v7_4.Main.Info.Main
+        local v10_4 = v9_7:FindFirstChild("Stats")
+        if v10_4 then
+            local v11_8 = v10_4:FindFirstChild("Time_Taken") and v10_4.Time_Taken:FindFirstChild("Amount")
+            if v11_8 and v11_8:IsA("TextLabel") and v11_8.Text ~= "" and v11_8.Text ~= "00:00" then
+                local v12_11, v13_13 = string.match(v11_8.Text, "(%d+):(%d+)")
+                if v12_11 and v13_13 then
+                    local v14_17 = (tonumber(v12_11) or 0) * 60 + (tonumber(v13_13) or 0)
+                    if v14_17 > 0 then
+                        v1_7 = v14_17
+                    end
+                end
+            end
+            local v12_12 = v10_4:FindFirstChild("Kills") and v10_4.Kills:FindFirstChild("Amount")
+            if v12_12 and v12_12:IsA("TextLabel") then
+                v3_12 = tonumber(v12_12.Text:gsub(",", ""):gsub("%s", "")) or 0
+            end
+            local v13_23 = v10_4:FindFirstChild("Damage") and v10_4.Damage:FindFirstChild("Amount")
+            if v13_23 and v13_23:IsA("TextLabel") then
+                v4_12 = tonumber(v13_23.Text:gsub(",", ""):gsub("%s", "")) or 0
+            end
+        end
+        v8_4 = v9_7:FindFirstChild("Items")
+    end
+    local v10_7 = v159_6
+    local v9_8 = v10_7.Gold
+    local v11_7 = v10_7
+    local v10_8 = v11_7.Gems
+    local v11_6 = v11_7.Pumpkins or 0
+    local v12_6 = v159_6.DivineFragments or 0
+    local v13_6 = v159_6.BP_XP or 0
+    local v14_4 = v159_6.XP
+    local v15_3 = {}
+    local v16_3 = {}
+    local v17_4, v18_3, v19_2 = pcall(function()
+        return v69_2:InvokeServer("S_Rewards", "Get")
+    end)
+    local v20_2 = false
+    if v17_4 and type(v18_3) == "table" then
+        if v18_3.Seconds and tonumber(v18_3.Seconds) and tonumber(v18_3.Seconds) > 0 then
+            v1_7 = tonumber(v18_3.Seconds)
+        end
+        if v18_3.Stats and type(v18_3.Stats) == "table" then
+            if tonumber(v18_3.Stats.Kills) and tonumber(v18_3.Stats.Kills) > v3_12 then
+                v3_12 = tonumber(v18_3.Stats.Kills)
+            end
+            if tonumber(v18_3.Stats.Damage) and tonumber(v18_3.Stats.Damage) > v4_12 then
+                v4_12 = tonumber(v18_3.Stats.Damage)
+            end
+        end
+        local v21_19 = v18_3.Obtained
+        if type(v21_19) == "table" then
+            local v22_30 = tonumber(v21_19.Gold) or 0
+            local v23_21 = tonumber(v21_19.Gems) or 0
+            local v24_7 = tonumber(v21_19.Pumpkins) or 0
+            local v25_8 = tonumber(v21_19.Divine_Fragment or v21_19["Divine Fragment"] or v21_19.DivineFragments or
+                v21_19["Divine Fragments"]) or 0
+            local v26_11 = tonumber(v21_19["BP XP"] or v21_19.BP_XP or v21_19.BPXP or v21_19.BP) or 0
+            local v27_10 = tonumber(v21_19.XP) or 0
+            if v22_30 > 0 then
+                v9_8 = v22_30
+            end
+            if v23_21 > 0 then
+                v10_8 = v23_21
+            end
+            if v24_7 > 0 then
+                v11_6 = v24_7
+            end
+            if v25_8 > 0 then
+                v12_6 = v25_8
+            end
+            if 0 < v26_11 then
+                v13_6 = v26_11
+            end
+            if 0 < v27_10 then
+                v14_4 = v27_10
+            end
+            if type(v21_19.Perks) == "table" then
+                for v31_11, v32_8 in pairs(v21_19.Perks) do
+                    local v33_5 = type(v31_11) == "string" and not tonumber(v31_11) and v31_11 or tostring(v32_8)
+                    local v34_14 = type(v32_8) == "number" and v32_8 or 1
+                    local v36_19
+                    if not v33_5 or v33_5 == "" then
+                        v36_19 = true
+                    elseif v160_9[v33_5] then
+                        v36_19 = true
+                    elseif v33_5:match("^BP[%s_]?XP") then
+                        v36_19 = true
+                    else
+                        v36_19 = false
+                    end
+                    if not v36_19 then
+                        local v35_34 = v171_2(v33_5) or "Common"
+                        table.insert(v15_3,
+                            string.gsub(v33_5, "_", " ") ..
+                            (1 < v34_14 and " x" .. tostring(v34_14) or "") .. " (" .. v35_34 .. ")")
+                        table.insert(v16_3, v35_34)
+                    end
+                end
+            end
+            if type(v21_19.Drops) == "table" then
+                for v31_12, v32_9 in pairs(v21_19.Drops) do
+                    local v33_6 = type(v31_12) == "string" and not tonumber(v31_12) and v31_12 or tostring(v32_9)
+                    local v34_20 = type(v32_9) == "number" and v32_9 or 1
+                    if v33_6 == "Divine_Fragment" or v33_6 == "Divine Fragment" or v33_6:find("Divine") and v33_6:find("Fragment") then
+                        v12_6 = v12_6 + v34_20
+                    end
+                    local v36_26
+                    if not v33_6 or v33_6 == "" then
+                        v36_26 = true
+                    elseif v160_9[v33_6] then
+                        v36_26 = true
+                    elseif v33_6:match("^BP[%s_]?XP") then
+                        v36_26 = true
+                    else
+                        v36_26 = false
+                    end
+                    if not v36_26 and v33_6 ~= "Pumpkins" and v33_6 ~= "Pumpkin" then
+                        local v35_44 = v172_2(v33_6) or "Common"
+                        table.insert(v15_3,
+                            string.gsub(v33_6, "_", " ") ..
+                            (v34_20 > 1 and " x" .. tostring(v34_20) or "") .. " (" .. v35_44 .. ")")
+                        table.insert(v16_3, v35_44)
+                    end
+                end
+            end
+            if type(v21_19.Chests) == "table" then
+                for v31_13, v32_10 in pairs(v21_19.Chests) do
+                    local v33_7 = type(v31_13) == "string" and not tonumber(v31_13) and v31_13 or tostring(v32_10)
+                    local v34_24 = type(v32_10) == "number" and v32_10 or 1
+                    local v36_24
+                    if not v33_7 or v33_7 == "" then
+                        v36_24 = true
+                    elseif v160_9[v33_7] then
+                        v36_24 = true
+                    elseif v33_7:match("^BP[%s_]?XP") then
+                        v36_24 = true
+                    else
+                        v36_24 = false
+                    end
+                    if not v36_24 then
+                        local v35_38 = v172_2(v33_7) or "Rare"
+                        table.insert(v15_3,
+                            string.gsub(v33_7, "_", " ") ..
+                            (v34_24 > 1 and " x" .. tostring(v34_24) or "") .. " (" .. v35_38 .. ")")
+                        table.insert(v16_3, v35_38)
+                    end
+                end
+            end
+            if type(v21_19.Cosmetics) == "table" then
+                for v31_14, v32_11 in pairs(v21_19.Cosmetics) do
+                    local v33_9 = type(v31_14) == "string" and not tonumber(v31_14) and v31_14 or tostring(v32_11)
+                    local v34_26 = type(v32_11) == "number" and v32_11 or 1
+                    local v36_25
+                    if not v33_9 or v33_9 == "" then
+                        v36_25 = true
+                    elseif v160_9[v33_9] then
+                        v36_25 = true
+                    elseif v33_9:match("^BP[%s_]?XP") then
+                        v36_25 = true
+                    else
+                        v36_25 = false
+                    end
+                    if not v36_25 then
+                        local v35_42 = v172_2(v33_9) or "Common"
+                        table.insert(v15_3,
+                            string.gsub(v33_9, "_", " ") ..
+                            (1 < v34_26 and " x" .. tostring(v34_26) or "") .. " (" .. v35_42 .. ")")
+                        table.insert(v16_3, v35_42)
+                    end
+                end
+            end
+            v20_2 = true
+        end
+    end
+    if (not v20_2 or #v15_3 == 0) and 0 < #v159_6.Items then
+        v15_3 = table.clone(v159_6.Items)
+        v16_3 = table.clone(v159_6.Rarities)
+        if v159_6.Gold > 0 then
+            v9_8 = v159_6.Gold
+        end
+        if v159_6.Gems > 0 then
+            v10_8 = v159_6.Gems
+        end
+        if 0 < (v159_6.Pumpkins or 0) then
+            v11_6 = v159_6.Pumpkins
+        end
+        if (v159_6.DivineFragments or 0) > 0 then
+            v12_6 = v159_6.DivineFragments
+        end
+        if (v159_6.BP_XP or 0) > 0 then
+            v13_6 = v159_6.BP_XP
+        end
+        if v159_6.XP > 0 then
+            v14_4 = v159_6.XP
+        end
+    elseif (not v20_2 or #v15_3 == 0) and v8_4 then
+        for v24_3, v25_2 in ipairs(v8_4:GetChildren()) do
+            if v25_2:IsA("Frame") and v25_2:FindFirstChild("Main") and v25_2.Main:FindFirstChild("Inner") then
+                local v26_9 = v25_2.Main.Inner
+                local v27_8 = v26_9:FindFirstChild("Quantity")
+                local v30_3 = tonumber(((v27_8 and v27_8.Text or "")):gsub(",", ""):gsub("%+", ""):gsub("%s", "")) or 1
+                local v31_8 = v26_9:FindFirstChild("Rarity")
+                local v32_6 = v31_8 and v31_8.BackgroundColor3
+                local v33_4 = "Common"
+                if not v168_2.Values then
+                    pcall(function()
+                        v168_2.Values = require(v16_15.Modules.Storage.Values)
+                        return
+                    end)
+                end
+                local v34_3 = v168_2.Values
+                if v34_3 and v34_3.Colours then
+                    for v38_3, v39_3 in pairs(v34_3.Colours) do
+                        if v32_6 and math.abs(v32_6.R - v39_3.R) < 0.05 and 0.05 > math.abs(v32_6.G - v39_3.G) and math.abs(v32_6.B - v39_3.B) < 0.05 then
+                            v33_4 = v38_3
+                            break
+                        end
+                    end
+                end
+                local v35_10 = v26_9:FindFirstChild("Icon")
+                local v36_8 = v35_10 and v35_10.Image or ""
+                local v37_7 = nil
+                if not v168_2.Items then
+                    pcall(function()
+                        v168_2.Items = require(v16_15.Modules.Storage.Items)
+                        return
+                    end)
+                end
+                local v38_4 = v168_2.Items
+                if v38_4 then
+                    for v42_15, v43_6 in pairs(v38_4) do
+                        if v43_6.Image and tostring(v43_6.Image) ~= "" and v36_8:find(tostring(v43_6.Image)) then
+                            v37_7 = v42_15
+                            break
+                        end
+                    end
+                end
+                if not v37_7 then
+                    if not v168_2.Perks then
+                        pcall(function()
+                            v168_2.Perks = require(v16_15.Modules.Storage.Perks)
+                            return
+                        end)
+                    end
+                    local v39_11 = v168_2.Perks
+                    if v39_11 then
+                        for v43_10, v44_6 in pairs(v39_11) do
+                            if type(v44_6) == "table" then
+                                for v48_4, v49_4 in pairs(v44_6) do
+                                    if type(v49_4) == "table" and v49_4.Image and tostring(v49_4.Image) ~= "" and v36_8:find(tostring(v49_4.Image)) then
+                                        v37_7 = v48_4
+                                        break
+                                    end
+                                end
+                            end
+                            if v37_7 then
+                                break
+                            end
+                        end
+                    end
+                end
+                local v39_10 = v37_7
+                if v39_10 then
+                    local v41_15 = v37_7
+                    local v40_18
+                    if not v41_15 or v41_15 == "" then
+                        v40_18 = true
+                    elseif v160_9[v41_15] then
+                        v40_18 = true
+                    elseif v41_15:match("^BP[%s_]?XP") then
+                        v40_18 = true
+                    else
+                        v40_18 = false
+                    end
+                    v39_10 = not v40_18
+                end
+                if v39_10 then
+                    table.insert(v15_3, string.gsub(v37_7, "_", " ") .. " (" .. v33_4 .. ")")
+                    table.insert(v16_3, v33_4)
+                elseif v37_7 then
+                    if v37_7 == "Gold" and v9_8 == 0 then
+                        v9_8 = v30_3
+                    elseif v37_7 == "Gems" and v10_8 == 0 then
+                        v10_8 = v30_3
+                    elseif (v37_7 == "Pumpkins" or v37_7 == "Pumpkin") and v11_6 == 0 then
+                        v11_6 = v30_3
+                    elseif (v37_7 == "Divine_Fragment" or v37_7 == "Divine Fragment" or v37_7:find("Divine") and v37_7:find("Fragment")) and v12_6 == 0 then
+                        v12_6 = v30_3
+                    elseif (v37_7 == "BP XP" or v37_7 == "BP_XP" or v37_7 == "BPXP") and v13_6 == 0 then
+                        v13_6 = v30_3
+                    elseif v37_7 == "XP" and v14_4 == 0 then
+                        v14_4 = v30_3
+                    end
+                end
+            end
+        end
+    end
+    local v21_30 = v156_4.LastRound
+    v21_30.TimeTaken = v166_2(v1_7)
+    v21_30.Difficulty = v2_14
+    v21_30.TitansKilled = v3_12
+    v21_30.DamageDealt = v4_12
+    v21_30.Gold = v9_8
+    v21_30.Gems = v10_8
+    v21_30.Pumpkins = v11_6
+    v21_30.DivineFragments = v12_6
+    v21_30.BP_XP = v13_6
+    v21_30.XP = v14_4
+    v21_30.Items = table.clone(v15_3)
+    local v22_46 = v156_4.Session
+    v22_46.MissionsCompleted = (v22_46.MissionsCompleted or 0) + 1
+    v22_46.TotalSeconds = (v22_46.TotalSeconds or 0) + v1_7
+    if 0 < v1_7 then
+        if not v22_46.FastestSeconds or v22_46.FastestSeconds == 0 or v22_46.FastestSeconds > v1_7 then
+            v22_46.FastestSeconds = v1_7
+        end
+    end
+    v22_46.TitansKilled = (v22_46.TitansKilled or 0) + v3_12
+    v22_46.DamageDealt = (v22_46.DamageDealt or 0) + v4_12
+    v22_46.Gold = (v22_46.Gold or 0) + v9_8
+    v22_46.Gems = (v22_46.Gems or 0) + v10_8
+    v22_46.Pumpkins = (v22_46.Pumpkins or 0) + v11_6
+    v22_46.DivineFragments = (v22_46.DivineFragments or 0) + v12_6
+    v22_46.BP_XP = (v22_46.BP_XP or 0) + v13_6
+    v22_46.XP = (v22_46.XP or 0) + v14_4
+    v22_46.Items = v22_46.Items or {}
+    for v26_12, v27_12 in ipairs(v15_3) do
+        table.insert(v22_46.Items, v27_12)
+    end
+    v22_46.RarityCounts = v22_46.RarityCounts or {}
+    for v26_14, v27_13 in ipairs(v16_3) do
+        v22_46.RarityCounts[v27_13] = (v22_46.RarityCounts[v27_13] or 0) + 1
+    end
+    if v17_4 then
+        v175_4(v19_2)
+    end
+    v157_5()
+    v174_5()
+    v163_11 = false
+    return
 end
-
-function SectionMethods:_GetGroup()
-	return self.Group
+local function v178_5()
+    if v162_72 == "Playing" then
+        return
+    end
+    v162_72 = "Playing"
+    v164_3 = os.clock()
+    v150_10.MissionStartTime = os.clock()
+    local v1_5 = v158_4
+    v1_5.Status = "In Progress"
+    v1_5.Seconds = 0
+    local v1_8 = v13_8:GetAttribute("Difficulty")
+    if not v1_8 or tostring(v1_8) == "" or tostring(v1_8) == "N/A" then
+        v1_8 = v156_4.LastRound.Difficulty or "N/A"
+    end
+    v158_4.Difficulty = tostring(v1_8)
+    v159_6 = {
+        Gold = 0,
+        Gems = 0,
+        Pumpkins = 0,
+        DivineFragments = 0,
+        BP_XP = 0,
+        XP = 0,
+        Items = {},
+        Rarities = {}
+    }
+    v174_5()
+    return
 end
-
-function TabMethods:_ApplySearch(query)
-	self.SearchQuery = query
-	local count = 0
-	if self.Hero then
-		self.Hero.Visible = query == ""
-	end
-	for _, block in ipairs(self.Blocks) do
-		if block.Group then
-			local sectionHit = query ~= "" and block.SearchText ~= nil and block.SearchText:find(query, 1, true) ~= nil
-			for _, row in ipairs(block.Group.Rows) do
-				row.SearchMatch = query == "" or sectionHit or row:_Matches(query)
-				row.Frame.Visible = row:_IsShown() and row.SearchMatch
-				if row.Frame.Visible then
-					count += 1
-				end
-			end
-			block.Group:Refresh()
-		end
-	end
-	self:_RefreshSpacers()
-	return count
+do
+    local function v179_5()
+        pcall(function()
+            local v1_3 = v16_15:WaitForChild("Modules", 10)
+            local v2 = v1_3 and v1_3:WaitForChild("User Interface", 10)
+            local v3_3 = v2 and v2:WaitForChild("Rewards", 10)
+            if not v3_3 then
+                return
+            end
+            local v4_6 = require(v3_3)
+            if type(v4_6) ~= "table" then
+                return
+            end
+            if type(v4_6.Create) == "function" and not v4_6.__SymbioteHooked then
+                v4_6.__SymbioteHooked = true
+                local v5_8 = v4_6.Create
+                v4_6.Create = function(p1, p2, p3, p4, p5, p6, p7)
+                    pcall(function()
+                        local v2_2 = tonumber(tostring(p7 or ""):gsub(",", ""):gsub("%+", ""):gsub("x", ""):gsub("%s", "")) or
+                            1
+                        local v3_7 = tostring(p4 or "")
+                        if p3 == 1 or p4 == "Gold" or v3_7 == "Gold" then
+                            local v4_7 = v159_6
+                            v4_7.Gold = v4_7.Gold + v2_2
+                        elseif p4 == "Gems" or v3_7 == "Gems" then
+                            local v4_9 = v159_6
+                            v4_9.Gems = v4_9.Gems + v2_2
+                        elseif p4 == "Pumpkins" or v3_7 == "Pumpkins" or p4 == "Pumpkin" or v3_7 == "Pumpkin" then
+                            local v4_11 = v159_6
+                            v4_11.Pumpkins = (v4_11.Pumpkins or 0) + v2_2
+                        elseif p4 == "Divine_Fragment" or v3_7 == "Divine_Fragment" or v3_7:find("Divine") and v3_7:find("Fragment") then
+                            local v4_14 = v159_6
+                            v4_14.DivineFragments = (v4_14.DivineFragments or 0) + v2_2
+                        elseif p4 == "BP XP" or v3_7 == "BP XP" or p4 == "BP_XP" or v3_7 == "BP_XP" or p4 == "BPXP" or v3_7 == "BPXP" then
+                            local v4_17 = v159_6
+                            v4_17.BP_XP = (v4_17.BP_XP or 0) + v2_2
+                        elseif p4 == "XP" or v3_7 == "XP" then
+                            local v4_19 = v159_6
+                            v4_19.XP = v4_19.XP + v2_2
+                        elseif not v161_61(v3_7) then
+                            local v4_21 = p5 and p5 ~= "" and p5 or v171_2(v3_7) or v172_2(v3_7) or "Common"
+                            table.insert(v159_6.Items,
+                                string.gsub(v3_7, "_", " ") ..
+                                (v2_2 > 1 and " x" .. tostring(v2_2) or "") .. " (" .. v4_21 .. ")")
+                            table.insert(v159_6.Rarities, v4_21)
+                        end
+                        return
+                    end)
+                    return v5_8(p1, p2, p3, p4, p5, p6, p7)
+                end
+            end
+            if type(v4_6.Setup) == "function" and not v4_6.__SymbioteSetupHooked then
+                v4_6.__SymbioteSetupHooked = true
+                local v5_11 = v4_6.Setup
+                v4_6.Setup = function(p1, p2)
+                    local v3_2 = v5_11(p1, p2)
+                    if v162_72 == "Playing" then
+                        task.defer(function()
+                            v177_13()
+                            return
+                        end)
+                    end
+                    return v3_2
+                end
+            end
+            return
+        end)
+        task.spawn(function()
+            local v1_3 = v7_13:WaitForChild("PlayerGui", 60)
+            local v2 = v1_3 and v1_3:WaitForChild("Interface", 60)
+            local v3_3 = v2 and v2:WaitForChild("Rewards", 60)
+            if not v3_3 then
+                return
+            end
+            v3_3:GetPropertyChangedSignal("Visible"):Connect(function()
+                if v3_3.Visible then
+                    if v162_72 == "Playing" then
+                        task.delay(0.6, function()
+                            v177_13()
+                            return
+                        end)
+                    end
+                elseif v162_72 == "Ended" and not v163_11 then
+                    v178_5()
+                end
+                return
+            end)
+            return
+        end)
+        v13_8:GetAttributeChangedSignal("Difficulty"):Connect(function()
+            local v1_3 = v13_8:GetAttribute("Difficulty")
+            if v1_3 and tostring(v1_3) ~= "" and tostring(v1_3) ~= "N/A" then
+                v158_4.Difficulty = tostring(v1_3)
+                v174_5()
+            end
+            return
+        end)
+        return
+    end
+    v154_8:AddButton("Reset Session Stats", function()
+        v156_4.Session = {
+            MissionsCompleted = 0,
+            TotalSeconds = 0,
+            FastestSeconds = 0,
+            TitansKilled = 0,
+            DamageDealt = 0,
+            Gold = 0,
+            Gems = 0,
+            Pumpkins = 0,
+            DivineFragments = 0,
+            BP_XP = 0,
+            XP = 0,
+            Items = {},
+            RarityCounts = {
+                Common = 0,
+                Uncommon = 0,
+                Rare = 0,
+                Epic = 0,
+                Legendary = 0,
+                Mythic = 0,
+                Secret = 0
+            }
+        }
+        v157_5()
+        v174_5()
+        return
+    end)
+    v154_8:AddButton("Refresh Stats", function()
+        v176_5()
+        return
+    end)
+    task.spawn(function()
+        task.wait(0.3)
+        v176_5()
+        v179_5()
+        local v1 = game.PlaceId == 14916516914 or game.PlaceId == 13379208636
+        local v2_4 = 0
+        if not v1 then
+            v162_72 = "Playing"
+            local v3_9 = v13_8:GetAttribute("Difficulty")
+            if not v3_9 or tostring(v3_9) == "" or tostring(v3_9) == "N/A" then
+                v3_9 = v156_4.LastRound.Difficulty or "N/A"
+            end
+            v158_4.Difficulty = tostring(v3_9)
+        else
+            v162_72 = "Lobby"
+        end
+        while true do
+            task.wait(0.5)
+            v2_4 = v2_4 + 0.5
+            if v1 then
+                local v3_13 = v158_4
+                v3_13.Status = "In Lobby"
+                v3_13.Seconds = 0
+                v3_13.Difficulty = "N/A"
+            else
+                local v3_16 = v7_13:FindFirstChild("PlayerGui")
+                local v4_10 = v3_16 and v3_16:FindFirstChild("Interface")
+                local v5_11 = v4_10 and v4_10:FindFirstChild("Rewards")
+                if v5_11 and v5_11.Visible then
+                    if v162_72 == "Playing" and not v163_11 then
+                        task.delay(0.6, function()
+                            v177_13()
+                            return
+                        end)
+                    end
+                elseif v162_72 == "Ended" and not v163_11 then
+                    v178_5()
+                elseif v162_72 == "Playing" then
+                    local v7_7 = v158_4
+                    v7_7.Status = "In Progress"
+                    v7_7.Seconds = math.max(0, math.floor(os.clock() - v164_3))
+                    local v7_10 = v13_8:GetAttribute("Difficulty")
+                    if v7_10 and tostring(v7_10) ~= "" and tostring(v7_10) ~= "N/A" then
+                        v158_4.Difficulty = tostring(v7_10)
+                    elseif v158_4.Difficulty == "N/A" and v156_4.LastRound.Difficulty and v156_4.LastRound.Difficulty ~= "N/A" then
+                        v158_4.Difficulty = v156_4.LastRound.Difficulty
+                    end
+                end
+            end
+            v150_10.CheckAutoResetStreak()
+            if 15 <= v2_4 then
+                v2_4 = 0
+                v176_5()
+            else
+                v174_5()
+            end
+        end
+    end)
 end
-
-function TabMethods:Select()
-	self.Window:SelectTab(self)
+v56_2.NoClip = v151_6:AddToggle("NoClip", function(p1)
+    v19_3 = p1
+    v9_4("NoClip", p1)
+    if p1 then
+        v98_2()
+    else
+        v99_2()
+    end
+    return
+end)
+v56_2.WalkSpeed = v151_6:AddToggle("Walk Speed", function(p1)
+    v27_2 = p1
+    v9_4("WalkSpeed", p1)
+    if p1 then
+        v100_3()
+    else
+        v101_2()
+    end
+    return
+end)
+v56_2.WalkSpeedSlider = v151_6:AddSlider("Walk Speed Amount", 1, 5, v8_6("WalkSpeedAmount"), function(p1)
+    v28_2 = p1
+    v9_4("WalkSpeedAmount", p1)
+    return
+end)
+v56_2.LaggyRun = v151_6:AddToggle("Laggy Run", function(p1)
+    v29_2 = p1
+    v9_4("LaggyRun", p1)
+    if p1 then
+        v102_3()
+    else
+        v103_2()
+    end
+    return
+end)
+v56_2.LaggyRunDistSlider = v151_6:AddSlider("Laggy Run Distance", 1, 10, v8_6("LaggyRunDistance"), function(p1)
+    v30_2 = p1
+    v9_4("LaggyRunDistance", p1)
+    return
+end)
+v56_2.LaggyRunDelaySlider = v151_6:AddSlider("Laggy Run Delay", 1, 10, v8_6("LaggyRunDelay"), function(p1)
+    v31_2 = p1
+    v9_4("LaggyRunDelay", p1)
+    return
+end)
+v56_2.CtrlClickTP = v151_6:AddToggle("CTRL + Click to TP", function(p1)
+    v32_2 = p1
+    v9_4("CtrlClickTP", p1)
+    if p1 then
+        v104_3()
+    else
+        v105_3()
+    end
+    return
+end)
+v56_2.InfiniteJump = v151_6:AddToggle("Infinite Jump", function(p1)
+    v33_2 = p1
+    v9_4("InfiniteJump", p1)
+    if p1 then
+        v106_3()
+    else
+        v107_2()
+    end
+    return
+end)
+v56_2.AutoFarm = v152_7:AddToggle("Auto Farm", function(p1)
+    v9_4("AutoFarm", p1)
+    if p1 then
+        v18_4 = true
+        v22_2 = true
+        if v16_9["HitboxSize"] == nil then
+            v23_2 = 100
+            if v56_2.HitboxSizeSlider then
+                v56_2.HitboxSizeSlider:SetValue(100)
+            end
+        end
+        v116_4(v23_2)
+        v150_10.StartAutoGas()
+        task.spawn(v148_4)
+    else
+        v18_4 = false
+        v20_2 = nil
+        v150_10.StopAutoGas()
+        v128_2()
+    end
+    return
+end)
+v56_2.AutoResetStreak = v152_7:AddToggle("Auto Reset Kill Streak (>1000)", function(p1)
+    v150_10.AutoResetStreak = p1
+    v9_4("AutoResetStreak", p1)
+    if not p1 then
+        v150_10.BreakingStreak = false
+    else
+        task.spawn(v150_10.CheckAutoResetStreak)
+    end
+    return
+end)
+v56_2.HitAll = v152_7:AddToggle("Hit All", function(p1)
+    v59_2 = p1
+    v9_4("HitAll", p1)
+    return
+end)
+v152_7:AddLabel("RAID")
+v56_2.AutoRaid = v152_7:AddToggle("Auto Raid (Focus Boss)", function(p1)
+    v150_10.AutoRaid = p1
+    v9_4("AutoRaid", p1)
+    if p1 then
+        if not v18_4 then
+            if v56_2.AutoFarm then
+                v56_2.AutoFarm:SetState(true)
+            else
+                v18_4 = true
+                v22_2 = true
+                v116_4(v23_2)
+                v150_10.StartAutoGas()
+                task.spawn(v148_4)
+            end
+        end
+        v40_2 = true
+        v9_4("AutoOpenRaidChests", true)
+        if v56_2.AutoOpenRaidChests then
+            v56_2.AutoOpenRaidChests:SetState(true)
+        end
+        v114_3()
+    end
+    return
+end)
+v56_2.DistanceToTitanSlider = v152_7:AddSlider("Distance to Titan", 0, 300, v8_6("DistanceToTitan"), function(p1)
+    v60_2 = p1
+    v9_4("DistanceToTitan", p1)
+    return
+end)
+v56_2.AutoReload = v152_7:AddToggle("Auto Reload", function(p1)
+    v25_2 = p1
+    v9_4("AutoReload", p1)
+    return
+end)
+v56_2.DelayToKill = v152_7:AddToggle("Delay To Kill", function(p1)
+    v57_3 = p1
+    v9_4("DelayToKill", p1)
+    return
+end)
+v56_2.DelayToKillSlider = v152_7:AddSlider("Delay(s)", 0, 300, v8_6("DelayToKillAmount"), function(p1)
+    v58_2 = p1
+    v9_4("DelayToKillAmount", p1)
+    return
+end)
+v56_2.ExpandNapeHitbox = v152_7:AddToggle("Expand Nape Hitbox", function(p1)
+    v22_2 = p1
+    v9_4("ExpandNapeHitbox", p1)
+    if not p1 then
+        v117_4()
+    else
+        v116_4()
+    end
+    return
+end)
+v56_2.HitboxSizeSlider = v152_7:AddSlider("Hitbox Size", 20, 100, v8_6("HitboxSize"), function(p1)
+    v23_2 = p1
+    v9_4("HitboxSize", p1)
+    if v22_2 then
+        v116_4()
+    end
+    return
+end)
+v56_2.VisualizeHitbox = v152_7:AddToggle("Visualize Hitbox", function(p1)
+    v24_2 = p1
+    v9_4("VisualizeHitbox", p1)
+    if not p1 then
+        v118_4()
+    end
+    return
+end)
+v152_7:AddLabel("WAVES")
+v152_7:AddButton("TP To Base", function()
+    local v1_2 = v71_3()
+    local v2 = v1_2 and v1_2:FindFirstChild("HumanoidRootPart")
+    if v2 then
+        v2.CFrame = CFrame.new(-843, 4, 360)
+    end
+    return
+end)
+v56_2.AutoVoteReady = v152_7:AddToggle("Auto Vote Ready", function(p1)
+    v61_2.AutoVoteReady = p1
+    v9_4("AutoVoteReady", p1)
+    if p1 then
+        task.spawn(v130_4)
+        v62_3()
+    end
+    return
+end)
+v56_2.AutoUpgradeMaxHQHP = v152_7:AddToggle("Auto Upgrade Max HQ HP", function(p1)
+    v61_2.AutoUpgradeMaxHQHP = p1
+    v9_4("AutoUpgradeMaxHQHP", p1)
+    if p1 then
+        v62_3()
+    end
+    return
+end)
+v56_2.AutoUpgradeHQHealthRegen = v152_7:AddToggle("Auto Upgrade HQ Health Regen", function(p1)
+    v61_2.AutoUpgradeHQHealthRegen = p1
+    v9_4("AutoUpgradeHQHealthRegen", p1)
+    if p1 then
+        v62_3()
+    end
+    return
+end)
+v56_2.AutoUpgradeRefillLimit = v152_7:AddToggle("Auto Upgrade Refill Limit", function(p1)
+    v61_2.AutoUpgradeRefillLimit = p1
+    v9_4("AutoUpgradeRefillLimit", p1)
+    if p1 then
+        v62_3()
+    end
+    return
+end)
+v56_2.AutoUpgradeWeapon = v152_7:AddToggle("Auto Upgrade Weapon", function(p1)
+    v61_2.AutoUpgradeWeapon = p1
+    v9_4("AutoUpgradeWeapon", p1)
+    if p1 then
+        v62_3()
+    end
+    return
+end)
+v56_2.UpgradeDelaySlider = v152_7:AddSlider("Upgrade Delay", 0, 30, v8_6("UpgradeDelay") or 0, function(p1)
+    v61_2.UpgradeDelay = p1
+    v9_4("UpgradeDelay", p1)
+    return
+end)
+v56_2.AutoGetRetrieveSkillCrate = v152_7:AddToggle("Auto Get & Retrieve Skill Crate", function(p1)
+    v61_2.AutoGetRetrieveSkillCrate = p1
+    v9_4("AutoGetRetrieveSkillCrate", p1)
+    if p1 then
+        v62_3()
+        task.spawn(v63_9)
+    end
+    return
+end)
+v153_9:AddLabel("LANGUAGE / SETTINGS")
+v56_2.LanguageDropdown = v153_9:AddSingleDropdown("Language / Ngôn Ngữ", { "English", "Tiếng Việt" },
+    v150_9.GetLanguage(), function(p1)
+        v150_9.SetLanguage(p1)
+        return
+    end)
+v153_9:AddLabel("VARIOUS")
+v56_2.TitanESP = v153_9:AddToggle("Titan ESP", function(p1)
+    v21_2 = p1
+    v9_4("TitanESP", p1)
+    if not p1 then
+        v149_8()
+    end
+    return
+end)
+v56_2.ChangeCursor = v153_9:AddToggle("Change Cursor", function(p1)
+    v37_2 = p1
+    v9_4("ChangeCursor", p1)
+    if p1 then
+        v108_3()
+    else
+        v109_2()
+    end
+    return
+end)
+v56_2.AutoRefill = v153_9:AddToggle("Auto Refill", function(p1)
+    v34_2 = p1
+    v9_4("AutoRefill", p1)
+    if not p1 then
+        v36_2 = nil
+    end
+    return
+end)
+v56_2.AutoRetry = v153_9:AddToggle("Auto Retry", function(p1)
+    v38_2 = p1
+    v9_4("AutoRetry", p1)
+    if p1 then
+        v110_3()
+    else
+        v111_3()
+    end
+    return
+end)
+v56_2.AutoSkipCutscenes = v153_9:AddToggle("Auto Skip Cutscenes", function(p1)
+    v39_2 = p1
+    v9_4("AutoSkipCutscenes", p1)
+    if p1 then
+        v112_3()
+    else
+        v113_3()
+    end
+    return
+end)
+v56_2.AutoOpenRaidChests = v153_9:AddToggle("Auto Open Raid Chests", function(p1)
+    v40_2 = p1
+    v9_4("AutoOpenRaidChests", p1)
+    if p1 then
+        v114_3()
+    else
+        v115_3()
+    end
+    return
+end)
+v56_2.AutoClaimAchievements = v153_9:AddToggle("Auto Claim Achievements", function(p1)
+    v150_10.AutoClaimAchievements = p1
+    v9_4("AutoClaimAchievements", p1)
+    if p1 then
+        if v150_10.ClaimAchievements then
+            v150_10.ClaimAchievements()
+        end
+    end
+    return
+end)
+local v180_68 = {
+    AllFamilies = {},
+    TierMap = {},
+    TiersList = {
+        "Common",
+        "Rare",
+        "Epic",
+        "Legendary",
+        "Mythic",
+        "Secret"
+    }
+}
+if #v180_68.AllFamilies == 0 then
+    v180_68.AllFamilies = {
+        "Ackerman",
+        "Arlert",
+        "Azumabito",
+        "Boyega",
+        "Bozado",
+        "Braun",
+        "Braus",
+        "Finger",
+        "Fritz",
+        "Galliard",
+        "Grice",
+        "Helos",
+        "Hume",
+        "Iglehaut",
+        "Inocenio",
+        "Kirstein",
+        "Kruger",
+        "Ksaver",
+        "Leonhart",
+        "Munsell",
+        "Pikale",
+        "Ral",
+        "Reeves",
+        "Reiss",
+        "Shiki",
+        "Smith",
+        "Springer",
+        "Tybur",
+        "Yeager",
+        "Zoe"
+    }
+    for v185_17, v186_17 in pairs({
+        Legendary = { "Yeager", "Ackerman", "Reiss" },
+        Common = {
+            "Reeves",
+            "Blouse",
+            "Inocenio",
+            "Munsell",
+            "Boyega",
+            "Ral",
+            "Bozado",
+            "Pikale",
+            "Hume",
+            "Iglehaut"
+        },
+        Epic = {
+            "Galliard",
+            "Zoe",
+            "Leonhart",
+            "Tybur",
+            "Ksaver",
+            "Braun",
+            "Finger",
+            "Arlert"
+        },
+        Secret = { "Shiki" },
+        Mythic = { "Helos", "Fritz" },
+        Rare = {
+            "Braus",
+            "Kruger",
+            "Azumabito",
+            "Smith",
+            "Grice",
+            "Springer",
+            "Kirstein"
+        }
+    }) do
+        for _, fName in ipairs(v186_17) do
+            v180_68.TierMap[fName] = v185_17
+        end
+    end
 end
-
-function TabMethods:SetTitle(text)
-	self.Title = tostring(text)
-	self.Label.Text = self.Title
-	if self.HeroTitle then
-		self.HeroTitle.Text = self.Title
-	end
+task.spawn(function()
+    pcall(function()
+        local mod = v16_15:FindFirstChild("Modules") and v16_15.Modules:FindFirstChild("Storage") and
+            v16_15.Modules.Storage:FindFirstChild("Families")
+        if not mod then return end
+        for v5, v6 in pairs(require(mod)) do
+            if type(v6) == "table" then
+                for v10 in pairs(v6) do
+                    v180_68.TierMap[v10] = v5
+                end
+            end
+        end
+    end)
+end)
+local function v181_44(p1, p2)
+    local v3 = nil
+    pcall(function()
+        local v1_3 = game:GetService("CoreGui")
+        Instance.new("Folder", v1_3):Destroy()
+        v3 = v1_3
+        return
+    end)
+    if not v3 then
+        v3 = v7_13:FindFirstChildOfClass("PlayerGui") or v7_13:WaitForChild("PlayerGui", 3)
+    end
+    if not v3 then
+        return
+    end
+    local v4_9 = v3:FindFirstChild("Symbiote_FamilyFoundNotify")
+    if v4_9 then
+        v4_9:Destroy()
+    end
+    local v5_7 = Instance.new("ScreenGui")
+    v5_7.Name = "Symbiote_FamilyFoundNotify"
+    v5_7.ResetOnSpawn = false
+    v5_7.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    v5_7.Parent = v3
+    local v6_11 = Instance.new("Frame")
+    v6_11.Size = UDim2.new(0, 280, 0, 52)
+    v6_11.Position = UDim2.new(0.5, 0, 0.88, 0)
+    v6_11.AnchorPoint = Vector2.new(0.5, 0.5)
+    v6_11.BackgroundColor3 = Color3.fromRGB(24, 22, 34)
+    v6_11.BackgroundTransparency = 1
+    v6_11.BorderSizePixel = 0
+    v6_11.Parent = v5_7
+    local v7_17 = Instance.new("UIStroke")
+    v7_17.Color = Color3.fromRGB(140, 60, 255)
+    v7_17.Thickness = 1.5
+    v7_17.Transparency = 1
+    v7_17.Parent = v6_11
+    local v8_17 = Instance.new("Frame")
+    v8_17.Size = UDim2.new(0, 4, 0.65, 0)
+    v8_17.Position = UDim2.new(0, 8, 0.5, 0)
+    v8_17.AnchorPoint = Vector2.new(0, 0.5)
+    v8_17.BackgroundColor3 = Color3.fromRGB(80, 220, 150)
+    v8_17.BackgroundTransparency = 1
+    v8_17.BorderSizePixel = 0
+    v8_17.Parent = v6_11
+    local v9_20 = Instance.new("TextLabel")
+    v9_20.Text = "Family found!"
+    v9_20.Size = UDim2.new(1, -26, 0, 20)
+    v9_20.Position = UDim2.new(0, 22, 0, 7)
+    v9_20.BackgroundTransparency = 1
+    v9_20.TextColor3 = Color3.fromRGB(80, 220, 150)
+    v9_20.TextTransparency = 1
+    local v12_7 = Enum
+    v9_20.Font = v12_7.Font.GothamBold
+    v9_20.TextSize = 14
+    v9_20.TextXAlignment = v12_7.TextXAlignment.Left
+    v9_20.Parent = v6_11
+    local v10_28 = Instance.new("TextLabel")
+    v10_28.Text = string.format("%s (%s)", tostring(p1), tostring(p2))
+    v10_28.Size = UDim2.new(1, -26, 0, 18)
+    v10_28.Position = UDim2.new(0, 22, 0, 27)
+    v10_28.BackgroundTransparency = 1
+    v10_28.TextColor3 = Color3.fromRGB(245, 240, 255)
+    v10_28.TextTransparency = 1
+    local v13_11 = Enum
+    v10_28.Font = v13_11.Font.GothamMedium
+    v10_28.TextSize = 12
+    v10_28.TextXAlignment = v13_11.TextXAlignment.Left
+    v10_28.Parent = v6_11
+    local v11_33 = game:GetService("TweenService")
+    local v16_2 = Enum
+    local v12_20 = TweenInfo.new(0.25, v16_2.EasingStyle.Quart, v16_2.EasingDirection.Out)
+    v11_33:Create(v6_11, v12_20, { Position = UDim2.new(0.5, 0, 0.84, 0), BackgroundTransparency = 0.1 }):Play()
+    v11_33:Create(v7_17, v12_20, { Transparency = 0 }):Play()
+    v11_33:Create(v8_17, v12_20, { BackgroundTransparency = 0 }):Play()
+    v11_33:Create(v9_20, v12_20, { TextTransparency = 0 }):Play()
+    v11_33:Create(v10_28, v12_20, { TextTransparency = 0 }):Play()
+    task.delay(5, function()
+        if not v5_7 or not v5_7.Parent then
+            return
+        end
+        local v5 = Enum
+        local v1_3 = TweenInfo.new(0.25, v5.EasingStyle.Quart, v5.EasingDirection.In)
+        local v2_7 = v11_33:Create(v6_11, v1_3, { Position = UDim2.new(0.5, 0, 0.88, 0), BackgroundTransparency = 1 })
+        v11_33:Create(v7_17, v1_3, { Transparency = 1 }):Play()
+        v11_33:Create(v8_17, v1_3, { BackgroundTransparency = 1 }):Play()
+        v11_33:Create(v9_20, v1_3, { TextTransparency = 1 }):Play()
+        v11_33:Create(v10_28, v1_3, { TextTransparency = 1 }):Play()
+        v2_7:Play()
+        v2_7.Completed:Connect(function()
+            if v5_7 and v5_7.Parent then
+                v5_7:Destroy()
+            end
+            return
+        end)
+        return
+    end)
+    return
 end
-
-function TabMethods:SetBadge(value)
-	local text = value ~= nil and value ~= false and value ~= 0 and tostring(value) or nil
-	self.Badge.Visible = text ~= nil
-	self.Badge.Text = text or ""
-	-- a circle for one digit, a pill for more
-	self.Badge.Size = UDim2.fromOffset(math.max(18, math.ceil(MeasureText(text or "", 11, Enum.FontWeight.Bold)) + 12), 18)
+local function v182_47(p1, p2)
+    if type(p1) ~= "table" or not p2 then
+        return false
+    end
+    if p1[p2] == true then
+        return true
+    end
+    for v6, v7 in pairs(p1) do
+        if v7 == p2 or v6 == p2 and v7 == true then
+            return true
+        end
+    end
+    return false
 end
-
---------------------------------------------------------------------------------
--- Acrylic: blurs the game behind a GUI object. A nearly invisible Glass part is
--- kept in front of the camera over the object's screen rectangle; with a
--- DepthOfFieldEffect present, Roblox renders glass with a blurred backdrop.
--- Requires graphics quality 8+ (or Automatic). Off unless Acrylic = true.
---------------------------------------------------------------------------------
-
-local function AcrylicSupported()
-	local ok, level = pcall(function()
-		return UserSettings():GetService("UserGameSettings").SavedQualityLevel
-	end)
-	if ok and typeof(level) == "EnumItem" and level ~= Enum.SavedQualitySetting.Automatic then
-		return level.Value >= 8
-	end
-	return true
+local v183_48 = nil
+local function v184_20()
+    local v1_3 = v7_13:FindFirstChild("PlayerGui")
+    local v2 = v1_3 and v1_3:FindFirstChild("Interface") and v1_3.Interface:FindFirstChild("Customisation")
+    return v2 and v2:FindFirstChild("Family") or nil
 end
-
-local function CreateAcrylic(target)
-	local controller = { Enabled = false, Destroyed = false }
-	local Lighting = GetService("Lighting")
-	-- The game can destroy these (clearing Lighting, or along with an old
-	-- camera): they're made again when needed.
-	local effect, part, mesh
-	local function Effect()
-		if not effect then
-			local made = Instance.new("DepthOfFieldEffect")
-			made.Name = "MacUI_Acrylic"
-			made.FarIntensity = 0
-			made.InFocusRadius = 0.1
-			made.NearIntensity = 1
-			made.Destroying:Connect(function()
-				if effect == made then
-					effect = nil
-				end
-			end)
-			effect = made
-		end
-		return effect
-	end
-	local function Glass()
-		if not part then
-			local made = Instance.new("Part")
-			made.Name = "MacUI_Acrylic"
-			made.Color = Color3.new(0, 0, 0)
-			made.Material = Enum.Material.Glass
-			made.Size = Vector3.new(1, 1, 0)
-			made.Anchored = true
-			made.CanCollide = false
-			made.CanQuery = false
-			made.CanTouch = false
-			made.CastShadow = false
-			made.Locked = true
-			made.Transparency = 1
-			local special = Instance.new("SpecialMesh")
-			special.MeshType = Enum.MeshType.Brick
-			special.Offset = Vector3.new(0, 0, -0.000001)
-			special.Parent = made
-			made.Destroying:Connect(function()
-				if part == made then
-					part, mesh = nil, nil
-				end
-			end)
-			part, mesh = made, special
-		end
-		return part, mesh
-	end
-	local suspended = {}
-	local connection
-	local failures = 0
-
-	local function Suspend()
-		for _, container in ipairs({ Lighting, Workspace.CurrentCamera }) do
-			for _, child in ipairs(container and container:GetChildren() or {}) do
-				if child:IsA("DepthOfFieldEffect") and child ~= effect and child.Enabled then
-					suspended[child] = true
-					child.Enabled = false
-				end
-			end
-		end
-	end
-
-	local function Resume()
-		for other in pairs(suspended) do
-			pcall(function()
-				other.Enabled = true
-			end)
-		end
-		table.clear(suspended)
-	end
-
-	local function Render()
-		local camera = Workspace.CurrentCamera
-		local size = target.AbsoluteSize
-		if not camera or not controller.Enabled or not target.Visible or size.X < 2 or size.Y < 2 then
-			if part then
-				part.Transparency = 1
-			end
-			return
-		end
-		local blur = Effect()
-		if blur.Parent ~= Lighting then
-			blur.Parent = Lighting
-		end
-		local glass, glassMesh = Glass()
-		if glass.Parent ~= camera then
-			glass.Parent = camera
-		end
-		local position = target.AbsolutePosition
-		local function World(x, y)
-			local ray = camera:ScreenPointToRay(x, y)
-			return ray.Origin + ray.Direction * 0.001
-		end
-		local topLeft = World(position.X, position.Y)
-		local topRight = World(position.X + size.X, position.Y)
-		local bottomRight = World(position.X + size.X, position.Y + size.Y)
-		local frame = camera.CFrame
-		glass.CFrame = CFrame.fromMatrix((topLeft + bottomRight) / 2, frame.XVector, frame.YVector, frame.ZVector)
-		glassMesh.Scale = Vector3.new((topRight - topLeft).Magnitude, (topRight - bottomRight).Magnitude, 0)
-		glass.Transparency = 0.98
-	end
-
-	function controller:SetEnabled(enabled)
-		-- (a delayed call can arrive after Destroy, or after the library unloaded)
-		enabled = enabled == true and not self.Destroyed and not MacUI.Unloaded
-		if enabled == self.Enabled then
-			return
-		end
-		self.Enabled = enabled
-		if enabled then
-			Suspend()
-			failures = 0
-			connection = RunService.RenderStepped:Connect(function()
-				-- a game fighting the effect mustn't get an error every frame
-				if not pcall(Render) then
-					failures += 1
-					if failures >= 30 then
-						controller:SetEnabled(false)
-					end
-				end
-			end)
-			pcall(Render)
-		else
-			if connection then
-				connection:Disconnect()
-				connection = nil
-			end
-			pcall(function()
-				if effect then
-					effect.Parent = nil
-				end
-				if part then
-					part.Transparency = 1
-				end
-			end)
-			Resume()
-		end
-	end
-
-	function controller:Destroy()
-		self:SetEnabled(false)
-		self.Destroyed = true
-		pcall(function()
-			if effect then
-				effect:Destroy()
-			end
-			if part then
-				part:Destroy()
-			end
-		end)
-	end
-
-	return controller
+do
+    local function v185_26()
+        if v183_48 then
+            return
+        end
+        v183_48 = task.spawn(function()
+            while v42_2 do
+                local v1_3 = v184_20()
+                local v3 = v1_3 and v1_3:FindFirstChild("Pity")
+                local v2
+                if v3 and v3:IsA("TextLabel") and v3.Text:upper():find("LEGENDARY") then
+                    v2 = "Lucky"
+                else
+                    v2 = "Normal"
+                end
+                local v3_3, v4_11, v5_5, v6_3, v7, v8 = pcall(function()
+                    return v69_2:InvokeServer("Family", "Roll", v2)
+                end)
+                local v9 = nil
+                local v10 = nil
+                local v11 = nil
+                local v12 = nil
+                local v13 = 0
+                local v14 = nil
+                if v3_3 then
+                    if type(v4_11) == "table" and type(v5_5) == "string" then
+                        v10 = v4_11
+                        v9 = v5_5
+                        v11 = type(v6_3) == "table" and v6_3 or nil
+                        v12 = v8
+                        local v15_10 = v10[v2] or v10.Normal
+                        if type(v15_10) == "table" then
+                            v13 = (tonumber(v15_10.Amount) or 0) + (tonumber(v15_10.Free) or 0)
+                        end
+                        if v11 then
+                            v14 = v11[v2] or v11.Normal
+                        end
+                    elseif type(v6_3) == "string" then
+                        v9 = v6_3
+                        v13 = (tonumber(v4_11) or 0) + (tonumber(v5_5) or 0)
+                        v14 = tonumber(v7)
+                    end
+                end
+                if type(v9) == "string" and v9 ~= "" then
+                    local v15_6 = v180_68.TierMap[v9] or "Common"
+                    if v67_2 then
+                        pcall(function()
+                            local v1_2 = v71_3()
+                            local v2_2 = v1_2 and v1_2:FindFirstChild("Actor") or v66 and v66()[1]
+                            if v2_2 then
+                                v2_2:SetAttribute("Symbiote_RollSync", v5_6:JSONEncode({
+                                    Currency = v2,
+                                    Spins = v10,
+                                    TotalSpins = v13,
+                                    Family = v9,
+                                    Pity = v11,
+                                    PityVal = v14,
+                                    SpinLuck = v12
+                                }))
+                                v67_2(v2_2,
+                                    "                                pcall(function()\n                                    local p = game:GetService(\"Players\")\n                                    local lp = p.LocalPlayer\n                                    local chars = workspace:FindFirstChild(\"Characters\")\n                                    local c = (chars and chars:FindFirstChild(lp.Name)) or lp.Character\n                                    local act = c and c:FindFirstChild(\"Actor\")\n                                    local raw = act and act:GetAttribute(\"Symbiote_RollSync\")\n                                    if not raw then return end\n                                    local http = game:GetService(\"HttpService\")\n                                    local sync = http:JSONDecode(raw)\n                                    local host = _G.__CachedCustHost\n                                    if type(host) ~= \"table\"\n                                        or type(rawget(host, \"Modules\")) ~= \"table\"\n                                        or not host.Modules.Customisation\n                                    then\n                                        host = nil\n                                        _G.__CachedCustHost = nil\n                                        for _, v in ipairs(getgc(true)) do\n                                            if type(v) == \"table\"\n                                                and type(rawget(v, \"Cache\")) == \"table\"\n                                                and type(rawget(v, \"Modules\")) == \"table\"\n                                                and v.Modules.Customisation\n                                            then\n                                                host = v\n                                                _G.__CachedCustHost = v\n                                                break\n                                            end\n                                        end\n                                    end\n                                    if host then\n                                        local custMod = host.Modules.Customisation\n                                        local updMod = host.Modules.Update\n                                        local data, slot = nil, nil\n                                        if updMod and type(updMod.Get_Data) == \"function\" then\n                                            data, slot = updMod.Get_Data(host, true)\n                                        elseif type(host.Cache) == \"table\" and type(host.Cache.Data) == \"table\" then\n                                            data = host.Cache.Data\n                                            slot = data.Slots and data.Current_Slot and data.Slots[data.Current_Slot]\n                                        end\n                                        if type(data) == \"table\" then\n                                            if type(sync.Spins) == \"table\" then\n                                                data.Spins = sync.Spins\n                                            end\n                                            if sync.SpinLuck ~= nil then\n                                                data.Spin_Luck = sync.SpinLuck\n                                            end\n                                        end\n                                        if type(slot) == \"table\" and type(slot.Avatar) == \"table\" then\n                                            slot.Avatar.Family = sync.Family\n                                            if type(sync.Pity) == \"table\" then\n                                                slot.Avatar.Pity = sync.Pity\n                                            end\n                                        end\n                                        local pgui = game:GetService(\"Players\").LocalPlayer:FindFirstChild(\"PlayerGui\")\n                                        local cust = pgui and pgui:FindFirstChild(\"Interface\") and pgui.Interface:FindFirstChild(\"Customisation\")\n                                        local fUI = cust and cust:FindFirstChild(\"Family\")\n                                        if custMod then\n                                            custMod.Spinning = false\n                                            if fUI then\n                                                if custMod.Rates and host.Services and host.Services.W and data then\n                                                    pcall(function()\n                                                        custMod.Rates(host, fUI, host.Services.W, data)\n                                                    end)\n                                                end\n                                                if custMod.Family_Details then\n                                                    pcall(function()\n                                                        custMod.Family_Details(host, fUI, true, false)\n                                                    end)\n                                                end\n                                            end\n                                        end\n                                    end\n                                end)\n                            ")
+                            end
+                            return
+                        end)
+                    end
+                    pcall(function()
+                        local v1 = v184_20()
+                        if v1 then
+                            local v2_2 = v1:FindFirstChild("Family") and v1.Family:FindFirstChild("Title")
+                            if v2_2 and v2_2:IsA("TextLabel") then
+                                v2_2.Text = string.upper(v9) .. " (" .. v15_6 .. ")"
+                                v2_2.Visible = true
+                            end
+                            local v3_7 = v1:FindFirstChild("Buttons") or v1:FindFirstChild("Buttons_2")
+                            local v4_7 = v3_7 and v3_7:FindFirstChild("Roll")
+                            local v5_8 = v4_7 and v4_7:FindFirstChild("Title")
+                            if v5_8 and v5_8:IsA("TextLabel") then
+                                v5_8.Text = "ROLL (" .. tostring(v13) .. ")"
+                            end
+                            local v6_8 = v1:FindFirstChild("Pity")
+                            if v6_8 and v6_8:IsA("TextLabel") and v14 ~= nil then
+                                if v2 == "Lucky" then
+                                    v6_8.Text = "LEGENDARY+ PITY: " .. tostring(v14) .. "/100"
+                                else
+                                    v6_8.Text = "EPIC+ PITY: " .. tostring(v14) .. "/400"
+                                end
+                            end
+                        end
+                        return
+                    end)
+                    if v182_47(v43_2, v9) or v182_47(v44_3, v15_6) then
+                        v42_2 = false
+                        v183_48 = nil
+                        if v56_2.AutoFamilySpin then
+                            v56_2.AutoFamilySpin:SetState(false)
+                        end
+                        v181_44(v9, v15_6)
+                        break
+                    elseif 0 >= v13 then
+                        v42_2 = false
+                        v183_48 = nil
+                        if v56_2.AutoFamilySpin then
+                            v56_2.AutoFamilySpin:SetState(false)
+                        end
+                        break
+                    else
+                        task.wait(0.1)
+                    end
+                else
+                    task.wait(0.25)
+                end
+            end
+            v183_48 = nil
+            return
+        end)
+        return
+    end
+    v153_9:AddLabel("AUTO FAMILY ROLL")
+    v56_2.AutoFamilySpin = v153_9:AddToggle("Auto Family Spin", function(p1)
+        v42_2 = p1
+        if p1 then
+            v185_26()
+        end
+        return
+    end)
 end
-
---------------------------------------------------------------------------------
--- Window
---------------------------------------------------------------------------------
-
---------------------------------------------------------------------------------
--- Performance guard: when the game's frame rate drops, pause the heavy effects
--- (frosted glass, animations) until it recovers
---------------------------------------------------------------------------------
-
-local function EngageGuard()
-	if Guard.Engaged then
-		return
-	end
-	Guard.Engaged = true
-	Guard.Saved = { ReduceMotion = MacUI.ReduceMotion, Acrylic = {} }
-	MacUI.ReduceMotion = true
-	Guard.Applying = true
-	for _, window in ipairs(MacUI.Windows) do
-		if window.Acrylic and window.SetAcrylic then
-			Guard.Saved.Acrylic[window] = true
-			window:SetAcrylic(false)
-		end
-	end
-	Guard.Applying = false
-	MacUI.EffectsPaused = true
-	if Guard.Notify then
-		MacUI:Notify({
-			Title = "Effects paused",
-			Content = "The game slowed down, so blur and animations are off until it speeds up again.",
-			Icon = "gauge",
-			IconColor = "Orange",
-			Duration = 5,
-		})
-	end
-	MacUI.PerformanceChanged:Fire(true)
+v56_2.FamiliesDropdown = v153_9:AddDropdown("Families To Stop", v180_68.AllFamilies, function(p1)
+    v43_2 = p1 or {}
+    v9_4("FamiliesToStop", v43_2)
+    return
+end)
+v56_2.FamilyTiersDropdown = v153_9:AddDropdown("Family Tiers To Stop", v180_68.TiersList, function(p1)
+    v44_3 = p1 or {}
+    v9_4("FamilyTiersToStop", v44_3)
+    return
+end)
+local v186_32 = {
+    AllPerks = {},
+    RarityMap = {},
+    TiersList = {
+        "Common",
+        "Rare",
+        "Epic",
+        "Legendary",
+        "Mythic"
+    }
+}
+if #v186_32.AllPerks == 0 then
+    v186_32.AllPerks = {
+        "Adaptation",
+        "Adrenaline",
+        "Aegis",
+        "Art of War",
+        "Black Flash",
+        "Blessed",
+        "Butcher",
+        "Carnifex",
+        "Courage Catalyst",
+        "Cripple",
+        "Critical Hunter",
+        "Enduring",
+        "Enhanced Metabolism",
+        "Everlasting Flame",
+        "Eviscerate",
+        "Exhumation",
+        "Experimental Shells",
+        "First Aid",
+        "Flame Rhapsody",
+        "Flawed Release",
+        "Focus",
+        "Font of Inspiration",
+        "Font of Vitality",
+        "Forceful",
+        "Fortitude",
+        "Founder's Blessing",
+        "Fully Stocked",
+        "Gear Beginner",
+        "Gear Expert",
+        "Gear Intermediate",
+        "Gear Master",
+        "Hardy",
+        "Heavenly Restriction",
+        "Heightened Vitality",
+        "Hollow",
+        "Immortal",
+        "Indefatigable",
+        "Invincible",
+        "Kengo",
+        "Lightweight",
+        "Lucky",
+        "Luminous",
+        "Mangle",
+        "Maximum Firepower",
+        "Mighty",
+        "Munitions Expert",
+        "Munitions Master",
+        "Mutilate",
+        "Peerless Commander",
+        "Peerless Constitution",
+        "Peerless Focus",
+        "Peerless Strength",
+        "Perfect Form",
+        "Perfect Soul",
+        "Protection",
+        "Reckless Abandon",
+        "Resilient",
+        "Robust",
+        "Safeguard",
+        "Sanctified",
+        "Siphoning",
+        "Sixth Sense",
+        "Solo",
+        "Soulfeed",
+        "Speedy",
+        "Stalwart Durability",
+        "Tatsujin",
+        "Tough",
+        "Trauma Battery",
+        "Tyrant's Stare",
+        "Unbreakable",
+        "Unyielding",
+        "Unparalleled Strength",
+        "Unwavering Belief",
+        "Warchief",
+        "Warrior",
+        "Wind Rhapsody"
+    }
+    for v191_9, v192_7 in pairs({
+        Common = {
+            "Cripple",
+            "Enduring",
+            "Enhanced Metabolism",
+            "First Aid",
+            "Fortitude",
+            "Gear Beginner",
+            "Hollow",
+            "Lucky",
+            "Mighty"
+        },
+        Rare = {
+            "Blessed",
+            "Critical Hunter",
+            "Experimental Shells",
+            "Forceful",
+            "Fully Stocked",
+            "Gear Intermediate",
+            "Heightened Vitality",
+            "Lightweight",
+            "Mangle",
+            "Protection",
+            "Tough",
+            "Unyielding"
+        },
+        Epic = {
+            "Adrenaline",
+            "Butcher",
+            "Flawed Release",
+            "Focus",
+            "Gear Expert",
+            "Hardy",
+            "Luminous",
+            "Munitions Expert",
+            "Mutilate",
+            "Peerless Strength",
+            "Reckless Abandon",
+            "Resilient",
+            "Safeguard",
+            "Siphoning",
+            "Solo",
+            "Speedy",
+            "Stalwart Durability",
+            "Trauma Battery",
+            "Unbreakable",
+            "Warrior"
+        },
+        Legendary = {
+            "Aegis",
+            "Carnifex",
+            "Courage Catalyst",
+            "Eviscerate",
+            "Exhumation",
+            "Flame Rhapsody",
+            "Font of Vitality",
+            "Gear Master",
+            "Indefatigable",
+            "Invincible",
+            "Munitions Master",
+            "Peerless Commander",
+            "Peerless Constitution",
+            "Peerless Focus",
+            "Perfect Form",
+            "Perfect Soul",
+            "Robust",
+            "Sanctified",
+            "Sixth Sense",
+            "Tyrant's Stare",
+            "Unparalleled Strength",
+            "Warchief",
+            "Wind Rhapsody"
+        },
+        Mythic = {
+            "Adaptation",
+            "Art of War",
+            "Black Flash",
+            "Everlasting Flame",
+            "Explosive Fortune",
+            "Font of Inspiration",
+            "Founder's Blessing",
+            "Heavenly Restriction",
+            "Immortal",
+            "Kengo",
+            "Maximum Firepower",
+            "Soulfeed",
+            "Tatsujin",
+            "Unwavering Belief"
+        }
+    }) do
+        for _, pName in ipairs(v192_7) do
+            v186_32.RarityMap[pName] = v191_9
+        end
+    end
 end
-
-local function ReleaseGuard()
-	if not Guard.Engaged then
-		return
-	end
-	local saved = Guard.Saved or {}
-	Guard.Engaged = false
-	Guard.Saved = nil
-	MacUI.ReduceMotion = saved.ReduceMotion == true
-	Guard.Applying = true
-	for window in pairs(saved.Acrylic or {}) do
-		if not MacUI.Unloaded and window.SetAcrylic then
-			window:SetAcrylic(true)
-		end
-	end
-	Guard.Applying = false
-	MacUI.EffectsPaused = false
-	MacUI.PerformanceChanged:Fire(false)
+task.spawn(function()
+    pcall(function()
+        local mod = v16_15:FindFirstChild("Modules") and v16_15.Modules:FindFirstChild("Storage") and
+            v16_15.Modules.Storage:FindFirstChild("Perks")
+        if not mod then return end
+        for v5, v6 in pairs(require(mod)) do
+            if type(v6) == "table" then
+                for v10 in pairs(v6) do
+                    v186_32.RarityMap[v10] = v5
+                end
+            end
+        end
+    end)
+end)
+local function v187_20()
+    if not v45_3 then
+        return
+    end
+    local v1_2 = false
+    local v2_2 = {}
+    if v67_2 then
+        pcall(function()
+            local v1_3 = v71_3()
+            local v2 = v1_3 and v1_3:FindFirstChild("Actor") or v66 and v66()[1]
+            if v2 then
+                v2:SetAttribute("Symbiote_PerkFilter", v5_6:JSONEncode({ Tiers = v46_2, Specific = v47_3 }))
+                v67_2(v2,
+                    "                    local p = game:GetService(\"Players\")\n                    local lp = p.LocalPlayer\n                    local chars = workspace:FindFirstChild(\"Characters\")\n                    local c = (chars and chars:FindFirstChild(lp.Name)) or lp.Character\n                    local act = c and c:FindFirstChild(\"Actor\")\n                    local rs = game:GetService(\"ReplicatedStorage\")\n                    local remoteGET = rs:WaitForChild(\"Assets\"):WaitForChild(\"Remotes\"):WaitForChild(\"GET\")\n                    local perksMod = require(rs.Modules.Storage.Perks)\n                    local rarityMap = {}\n                    for r, list in pairs(perksMod) do\n                        if type(list) == \"table\" then\n                            for name in pairs(list) do\n                                rarityMap[name] = r\n                            end\n                        end\n                    end\n\n                    local hostObj = _G.__CachedDataHost\n                    if not hostObj or type(hostObj) ~= \"table\" or type(rawget(hostObj, \"Cache\")) ~= \"table\" or type(rawget(hostObj.Cache, \"Data\")) ~= \"table\" then\n                        hostObj = nil\n                        for _, v in ipairs(getgc(true)) do\n                            if type(v) == \"table\" and type(rawget(v, \"Cache\")) == \"table\" then\n                                local cache = rawget(v, \"Cache\")\n                                if type(rawget(cache, \"Data\")) == \"table\" then\n                                    hostObj = v\n                                    _G.__CachedDataHost = v\n                                    break\n                                end\n                            end\n                        end\n                    end\n\n                    if hostObj and type(hostObj.Cache) == \"table\" and type(hostObj.Cache.Data) == \"table\" then\n                        local data = hostObj.Cache.Data\n                        local currentSlot = data.Current_Slot or 1\n                        local slotData = data.Slots and data.Slots[currentSlot]\n                        if slotData and slotData.Perks and slotData.Perks.Storage then\n                            local equippedIds = {}\n                            for _, eqId in pairs(slotData.Perks.Equipped or {}) do\n                                if eqId and eqId ~= \"\" then\n                                    equippedIds[eqId] = true\n                                end\n                            end\n\n                            local rawFilter = act and act:GetAttribute(\"Symbiote_PerkFilter\")\n                            local http = game:GetService(\"HttpService\")\n                            local filter = rawFilter and http:JSONDecode(rawFilter) or { Tiers = {}, Specific = {} }\n\n                            local batch = {}\n                            local deletedList = {}\n                            for id, info in pairs(slotData.Perks.Storage) do\n                                local name = info.Name\n                                local rarity = rarityMap[name] or \"Common\"\n                                local match = (filter.Tiers[rarity] == true) or (filter.Specific[name] == true)\n                                if match and not equippedIds[id] then\n                                    table.insert(batch, tostring(id))\n                                    table.insert(deletedList, tostring(id))\n                                    if #batch >= 25 then\n                                        local res = remoteGET:InvokeServer(\"S_Equipment\", \"Delete\", \"Perk\", batch)\n                                        if type(res) == \"table\" then\n                                            hostObj.Cache.Data = res\n                                            data = res\n                                            slotData = data.Slots and data.Slots[currentSlot]\n                                        end\n                                        batch = {}\n                                    end\n                                end\n                            end\n                            if #batch > 0 then\n                                local res = remoteGET:InvokeServer(\"S_Equipment\", \"Delete\", \"Perk\", batch)\n                                if type(res) == \"table\" then\n                                    hostObj.Cache.Data = res\n                                end\n                            end\n                            if act then\n                                act:SetAttribute(\"Symbiote_PerkDeleted\", http:JSONEncode(deletedList))\n                            end\n                        end\n                    end\n                ")
+                v1_2 = true
+                local v3_2 = v2:GetAttribute("Symbiote_PerkDeleted")
+                if v3_2 then
+                    local v4_7 = v5_6:JSONDecode(v3_2)
+                    if type(v4_7) == "table" then
+                        for v8_3, v9_4 in ipairs(v4_7) do
+                            v2_2[v9_4] = true
+                        end
+                    end
+                end
+            end
+            return
+        end)
+    end
+    local v3_6 = v7_13:FindFirstChild("PlayerGui")
+    local v4_2 = v3_6 and v3_6:FindFirstChild("Interface")
+    local v5_3 = v4_2 and v4_2:FindFirstChild("Equipment")
+    local v6_3 = v5_3 and v5_3:FindFirstChild("Perk_List")
+    local v7_3 = v6_3 and v6_3:FindFirstChild("Holder")
+    local v8_3 = v7_3 and v7_3:FindFirstChild("Items")
+    if v8_3 then
+        local v9_3 = {}
+        local v10_3 = {}
+        for v14, v15 in ipairs(v8_3:GetChildren()) do
+            if v15:IsA("GuiObject") and v15.Name ~= "Grid" then
+                local v16_6 = v15:GetAttribute("ID")
+                local v17_4 = v15:GetAttribute("Tag") or v15.Name
+                local v18_9 = v15:GetAttribute("Rarity") or v186_32.RarityMap[v17_4] or "Common"
+                if v16_6 then
+                    local v19_8 = tostring(v16_6)
+                    if v2_2[v19_8] then
+                        v15:Destroy()
+                    else
+                        local v20_7 = not v1_2
+                        if v20_7 then
+                            if not v17_4 then
+                                v20_7 = false
+                            elseif v46_2[v18_9 or v186_32.RarityMap[v17_4] or "Common"] == true then
+                                v20_7 = true
+                            elseif v47_3[v17_4] == true then
+                                v20_7 = true
+                            else
+                                v20_7 = false
+                            end
+                        end
+                        if v20_7 then
+                            table.insert(v9_3, v19_8)
+                            table.insert(v10_3, v15)
+                        end
+                    end
+                end
+            end
+        end
+        if #v9_3 > 0 then
+            local v11_5 = {}
+            for v15_3, v16_4 in ipairs(v9_3) do
+                table.insert(v11_5, v16_4)
+                if 25 <= #v11_5 or v15_3 == #v9_3 then
+                    pcall(function()
+                        v69_2:InvokeServer("S_Equipment", "Delete", "Perk", v11_5)
+                        return
+                    end)
+                    v11_5 = {}
+                end
+            end
+            for v15_4, v16_7 in ipairs(v10_3) do
+                if v16_7 and v16_7.Parent then
+                    v16_7:Destroy()
+                end
+            end
+        end
+    end
+    return
 end
+do
+    local function v188_24()
+        if AutoSellPerksThread then
+            return
+        end
+        AutoSellPerksThread = task.spawn(function()
+            while true do
+                if v45_3 then
+                    v187_20()
+                    task.wait(1.5)
+                else
+                    AutoSellPerksThread = nil
+                    return
+                end
+            end
+        end)
+        return
+    end
+    v153_9:AddLabel("AUTO SELL PERKS")
+    v56_2.AutoSellPerks = v153_9:AddToggle("Auto Sell Selected Tier Perks", function(p1)
+        v45_3 = p1
+        v9_4("AutoSellPerks", p1)
+        if p1 then
+            v187_20()
+            v188_24()
+        end
+        return
+    end)
+    v56_2.PerkTiersDropdown = v153_9:AddDropdown("Perk Tiers To Sell", v186_32.TiersList, function(p1)
+        v46_2 = p1 or {}
+        v9_4("PerkTiersToSell", v46_2)
+        if v45_3 then
+            v187_20()
+        end
+        return
+    end)
+    v56_2.SpecificPerksDropdown = v153_9:AddDropdown("Select Perks To Sell", v186_32.AllPerks, function(p1)
+        v47_3 = p1 or {}
+        v9_4("SpecificPerksToSell", v47_3)
+        if v45_3 then
+            v187_20()
+        end
+        return
+    end)
+    v153_9:AddLabel("THUNDER SPEARS")
+    v56_2.AutoCreateTowers = v153_9:AddToggle("Auto Create Towers(Outskirts)", function(p1)
+        v48_3 = p1
+        v9_4("AutoCreateTowers", p1)
+        if p1 then
+            v123_4()
+            v128_2()
+        else
+            v52_2 = nil
+            v128_2()
+        end
+        return
+    end)
+    v56_2.AutoRetrieveSupplyCrates = v153_9:AddToggle("Auto Retrieve Supply Crates(Forest)", function(p1)
+        v49_2 = p1
+        v9_4("AutoRetrieveSupplyCrates", p1)
+        if p1 then
+            v51_2()
+            task.spawn(v50_2)
+        else
+            v53_2 = false
+        end
+        return
+    end)
+    task.spawn(function()
+        local v6_3
+        while true do
+            local v1_3 = v7_13:FindFirstChild("PlayerGui")
+            local v2 = v1_3 and v1_3:FindFirstChild("Interface")
+            local v3_3 = v2 and v2:FindFirstChild("Equipment")
+            local v4_3 = v3_3 and v3_3:FindFirstChild("Perk_List")
+            local v5_3 = v4_3 and v4_3:FindFirstChild("Holder")
+            v6_3 = v5_3 and v5_3:FindFirstChild("Items")
+            if v6_3 then
+                break
+            else
+                task.wait(1)
+            end
+        end
+        v6_3.ChildAdded:Connect(function(p1)
+            if not v45_3 then
+                return
+            end
+            task.delay(0.1, function()
+                if not v45_3 then
+                    return
+                end
+                if p1 and p1:IsA("GuiObject") and p1.Name ~= "Grid" then
+                    local v1_5 = p1:GetAttribute("Tag") or p1.Name
+                    local v2_5 = p1:GetAttribute("Rarity") or v186_32.RarityMap[v1_5] or "Common"
+                    local v3_9 = p1:GetAttribute("ID")
+                    if v3_9 and (v46_2[v2_5] == true or v47_3[v1_5] == true) then
+                        pcall(function()
+                            v69_2:InvokeServer("S_Equipment", "Delete", "Perk", { tostring(v3_9) })
+                            return
+                        end)
+                        if p1 and p1.Parent then
+                            p1:Destroy()
+                        end
+                    end
+                end
+                return
+            end)
+            return
+        end)
+        return
+    end)
+    do
+        local GRADE_LETTERS = {
+            [0] = "E-",
+            [1] = "E",
+            [2] = "E+",
+            [3] = "D-",
+            [4] = "D",
+            [5] = "D+",
+            [6] = "C-",
+            [7] = "C",
+            [8] = "C+",
+            [9] = "B-",
+            [10] = "B",
+            [11] = "B+",
+            [12] = "A-",
+            [13] = "A",
+            [14] = "A+",
+            [15] = "S-"
+        }
+        local LETTER_TO_LEVEL = {
+            ["E-"] = 0,
+            ["E"] = 1,
+            ["E+"] = 2,
+            ["D-"] = 3,
+            ["D"] = 4,
+            ["D+"] = 5,
+            ["C-"] = 6,
+            ["C"] = 7,
+            ["C+"] = 8,
+            ["B-"] = 9,
+            ["B"] = 10,
+            ["B+"] = 11,
+            ["A-"] = 12,
+            ["A"] = 13,
+            ["A+"] = 14,
+            ["S-"] = 15,
+            ["S"] = 15
+        }
+        local GRADE_ORDER = {
+            ["E-"] = 1,
+            ["E+"] = 2,
+            ["D+"] = 3,
+            ["B"] = 4,
+            ["A"] = 5,
+            ["S"] = 6
+        }
+        local cachedXPPercent = 0
+        local kaitunActionState = "Idle"
+        local kaitunLoopThread = nil
+        local lastUpgradeAttemptGold = -1
+        local lastUpgradeAttemptTime = 0
 
---[[
-	MacUI:SetPerformanceGuard(true)                            -- watch the frame rate
-	MacUI:SetPerformanceGuard({ MinFps = 30, Notify = true })  -- below 30 fps for 3 s: pause effects
-	MacUI:SetPerformanceGuard(false)
-	MacUI.EffectsPaused, MacUI.Fps, MacUI.PerformanceChanged:Connect(function(paused) end)
-]]
-function MacUI:SetPerformanceGuard(options)
-	if Guard.Connection then
-		Guard.Connection:Disconnect()
-		Guard.Connection = nil
-	end
-	if not options or self.Unloaded then
-		Guard.Enabled = false
-		self.PerformanceGuard = false
-		ReleaseGuard()
-		return
-	end
-	options = type(options) == "table" and options or {}
-	Guard.Enabled = true
-	self.PerformanceGuard = true
-	-- at most 50, so recovering (MinFps + 8) stays reachable on a 60 fps cap
-	Guard.MinFps = math.clamp(tonumber(options.MinFps) or 30, 1, 50)
-	Guard.Notify = options.Notify ~= false
-	local frames, elapsed, slow, fast = 0, 0, 0, 0
-	Guard.Connection = RunService.Heartbeat:Connect(function(dt)
-		frames += 1
-		elapsed += dt
-		if elapsed < 1 then
-			return
-		end
-		local fps = frames / elapsed
-		frames, elapsed = 0, 0
-		MacUI.Fps = fps
-		if fps < Guard.MinFps then
-			slow, fast = slow + 1, 0
-			if slow >= 3 then
-				EngageGuard()
-			end
-		else
-			slow = 0
-			fast = fps >= Guard.MinFps + 8 and fast + 1 or 0
-			if fast >= 8 then
-				ReleaseGuard()
-			end
-		end
-	end)
+        local VI_FOLD_PAIRS = {
+            { "à", "a" }, { "á", "a" }, { "ả", "a" }, { "ã", "a" }, { "ạ", "a" },
+            { "ă", "a" }, { "ằ", "a" }, { "ắ", "a" }, { "ẳ", "a" }, { "ẵ", "a" }, { "ặ", "a" },
+            { "â", "a" }, { "ầ", "a" }, { "ấ", "a" }, { "ẩ", "a" }, { "ẫ", "a" }, { "ậ", "a" },
+            { "À", "a" }, { "Á", "a" }, { "Ả", "a" }, { "Ã", "a" }, { "Ạ", "a" },
+            { "Ă", "a" }, { "Ằ", "a" }, { "Ắ", "a" }, { "Ẳ", "a" }, { "Ẵ", "a" }, { "Ặ", "a" },
+            { "Â", "a" }, { "Ầ", "a" }, { "Ấ", "a" }, { "Ẩ", "a" }, { "Ẫ", "a" }, { "Ậ", "a" },
+            { "đ", "d" }, { "Đ", "d" },
+            { "è", "e" }, { "é", "e" }, { "ẻ", "e" }, { "ẽ", "e" }, { "ẹ", "e" },
+            { "ê", "e" }, { "ề", "e" }, { "ế", "e" }, { "ể", "e" }, { "ễ", "e" }, { "ệ", "e" },
+            { "È", "e" }, { "É", "e" }, { "Ẻ", "e" }, { "Ẽ", "e" }, { "Ẹ", "e" },
+            { "Ê", "e" }, { "Ề", "e" }, { "Ế", "e" }, { "Ể", "e" }, { "Ễ", "e" }, { "Ệ", "e" },
+            { "ì", "i" }, { "í", "i" }, { "ỉ", "i" }, { "ĩ", "i" }, { "ị", "i" },
+            { "Ì", "i" }, { "Í", "i" }, { "Ỉ", "i" }, { "Ĩ", "i" }, { "Ị", "i" },
+            { "ò", "o" }, { "ó", "o" }, { "ỏ", "o" }, { "õ", "o" }, { "ọ", "o" },
+            { "ô", "o" }, { "ồ", "o" }, { "ố", "o" }, { "ổ", "o" }, { "ỗ", "o" }, { "ộ", "o" },
+            { "ơ", "o" }, { "ờ", "o" }, { "ớ", "o" }, { "ở", "o" }, { "ỡ", "o" }, { "ợ", "o" },
+            { "Ò", "o" }, { "Ó", "o" }, { "Ỏ", "o" }, { "Õ", "o" }, { "Ọ", "o" },
+            { "Ô", "o" }, { "Ồ", "o" }, { "Ố", "o" }, { "Ổ", "o" }, { "Ỗ", "o" }, { "Ộ", "o" },
+            { "Ơ", "o" }, { "Ờ", "o" }, { "Ớ", "o" }, { "Ở", "o" }, { "Ỡ", "o" }, { "Ợ", "o" },
+            { "ù", "u" }, { "ú", "u" }, { "ủ", "u" }, { "ũ", "u" }, { "ụ", "u" },
+            { "ư", "u" }, { "ừ", "u" }, { "ứ", "u" }, { "ử", "u" }, { "ữ", "u" }, { "ự", "u" },
+            { "Ù", "u" }, { "Ú", "u" }, { "Ủ", "u" }, { "Ũ", "u" }, { "Ụ", "u" },
+            { "Ư", "u" }, { "Ừ", "u" }, { "Ứ", "u" }, { "Ử", "u" }, { "Ữ", "u" }, { "Ự", "u" },
+            { "ỳ", "y" }, { "ý", "y" }, { "ỷ", "y" }, { "ỹ", "y" }, { "ỵ", "y" },
+            { "Ỳ", "y" }, { "Ý", "y" }, { "Ỷ", "y" }, { "Ỹ", "y" }, { "Ỵ", "y" }
+        }
+
+        local function normalizeVi(str)
+            local s = tostring(str or "")
+            for _, pair in ipairs(VI_FOLD_PAIRS) do
+                s = s:gsub(pair[1], pair[2])
+            end
+            s = s:lower():gsub("^%s+", ""):gsub("%s+$", ""):gsub("%s+", " ")
+            return s
+        end
+
+        local function getGuiObjectText(obj)
+            if not obj then
+                return ""
+            end
+            if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+                if type(obj.Text) == "string" and obj.Text ~= "" then
+                    return obj.Text
+                end
+            end
+            local title = obj:FindFirstChild("Title") or obj:FindFirstChild("Text") or obj:FindFirstChild("Label")
+            if title and (title:IsA("TextLabel") or title:IsA("TextButton")) and type(title.Text) == "string" then
+                return title.Text
+            end
+            for _, child in ipairs(obj:GetChildren()) do
+                if (child:IsA("TextLabel") or child:IsA("TextButton")) and type(child.Text) == "string" and child.Text ~= "" then
+                    return child.Text
+                end
+            end
+            return ""
+        end
+
+        local function getDifficultyBracket(minLvl)
+            local lvl = math.max(0, math.min(15, math.floor(tonumber(minLvl) or 0)))
+            if lvl <= 1 then
+                return {
+                    Grade = "E-",
+                    DiffEN = "Easy",
+                    DiffVI = "Dễ (E- Grade)",
+                    NextMinLvl = 2,
+                    NextGrade = "E+",
+                    Order = 1
+                }
+            elseif lvl <= 4 then
+                return {
+                    Grade = "E+",
+                    DiffEN = "Normal",
+                    DiffVI = "Bình thường (E+ Grade)",
+                    NextMinLvl = 5,
+                    NextGrade = "D+",
+                    Order = 2
+                }
+            elseif lvl <= 9 then
+                return {
+                    Grade = "D+",
+                    DiffEN = "Hard",
+                    DiffVI = "Khó (D+ Grade)",
+                    NextMinLvl = 10,
+                    NextGrade = "B",
+                    Order = 3
+                }
+            elseif lvl <= 12 then
+                return {
+                    Grade = "B",
+                    DiffEN = "Severe",
+                    DiffVI = "Khốc liệt (B Grade)",
+                    NextMinLvl = 13,
+                    NextGrade = "A",
+                    Order = 4
+                }
+            elseif lvl <= 14 then
+                return {
+                    Grade = "A",
+                    DiffEN = "Aberrant",
+                    DiffVI = "Dị thường (A Grade)",
+                    NextMinLvl = 15,
+                    NextGrade = "S",
+                    Order = 5
+                }
+            else
+                return {
+                    Grade = "S",
+                    DiffEN = "Aberrant",
+                    DiffVI = "Cấp S (S Grade)",
+                    NextMinLvl = nil,
+                    NextGrade = nil,
+                    Order = 6
+                }
+            end
+        end
+
+        local function getGoldNeededForLevel(fromLvl, toLvl)
+            if not toLvl or toLvl <= fromLvl then
+                return 0
+            end
+            local costTbl = v150_10.UpgradeCostTable or {}
+            local total = 0
+            for step = math.max(1, fromLvl + 1), math.min(15, toLvl) do
+                total = total + 8 * (tonumber(costTbl[step]) or 169420)
+            end
+            return total
+        end
+
+        local function fireButtonSignalsDirect(target)
+            if not target then
+                return false
+            end
+            local fired = false
+            local cx = math.floor((target.AbsolutePosition and target.AbsolutePosition.X or 0) +
+                (target.AbsoluteSize and target.AbsoluteSize.X / 2 or 0))
+            local cy = math.floor((target.AbsolutePosition and target.AbsolutePosition.Y or 0) +
+                (target.AbsoluteSize and target.AbsoluteSize.Y / 2 or 0))
+            local v2Pos = Vector2.new(cx, cy)
+            local v3Pos = Vector3.new(cx, cy, 0)
+
+            if type(firesignal) == "function" then
+                pcall(function()
+                    firesignal(target.MouseButton1Click)
+                    fired = true
+                end)
+                pcall(function()
+                    firesignal(target.Activated)
+                    fired = true
+                end)
+                pcall(function()
+                    firesignal(target.MouseButton1Down)
+                    firesignal(target.MouseButton1Up)
+                    fired = true
+                end)
+                pcall(function()
+                    firesignal(target.TouchTap)
+                    fired = true
+                end)
+                pcall(function()
+                    firesignal(target.InputBegan, {
+                        UserInputType = Enum.UserInputType.MouseButton1,
+                        UserInputState = Enum.UserInputState.Begin,
+                        Position = v3Pos
+                    })
+                    firesignal(target.InputEnded, {
+                        UserInputType = Enum.UserInputType.MouseButton1,
+                        UserInputState = Enum.UserInputState.End,
+                        Position = v3Pos
+                    })
+                    fired = true
+                end)
+                pcall(function()
+                    firesignal(target.InputBegan, {
+                        UserInputType = Enum.UserInputType.Touch,
+                        UserInputState = Enum.UserInputState.Begin,
+                        Position = v3Pos
+                    })
+                    firesignal(target.InputEnded, {
+                        UserInputType = Enum.UserInputType.Touch,
+                        UserInputState = Enum.UserInputState.End,
+                        Position = v3Pos
+                    })
+                    fired = true
+                end)
+            end
+            if type(getconnections) == "function" then
+                for _, sigName in ipairs({ "MouseButton1Click", "Activated", "MouseButton1Down", "MouseButton1Up", "TouchTap", "InputBegan", "InputEnded" }) do
+                    pcall(function()
+                        local sig = target[sigName]
+                        if sig then
+                            for _, conn in ipairs(getconnections(sig)) do
+                                if conn.Fire then
+                                    pcall(conn.Fire, conn)
+                                    fired = true
+                                end
+                                if conn.Function then
+                                    pcall(conn.Function)
+                                    fired = true
+                                end
+                            end
+                        end
+                    end)
+                end
+            end
+            pcall(function()
+                local vu = game:GetService("VirtualUser")
+                if vu then
+                    vu:CaptureController()
+                    vu:Button1Down(v2Pos)
+                    task.wait(0.02)
+                    vu:Button1Up(v2Pos)
+                    fired = true
+                end
+            end)
+            return fired
+        end
+
+        function v150_10.ClickGuiButton(btn)
+            if not btn then
+                return false
+            end
+            local targetBtn = (btn:IsA("GuiButton") and btn)
+                or btn:FindFirstAncestorWhichIsA("GuiButton")
+                or btn:FindFirstChildWhichIsA("GuiButton", true)
+                or btn
+
+            local clicked = fireButtonSignalsDirect(btn)
+            if targetBtn ~= btn then
+                if fireButtonSignalsDirect(targetBtn) then
+                    clicked = true
+                end
+            end
+
+            local char = v71_3()
+            local act = (char and char:FindFirstChild("Actor")) or (v66 and v66()[1])
+            if act and v67_2 then
+                clicked = true
+                task.spawn(function()
+                    pcall(function()
+                        targetBtn:SetAttribute("Symbiote_ClickTarget", true)
+                        btn:SetAttribute("Symbiote_ClickTarget", true)
+                        v67_2(act, [[
+                            local lp = game:GetService("Players").LocalPlayer
+                            local pgui = lp and lp:FindFirstChild("PlayerGui")
+                            local iface = pgui and pgui:FindFirstChild("Interface")
+                            if not iface then return end
+                            for _, obj in ipairs(iface:GetDescendants()) do
+                                if obj:GetAttribute("Symbiote_ClickTarget") == true then
+                                    obj:SetAttribute("Symbiote_ClickTarget", nil)
+                                    local targets = { obj }
+                                    local ab = obj:FindFirstAncestorWhichIsA("GuiButton")
+                                    if ab then table.insert(targets, ab) end
+                                    local cb = obj:FindFirstChildWhichIsA("GuiButton", true)
+                                    if cb then table.insert(targets, cb) end
+                                    for _, t in ipairs(targets) do
+                                        if type(firesignal) == "function" then
+                                            pcall(function() firesignal(t.MouseButton1Click) end)
+                                            pcall(function() firesignal(t.Activated) end)
+                                            pcall(function() firesignal(t.MouseButton1Down) end)
+                                            pcall(function() firesignal(t.MouseButton1Up) end)
+                                            pcall(function() firesignal(t.TouchTap) end)
+                                        end
+                                        if type(getconnections) == "function" then
+                                            for _, sigName in ipairs({ "MouseButton1Click", "Activated", "MouseButton1Down", "MouseButton1Up", "TouchTap" }) do
+                                                local sig = t[sigName]
+                                                if sig then
+                                                    pcall(function()
+                                                        for _, conn in ipairs(getconnections(sig)) do
+                                                            if conn.Fire then pcall(conn.Fire, conn) end
+                                                            if conn.Function then pcall(conn.Function) end
+                                                        end
+                                                    end)
+                                                end
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        ]])
+                    end)
+                end)
+            end
+
+            pcall(function()
+                local clickObj = (targetBtn.AbsoluteSize and targetBtn.AbsoluteSize.X > 0 and targetBtn) or btn
+                if clickObj.AbsolutePosition and clickObj.AbsoluteSize and clickObj.AbsoluteSize.X > 0 and clickObj.AbsoluteSize.Y > 0 then
+                    local cx = math.floor(clickObj.AbsolutePosition.X + (clickObj.AbsoluteSize.X / 2))
+                    local cy = math.floor(clickObj.AbsolutePosition.Y + (clickObj.AbsoluteSize.Y / 2))
+                    if v17_6 and type(v17_6.SendMouseButtonEvent) == "function" then
+                        v17_6:SendMouseButtonEvent(cx, cy, 0, true, game, 0)
+                        task.wait(0.04)
+                        v17_6:SendMouseButtonEvent(cx, cy, 0, false, game, 0)
+                    end
+                    local vu = game:GetService("VirtualUser")
+                    if vu then
+                        vu:CaptureController()
+                        vu:ClickButton1(Vector2.new(cx, cy))
+                    end
+                    clicked = true
+                end
+            end)
+            return clicked
+        end
+
+        local function isTrulyVisible(obj, root)
+            if not obj or not obj.Parent then
+                return false
+            end
+            local cur = obj
+            local reachedRoot = (root == nil)
+            while cur do
+                if cur:IsA("GuiObject") and cur.Visible == false then
+                    return false
+                end
+                if root and cur == root then
+                    reachedRoot = true
+                    break
+                end
+                cur = cur.Parent
+            end
+            return reachedRoot
+        end
+
+        function v150_10.GetDataHost()
+            local host = _G.__CachedDataHost or _G.__CachedCustHost or _G.__CachedHost
+            if type(host) == "table" and (type(rawget(host, "Cache")) == "table" or type(rawget(host, "Modules")) == "table") then
+                return host
+            end
+            if type(getgc) == "function" then
+                pcall(function()
+                    for _, v in ipairs(getgc(true)) do
+                        if type(v) == "table" then
+                            local cache = rawget(v, "Cache")
+                            local mods = rawget(v, "Modules")
+                            if (type(cache) == "table" and type(rawget(cache, "Data")) == "table")
+                                or (type(mods) == "table" and (mods.Update or mods.Zones or mods.Customisation)) then
+                                _G.__CachedDataHost = v
+                                host = v
+                                return
+                            end
+                        end
+                    end
+                end)
+            end
+            return host
+        end
+
+        function v150_10.GetGameDataCache()
+            local host = v150_10.GetDataHost()
+            local data = nil
+            if type(host) == "table" then
+                local mods = rawget(host, "Modules")
+                local upd = type(mods) == "table" and rawget(mods, "Update")
+                if type(upd) == "table" and type(upd.Get_Data) == "function" then
+                    local okD, d = pcall(upd.Get_Data, host, true)
+                    if okD and type(d) == "table" then
+                        data = d
+                    end
+                end
+                if not data and type(rawget(host, "Cache")) == "table" then
+                    data = rawget(host.Cache, "Data") or host.Cache
+                end
+            end
+            return data, host
+        end
+
+        v150_10.ShadowBanData = {
+            IsBanned = false,
+            Reason = "Clean (No Shadow Ban detected)",
+            LastChecked = 0,
+            CheckCount = 0
+        }
+
+        function v150_10.CheckShadowBan(isManual)
+            local lp = v7_13 or v6_21.LocalPlayer
+            local isVi = v150_9.IsVietnamese()
+            local detected = false
+            local reason = ""
+
+            pcall(function()
+                -- 1. Kiểm tra Lỗi Trừng phạt / Moderation đã bị chặn từ Hook trước đó (nếu có)
+                if v150_10.LastModerationError and tostring(v150_10.LastModerationError) ~= "" then
+                    detected = true
+                    reason = "Máy chủ phản hồi vi phạm: \"" .. tostring(v150_10.LastModerationError) .. "\""
+                    return
+                end
+
+                -- 2. GỬI LỆNH TRỰC TIẾP VÀO PARTY HOẶC TRADE (Server Remote Probe)
+                -- Gửi lệnh vào một Party hoặc Trade. Nếu Server trả về một bảng có chứa chữ Error hoặc Success = false -> Bạn bị ban!
+                if v69_2 then
+                    local probeCalls = {
+                        { "Party",     "Check" },
+                        { "Party",     "Status" },
+                        { "Party",     "Create" },
+                        { "S_Party",   "Check" },
+                        { "Trading",   "Check" },
+                        { "Trading",   "Status" },
+                        { "Trade",     "Check" },
+                        { "Trade",     "Status" },
+                        { "S_Trading", "Check" },
+                        { "S_Trading", "Status" }
+                    }
+
+                    for _, args in ipairs(probeCalls) do
+                        local res = nil
+                        local ok = pcall(function()
+                            res = v69_2:InvokeServer(unpack(args))
+                        end)
+
+                        if ok and res ~= nil then
+                            if type(res) == "table" then
+                                -- Nếu Server trả về một bảng có Success = false -> Bị ban!
+                                if res.Success == false or res.success == false then
+                                    detected = true
+                                    local detailErr = tostring(res.Error or res.error or res.Reason or res.reason or
+                                        res.Message or "Bị máy chủ cấm/từ chối quyền")
+                                    reason = string.format("Server %s phản hồi: Success = false (%s)", args[1], detailErr)
+                                    return
+                                end
+
+                                -- Nếu Server trả về một bảng có chứa Error -> Bị ban!
+                                if res.Error ~= nil and res.Error ~= false and tostring(res.Error) ~= "" then
+                                    detected = true
+                                    reason = string.format("Server %s trả về Error: \"%s\"", args[1], tostring(res.Error))
+                                    return
+                                end
+                                if res.error ~= nil and res.error ~= false and tostring(res.error) ~= "" then
+                                    detected = true
+                                    reason = string.format("Server %s trả về Error: \"%s\"", args[1], tostring(res.error))
+                                    return
+                                end
+
+                                -- Quét các key hoặc giá trị text trong bảng nếu có chứa chữ error / ban / exploit / restrict
+                                for k, v in pairs(res) do
+                                    local kn = string.lower(tostring(k))
+                                    local vn = type(v) == "string" and string.lower(v) or ""
+                                    if kn:find("error") or vn:find("error") or vn:find("banned") or vn:find("exploiter") or vn:find("restricted") then
+                                        detected = true
+                                        reason = string.format("Server %s phát hiện cờ lỗi: %s = %s", args[1],
+                                            tostring(k), tostring(v))
+                                        return
+                                    end
+                                end
+                            elseif type(res) == "string" then
+                                local rl = string.lower(res)
+                                if rl:find("error") or rl:find("ban") or rl:find("exploit") or rl:find("restrict") or rl:find("fail") then
+                                    detected = true
+                                    reason = string.format("Server %s trả về chuỗi lỗi: \"%s\"", args[1], res)
+                                    return
+                                end
+                            end
+                        end
+                    end
+                end
+
+                -- 3. ĐỌC TRỰC TIẾP VÀO DATA CACHE CỦA GAME (Direct Game Data Cache Inspection)
+                -- Khi bị Shadow Ban, server gửi data về máy nhưng đính kèm cờ ẩn: IsBanned, IsExploiter, CanTrade = false
+                local data, host = v150_10.GetGameDataCache()
+
+                local function checkDataFlags(tbl, scopeName)
+                    if type(tbl) ~= "table" then return false end
+
+                    -- Cờ ẩn dạng vi phạm (IsBanned, IsExploiter, ShadowBanned, Blacklisted, v.v.):
+                    local banFlags = {
+                        "isbanned", "banned", "is_banned",
+                        "isexploiter", "exploiter", "is_exploiter",
+                        "shadowbanned", "shadow_banned", "shadowban",
+                        "blacklisted", "isblacklisted", "is_blacklisted",
+                        "restricted", "isrestricted", "is_restricted",
+                        "tradebanned", "trade_banned", "istradebanned",
+                        "tradedisabled", "trade_disabled",
+                        "partydisabled", "party_disabled"
+                    }
+                    for _, flag in ipairs(banFlags) do
+                        for k, v in pairs(tbl) do
+                            if string.lower(tostring(k)) == flag then
+                                if v == true or (type(v) == "number" and v > 0) or (type(v) == "string" and v ~= "" and v ~= "false" and v ~= "0") then
+                                    return true,
+                                        string.format("Data Cache (%s): %s = %s", scopeName, tostring(k), tostring(v))
+                                end
+                            end
+                        end
+                    end
+
+                    -- Cờ ẩn bị khóa quyền (CanTrade = false, CanParty = false, TradeEnabled = false):
+                    local permissionFlags = {
+                        "cantrade", "can_trade", "tradeenabled", "trade_enabled",
+                        "canparty", "can_party", "partyenabled", "party_enabled",
+                        "canjoin", "can_join", "candrop", "can_drop"
+                    }
+                    for _, flag in ipairs(permissionFlags) do
+                        for k, v in pairs(tbl) do
+                            if string.lower(tostring(k)) == flag then
+                                if v == false then
+                                    return true,
+                                        string.format("Data Cache (%s): %s = false (Bị tước quyền giao dịch/tổ đội)",
+                                            scopeName, tostring(k))
+                                end
+                            end
+                        end
+                    end
+
+                    return false
+                end
+
+                -- Quét trực tiếp Data Cache
+                if type(data) == "table" then
+                    local isFlagged, msg = checkDataFlags(data, "Host.Cache.Data")
+                    if isFlagged then
+                        detected = true
+                        reason = msg
+                        return
+                    end
+
+                    -- Duyệt các nhánh con bên trong Data (Slots, Info, Moderation)
+                    for k, sub in pairs(data) do
+                        if type(sub) == "table" then
+                            local subFlagged, subMsg = checkDataFlags(sub, "Data." .. tostring(k))
+                            if subFlagged then
+                                detected = true
+                                reason = subMsg
+                                return
+                            end
+                        end
+                    end
+                end
+
+                -- Quét thêm toàn bộ Cache của host nếu tồn tại
+                if host and type(host.Cache) == "table" and host.Cache ~= data then
+                    local isFlaggedC, msgC = checkDataFlags(host.Cache, "Host.Cache")
+                    if isFlaggedC then
+                        detected = true
+                        reason = msgC
+                        return
+                    end
+                end
+
+                -- 4. ĐỌC TRỰC TIẾP TỪ THUỘC TÍNH PLAYER (Player Attributes)
+                if lp and type(lp.GetAttributes) == "function" then
+                    local isAttrFlagged, attrMsg = checkDataFlags(lp:GetAttributes(), "Player:GetAttributes")
+                    if isAttrFlagged then
+                        detected = true
+                        reason = attrMsg
+                        return
+                    end
+                end
+
+                -- 5. QUÉT BỘ NHỚ GC (getgc) CHO CÁC BẢNG DATA NỘI BỘ
+                if not detected and type(getgc) == "function" then
+                    for _, obj in ipairs(getgc(true)) do
+                        if type(obj) == "table" then
+                            if rawget(obj, "IsBanned") == true
+                                or rawget(obj, "IsExploiter") == true
+                                or rawget(obj, "ShadowBanned") == true
+                                or rawget(obj, "IsShadowBanned") == true
+                                or rawget(obj, "Blacklisted") == true
+                                or rawget(obj, "IsBlacklisted") == true
+                                or (rawget(obj, "CanTrade") == false and rawget(obj, "Trade") ~= nil)
+                            then
+                                detected = true
+                                reason =
+                                "Bộ nhớ Game (GC Data): Tìm thấy bảng chứa cờ vi phạm (IsBanned / IsExploiter / CanTrade = false)"
+                                return
+                            end
+                        end
+                    end
+                end
+            end)
+
+            v150_10.ShadowBanData.IsBanned = detected
+            v150_10.ShadowBanData.LastChecked = os.clock()
+            v150_10.ShadowBanData.CheckCount = v150_10.ShadowBanData.CheckCount + 1
+
+            if detected then
+                v150_10.ShadowBanData.Reason = isVi and ("BỊ SHADOW BAN! (" .. reason .. ")") or
+                    ("SHADOW BANNED! (" .. reason .. ")")
+                pcall(function()
+                    v150_8.Rayfield:Notify({
+                        Title = isVi and "CẢNH BÁO: TÀI KHOẢN BỊ SHADOW BAN!" or "WARNING: SHADOW BANNED!",
+                        Content = isVi and ("Chi tiết:\n" .. reason) or
+                            ("Details:\n" .. reason),
+                        Duration = 12,
+                        Image = 4483362458
+                    })
+                end)
+            else
+                v150_10.ShadowBanData.Reason = isVi
+                    and "Tài khoản sạch 100% (Đã xác thực Data Cache, Server Party/Trade và GC)"
+                    or "100% Clean (Verified Game Data Cache, Server Party/Trade and GC)"
+                if isManual then
+                    pcall(function()
+                        v150_8.Rayfield:Notify({
+                            Title = isVi and "KIỂM TRA SHADOW BAN" or "SHADOW BAN CHECK",
+                            Content = isVi and
+                                "Tài khoản 100% Sạch! Đã kiểm tra trực tiếp Data Cache và Server Party/Trade an toàn." or
+                                "Account is 100% Clean! Verified Game Data Cache and Server Party/Trade safely.",
+                            Duration = 6,
+                            Image = 4483362458
+                        })
+                    end)
+                end
+            end
+
+            v150_10.UpdateShadowBanParagraph()
+            return detected, v150_10.ShadowBanData.Reason
+        end
+
+        function v150_10.UpdateShadowBanParagraph()
+            if not v56_2.ShadowBanParagraph then
+                return
+            end
+            pcall(function()
+                local isVi = v150_9.IsVietnamese()
+                local sb = v150_10.ShadowBanData
+                local statusStr = sb.IsBanned
+                    and (isVi and "[⚠️ BỊ PHÁT HIỆN SHADOW BAN]" or "[⚠️ SHADOW BAN DETECTED]")
+                    or (isVi and "[✅ 100% AN TOÀN / SẠCH]" or "[✅ 100% CLEAN / SAFE]")
+                local timeStr = os.date("%H:%M:%S")
+
+                if isVi then
+                    v56_2.ShadowBanParagraph:Set(string.format(
+                        "Trạng Thái Shadow Ban: %s\nChi Tiết: %s\nSố Lần Đã Quét: %d lần\nThời Gian Quét Gần Nhất: %s",
+                        statusStr,
+                        sb.Reason,
+                        sb.CheckCount,
+                        timeStr
+                    ))
+                else
+                    v56_2.ShadowBanParagraph:Set(string.format(
+                        "Shadow Ban Status: %s\nDetails: %s\nScan Count: %d times\nLast Scanned: %s",
+                        statusStr,
+                        sb.Reason,
+                        sb.CheckCount,
+                        timeStr
+                    ))
+                end
+            end)
+        end
+
+        function v150_10.GetKaitunPlayerState()
+            local minLvl = tonumber(v150_10.GetWeaponMinLevel and v150_10.GetWeaponMinLevel())
+                or tonumber(v61_2.CachedWeaponMinLevel)
+                or 0
+            local prestige = tonumber(v7_13 and
+                    (v7_13:GetAttribute("Prestige") or v7_13:GetAttribute("Symbiote_Prestige")))
+                or tonumber(v156_4.Player.Prestige)
+                or 0
+            if prestige > 5 or prestige < 0 then
+                prestige = 0
+                v156_4.Player.Prestige = 0
+                if v7_13 then
+                    pcall(function() v7_13:SetAttribute("Symbiote_Prestige", nil) end)
+                end
+            end
+            local level = tonumber(v7_13 and (v7_13:GetAttribute("Level") or v7_13:GetAttribute("Symbiote_Level")))
+                or tonumber(v156_4.Player.Level)
+                or 1
+            if level > 225 or level < 1 then
+                level = 1
+                v156_4.Player.Level = 1
+                if v7_13 then
+                    pcall(function() v7_13:SetAttribute("Symbiote_Level", nil) end)
+                end
+            end
+            local gold = tonumber(v7_13 and v7_13:GetAttribute("Symbiote_Gold"))
+                or tonumber(v156_4.Player.Gold)
+                or 0
+            local hudGold = v150_10.GetHudGold and v150_10.GetHudGold() or 0
+            if hudGold > 0 then
+                gold = hudGold
+                v156_4.Player.Gold = hudGold
+            end
+
+            -- Priority 1: Game Cache Data (Server-replicated true player slot data)
+            pcall(function()
+                local host = v150_10.GetDataHost()
+                if type(host) == "table" and type(rawget(host, "Cache")) == "table" and type(rawget(host.Cache, "Data")) == "table" then
+                    local data = host.Cache.Data
+                    local slot = type(data.Slots) == "table" and data.Current_Slot and data.Slots[data.Current_Slot]
+                    if type(slot) == "table" then
+                        if type(slot.Progression) == "table" then
+                            local pNum = tonumber(slot.Progression.Prestige)
+                            if pNum and pNum >= 0 and pNum <= 5 then
+                                prestige = pNum
+                                v156_4.Player.Prestige = prestige
+                            end
+                            local lNum = tonumber(slot.Progression.Level)
+                            if lNum and lNum >= 1 and lNum <= 225 then
+                                level = lNum
+                                v156_4.Player.Level = level
+                            end
+                        end
+                        if type(slot.Currency) == "table" and tonumber(slot.Currency.Gold) then
+                            gold = tonumber(slot.Currency.Gold)
+                            v156_4.Player.Gold = gold
+                        end
+                        if type(slot.Upgrades) == "table" then
+                            local wName = tostring(slot.Weapon or (v73_2() and "Spears" or "Blades"))
+                            local upgs = slot.Upgrades[wName]
+                            if type(upgs) == "table" then
+                                local m = 999
+                                for _, lv in pairs(upgs) do
+                                    if type(lv) == "number" and lv < m then
+                                        m = lv
+                                    end
+                                end
+                                if m < 999 then
+                                    minLvl = math.max(minLvl, m)
+                                    v61_2.CachedWeaponMinLevel = minLvl
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+
+            -- Priority 2: In-Game UI Parsing (With strict sanitization)
+            local bonusMapDetected = nil
+            pcall(function()
+                local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+                local iface = pgui and pgui:FindFirstChild("Interface")
+                if not iface then
+                    return
+                end
+
+                -- Robust Gold & Currency Extraction from Topbar
+                local topbar = iface:FindFirstChild("Topbar")
+                if topbar then
+                    for _, tObj in ipairs(topbar:GetDescendants()) do
+                        if tObj:IsA("TextLabel") and type(tObj.Text) == "string" and tObj.Text ~= "" then
+                            local cleanTxt = tObj.Text:gsub(",", ""):gsub("%s+", "")
+                            local pNum = tonumber(cleanTxt:match("^(%d+)$"))
+                            if pNum then
+                                local pName = string.lower(tostring(tObj.Parent and tObj.Parent.Name or ""))
+                                local oName = string.lower(tostring(tObj.Name or ""))
+                                if pName:find("gold") or oName:find("gold") or pName:find("vang") or oName:find("vang") then
+                                    gold = pNum
+                                    v156_4.Player.Gold = pNum
+                                end
+                            end
+                        end
+                    end
+                end
+
+                for _, obj in ipairs(iface:GetDescendants()) do
+                    if obj:IsA("TextLabel") or obj:IsA("TextButton") then
+                        local txt = tostring(obj.Text or "")
+                        if txt ~= "" then
+                            local xpMatch = txt:match("XP:%s*(%d+)%%")
+                            if xpMatch then
+                                cachedXPPercent = tonumber(xpMatch) or cachedXPPercent
+                            end
+
+                            -- Multilingual Weapon Grade Extraction (UTF-8 normalized)
+                            local norm = normalizeVi(txt):upper()
+                            local gradeMatch = norm:match("%[%s*CAP%s*DO%s*([E%-%+DCBAS]+)%s*%]")
+                                or norm:match("%[%s*([E%-%+DCBAS]+)%s*CAP%s*DO%s*%]")
+                                or norm:match("%[%s*GRADE%s*([E%-%+DCBAS]+)%s*%]")
+                                or norm:match("%[%s*([E%-%+DCBAS]+)%s*GRADE%s*%]")
+                                or norm:match("NANG%s*CAP%s*%[%s*CAP%s*DO%s*([E%-%+DCBAS]+)%s*%]")
+                                or norm:match("NANG%s*CAP%s*%[%s*([E%-%+DCBAS]+)%s*%]")
+                                or norm:match("UPGRADE%s*%[%s*([E%-%+DCBAS]+)%s*%]")
+                                or norm:match("%[%s*([E%-%+DCBAS]+)%s*%]")
+                            if gradeMatch and LETTER_TO_LEVEL[gradeMatch] ~= nil then
+                                local gLvl = LETTER_TO_LEVEL[gradeMatch]
+                                if gLvl > minLvl then
+                                    minLvl = gLvl
+                                    v61_2.CachedWeaponMinLevel = minLvl
+                                    if v7_13 then
+                                        pcall(function() v7_13:SetAttribute("WeaponMinLevel", minLvl) end)
+                                    end
+                                end
+                            end
+
+                            -- Safe Level extraction ONLY if level is not yet determined (level <= 1)
+                            if level <= 1 then
+                                local normLvTxt = normalizeVi(txt)
+                                local curLvStr, maxCapStr = normLvTxt:match("cap%.?%s*(%d+)%s*/%s*(%d+)")
+                                if not curLvStr then curLvStr, maxCapStr = normLvTxt:match("lv%.?%s*(%d+)%s*/%s*(%d+)") end
+                                if not curLvStr then curLvStr, maxCapStr = normLvTxt:match("level%s*(%d+)%s*/%s*(%d+)") end
+                                if curLvStr and maxCapStr then
+                                    local parsedCur = tonumber(curLvStr)
+                                    local parsedCap = tonumber(maxCapStr)
+                                    -- Strictly require standard AOT:R prestige caps: 100, 125, 150, 175, 200, 225
+                                    if parsedCap and parsedCap >= 100 and parsedCap <= 225 and ((parsedCap - 100) % 25 == 0) then
+                                        local derivedP = math.floor((parsedCap - 100) / 25)
+                                        if derivedP >= 0 and derivedP <= 5 then
+                                            prestige = derivedP
+                                            v156_4.Player.Prestige = prestige
+                                        end
+                                        if parsedCur and parsedCur > 0 and parsedCur <= parsedCap then
+                                            level = parsedCur
+                                            v156_4.Player.Level = parsedCur
+                                        end
+                                    end
+                                end
+                            end
+
+                            -- In-Text Gold Parser
+                            local gNorm = normalizeVi(txt)
+                            if gNorm:find("vang:") or gNorm:find("gold:") then
+                                local pG = tonumber(txt:gsub(",", ""):match("(%d+)"))
+                                if pG and pG > 0 then
+                                    gold = pG
+                                    v156_4.Player.Gold = pG
+                                end
+                            end
+
+                            -- Bonus Map Detection
+                            local normTxt = normalizeVi(txt)
+                            if (normTxt:find("tang phan thuong", 1, true) or normTxt:find("bonus", 1, true)) and obj.Parent then
+                                local pNorm = normalizeVi(getGuiObjectText(obj.Parent) ..
+                                    " " .. tostring(obj.Parent.Name or ""))
+                                if pNorm:find("shiganshina", 1, true) then
+                                    bonusMapDetected = "Shiganshina"
+                                elseif pNorm:find("trost", 1, true) then
+                                    bonusMapDetected = "Trost"
+                                elseif pNorm:find("outskirts", 1, true) or pNorm:find("do lot", 1, true) then
+                                    bonusMapDetected = "Outskirts"
+                                elseif pNorm:find("forest", 1, true) or pNorm:find("rung", 1, true) then
+                                    bonusMapDetected = "Giant Forest"
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+
+            prestige = math.min(5, math.max(0, prestige))
+            level = math.min(225, math.max(1, level))
+            minLvl = math.max(0, math.min(15, math.floor(tonumber(minLvl) or 0)))
+            local gradeLetter = GRADE_LETTERS[minLvl] or "E-"
+            local bracket = getDifficultyBracket(minLvl)
+
+            local maxLevelCap = 100 + (prestige * 25)
+            local readyToPrestige = (prestige < 5)
+                and ((level > maxLevelCap) or (level == maxLevelCap and cachedXPPercent >= 100))
+            local maxPrestigeTarget = 5
+
+            local canUpgradeStep = false
+            local goldForNext = nil
+            if minLvl < 15 then
+                local nextLvl = minLvl + 1
+                local goldNeeded = getGoldNeededForLevel(minLvl, nextLvl)
+                if gold >= goldNeeded then
+                    canUpgradeStep = true
+                end
+            end
+
+            local readyForNextBracket = false
+            if bracket.NextMinLvl then
+                goldForNext = getGoldNeededForLevel(minLvl, bracket.NextMinLvl)
+                if gold >= goldForNext then
+                    readyForNextBracket = true
+                end
+            end
+
+            local resolvedMap = bracket.Map
+            if bonusMapDetected and v8_6("KaitunPrioritizeBonusMap") ~= false then
+                resolvedMap = bonusMapDetected
+            end
+
+            return {
+                Prestige = prestige,
+                Level = level,
+                MaxLevelCap = maxLevelCap,
+                XPPercent = cachedXPPercent,
+                Gold = gold,
+                WeaponMinLevel = minLvl,
+                GradeLetter = gradeLetter,
+                WeaponGradeLetter = gradeLetter,
+                Bracket = bracket,
+                GoldForNextBracket = goldForNext,
+                ReadyToPrestige = readyToPrestige,
+                MaxPrestigeTarget = maxPrestigeTarget,
+                CanUpgradeStep = canUpgradeStep,
+                ReadyForNextBracket = readyForNextBracket,
+                BonusMapDetected = bonusMapDetected,
+                TargetMap = resolvedMap
+            }
+        end
+
+        function v150_10.KaitunUpgradeWeapon()
+            local state = v150_10.GetKaitunPlayerState()
+            if state.WeaponMinLevel >= 15 then
+                return false
+            end
+            lastUpgradeAttemptGold = state.Gold
+            lastUpgradeAttemptTime = os.clock()
+
+            local weaponPref = tostring(v8_6("KaitunWeaponType") or "Auto")
+            local useSpears = false
+            if weaponPref == "Spears" then
+                useSpears = true
+            elseif weaponPref == "Blades" then
+                useSpears = false
+            else
+                useSpears = v73_2() == true
+            end
+            local weaponCategory = useSpears and "Spears" or "Blades"
+            local statBranches = useSpears and {
+                "Crit_Damage",
+                "TS_Damage",
+                "Crit_Chance",
+                "Blast_Radius",
+                "TS_Speed",
+                "TS_Gas",
+                "TS_Control",
+                "TS_Range"
+            } or {
+                "Crit_Damage",
+                "ODM_Damage",
+                "Crit_Chance",
+                "Blade_Durability",
+                "ODM_Speed",
+                "ODM_Gas",
+                "ODM_Control",
+                "ODM_Range"
+            }
+
+            local startMinLvl = state.WeaponMinLevel
+            local startGold = state.Gold
+            kaitunActionState = "Upgrading Weapon [" ..
+                (GRADE_LETTERS[startMinLvl] or "E-") ..
+                " -> " .. (GRADE_LETTERS[math.min(15, startMinLvl + 1)] or "S-") .. "]"
+            if v150_10.UpdateKaitunParagraph then
+                pcall(v150_10.UpdateKaitunParagraph)
+            end
+
+            if v13_8:FindFirstChild("Waves") and v150_10.UpgradeWeaponStep then
+                for _ = 1, 15 do
+                    local okW, resW = pcall(v150_10.UpgradeWeaponStep)
+                    if not (okW and resW) then
+                        break
+                    end
+                    task.wait(0.15)
+                end
+            else
+                -- Try Remote "Upgrade All" invocations first
+                if v69_2 then
+                    pcall(function()
+                        v69_2:InvokeServer("S_Equipment", "UpgradeAll")
+                    end)
+                    pcall(function()
+                        v69_2:InvokeServer("S_Equipment", "Upgrade", "All")
+                    end)
+                    pcall(function()
+                        v69_2:InvokeServer("Equipment", "UpgradeAll")
+                    end)
+                    pcall(function()
+                        v69_2:InvokeServer("Equipment", "Upgrade", "All")
+                    end)
+                    for _ = 1, 3 do
+                        local anyTableReturned = false
+                        local okB1, resB1 = pcall(function()
+                            return v69_2:InvokeServer("S_Equipment", "Upgrade", statBranches)
+                        end)
+                        if okB1 and type(resB1) == "table" then
+                            anyTableReturned = true
+                        end
+                        for _, statName in ipairs(statBranches) do
+                            pcall(function()
+                                local r1 = v69_2:InvokeServer("S_Equipment", "Upgrade", weaponCategory, statName)
+                                if type(r1) == "table" then anyTableReturned = true end
+                            end)
+                            pcall(function()
+                                local r2 = v69_2:InvokeServer("S_Equipment", "Upgrade", statName)
+                                if type(r2) == "table" then anyTableReturned = true end
+                            end)
+                        end
+                        if not anyTableReturned then
+                            break
+                        end
+                        task.wait(0.12)
+                    end
+                end
+
+                pcall(function()
+                    local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+                    local iface = pgui and pgui:FindFirstChild("Interface")
+                    if not iface then
+                        return
+                    end
+                    local equip = iface:FindFirstChild("Equipment")
+                    if equip and not isTrulyVisible(equip, iface) then
+                        local topbar = iface:FindFirstChild("Topbar")
+                        local equipTopBtn = nil
+                        if topbar then
+                            equipTopBtn = topbar:FindFirstChild("Equipment", true)
+                            if not equipTopBtn then
+                                local trangBiCount = 0
+                                for _, b in ipairs(topbar:GetDescendants()) do
+                                    if b:IsA("GuiButton") and isTrulyVisible(b, iface) then
+                                        local nb = normalizeVi(getGuiObjectText(b) .. " " .. tostring(b.Name or ""))
+                                        if nb:find("equipment", 1, true) then
+                                            equipTopBtn = b
+                                            break
+                                        elseif nb:find("trang bi", 1, true) then
+                                            trangBiCount = trangBiCount + 1
+                                            equipTopBtn = b
+                                            if trangBiCount >= 2 then
+                                                break
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                        if equipTopBtn then
+                            v150_10.ClickGuiButton(equipTopBtn)
+                            task.wait(0.4)
+                        end
+                    end
+
+                    if equip and isTrulyVisible(equip, iface) then
+                        -- Ensure "Nâng cấp" tab on left sidebar is clicked
+                        for _, b in ipairs(equip:GetDescendants()) do
+                            if b:IsA("GuiButton") and isTrulyVisible(b, equip) then
+                                local nb = normalizeVi(getGuiObjectText(b) .. " " .. tostring(b.Name or ""))
+                                if (nb:find("nang cap", 1, true) or nb:find("upgrade", 1, true)) and not nb:find("tat ca", 1, true) and not nb:find("all", 1, true) then
+                                    if b.AbsolutePosition.X < 350 then
+                                        v150_10.ClickGuiButton(b)
+                                        task.wait(0.25)
+                                        break
+                                    end
+                                end
+                            end
+                        end
+
+                        -- Priority 1: CLICK "Nâng cấp tất cả" / "Upgrade All" button!
+                        for _ = 1, 15 do
+                            local upgradeAllBtn = nil
+                            for _, b in ipairs(equip:GetDescendants()) do
+                                if b:IsA("GuiButton") and isTrulyVisible(b, equip) then
+                                    local nb = normalizeVi(getGuiObjectText(b) .. " " .. tostring(b.Name or ""))
+                                    if nb:find("nang cap tat ca", 1, true) or nb:find("upgrade all", 1, true) or nb == "all" or nb == "tat ca" then
+                                        upgradeAllBtn = b
+                                        break
+                                    end
+                                end
+                            end
+                            if upgradeAllBtn then
+                                v150_10.ClickGuiButton(upgradeAllBtn)
+                                task.wait(0.2)
+                                for _, cb in ipairs(iface:GetDescendants()) do
+                                    if cb:IsA("GuiButton") and isTrulyVisible(cb, iface) then
+                                        local cnb = normalizeVi(getGuiObjectText(cb) .. " " .. tostring(cb.Name or ""))
+                                        if cnb == "xac nhan" or cnb == "confirm" or cnb == "yes" or cnb == "dong y" then
+                                            v150_10.ClickGuiButton(cb)
+                                            task.wait(0.15)
+                                            break
+                                        end
+                                    end
+                                end
+                            else
+                                break
+                            end
+                            local curSt = v150_10.GetKaitunPlayerState()
+                            if curSt.WeaponMinLevel >= 15 or curSt.Gold < 1000 then
+                                break
+                            end
+                        end
+
+                        -- Priority 2: Fallback to individual stat buttons + cost button
+                        local statButtons = {}
+                        local statNameSet = {}
+                        for _, sName in ipairs(statBranches) do
+                            statNameSet[string.lower(sName)] = true
+                        end
+                        for _, b in ipairs(equip:GetDescendants()) do
+                            if b:IsA("GuiButton") and isTrulyVisible(b, equip) then
+                                local lname = string.lower(tostring(b.Name or ""))
+                                if statNameSet[lname] or lname:find("odm_") or lname:find("ts_") or lname:find("crit_") or lname:find("blade_") or lname:find("blast_") then
+                                    table.insert(statButtons, b)
+                                elseif b.Parent and #b.Parent:GetChildren() >= 8 and b.AbsoluteSize.X > 20 and b.AbsoluteSize.X < 120 and math.abs(b.AbsoluteSize.X - b.AbsoluteSize.Y) < 15 then
+                                    table.insert(statButtons, b)
+                                end
+                            end
+                        end
+
+                        local statPanel = equip:FindFirstChild("Stat")
+                        local costBtn = statPanel and statPanel:FindFirstChild("Cost")
+                        if not costBtn then
+                            for _, b in ipairs(equip:GetDescendants()) do
+                                if b:IsA("GuiButton") and isTrulyVisible(b, equip) then
+                                    local nb = normalizeVi(getGuiObjectText(b) .. " " .. tostring(b.Name or ""))
+                                    if (nb:find("toi da", 1, true) or nb:find("max", 1, true) or nb:find("gold", 1, true)) and not nb:find("tat ca", 1, true) then
+                                        costBtn = b
+                                        break
+                                    end
+                                end
+                            end
+                        end
+
+                        if costBtn and #statButtons > 0 then
+                            for _ = 1, 4 do
+                                local clickedCost = false
+                                for _, sBtn in ipairs(statButtons) do
+                                    v150_10.ClickGuiButton(sBtn)
+                                    task.wait(0.06)
+                                    local cTxt = normalizeVi(getGuiObjectText(costBtn))
+                                    if not cTxt:find("max", 1, true) and not cTxt:find("toi da", 1, true) then
+                                        local cNum = tonumber(cTxt:gsub("[^%d]", ""))
+                                        local curG = tonumber(v156_4.Player.Gold) or state.Gold or 0
+                                        if not cNum or (cNum > 0 and curG >= cNum) then
+                                            v150_10.ClickGuiButton(costBtn)
+                                            clickedCost = true
+                                            task.wait(0.08)
+                                        end
+                                    end
+                                end
+                                if not clickedCost then
+                                    break
+                                end
+                            end
+                        end
+                    end
+                end)
+            end
+
+            local afterState = v150_10.GetKaitunPlayerState()
+            local upgradedAny = (afterState.WeaponMinLevel > startMinLvl) or (afterState.Gold < startGold)
+            if upgradedAny then
+                lastUpgradeAttemptGold = -1
+            end
+            if v150_10.UpdateKaitunParagraph then
+                pcall(v150_10.UpdateKaitunParagraph)
+            end
+            return upgradedAny
+        end
+
+        function v150_10.KaitunPerformPrestige()
+            local state = v150_10.GetKaitunPlayerState()
+            if not state.ReadyToPrestige then
+                return false
+            end
+            kaitunActionState = "Performing Prestige (Rebirth)..."
+            if v150_10.UpdateKaitunParagraph then
+                pcall(v150_10.UpdateKaitunParagraph)
+            end
+
+            local prestiged = false
+            if v69_2 then
+                for _, args in ipairs({
+                    { "S_Equipment", "Prestige" },
+                    { "Equipment",   "Prestige" },
+                    { "Progression", "Prestige" },
+                    { "Functions",   "Prestige" }
+                }) do
+                    pcall(function()
+                        local res = v69_2:InvokeServer(args[1], args[2])
+                        if type(res) == "table" or res == true then
+                            prestiged = true
+                        end
+                    end)
+                end
+            end
+            if v68_2 then
+                pcall(function()
+                    v68_2:FireServer("Functions", "Prestige")
+                end)
+            end
+
+            pcall(function()
+                local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+                local iface = pgui and pgui:FindFirstChild("Interface")
+                if not iface then
+                    return
+                end
+                local equip = iface:FindFirstChild("Equipment")
+                if equip and not isTrulyVisible(equip, iface) then
+                    local topbar = iface:FindFirstChild("Topbar")
+                    local equipBtn = topbar and topbar:FindFirstChild("Equipment", true)
+                    if not equipBtn then
+                        local countTB = 0
+                        for _, btn in ipairs(iface:GetDescendants()) do
+                            if btn:IsA("GuiButton") and isTrulyVisible(btn, iface) then
+                                local nb = normalizeVi(getGuiObjectText(btn) .. " " .. tostring(btn.Name or ""))
+                                if nb:find("equipment", 1, true) then
+                                    equipBtn = btn
+                                    break
+                                elseif nb:find("trang bi", 1, true) then
+                                    countTB = countTB + 1
+                                    equipBtn = btn
+                                    if countTB >= 2 then
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                    end
+                    if equipBtn then
+                        v150_10.ClickGuiButton(equipBtn)
+                        task.wait(0.35)
+                    end
+                end
+
+                -- STEP 1: Click left sidebar "Linh Mục" tab
+                local sidebarPriestBtn = nil
+                for _, btn in ipairs(iface:GetDescendants()) do
+                    if btn:IsA("GuiButton") and isTrulyVisible(btn, iface) then
+                        local nb = normalizeVi(getGuiObjectText(btn) .. " " .. tostring(btn.Name or ""))
+                        if nb:find("linh muc", 1, true) or nb:find("priest", 1, true) then
+                            if btn.AbsolutePosition.X < 350 or (btn.Parent and tostring(btn.Parent.Name):lower():find("side")) then
+                                sidebarPriestBtn = btn
+                                break
+                            end
+                        end
+                    end
+                end
+                if sidebarPriestBtn then
+                    v150_10.ClickGuiButton(sidebarPriestBtn)
+                    task.wait(0.4)
+                end
+
+                -- STEP 2: Click the golden "Linh Mục" / Prestige action button inside the panel
+                for _, btn in ipairs(iface:GetDescendants()) do
+                    if btn:IsA("GuiButton") and isTrulyVisible(btn, iface) then
+                        local nb = normalizeVi(getGuiObjectText(btn) .. " " .. tostring(btn.Name or ""))
+                        if nb:find("linh muc", 1, true) or nb:find("prestige", 1, true) or nb:find("tai sinh", 1, true) then
+                            if btn ~= sidebarPriestBtn then
+                                v150_10.ClickGuiButton(btn)
+                                prestiged = true
+                                task.wait(0.35)
+                                break
+                            end
+                        end
+                    end
+                end
+
+                -- STEP 3: Confirm modal ("Xác nhận", "Bảo quản", "Confirm", "Yes")
+                for _, btn in ipairs(iface:GetDescendants()) do
+                    if btn:IsA("GuiButton") and isTrulyVisible(btn, iface) then
+                        local nb = normalizeVi(getGuiObjectText(btn) .. " " .. tostring(btn.Name or ""))
+                        if nb == "confirm" or nb == "xac nhan" or nb == "yes" or nb == "dong y" or nb == "bao quan" or nb == "select" or nb == "chon" then
+                            v150_10.ClickGuiButton(btn)
+                            prestiged = true
+                            task.wait(0.3)
+                        end
+                    end
+                end
+            end)
+
+            if v69_2 then
+                pcall(function()
+                    v69_2:InvokeServer("S_Equipment", "Memory", 1)
+                end)
+                pcall(function()
+                    v69_2:InvokeServer("Progression", "Memory", 1)
+                end)
+            end
+
+            if prestiged then
+                cachedXPPercent = 0
+                v61_2.CachedWeaponMinLevel = 0
+                lastUpgradeAttemptGold = -1
+                if v8_6("KaitunAutoUpgradeWeapon") ~= false then
+                    v150_10.KaitunUpgradeWeapon()
+                end
+            end
+            return prestiged
+        end
+
+        function v150_10.ConfigureModifiers(iface)
+            pcall(function()
+                local modRows = {}
+                for _, obj in ipairs(iface:GetDescendants()) do
+                    if (obj:IsA("Frame") or obj:IsA("GuiButton")) and isTrulyVisible(obj, iface) then
+                        local txt = getGuiObjectText(obj)
+                        local ntxt = normalizeVi(txt)
+                        if ntxt:find("%+", 1, true) or ntxt:find("vang/xp", 1, true) or ntxt:find("gold/xp", 1, true)
+                            or ntxt:find("uu dai", 1, true) or ntxt:find("ky nang", 1, true) or ntxt:find("ky uc", 1, true)
+                            or ntxt:find("ac mong", 1, true) or ntxt:find("oddball", 1, true) or ntxt:find("hardcore", 1, true) then
+                            local rowFrame = obj
+                            while rowFrame.Parent and rowFrame.Parent ~= iface and rowFrame.Parent:IsA("GuiObject") do
+                                if rowFrame.Parent:IsA("ScrollingFrame") or rowFrame.Parent.Name == "List" or rowFrame.Parent.Name == "Container" then
+                                    break
+                                end
+                                rowFrame = rowFrame.Parent
+                            end
+                            local alreadyAdded = false
+                            for _, r in ipairs(modRows) do
+                                if r == rowFrame then
+                                    alreadyAdded = true
+                                    break
+                                end
+                            end
+                            if not alreadyAdded then
+                                table.insert(modRows, rowFrame)
+                            end
+                        end
+                    end
+                end
+
+                if #modRows > 0 then
+                    table.sort(modRows, function(a, b)
+                        local loA = a.LayoutOrder or 0
+                        local loB = b.LayoutOrder or 0
+                        if loA ~= loB and loA > 0 and loB > 0 then
+                            return loA < loB
+                        end
+                        return a.AbsolutePosition.Y < b.AbsolutePosition.Y
+                    end)
+
+                    local totalMods = #modRows
+                    -- User requirement: Turn ON all modifiers except the last 4!
+                    local safeEnableCount = math.max(0, totalMods - 4)
+
+                    local function isChecked(row)
+                        for _, d in ipairs(row:GetDescendants()) do
+                            if d:IsA("ImageLabel") or d:IsA("ImageButton") then
+                                local iname = string.lower(d.Name)
+                                if (iname:find("check") or iname:find("tick") or iname:find("icon") or iname:find("box")) and d.Visible then
+                                    if d.ImageTransparency < 0.5 and d.Image ~= "" then
+                                        return true
+                                    end
+                                end
+                            elseif d:IsA("TextLabel") or d:IsA("TextButton") then
+                                local t = tostring(d.Text or "")
+                                if t:find("✓") or t == "X" or t == "x" then
+                                    return true
+                                end
+                            end
+                        end
+                        return row:GetAttribute("Enabled") == true or row:GetAttribute("Checked") == true
+                    end
+
+                    local function getClickTarget(row)
+                        if row:IsA("GuiButton") then return row end
+                        for _, b in ipairs(row:GetDescendants()) do
+                            if b:IsA("GuiButton") and isTrulyVisible(b, iface) then
+                                return b
+                            end
+                        end
+                        return nil
+                    end
+
+                    for idx, row in ipairs(modRows) do
+                        local targetState = (idx <= safeEnableCount)
+                        local currentlyOn = isChecked(row)
+                        if currentlyOn ~= targetState then
+                            local clickBtn = getClickTarget(row)
+                            if clickBtn then
+                                v150_10.ClickGuiButton(clickBtn)
+                                task.wait(0.06)
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+
+        function v150_10.HandleModeSelectionScreen()
+            -- Wrapper maintaining backwards compatibility
+            return v150_10.KaitunCreateAndStartMission()
+        end
+
+        function v150_10.KaitunCreateAndStartMission()
+            local state = v150_10.GetKaitunPlayerState()
+            local targetMap = state.TargetMap
+            local targetGrade = state.Bracket.Grade
+            local targetDiffEN = state.Bracket.DiffEN
+            local targetOrder = state.Bracket.Order
+
+            local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+            local iface = pgui and pgui:FindFirstChild("Interface")
+            if not iface then return false end
+
+            local function getClickable(o)
+                if not o then return nil end
+                if o:IsA("GuiButton") then return o end
+                return o:FindFirstAncestorWhichIsA("GuiButton")
+                    or o:FindFirstChildWhichIsA("GuiButton", true)
+                    or (o.Parent and o.Parent:IsA("GuiObject") and o.Parent)
+                    or o
+            end
+
+            -- =========================================================================
+            -- SCAN CURRENT UI ELEMENTS
+            -- =========================================================================
+            local startMissionBtn = nil
+            local createRoomBtn = nil
+            local modifiersBtn = nil
+            local backFromModsBtn = nil
+            local isModWindowOpen = false
+            local diffLabel = nil
+            local nextDiffBtn = nil
+            local prevDiffBtn = nil
+            local mapButtons = {}
+            local modeCards = {}
+            local modePlayBtn = nil
+            local topbarMissionBtn = nil
+
+            -- 1. Scan Topbar
+            local topbar = iface:FindFirstChild("Topbar")
+            if topbar then
+                for _, b in ipairs(topbar:GetDescendants()) do
+                    if isTrulyVisible(b, iface) then
+                        local nb = normalizeVi(getGuiObjectText(b) .. " " .. tostring(b.Name or ""))
+                        if nb:find("nhiem vu", 1, true) or nb:find("mission", 1, true) then
+                            topbarMissionBtn = getClickable(b)
+                            break
+                        end
+                    end
+                end
+            end
+
+            -- 2. Scan visible interface descendants
+            for _, obj in ipairs(iface:GetDescendants()) do
+                if isTrulyVisible(obj, iface) then
+                    local rawTxt = getGuiObjectText(obj)
+                    local norm = normalizeVi(rawTxt)
+                    local up = rawTxt:upper()
+                    local lname = string.lower(tostring(obj.Name or ""))
+                    local clickable = getClickable(obj)
+                    local sz = obj.AbsoluteSize or (clickable and clickable.AbsoluteSize)
+                    local pos = obj.AbsolutePosition or (clickable and clickable.AbsolutePosition)
+                    local isCardSize = sz and (sz.X > 40 or sz.Y > 60)
+
+                    -- Check if Modifiers modal is active
+                    if (norm == "sua doi" or norm == "modifiers") and (obj:IsA("TextLabel") or (pos and pos.Y < 200)) then
+                        isModWindowOpen = true
+                    end
+                    if (norm == "tro lai" or norm == "back" or norm == "return") and clickable then
+                        backFromModsBtn = clickable
+                    end
+
+                    -- Difficulty label & arrows
+                    if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and (up:find("GRADE)", 1, true) or up:find("CAP DO)", 1, true) or up:find("CẤP ĐỘ)", 1, true)) then
+                        diffLabel = obj
+                    end
+                    if rawTxt == ">" or lname == "next" or lname == "right" or lname == "arrowright" then
+                        nextDiffBtn = clickable
+                    elseif rawTxt == "<" or lname == "prev" or lname == "previous" or lname == "left" or lname == "arrowleft" then
+                        prevDiffBtn = clickable
+                    end
+
+                    -- Map buttons
+                    if lname:find("shiganshina", 1, true) or norm:find("shiganshina", 1, true) then
+                        mapButtons["Shiganshina"] = clickable
+                    elseif lname:find("trost", 1, true) or norm:find("trost", 1, true) then
+                        mapButtons["Trost"] = clickable
+                    elseif lname:find("outskirts", 1, true) or norm:find("outskirts", 1, true) or norm:find("do lot", 1, true) then
+                        mapButtons["Outskirts"] = clickable
+                    elseif lname:find("forest", 1, true) or norm:find("forest", 1, true) or norm:find("rung", 1, true) then
+                        mapButtons["Giant Forest"] = clickable
+                    end
+
+                    -- Mode cards
+                    if (norm == "nhiem vu" or norm == "missions" or lname == "mission" or lname == "missions") and isCardSize and pos and pos.Y > 40 then
+                        modeCards.missions = clickable
+                    elseif (norm == "raid" or lname == "raid") and isCardSize and pos and pos.Y > 40 then
+                        modeCards.raid = clickable
+                    elseif (norm == "song" or norm == "waves" or lname == "wave") and isCardSize and pos and pos.Y > 40 then
+                        modeCards.waves = clickable
+                    elseif (norm == "tham gia" or norm == "join" or lname == "join") and isCardSize and pos and pos.Y > 40 then
+                        modeCards.join = clickable
+                    end
+
+                    -- Action buttons
+                    if (norm == "tao" or norm == "create" or lname == "create") and clickable then
+                        createRoomBtn = clickable
+                    elseif (norm == "sua doi" or norm == "modifiers" or lname == "modifier" or lname == "modifiers") and clickable then
+                        modifiersBtn = clickable
+                    elseif (norm == "choi" or norm == "play") and clickable then
+                        modePlayBtn = clickable
+                    elseif (norm == "bat dau" or norm == "start" or lname == "start") and clickable then
+                        startMissionBtn = clickable
+                    end
+                end
+            end
+
+            -- =========================================================================
+            -- 5-STATE AUTOMATION LOGIC (Mutually Exclusive Priority)
+            -- =========================================================================
+
+            -- STATE 1: In Room Lobby (Ready to start)
+            if startMissionBtn then
+                kaitunActionState = "Room Ready - Starting Mission..."
+                if v150_10.UpdateKaitunParagraph then pcall(v150_10.UpdateKaitunParagraph) end
+                v150_10.ClickGuiButton(startMissionBtn)
+                task.wait(2.0)
+                return true
+            end
+
+            -- STATE 2: Modifiers Modal is open
+            if isModWindowOpen and backFromModsBtn then
+                kaitunActionState = "Configuring Modifiers (All ON except last 4)..."
+                if v150_10.UpdateKaitunParagraph then pcall(v150_10.UpdateKaitunParagraph) end
+                v150_10.ConfigureModifiers(iface)
+                task.wait(0.3)
+                v150_10.ClickGuiButton(backFromModsBtn)
+                task.wait(0.5)
+                return true
+            end
+
+            -- STATE 3: Room Creation Screen (TẠO button is visible)
+            if createRoomBtn then
+                kaitunActionState = "Creating Room: " .. targetMap .. " [" .. targetGrade .. " GRADE]..."
+                if v150_10.UpdateKaitunParagraph then pcall(v150_10.UpdateKaitunParagraph) end
+
+                -- 3a. Select Map
+                local mBtn = mapButtons[targetMap] or mapButtons["Shiganshina"]
+                if mBtn then
+                    v150_10.ClickGuiButton(mBtn)
+                    task.wait(0.25)
+                end
+
+                -- 3b. Adjust Difficulty Arrow
+                if diffLabel then
+                    for _ = 1, 5 do
+                        local dTxt = tostring(getGuiObjectText(diffLabel)):upper()
+                        local curG = dTxt:match("%(([E%-%+DBAS]+)%s*GRADE%)")
+                        local curOrder = curG and GRADE_ORDER[curG] or nil
+                        if not curOrder or curOrder == targetOrder then
+                            break
+                        elseif curOrder < targetOrder and nextDiffBtn then
+                            v150_10.ClickGuiButton(nextDiffBtn)
+                            task.wait(0.2)
+                        elseif curOrder > targetOrder and prevDiffBtn then
+                            v150_10.ClickGuiButton(prevDiffBtn)
+                            task.wait(0.2)
+                        else
+                            break
+                        end
+                    end
+                end
+
+                -- 3c. Click Modifiers button if available to configure before starting
+                if modifiersBtn and not v150_10._modifiersConfiguredThisSession then
+                    v150_10.ClickGuiButton(modifiersBtn)
+                    v150_10._modifiersConfiguredThisSession = true
+                    task.wait(0.5)
+                    return true
+                end
+
+                -- 3d. Click TẠO
+                v150_10.ClickGuiButton(createRoomBtn)
+                task.wait(0.75)
+                return true
+            end
+
+            -- STATE 4: 4-Card Mode Selection Screen (Cards + CHƠI button visible)
+            if (modeCards.missions or modeCards.raid) and modePlayBtn then
+                kaitunActionState = "Selecting Mode: NHIỆM VỤ..."
+                if v150_10.UpdateKaitunParagraph then pcall(v150_10.UpdateKaitunParagraph) end
+
+                -- Select NHIỆM VỤ
+                local targetCard = modeCards.missions or modeCards.raid
+                if targetCard then
+                    v150_10.ClickGuiButton(targetCard)
+                    task.wait(0.3)
+                end
+
+                -- Click CHƠI
+                v150_10.ClickGuiButton(modePlayBtn)
+                task.wait(0.75)
+                return true
+            end
+
+            -- STATE 5: Lobby Idle (Nothing open -> Click Topbar NHIỆM VỤ)
+            if topbarMissionBtn then
+                kaitunActionState = "Opening Missions Menu from Topbar..."
+                if v150_10.UpdateKaitunParagraph then pcall(v150_10.UpdateKaitunParagraph) end
+                v150_10.ClickGuiButton(topbarMissionBtn)
+                task.wait(0.75)
+                return true
+            end
+
+            -- Fallback remote call if UI not responsive
+            if v69_2 then
+                pcall(function()
+                    v69_2:InvokeServer("S_Missions", "Create", {
+                        Map = targetMap,
+                        Difficulty = targetDiffEN,
+                        Objective = "Skirmish"
+                    })
+                end)
+                pcall(function()
+                    v69_2:InvokeServer("S_Missions", "Start")
+                end)
+            end
+            return false
+        end
+
+        function v150_10.ShouldKaitunReturnToLobby()
+            if not v8_6("KaitunEnabled") then
+                return false
+            end
+            local state = v150_10.GetKaitunPlayerState()
+            if v8_6("KaitunAutoPrestige") ~= false and state.ReadyToPrestige then
+                return true
+            end
+            if v8_6("KaitunAutoUpgradeWeapon") ~= false and v8_6("KaitunAutoMap") ~= false and state.ReadyForNextBracket then
+                return true
+            end
+            return false
+        end
+
+        function v150_10.KaitunReturnToLobby()
+            kaitunActionState = "Returning to Lobby (Upgrade / Prestige)..."
+            if v150_10.UpdateKaitunParagraph then
+                pcall(v150_10.UpdateKaitunParagraph)
+            end
+            if v69_2 then
+                pcall(function()
+                    v69_2:InvokeServer("Functions", "Teleport")
+                end)
+                pcall(function()
+                    v69_2:InvokeServer("S_Missions", "Leave")
+                end)
+            end
+            pcall(function()
+                local pgui = v7_13 and v7_13:FindFirstChild("PlayerGui")
+                local iface = pgui and pgui:FindFirstChild("Interface")
+                local rewards = iface and iface:FindFirstChild("Rewards")
+                if rewards then
+                    for _, btn in ipairs(rewards:GetDescendants()) do
+                        if btn:IsA("GuiButton") and btn.Visible then
+                            local t = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or ""):upper()
+                            if t:find("LOBBY", 1, true) or t:find("TRỞ LẠI", 1, true) or t:find("RETURN", 1, true) or btn.Name == "Lobby" then
+                                v150_10.ClickGuiButton(btn)
+                                break
+                            end
+                        end
+                    end
+                end
+            end)
+            return true
+        end
+
+        function v150_10.UpdateKaitunParagraph()
+            if not v56_2.KaitunStatusParagraph then
+                return
+            end
+            pcall(function()
+                local isVi = v150_9.IsVietnamese()
+                local st = v150_10.GetKaitunPlayerState()
+                local enabledStr = v8_6("KaitunEnabled") and (isVi and "ĐANG BẬT (ON)" or "ACTIVE (ON)") or
+                    (isVi and "ĐANG TẮT (OFF)" or "DISABLED (OFF)")
+                local nextBracketTxt = st.Bracket.NextGrade
+                    and string.format("%s (%s Gold)", st.Bracket.NextGrade, v165_3(st.GoldForNextBracket or 0))
+                    or (isVi and "Đã tối đa (MAX S)" or "MAXED (S Grade)")
+                local isMaxPrestige = st.Prestige >= st.MaxPrestigeTarget
+                local prestigeReadyTxt = isMaxPrestige
+                    and
+                    string.format(
+                        isVi and "ĐÃ ĐẠT CẤP TÁI SINH MỤC TIÊU (MAX PRESTIGE %d)" or
+                        "TARGET MAX PRESTIGE REACHED (PRESTIGE %d)", st.MaxPrestigeTarget)
+                    or (st.ReadyToPrestige
+                        and (isVi and "SẴN SÀNG TÁI SINH! (Vào Linh Mục)" or "READY TO PRESTIGE!")
+                        or string.format("Lv.%d/%d (XP: %d%%)", st.Level, st.MaxLevelCap, st.XPPercent))
+                local prestigeDisplay = isMaxPrestige
+                    and string.format("%s/%s (MAX)", tostring(st.Prestige), tostring(st.MaxPrestigeTarget))
+                    or string.format("%s/%s", tostring(st.Prestige), tostring(st.MaxPrestigeTarget))
+
+                if isVi then
+                    v56_2.KaitunStatusParagraph:Set(string.format(
+                        "Trạng Thái Kaitun: %s\nHành Động: %s\nCấp Độ: Lv.%s / %s (Prestige %s)\nTiến Độ Tái Sinh: %s\nGold Hiện Tại: %s\nHạng Vũ Khí: [%s GRADE] (Cấp %d/15)\nMap & Độ Khó Mục Tiêu: %s - %s\nMốc Mở Khóa Độ Khó Tiếp: %s",
+                        tostring(enabledStr),
+                        tostring(kaitunActionState),
+                        tostring(v165_3(st.Level)),
+                        tostring(v165_3(st.MaxLevelCap)),
+                        tostring(prestigeDisplay),
+                        tostring(prestigeReadyTxt),
+                        tostring(v165_3(st.Gold)),
+                        tostring(st.WeaponGradeLetter or st.GradeLetter or "E-"),
+                        tonumber(st.WeaponMinLevel) or 0,
+                        tostring(st.TargetMap or "Shiganshina"),
+                        tostring(st.Bracket and st.Bracket.DiffVI or "Dễ"),
+                        tostring(nextBracketTxt or "N/A")
+                    ))
+                else
+                    v56_2.KaitunStatusParagraph:Set(string.format(
+                        "Kaitun Mode: %s\nAction: %s\nLevel: Lv.%s / %s (Prestige %s)\nPrestige Progress: %s\nCurrent Gold: %s\nWeapon Grade: [%s GRADE] (Lv.%d/15)\nTarget Map & Difficulty: %s - %s (%s GRADE)\nNext Difficulty Unlock: %s",
+                        tostring(enabledStr),
+                        tostring(kaitunActionState),
+                        tostring(v165_3(st.Level)),
+                        tostring(v165_3(st.MaxLevelCap)),
+                        tostring(prestigeDisplay),
+                        tostring(prestigeReadyTxt),
+                        tostring(v165_3(st.Gold)),
+                        tostring(st.WeaponGradeLetter or st.GradeLetter or "E-"),
+                        tonumber(st.WeaponMinLevel) or 0,
+                        tostring(st.TargetMap or "Shiganshina"),
+                        tostring(st.Bracket and st.Bracket.DiffEN or "Easy"),
+                        tostring(st.Bracket and st.Bracket.Grade or "E-"),
+                        tostring(nextBracketTxt or "N/A")
+                    ))
+                end
+            end)
+        end
+
+        function v150_10.UpdateConfigParagraph()
+            if not v56_2.ConfigStatusParagraph then
+                return
+            end
+            pcall(function()
+                local isVi = v150_9.IsVietnamese()
+                local globalSync = v8_6("AutoLoadGlobalConfig") ~= false
+                local kaitunOn = v8_6("KaitunEnabled") == true
+                local autoFarmOn = v8_6("AutoFarm") == true
+                local slotFile, normSlot = v15_getSlotFile(v8_6("SelectedSettingSlot") or v15_orderData.ActiveSlot or
+                    "Setting 1")
+                local createdList = (type(v15_orderData.Created) == "table" and #v15_orderData.Created > 0)
+                    and table.concat(v15_orderData.Created, ", ")
+                    or normSlot
+                if isVi then
+                    v56_2.ConfigStatusParagraph:Set(string.format(
+                        "File Setting Đang Dùng: %s (%s)\nCác File Đã Tạo Theo Thứ Tự: %s\nTự Tải Setting Khi Đổi Map: %s\nTrạng Thái Lưu: Kaitun [%s] | Auto Farm [%s]",
+                        normSlot,
+                        slotFile,
+                        createdList,
+                        globalSync and "ĐANG BẬT (ON)" or "ĐANG TẮT (OFF)",
+                        kaitunOn and "BẬT" or "TẮT",
+                        autoFarmOn and "BẬT" or "TẮT"
+                    ))
+                else
+                    v56_2.ConfigStatusParagraph:Set(string.format(
+                        "Active Setting File: %s (%s)\nSaved Files (In Order): %s\nAuto-Load On Map Change: %s\nSaved State: Kaitun [%s] | Auto Farm [%s]",
+                        normSlot,
+                        slotFile,
+                        createdList,
+                        globalSync and "ENABLED (ON)" or "DISABLED (OFF)",
+                        kaitunOn and "ON" or "OFF",
+                        autoFarmOn and "ON" or "OFF"
+                    ))
+                end
+            end)
+        end
+
+        function v150_10.StopKaitunLoop()
+            kaitunActionState = "Idle"
+            if kaitunLoopThread then
+                pcall(function()
+                    task.cancel(kaitunLoopThread)
+                end)
+                kaitunLoopThread = nil
+            end
+            v150_10.UpdateKaitunParagraph()
+            v150_10.UpdateConfigParagraph()
+        end
+
+        function v150_10.StartKaitunLoop()
+            if kaitunLoopThread then
+                return
+            end
+            if not v18_4 then
+                v18_4 = true
+                v22_2 = true
+                v9_4("AutoFarm", true)
+                v116_4(v23_2)
+                v150_10.StartAutoGas()
+                task.spawn(v148_4)
+                if v56_2.AutoFarm then
+                    v56_2.AutoFarm:SetState(true)
+                end
+            end
+            if not v25_2 then
+                v25_2 = true
+                v9_4("AutoReload", true)
+                if v56_2.AutoReload then
+                    v56_2.AutoReload:SetState(true)
+                end
+            end
+            if not v38_2 then
+                v38_2 = true
+                v9_4("AutoRetry", true)
+                v110_3()
+                if v56_2.AutoRetry then
+                    v56_2.AutoRetry:SetState(true)
+                end
+            end
+            if not v39_2 then
+                v39_2 = true
+                v9_4("AutoSkipCutscenes", true)
+                v112_3()
+                if v56_2.AutoSkipCutscenes then
+                    v56_2.AutoSkipCutscenes:SetState(true)
+                end
+            end
+
+            kaitunLoopThread = task.spawn(function()
+                while v8_6("KaitunEnabled") do
+                    local st = v150_10.GetKaitunPlayerState()
+                    local inLobby = (game.PlaceId == 14916516914 or game.PlaceId == 13379208636)
+
+                    pcall(function()
+                        v150_10.CheckShadowBan(false)
+                    end)
+
+                    if inLobby then
+                        if v8_6("KaitunAutoPrestige") ~= false and st.ReadyToPrestige then
+                            v150_10.KaitunPerformPrestige()
+                            st = v150_10.GetKaitunPlayerState()
+                        end
+                        if v8_6("KaitunAutoUpgradeWeapon") ~= false and st.CanUpgradeStep then
+                            v150_10.KaitunUpgradeWeapon()
+                            st = v150_10.GetKaitunPlayerState()
+                        end
+                        if v8_6("KaitunAutoMap") ~= false then
+                            v150_10.KaitunCreateAndStartMission()
+                        else
+                            kaitunActionState = "In Lobby (Waiting)"
+                        end
+                    else
+                        if not v18_4 then
+                            v18_4 = true
+                            v22_2 = true
+                            v116_4(v23_2)
+                            v150_10.StartAutoGas()
+                            task.spawn(v148_4)
+                        end
+                        local isMatchEnded = v150_10.IsMatchEnded()
+
+                        if isMatchEnded then
+                            if v150_10.ShouldKaitunReturnToLobby() then
+                                v150_10.KaitunReturnToLobby()
+                            else
+                                kaitunActionState = "Retrying Mission [" .. st.Bracket.Grade .. " GRADE]"
+                                v150_10.HandleRetryAndContinueScreen()
+                            end
+                        else
+                            if v8_6("KaitunAutoUpgradeWeapon") ~= false and v13_8:FindFirstChild("Waves") and st.CanUpgradeStep then
+                                v150_10.KaitunUpgradeWeapon()
+                            end
+                            kaitunActionState = "Farming Titans [" .. st.Bracket.Grade .. " GRADE]"
+                        end
+                    end
+
+                    v150_10.UpdateKaitunParagraph()
+                    v150_10.UpdateConfigParagraph()
+                    task.wait(1.2)
+                end
+                kaitunLoopThread = nil
+                kaitunActionState = "Idle"
+                v150_10.UpdateKaitunParagraph()
+                v150_10.UpdateConfigParagraph()
+            end)
+        end
+
+        function v150_10.ApplySettingsToUI(startRuntimeFeatures)
+            local prevRestoring = v15_isRestoring
+            v15_isRestoring = true
+            pcall(function()
+                v28_2 = tonumber(v8_6("WalkSpeedAmount")) or 1
+                v30_2 = tonumber(v8_6("LaggyRunDistance")) or 1
+                v31_2 = tonumber(v8_6("LaggyRunDelay")) or 1
+                if v8_6("AutoFarm") == true and v16_9["HitboxSize"] == nil then
+                    v23_2 = 100
+                else
+                    v23_2 = tonumber(v8_6("HitboxSize")) or 20
+                end
+                v58_2 = tonumber(v8_6("DelayToKillAmount")) or 1
+                v60_2 = tonumber(v8_6("DistanceToTitan")) or 0
+                v61_2.UpgradeDelay = tonumber(v8_6("UpgradeDelay")) or 0
+
+                if v56_2.WalkSpeedSlider then v56_2.WalkSpeedSlider:SetValue(v28_2) end
+                if v56_2.LaggyRunDistSlider then v56_2.LaggyRunDistSlider:SetValue(v30_2) end
+                if v56_2.LaggyRunDelaySlider then v56_2.LaggyRunDelaySlider:SetValue(v31_2) end
+                if v56_2.DelayToKillSlider then v56_2.DelayToKillSlider:SetValue(v58_2) end
+                if v56_2.DistanceToTitanSlider then v56_2.DistanceToTitanSlider:SetValue(v60_2) end
+                if v56_2.HitboxSizeSlider then v56_2.HitboxSizeSlider:SetValue(v23_2) end
+                if v56_2.UpgradeDelaySlider then v56_2.UpgradeDelaySlider:SetValue(v61_2.UpgradeDelay) end
+
+                local fStop = v8_6("FamiliesToStop")
+                if type(fStop) == "table" and v56_2.FamiliesDropdown then
+                    v43_2 = v150_9.toOptionSet(fStop)
+                    v56_2.FamiliesDropdown:SetSelected(fStop)
+                end
+                local ftStop = v8_6("FamilyTiersToStop")
+                if type(ftStop) == "table" and v56_2.FamilyTiersDropdown then
+                    v44_3 = v150_9.toOptionSet(ftStop)
+                    v56_2.FamilyTiersDropdown:SetSelected(ftStop)
+                end
+                local ptSell = v8_6("PerkTiersToSell")
+                if type(ptSell) == "table" and v56_2.PerkTiersDropdown then
+                    v46_2 = v150_9.toOptionSet(ptSell)
+                    v56_2.PerkTiersDropdown:SetSelected(ptSell)
+                end
+                local spSell = v8_6("SpecificPerksToSell")
+                if type(spSell) == "table" and v56_2.SpecificPerksDropdown then
+                    v47_3 = v150_9.toOptionSet(spSell)
+                    v56_2.SpecificPerksDropdown:SetSelected(spSell)
+                end
+
+                v19_3 = v8_6("NoClip") == true
+                if v56_2.NoClip then v56_2.NoClip:SetState(v19_3) end
+                v27_2 = v8_6("WalkSpeed") == true
+                if v56_2.WalkSpeed then v56_2.WalkSpeed:SetState(v27_2) end
+                v29_2 = v8_6("LaggyRun") == true
+                if v56_2.LaggyRun then v56_2.LaggyRun:SetState(v29_2) end
+                v32_2 = v8_6("CtrlClickTP") == true
+                if v56_2.CtrlClickTP then v56_2.CtrlClickTP:SetState(v32_2) end
+                v33_2 = v8_6("InfiniteJump") == true
+                if v56_2.InfiniteJump then v56_2.InfiniteJump:SetState(v33_2) end
+
+                v25_2 = v8_6("AutoReload") == true
+                if v56_2.AutoReload then v56_2.AutoReload:SetState(v25_2) end
+                v57_3 = v8_6("DelayToKill") == true
+                if v56_2.DelayToKill then v56_2.DelayToKill:SetState(v57_3) end
+                v59_2 = v8_6("HitAll") == true
+                if v56_2.HitAll then v56_2.HitAll:SetState(v59_2) end
+                v22_2 = v8_6("ExpandNapeHitbox") == true or v8_6("AutoFarm") == true
+                if v56_2.ExpandNapeHitbox then v56_2.ExpandNapeHitbox:SetState(v22_2) end
+                v24_2 = v8_6("VisualizeHitbox") == true
+                if v56_2.VisualizeHitbox then v56_2.VisualizeHitbox:SetState(v24_2) end
+                v21_2 = v8_6("TitanESP") == true
+                if v56_2.TitanESP then v56_2.TitanESP:SetState(v21_2) end
+                v34_2 = v8_6("AutoRefill") == true
+                if v56_2.AutoRefill then v56_2.AutoRefill:SetState(v34_2) end
+
+                v37_2 = v8_6("ChangeCursor") == true
+                if v56_2.ChangeCursor then v56_2.ChangeCursor:SetState(v37_2) end
+                if v37_2 then v108_3() end
+
+                v38_2 = v8_6("AutoRetry") == true
+                if v56_2.AutoRetry then v56_2.AutoRetry:SetState(v38_2) end
+                if v38_2 then v110_3() end
+
+                v39_2 = v8_6("AutoSkipCutscenes") == true
+                if v56_2.AutoSkipCutscenes then v56_2.AutoSkipCutscenes:SetState(v39_2) end
+                if v39_2 then v112_3() end
+
+                v40_2 = v8_6("AutoOpenRaidChests") == true
+                if v56_2.AutoOpenRaidChests then v56_2.AutoOpenRaidChests:SetState(v40_2) end
+                if v40_2 then v114_3() end
+
+                v150_10.AutoRaid = v8_6("AutoRaid") == true
+                if v56_2.AutoRaid then v56_2.AutoRaid:SetState(v150_10.AutoRaid) end
+
+                v150_10.AutoClaimAchievements = v8_6("AutoClaimAchievements") ~= false
+                if v56_2.AutoClaimAchievements then v56_2.AutoClaimAchievements:SetState(v150_10.AutoClaimAchievements) end
+                if v150_10.AutoClaimAchievements and v150_10.ClaimAchievements then v150_10.ClaimAchievements() end
+
+                v45_3 = v8_6("AutoSellPerks") == true
+                if v56_2.AutoSellPerks then v56_2.AutoSellPerks:SetState(v45_3) end
+                if v45_3 then
+                    v187_20()
+                    v188_24()
+                end
+
+                v48_3 = v8_6("AutoCreateTowers") == true
+                if v56_2.AutoCreateTowers then v56_2.AutoCreateTowers:SetState(v48_3) end
+                v49_2 = v8_6("AutoRetrieveSupplyCrates") == true
+                if v56_2.AutoRetrieveSupplyCrates then v56_2.AutoRetrieveSupplyCrates:SetState(v49_2) end
+
+                v61_2.AutoVoteReady = v8_6("AutoVoteReady") == true
+                if v56_2.AutoVoteReady then v56_2.AutoVoteReady:SetState(v61_2.AutoVoteReady) end
+                v61_2.AutoUpgradeMaxHQHP = v8_6("AutoUpgradeMaxHQHP") == true
+                if v56_2.AutoUpgradeMaxHQHP then v56_2.AutoUpgradeMaxHQHP:SetState(v61_2.AutoUpgradeMaxHQHP) end
+                v61_2.AutoUpgradeHQHealthRegen = v8_6("AutoUpgradeHQHealthRegen") == true
+                if v56_2.AutoUpgradeHQHealthRegen then
+                    v56_2.AutoUpgradeHQHealthRegen:SetState(v61_2
+                        .AutoUpgradeHQHealthRegen)
+                end
+                v61_2.AutoUpgradeRefillLimit = v8_6("AutoUpgradeRefillLimit") == true
+                if v56_2.AutoUpgradeRefillLimit then v56_2.AutoUpgradeRefillLimit:SetState(v61_2.AutoUpgradeRefillLimit) end
+                v61_2.AutoUpgradeWeapon = v8_6("AutoUpgradeWeapon") == true
+                if v56_2.AutoUpgradeWeapon then v56_2.AutoUpgradeWeapon:SetState(v61_2.AutoUpgradeWeapon) end
+                v61_2.AutoGetRetrieveSkillCrate = v8_6("AutoGetRetrieveSkillCrate") == true
+                if v56_2.AutoGetRetrieveSkillCrate then
+                    v56_2.AutoGetRetrieveSkillCrate:SetState(v61_2
+                        .AutoGetRetrieveSkillCrate)
+                end
+
+                v150_10.AutoResetStreak = v8_6("AutoResetStreak") == true
+                if v56_2.AutoResetStreak then v56_2.AutoResetStreak:SetState(v150_10.AutoResetStreak) end
+
+                v18_4 = v8_6("AutoFarm") == true
+                if v56_2.AutoFarm then v56_2.AutoFarm:SetState(v18_4) end
+
+                if v56_2.KaitunEnabledToggle then
+                    v56_2.KaitunEnabledToggle:SetState(v8_6("KaitunEnabled") == true)
+                end
+                if v56_2.KaitunAutoUpgradeToggle then
+                    v56_2.KaitunAutoUpgradeToggle:SetState(v8_6("KaitunAutoUpgradeWeapon") ~= false)
+                end
+                if v56_2.KaitunWeaponDropdown then
+                    v56_2.KaitunWeaponDropdown:SetSelected(tostring(v8_6("KaitunWeaponType") or "Auto"))
+                end
+                if v56_2.KaitunAutoMapToggle then
+                    v56_2.KaitunAutoMapToggle:SetState(v8_6("KaitunAutoMap") ~= false)
+                end
+                if v56_2.KaitunMapDropdown then
+                    v56_2.KaitunMapDropdown:SetSelected(tostring(v8_6("KaitunMap") or "Auto (Best)"))
+                end
+                if v56_2.KaitunAutoPrestigeToggle then
+                    v56_2.KaitunAutoPrestigeToggle:SetState(v8_6("KaitunAutoPrestige") ~= false)
+                end
+                if v56_2.KaitunMaxPrestigeSlider then
+                    v56_2.KaitunMaxPrestigeSlider:SetValue(tonumber(v8_6("KaitunMaxPrestige")) or 5)
+                end
+                if v56_2.SettingSlotDropdown then
+                    local _, normSlot = v15_getSlotFile(v8_6("SelectedSettingSlot") or v15_orderData.ActiveSlot or
+                        "Setting 1")
+                    v56_2.SettingSlotDropdown:SetSelected(normSlot)
+                end
+                if v56_2.AutoLoadGlobalToggle then
+                    v56_2.AutoLoadGlobalToggle:SetState(v8_6("AutoLoadGlobalConfig") ~= false)
+                end
+                if v56_2.LanguageDropdown then
+                    v56_2.LanguageDropdown:SetSelected(v150_9.GetLanguage())
+                end
+
+                if startRuntimeFeatures then
+                    if v19_3 then v98_2() else v99_2() end
+                    if v27_2 then v100_3() else v101_2() end
+                    if v29_2 then v102_3() else v103_2() end
+                    if v32_2 then v104_3() else v105_3() end
+                    if v33_2 then v106_3() else v107_2() end
+                    if v22_2 then v116_4(v23_2) end
+                    if v18_4 then
+                        v150_10.StartAutoGas()
+                        task.spawn(v148_4)
+                    else
+                        v150_10.StopAutoGas()
+                    end
+                end
+            end)
+            v15_isRestoring = prevRestoring
+            if v8_6("KaitunEnabled") == true then
+                v150_10.StartKaitunLoop()
+            else
+                v150_10.StopKaitunLoop()
+            end
+            v150_10.UpdateKaitunParagraph()
+            v150_10.UpdateConfigParagraph()
+        end
+
+        function v150_10.SaveAllSettings()
+            for k, defVal in pairs(v13_2) do
+                if v16_9[k] == nil then
+                    v16_9[k] = defVal
+                end
+            end
+            local slotFile, normSlot = v15_getSlotFile(v16_9.SelectedSettingSlot or v15_orderData.ActiveSlot or
+                "Setting 1")
+            v16_9.SelectedSettingSlot = normSlot
+            v15_22(v16_9)
+            local raw = v5_6:JSONEncode(v16_9)
+            v11("Symbiote_GlobalSettings.json", raw)
+            v11(slotFile, raw)
+            v150_10.UpdateConfigParagraph()
+            local isVi = v150_9.IsVietnamese()
+            pcall(function()
+                v12_4:Notify({
+                    Title = isVi and "Đã Lưu Cài Đặt" or "Settings Saved",
+                    Content = isVi
+                        and ("Đã lưu vào " .. normSlot .. " (" .. slotFile .. ")!")
+                        or ("Saved configuration to " .. normSlot .. " (" .. slotFile .. ")!"),
+                    Duration = 3
+                })
+            end)
+        end
+
+        function v150_10.CreateNextSettingInOrder()
+            local nextNum = 1
+            if type(v15_orderData.Created) == "table" and #v15_orderData.Created > 0 then
+                nextNum = (tonumber(v15_orderData.LastOrder) or #v15_orderData.Created) + 1
+                if nextNum > 10 then
+                    nextNum = 1
+                end
+            end
+            local slotFile, normSlot = v15_getSlotFile("Setting " .. tostring(nextNum))
+            v16_9.SelectedSettingSlot = normSlot
+            v15_orderData.ActiveSlot = normSlot
+            v15_orderData.LastOrder = nextNum
+            v15_22(v16_9)
+            if v56_2.SettingSlotDropdown then
+                v56_2.SettingSlotDropdown:SetSelected(normSlot)
+            end
+            v150_10.UpdateConfigParagraph()
+            local isVi = v150_9.IsVietnamese()
+            pcall(function()
+                v12_4:Notify({
+                    Title = isVi and "Tạo File Setting Theo Thứ Tự" or "Created Sequential Setting",
+                    Content = isVi
+                        and ("Đã tạo & lưu " .. normSlot .. " (" .. slotFile .. ")!")
+                        or ("Created & saved " .. normSlot .. " (" .. slotFile .. ")!"),
+                    Duration = 3
+                })
+            end)
+        end
+
+        function v150_10.SelectSettingSlot(slotName)
+            local slotFile, normSlot = v15_getSlotFile(slotName)
+            v15_orderData.ActiveSlot = normSlot
+            v16_9.SelectedSettingSlot = normSlot
+            v15_saveOrderData()
+            local rawSlot = v10_3(slotFile)
+            if rawSlot then
+                local ok, decoded = pcall(function()
+                    return v5_6:JSONDecode(rawSlot)
+                end)
+                if ok and type(decoded) == "table" then
+                    for k, v in pairs(decoded) do
+                        v16_9[k] = v
+                    end
+                    v16_9.SelectedSettingSlot = normSlot
+                    v15_22(v16_9)
+                    if type(v16_9.Language) == "string" and v16_9.Language ~= v150_9.GetLanguage() then
+                        v150_9.SetLanguage(v16_9.Language)
+                    end
+                    v150_10.ApplySettingsToUI(true)
+                    local isVi = v150_9.IsVietnamese()
+                    pcall(function()
+                        v12_4:Notify({
+                            Title = isVi and ("Đã Chuyển Sang " .. normSlot) or ("Switched To " .. normSlot),
+                            Content = isVi
+                                and ("Đã tải tự động file " .. slotFile .. "!")
+                                or ("Automatically loaded " .. slotFile .. "!"),
+                            Duration = 3
+                        })
+                    end)
+                    return
+                end
+            end
+            v15_22(v16_9)
+            v150_10.UpdateConfigParagraph()
+        end
+
+        function v150_10.LoadAllSettings()
+            local slotFile, normSlot = v15_getSlotFile(v8_6("SelectedSettingSlot") or v15_orderData.ActiveSlot or
+                "Setting 1")
+            local rawG = v10_3(slotFile) or v10_3("Symbiote_GlobalSettings.json") or v10_3(v12)
+            if rawG then
+                local ok, decoded = pcall(function()
+                    return v5_6:JSONDecode(rawG)
+                end)
+                if ok and type(decoded) == "table" then
+                    for k, v in pairs(decoded) do
+                        v16_9[k] = v
+                    end
+                    v16_9.SelectedSettingSlot = normSlot
+                    v15_22(v16_9)
+                end
+            end
+            if type(v16_9.Language) == "string" and v16_9.Language ~= v150_9.GetLanguage() then
+                v150_9.SetLanguage(v16_9.Language)
+            end
+            v150_10.ApplySettingsToUI(true)
+            local isVi = v150_9.IsVietnamese()
+            pcall(function()
+                v12_4:Notify({
+                    Title = isVi and "Đã Tải Cài Đặt" or "Settings Loaded",
+                    Content = isVi
+                        and ("Đã tải cấu hình từ " .. normSlot .. " (" .. slotFile .. ")!")
+                        or ("Loaded configuration from " .. normSlot .. " (" .. slotFile .. ")!"),
+                    Duration = 3
+                })
+            end)
+        end
+
+        function v150_10.ResetAllSettings()
+            local _, normSlot = v15_getSlotFile(v8_6("SelectedSettingSlot") or v15_orderData.ActiveSlot or "Setting 1")
+            for k, defVal in pairs(v13_2) do
+                if type(defVal) == "table" then
+                    v16_9[k] = {}
+                else
+                    v16_9[k] = defVal
+                end
+            end
+            v16_9.SelectedSettingSlot = normSlot
+            v15_22(v16_9)
+            local raw = v5_6:JSONEncode(v16_9)
+            v11("Symbiote_GlobalSettings.json", raw)
+            v150_10.StopKaitunLoop()
+            v150_10.ApplySettingsToUI(true)
+        end
+
+        local kTab = v56_2.KaitunTab
+        if kTab then
+            v56_2.KaitunStatusParagraph = kTab:AddParagraph("KAITUN STATUS:", "...")
+            pcall(v150_10.UpdateKaitunParagraph)
+            kTab:AddLabel("KAITUN AUTOMATION")
+            v56_2.KaitunEnabledToggle = kTab:AddToggle("Enable Kaitun (Auto Level & Prestige)", function(p1)
+                v9_4("KaitunEnabled", p1)
+                if p1 then
+                    v150_10.StartKaitunLoop()
+                else
+                    v150_10.StopKaitunLoop()
+                end
+                v150_10.UpdateConfigParagraph()
+            end)
+            kTab:AddLabel("WEAPON & MAP PROGRESSION")
+            v56_2.KaitunAutoUpgradeToggle = kTab:AddToggle("Auto Upgrade Weapon (E- -> S)", function(p1)
+                v9_4("KaitunAutoUpgradeWeapon", p1)
+                v150_10.UpdateKaitunParagraph()
+            end)
+            v56_2.KaitunWeaponDropdown = kTab:AddSingleDropdown("Kaitun Weapon", { "Auto", "Blades", "Spears" },
+                tostring(v8_6("KaitunWeaponType") or "Auto"), function(p1)
+                    v9_4("KaitunWeaponType", p1)
+                    v150_10.UpdateKaitunParagraph()
+                end)
+            v56_2.KaitunAutoMapToggle = kTab:AddToggle("Auto Select Map & Difficulty (E- -> S)", function(p1)
+                v9_4("KaitunAutoMap", p1)
+                v150_10.UpdateKaitunParagraph()
+            end)
+            v56_2.KaitunMapDropdown = kTab:AddSingleDropdown("Kaitun Map",
+                { "Auto (Best)", "Shiganshina", "Trost", "Outskirts", "Giant Forest" },
+                tostring(v8_6("KaitunMap") or "Auto (Best)"), function(p1)
+                    v9_4("KaitunMap", p1)
+                    v150_10.UpdateKaitunParagraph()
+                end)
+            kTab:AddButton("Upgrade Weapon Now", function()
+                task.spawn(function()
+                    v150_10.KaitunUpgradeWeapon()
+                    v150_10.UpdateKaitunParagraph()
+                end)
+            end)
+            kTab:AddLabel("AUTO PRESTIGE (REBIRTH)")
+            v56_2.KaitunAutoPrestigeToggle = kTab:AddToggle("Auto Prestige (Rebirth)", function(p1)
+                v9_4("KaitunAutoPrestige", p1)
+                v150_10.UpdateKaitunParagraph()
+            end)
+            v56_2.KaitunMaxPrestigeSlider = kTab:AddSlider("Target Max Prestige", 1, 5,
+                tonumber(v8_6("KaitunMaxPrestige")) or 5, function(p1)
+                    v9_4("KaitunMaxPrestige", p1)
+                    v150_10.UpdateKaitunParagraph()
+                end)
+            kTab:AddLabel("SHADOW BAN DETECTION")
+            v56_2.ShadowBanParagraph = kTab:AddParagraph("SHADOW BAN STATUS:", "...")
+            kTab:AddButton("Check Shadow Ban Now", function()
+                task.spawn(function()
+                    v150_10.CheckShadowBan(true)
+                end)
+            end)
+        end
+
+        local sTab = v56_2.SettingsTab
+        if sTab then
+            v56_2.ConfigStatusParagraph = sTab:AddParagraph("CONFIG STATUS:", "...")
+            pcall(v150_10.UpdateConfigParagraph)
+            sTab:AddLabel("CONFIG & SETTINGS")
+            v56_2.SettingSlotDropdown = sTab:AddSingleDropdown("Select Setting File (Order)", v15_SettingSlotsList,
+                tostring(v8_6("SelectedSettingSlot") or "Setting 1"), function(p1)
+                    v150_10.SelectSettingSlot(p1)
+                end)
+            sTab:AddButton("Create Next Setting File (In Order)", function()
+                v150_10.CreateNextSettingInOrder()
+            end)
+            v56_2.AutoLoadGlobalToggle = sTab:AddToggle("Auto Load Global Settings", function(p1)
+                v9_4("AutoLoadGlobalConfig", p1)
+                v150_10.UpdateConfigParagraph()
+            end)
+            sTab:AddButton("Save Settings Now", function()
+                v150_10.SaveAllSettings()
+            end)
+            sTab:AddButton("Load Saved Settings", function()
+                v150_10.LoadAllSettings()
+            end)
+            sTab:AddButton("Reset Default Settings", function()
+                v150_10.ResetAllSettings()
+            end)
+        end
+
+        v15_isRestoring = false
+        v150_10.ApplySettingsToUI(false)
+        pcall(function()
+            if v150_10.UpdateKaitunParagraph then v150_10.UpdateKaitunParagraph() end
+            if v150_10.UpdateConfigParagraph then v150_10.UpdateConfigParagraph() end
+            if v150_10.UpdateShadowBanParagraph then v150_10.UpdateShadowBanParagraph() end
+        end)
+
+        task.spawn(function()
+            while true do
+                task.wait(6)
+                if v150_10.CheckShadowBan then
+                    pcall(function()
+                        v150_10.CheckShadowBan(false)
+                    end)
+                end
+            end
+        end)
+    end
+    task.spawn(function()
+        local v1 = v7_13 or v6_21.LocalPlayer
+        local v2_2 = os.clock()
+        local v3 = v13_8:FindFirstChild("Titans") ~= nil or v13_8:FindFirstChild("Characters") ~= nil
+        while os.clock() - v2_2 < 35 do
+            local v5_10 = v13_8:FindFirstChild("Characters")
+            local v4_16 = v5_10 and v5_10:FindFirstChild(v7_13.Name) or v7_13.Character
+            local v5_20 = v4_16 and v4_16:FindFirstChild("HumanoidRootPart")
+            local v6_10 = v4_16 and v4_16:FindFirstChild("Humanoid")
+            local v7_6 = v1 and v1:FindFirstChild("PlayerGui")
+            local v8_5 = v7_6 and v7_6:FindFirstChild("Fullscreen")
+            local v9_3 = v8_5 and v8_5:FindFirstChild("Loading_Screen")
+            local v10_3 = v7_6 and v7_6:FindFirstChild("Interface")
+            local v11_3 = not v9_3 or v9_3.Visible == false
+            local v12_4
+            if v3 then
+                v12_4 = v5_20 ~= nil and v6_10 ~= nil and (v4_16 and v4_16:GetAttribute("Setup")) == true
+            else
+                v12_4 = v5_20 ~= nil and v6_10 ~= nil
+            end
+            if v11_3 and v12_4 and (v10_3 == nil or v10_3.Enabled ~= false) then
+                break
+            else
+                task.wait(0.3)
+            end
+        end
+        task.wait(0.5)
+        v150_10.ApplySettingsToUI(true)
+        if v8_6("AutoCreateTowers") then
+            v123_4()
+            v128_2()
+        end
+        if v8_6("AutoRetrieveSupplyCrates") then
+            v51_2()
+            task.spawn(v50_2)
+        end
+        if v8_6("AutoVoteReady") then
+            task.spawn(v130_4)
+            v62_3()
+        end
+        if v8_6("AutoUpgradeMaxHQHP") or v8_6("AutoUpgradeHQHealthRegen") or v8_6("AutoUpgradeRefillLimit") or v8_6("AutoUpgradeWeapon") then
+            v62_3()
+        end
+        if v8_6("AutoGetRetrieveSkillCrate") then
+            v62_3()
+            task.spawn(v63_9)
+        end
+        -- Background standing task: Auto Claim Daily Reward (always on), Achievements, and Auto Retry Watchdog
+        task.spawn(function()
+            task.wait(2.0)
+            if v150_10.ClaimDailyReward then pcall(v150_10.ClaimDailyReward) end
+            if v150_10.AutoClaimAchievements and v150_10.ClaimAchievements then pcall(v150_10.ClaimAchievements) end
+            while true do
+                task.wait(10)
+                if v150_10.ClaimDailyReward then pcall(v150_10.ClaimDailyReward) end
+                if v150_10.AutoClaimAchievements and v150_10.ClaimAchievements then pcall(v150_10.ClaimAchievements) end
+                if v38_2 and (not autoRetryWatcherThread or coroutine.status(autoRetryWatcherThread) == "dead") then
+                    pcall(v110_3)
+                end
+            end
+        end)
+        return
+    end)
 end
-
-local function SizeFromConfig(value, fallback)
-	if typeof(value) == "UDim2" then
-		return Vector2.new(value.X.Offset, value.Y.Offset)
-	elseif typeof(value) == "Vector2" then
-		return value
-	end
-	return fallback
-end
-
-function MacUI:CreateWindow(config)
-	config = config or {}
-	-- Re-running a script shouldn't stack a second copy of its window.
-	if config.ReplaceExisting ~= false and config.Title ~= nil and type(shared) == "table" then
-		local registry = shared.__MacUIWindows
-		if type(registry) ~= "table" then
-			registry = {}
-			shared.__MacUIWindows = registry
-		end
-		local key = tostring(config.Title)
-		local previous = registry[key]
-		if previous and previous ~= self and not previous.Unloaded then
-			if (previous.LoadedAt or 0) > (self.LoadedAt or 0) then
-				-- a newer copy of this script is already running: this older
-				-- one (it was still loading) steps aside
-				pcall(self.Destroy, self)
-			else
-				pcall(previous.Destroy, previous)
-			end
-		end
-		if not self.Unloaded then
-			registry[key] = self
-		end
-	end
-	if config.Theme and self.Themes[config.Theme] then
-		self:SetTheme(config.Theme, true)
-	end
-	if config.Accent then
-		self:SetAccent(config.Accent, true)
-	end
-	if config.Font then
-		self:SetFont(config.Font)
-	end
-
-	local size = SizeFromConfig(config.Size, Vector2.new(780, 540))
-	local minSize = SizeFromConfig(config.MinSize, Vector2.new(560, 380))
-	-- the size asked for (by the script, a resize or a saved state); the window
-	-- is smaller while the screen can't fit it
-	local wantedSize = size
-	local sidebarWidth = math.max(config.TabWidth or config.SidebarWidth or 214, 150)
-	local sidebarStyle = config.SidebarStyle or "Tile"
-	local toolbarHeight = 52
-
-	local Window = {
-		Title = tostring(config.Title or "MacUI"),
-		SubTitle = tostring(config.SubTitle or config.Subtitle or ""),
-		Tabs = {},
-		History = {},
-		HistoryIndex = 0,
-		Minimized = false,
-		Maximized = false,
-		SidebarVisible = true,
-		SearchQuery = "",
-		MinimizeKey = config.MinimizeKey or Enum.KeyCode.RightControl,
-		Scale = 1,
-		Size = size,
-		Connections = {},
-		Shown = false,
-		Acrylic = false,
-		StateChanged = Signal.new(),
-		Commands = {},
-	}
-	-- (a copy that stepped aside above still builds its window for the script,
-	-- but it isn't one of the library's windows)
-	if not self.Unloaded then
-		table.insert(self.Windows, Window)
-	end
-	local Cleanup = {}
-	EnsureLibraryInput()
-
-	local function Connect(signal, fn)
-		local connection = signal:Connect(fn)
-		if MacUI.Unloaded then
-			connection:Disconnect() -- this copy was replaced while it was building
-		else
-			table.insert(Window.Connections, connection)
-		end
-		return connection
-	end
-
-	local ScreenGui = New("ScreenGui", {
-		Name = "MacUI",
-		ResetOnSpawn = false,
-		DisplayOrder = config.DisplayOrder or 100,
-		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
-	})
-	if not MacUI.Unloaded then
-		ParentGui(ScreenGui)
-	end
-	Window.ScreenGui = ScreenGui
-	-- the game (or an anti-cheat) removed the window: unload properly
-	ScreenGui.Destroying:Connect(function()
-		if not MacUI.Unloaded then
-			task.defer(function()
-				MacUI:Destroy()
-			end)
-		end
-	end)
-
-	-- Root: positioned & scaled container; Holder: the visible window.
-	local Root = New("Frame", {
-		Name = "Window",
-		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.fromOffset(size.X, size.Y),
-		Parent = ScreenGui,
-	})
-	local RootScale = New("UIScale", { Scale = 1, Parent = Root })
-	local ScaleTween
-	InterfaceRoots[Root] = true
-	-- Roblox frees a locked mouse (first person, shift lock) while a modal
-	-- button is visible: this one is, whenever the window is open.
-	local MouseUnlock = New("TextButton", {
-		Name = "MouseUnlock",
-		Modal = true,
-		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(1, 1),
-		Visible = false,
-		Parent = Root,
-	})
-
-	-- The scale currently applied on screen (differs from Window.Scale mid-animation).
-	function Window:GetAbsoluteScale()
-		return RootScale.Scale
-	end
-	local WindowShadow = Shadow(Root, 24, function(t)
-		return Window.Shown and t.ShadowTransparency or 1
-	end)
-	WindowShadow.Name = "AmbientShadow"
-	WindowShadow.ImageTransparency = 1
-	local ContactShadow = Shadow(Root, 3, function(t)
-		return Window.Shown and math.min(t.ShadowTransparency + 0.25, 1) or 1
-	end)
-	ContactShadow.Name = "ContactShadow"
-	ContactShadow.ImageTransparency = 1
-	local AnimGroup = New("CanvasGroup", {
-		Name = "Transition",
-		BackgroundTransparency = 1,
-		Size = UDim2.fromScale(1, 1),
-		Visible = false,
-		ZIndex = 2,
-		Parent = Root,
-	})
-	local Holder = New("Frame", {
-		Name = "Holder",
-		Size = UDim2.fromScale(1, 1),
-		Active = true, -- clicks on the window never reach the game world
-		BackgroundTransparency = 1,
-		ZIndex = 2,
-		Parent = Root,
-	})
-	Corner(Holder, 12)
-	New("UIStroke", {
-		Thickness = 1,
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		Theme = { Color = "WindowBorder", Transparency = "WindowBorderTransparency" },
-		Parent = Holder,
-	})
-	local Bezel = New("Frame", {
-		Name = "Bezel",
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(1, 1),
-		Size = UDim2.new(1, -2, 1, -2),
-		ZIndex = 60,
-		Parent = Holder,
-	})
-	Corner(Bezel, 11)
-	New("UIStroke", {
-		Thickness = 1,
-		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-		Theme = { Color = "WindowHighlight", Transparency = "WindowHighlightTransparency" },
-		Parent = Bezel,
-	})
-
-	-- Popups (menus, color picker) render above everything in this window.
-	local PopupLayer = New("Frame", {
-		Name = "Popups",
-		BackgroundTransparency = 1,
-		Size = UDim2.fromScale(1, 1),
-		ZIndex = 10,
-		Parent = ScreenGui,
-	})
-	Window.PopupLayer = PopupLayer
-
-	----------------------------------------------------------------------------
-	-- Tooltips (macOS help tags)
-	----------------------------------------------------------------------------
-
-	local TooltipFrame, TooltipLabel, TooltipScale
-	local tooltipToken = 0
-
-	local function HideTooltip()
-		tooltipToken += 1
-		if TooltipFrame then
-			TooltipFrame.Visible = false
-		end
-	end
-
-	local function ShowTooltip(text)
-		if not TooltipFrame then
-			TooltipFrame = New("Frame", {
-				Name = "Tooltip",
-				Size = UDim2.fromOffset(0, 0),
-				AutomaticSize = Enum.AutomaticSize.XY,
-				Visible = false,
-				ZIndex = 200,
-				Theme = { BackgroundColor3 = "Menu" },
-				Parent = PopupLayer,
-			})
-			Corner(TooltipFrame, 6)
-			Stroke(TooltipFrame, "MenuStroke", 1, 0.1)
-			Padding(TooltipFrame, 5, 8, 5, 8)
-			TooltipScale = New("UIScale", { Parent = TooltipFrame })
-			TooltipLabel = New("TextLabel", {
-				Name = "Text",
-				TextSize = 12,
-				Size = UDim2.fromOffset(0, 0),
-				AutomaticSize = Enum.AutomaticSize.Y,
-				TextWrapped = true,
-				TextXAlignment = Enum.TextXAlignment.Left,
-				ZIndex = 201,
-				Theme = { TextColor3 = "Text" },
-				Parent = TooltipFrame,
-			})
-		end
-		local scale = Window.Scale
-		TooltipScale.Scale = scale
-		TooltipLabel.Text = text
-		-- One line up to 260px, then wrap.
-		TooltipLabel.Size = UDim2.fromOffset(math.min(math.ceil(MeasureText(text, 12)) + 2, 260), 0)
-		local mouse = MousePosition() - PopupLayer.AbsolutePosition
-		local screen = PopupLayer.AbsoluteSize
-		local flip = mouse.X > screen.X - 290 * scale
-		TooltipFrame.AnchorPoint = Vector2.new(flip and 1 or 0, 0)
-		TooltipFrame.Position = UDim2.fromOffset(mouse.X + (flip and -6 or 12), math.min(mouse.Y + 20, screen.Y - 40 * scale))
-		TooltipFrame.Visible = true
-	end
-
-	-- Shows `text` (a string or a function returning one) after hovering `gui`.
-	function Window:_AttachTooltip(gui, text)
-		gui.MouseEnter:Connect(function()
-			tooltipToken += 1
-			local token = tooltipToken
-			task.delay(0.6, function()
-				if token ~= tooltipToken or Window.ActivePopup or not gui.Parent or not Root.Visible then
-					return
-				end
-				local value = text
-				if type(text) == "function" then
-					local ok, result = pcall(text)
-					value = ok and result or nil
-				end
-				if value and value ~= "" then
-					ShowTooltip(tostring(value))
-				end
-			end)
-		end)
-		gui.MouseLeave:Connect(HideTooltip)
-		gui.InputBegan:Connect(function(input)
-			if IsPointer(input) then
-				HideTooltip()
-			end
-		end)
-	end
-
-	----------------------------------------------------------------------------
-	-- Sidebar
-	----------------------------------------------------------------------------
-
-	local function GlassTransparency(t)
-		return Window.Acrylic and t.GlassTransparency or 0
-	end
-	local Sidebar = New("Frame", {
-		Name = "Sidebar",
-		Size = UDim2.new(0, sidebarWidth, 1, 0),
-		BackgroundTransparency = 1,
-		ClipsDescendants = true,
-		Parent = Holder,
-	})
-	-- One rounded layer that runs 14px past the (rectangular) clip: rounded
-	-- on the left, square on the right, and translucent without overlaps.
-	local SidebarGlass = New("Frame", {
-		Name = "Glass",
-		Size = UDim2.new(1, 14, 1, 0),
-		Theme = { BackgroundColor3 = "Sidebar", BackgroundTransparency = GlassTransparency },
-		Parent = Sidebar,
-	})
-	Corner(SidebarGlass, 12)
-	New("Frame", {
-		Name = "Divider",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.fromScale(1, 0),
-		Size = UDim2.new(0, 1, 1, 0),
-		ZIndex = 3,
-		Theme = { BackgroundColor3 = "SidebarDivider" },
-		Parent = Sidebar,
-	})
-	local SidebarInner = New("Frame", {
-		Name = "Inner",
-		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.fromScale(1, 0),
-		Size = UDim2.new(0, sidebarWidth, 1, 0),
-		ZIndex = 2,
-		Parent = Sidebar,
-	})
-	local SidebarDrag = New("Frame", {
-		Name = "DragArea",
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, toolbarHeight),
-		Parent = SidebarInner,
-	})
-
-	local listTop = toolbarHeight
-	if config.Profile then
-		local profile = type(config.Profile) == "table" and config.Profile or {}
-		local card = New("Frame", {
-			Name = "Profile",
-			BackgroundTransparency = 1,
-			Position = UDim2.fromOffset(10, toolbarHeight - 2),
-			Size = UDim2.new(1, -20, 0, 54),
-			Parent = SidebarInner,
-		})
-		local avatar = New("ImageLabel", {
-			Name = "Avatar",
-			AnchorPoint = Vector2.new(0, 0.5),
-			Position = UDim2.new(0, 6, 0.5, 0),
-			Size = UDim2.fromOffset(38, 38),
-			BackgroundTransparency = 0,
-			ScaleType = Enum.ScaleType.Crop,
-			Image = profile.Image or "",
-			Theme = { BackgroundColor3 = "Control" },
-			Parent = card,
-		})
-		Corner(avatar, 19)
-		if not profile.Image and LocalPlayer then
-			task.spawn(function()
-				local ok, image = pcall(function()
-					return Players:GetUserThumbnailAsync(
-						LocalPlayer.UserId,
-						Enum.ThumbnailType.HeadShot,
-						Enum.ThumbnailSize.Size150x150
-					)
-				end)
-				if ok and image then
-					avatar.Image = image
-				end
-			end)
-		end
-		New("TextLabel", {
-			Name = "Name",
-			Text = profile.Title or (LocalPlayer and LocalPlayer.DisplayName) or "Player",
-			TextSize = 14,
-			Weight = Enum.FontWeight.SemiBold,
-			Position = UDim2.new(0, 54, 0.5, -17),
-			Size = UDim2.new(1, -58, 0, 18),
-			TextTruncate = Enum.TextTruncate.AtEnd,
-			Theme = { TextColor3 = "Text" },
-			Parent = card,
-		})
-		New("TextLabel", {
-			Name = "Subtitle",
-			Text = profile.Subtitle or (LocalPlayer and ("@" .. LocalPlayer.Name)) or "",
-			TextSize = 12,
-			Position = UDim2.new(0, 54, 0.5, 1),
-			Size = UDim2.new(1, -58, 0, 16),
-			TextTruncate = Enum.TextTruncate.AtEnd,
-			Theme = { TextColor3 = "SubText" },
-			Parent = card,
-		})
-		listTop += 58
-	end
-
-	local TabScroll = New("ScrollingFrame", {
-		Name = "Tabs",
-		Position = UDim2.fromOffset(0, listTop),
-		Size = UDim2.new(1, 0, 1, -listTop),
-		CanvasSize = UDim2.new(),
-		AutomaticCanvasSize = Enum.AutomaticSize.Y,
-		ScrollingDirection = Enum.ScrollingDirection.Y,
-		ScrollBarThickness = 0,
-		Parent = SidebarInner,
-	})
-	local Pill = New("Frame", {
-		Name = "Selection",
-		Position = UDim2.fromOffset(10, 0),
-		Size = UDim2.new(1, -20, 0, 30),
-		Visible = false,
-		ZIndex = 1,
-		Theme = { BackgroundColor3 = "Accent" },
-		Parent = TabScroll,
-	})
-	Corner(Pill, 7)
-	local TabList = New("Frame", {
-		Name = "List",
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 0),
-		AutomaticSize = Enum.AutomaticSize.Y,
-		ZIndex = 2,
-		Parent = TabScroll,
-	})
-	Padding(TabList, 2, 10, 12, 10)
-	List(TabList, nil, 2)
-	local TabOrder = 0
-	local function NextTabOrder()
-		TabOrder += 1
-		return TabOrder
-	end
-
-	----------------------------------------------------------------------------
-	-- Main area: toolbar + pages
-	----------------------------------------------------------------------------
-
-	local Main = New("Frame", {
-		Name = "Main",
-		Position = UDim2.fromOffset(sidebarWidth, 0),
-		Size = UDim2.new(1, -sidebarWidth, 1, 0),
-		Theme = { BackgroundColor3 = "Background" },
-		Parent = Holder,
-	})
-	Corner(Main, 12)
-	-- squares off Main's left corners while the sidebar is showing
-	local MainSquare = New("Frame", {
-		Name = "Square",
-		Size = UDim2.new(0, 14, 1, 0),
-		ZIndex = 0,
-		Theme = {
-			BackgroundColor3 = "Background",
-			BackgroundTransparency = function()
-				return Window.SidebarVisible and 0 or 1
-			end,
-		},
-		Parent = Main,
-	})
-	local Toolbar = New("Frame", {
-		Name = "Toolbar",
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, toolbarHeight),
-		ZIndex = 3,
-		Parent = Main,
-	})
-	local ToolbarDivider = New("Frame", {
-		Name = "Divider",
-		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.fromScale(0, 1),
-		Size = UDim2.new(1, 0, 0, 1),
-		BackgroundTransparency = 1,
-		Theme = { BackgroundColor3 = "Separator" },
-		Parent = Toolbar,
-	})
-	local Leading = New("Frame", {
-		Name = "Leading",
-		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 12, 0.5, 0),
-		Size = UDim2.fromOffset(0, 32),
-		AutomaticSize = Enum.AutomaticSize.X,
-		Parent = Toolbar,
-	})
-	List(Leading, Enum.FillDirection.Horizontal, 2, { VerticalAlignment = Enum.VerticalAlignment.Center })
-
-	local function ToolbarButton(icon, order, iconSize)
-		local state = { Hovered = false, Enabled = true }
-		local button = New("TextButton", {
-			Name = icon,
-			Size = UDim2.fromOffset(30, 28),
-			LayoutOrder = order,
-			Theme = {
-				BackgroundColor3 = "Hover",
-				BackgroundTransparency = function(t)
-					return (state.Hovered and state.Enabled) and t.HoverTransparency - 0.02 or 1
-				end,
-			},
-			Parent = Leading,
-		})
-		Corner(button, 6)
-		local image = IconImage({
-			Icon = icon,
-			IconSize = iconSize or 18,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			Theme = {
-				ImageColor3 = function(t)
-					return state.Enabled and t.SubText or t.Tertiary
-				end,
-				ImageTransparency = function()
-					return state.Enabled and 0 or 0.35
-				end,
-			},
-			Parent = button,
-		})
-		button.MouseEnter:Connect(function()
-			state.Hovered = true
-			Restyle(button, 0.12)
-		end)
-		button.MouseLeave:Connect(function()
-			state.Hovered = false
-			Restyle(button, 0.18)
-		end)
-		local function SetEnabled(enabled)
-			state.Enabled = enabled
-			Restyle(button, 0.15)
-			Restyle(image, 0.15)
-		end
-		return button, SetEnabled
-	end
-
-	local SidebarButton = ToolbarButton("sidebar", 1, 18)
-	New("Frame", { Name = "Gap", BackgroundTransparency = 1, Size = UDim2.fromOffset(8, 1), LayoutOrder = 2, Parent = Leading })
-	local BackButton, SetBackEnabled = ToolbarButton("chevron-left", 3, 20)
-	local ForwardButton, SetForwardEnabled = ToolbarButton("chevron-right", 4, 20)
-	New("Frame", { Name = "Gap", BackgroundTransparency = 1, Size = UDim2.fromOffset(8, 1), LayoutOrder = 5, Parent = Leading })
-
-	local TitleStack = New("Frame", {
-		Name = "Titles",
-		BackgroundTransparency = 1,
-		Size = UDim2.fromOffset(0, 32),
-		AutomaticSize = Enum.AutomaticSize.X,
-		LayoutOrder = 6,
-		Parent = Leading,
-	})
-	List(TitleStack, nil, 0, { VerticalAlignment = Enum.VerticalAlignment.Center })
-	local TitleLabel = New("TextLabel", {
-		Name = "Title",
-		Text = Window.Title,
-		TextSize = 15,
-		Weight = Enum.FontWeight.Bold,
-		Size = UDim2.fromOffset(0, 18),
-		AutomaticSize = Enum.AutomaticSize.X,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		LayoutOrder = 1,
-		Theme = { TextColor3 = "Text" },
-		Parent = TitleStack,
-	})
-	local TitleLimit = New("UISizeConstraint", { MaxSize = Vector2.new(math.huge, 18), Parent = TitleLabel })
-	local SubtitleLabel = New("TextLabel", {
-		Name = "Subtitle",
-		Text = Window.SubTitle,
-		TextSize = 12,
-		Size = UDim2.fromOffset(0, 15),
-		AutomaticSize = Enum.AutomaticSize.X,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		LayoutOrder = 2,
-		Visible = Window.SubTitle ~= "",
-		Theme = { TextColor3 = "SubText" },
-		Parent = TitleStack,
-	})
-	local SubtitleLimit = New("UISizeConstraint", { MaxSize = Vector2.new(math.huge, 15), Parent = SubtitleLabel })
-
-	-- Search field
-	local SearchWidth = config.SearchWidth or 180
-	local Search = New("Frame", {
-		Name = "Search",
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -14, 0.5, 0),
-		Size = UDim2.fromOffset(SearchWidth, 28),
-		Visible = config.Search ~= false,
-		Theme = { BackgroundColor3 = "Search" },
-		Parent = Toolbar,
-	})
-	Corner(Search, 7)
-	local SearchStroke = Stroke(Search, "Accent", 3, 1)
-
-	-- The title and subtitle take the room between the navigation buttons and
-	-- the search field (at their own font's width), and end in "…" when a
-	-- narrow window can't fit them.
-	local function FitTitles()
-		local scale = RootScale.Scale
-		local toolbarWidth = Toolbar.AbsoluteSize.X / scale
-		if toolbarWidth < 1 or scale <= 0 then
-			return
-		end
-		local left = (TitleStack.AbsolutePosition.X - Toolbar.AbsolutePosition.X) / scale
-		-- in a narrow window the search field gives up some width first
-		local searchWidth = math.clamp(toolbarWidth - left - 26 - 120, math.min(120, SearchWidth), SearchWidth)
-		if Search.Size.X.Offset ~= searchWidth then
-			Search.Size = UDim2.fromOffset(searchWidth, 28)
-		end
-		local right = Search.Visible and (searchWidth + 14 + 12) or 14
-		local room = math.max(toolbarWidth - left - right, 0)
-		TitleLimit.MaxSize = Vector2.new(room, 18)
-		SubtitleLimit.MaxSize = Vector2.new(room, 15)
-	end
-	Toolbar:GetPropertyChangedSignal("AbsoluteSize"):Connect(FitTitles)
-	TitleStack:GetPropertyChangedSignal("AbsolutePosition"):Connect(FitTitles)
-	Search:GetPropertyChangedSignal("AbsoluteSize"):Connect(FitTitles)
-	FitTitles()
-	IconImage({
-		Icon = "search",
-		IconSize = 14,
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 9, 0.5, 0),
-		Theme = { ImageColor3 = "SubText" },
-		Parent = Search,
-	})
-	local SearchBox = New("TextBox", {
-		Name = "Query",
-		Text = "",
-		PlaceholderText = config.SearchPlaceholder or "Search",
-		TextSize = 13,
-		Position = UDim2.fromOffset(29, 0),
-		Size = UDim2.new(1, -54, 1, 0),
-		ClipsDescendants = true,
-		Theme = { TextColor3 = "Text", PlaceholderColor3 = "SubText" },
-		Parent = Search,
-	})
-	-- "Ctrl K" with a keyboard; on a touch screen, a tappable command icon
-	local touchSpotlight = TouchOnly()
-	local SpotlightHint = New("TextButton", {
-		Name = "SpotlightHint",
-		Text = touchSpotlight and "" or "Ctrl K",
-		TextSize = 11,
-		Weight = Enum.FontWeight.Medium,
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -6, 0.5, 0),
-		Size = touchSpotlight and UDim2.fromOffset(26, 20) or UDim2.fromOffset(0, 18),
-		AutomaticSize = touchSpotlight and Enum.AutomaticSize.None or Enum.AutomaticSize.X,
-		BackgroundTransparency = 0,
-		Visible = config.Spotlight ~= false and (UserInputService.KeyboardEnabled or touchSpotlight),
-		ZIndex = 3,
-		Theme = { BackgroundColor3 = "Control", TextColor3 = "SubText" },
-		Parent = Search,
-	})
-	Corner(SpotlightHint, 5)
-	if touchSpotlight then
-		IconImage({
-			Icon = "command",
-			IconSize = 12,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.5),
-			ZIndex = 4,
-			Theme = { ImageColor3 = "SubText" },
-			Parent = SpotlightHint,
-		})
-	else
-		Padding(SpotlightHint, 0, 6, 0, 6)
-	end
-	local SearchClear = New("TextButton", {
-		Name = "Clear",
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -6, 0.5, 0),
-		Size = UDim2.fromOffset(16, 16),
-		BackgroundTransparency = 0,
-		Visible = false,
-		Theme = { BackgroundColor3 = "Tertiary" },
-		Parent = Search,
-	})
-	Corner(SearchClear, 8)
-	IconImage({
-		Icon = "x",
-		IconSize = 10,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-		Theme = { ImageColor3 = "Search" },
-		Parent = SearchClear,
-	})
-
-	Window:_AttachTooltip(SidebarButton, function()
-		return Window.SidebarVisible and "Hide Sidebar" or "Show Sidebar"
-	end)
-	Window:_AttachTooltip(BackButton, "Back")
-	Window:_AttachTooltip(ForwardButton, "Forward")
-	Window:_AttachTooltip(SpotlightHint, "Search everything (Ctrl+K)")
-
-	local PageHost = New("Frame", {
-		Name = "Pages",
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(0, toolbarHeight),
-		Size = UDim2.new(1, 0, 1, -toolbarHeight),
-		ClipsDescendants = true,
-		Parent = Main,
-	})
-	local PageFade = New("Frame", {
-		Name = "Fade",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 1,
-		ZIndex = 10,
-		Theme = { BackgroundColor3 = "Background" },
-		Parent = PageHost,
-	})
-	local EmptyState = New("Frame", {
-		Name = "NoResults",
-		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.42),
-		Size = UDim2.new(1, -40, 0, 110),
-		Visible = false,
-		ZIndex = 5,
-		Parent = PageHost,
-	})
-	IconImage({
-		Icon = "search",
-		IconSize = 34,
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.fromScale(0.5, 0),
-		Theme = { ImageColor3 = "Tertiary" },
-		Parent = EmptyState,
-	})
-	local EmptyTitle = New("TextLabel", {
-		Text = "No Results",
-		TextSize = 17,
-		Weight = Enum.FontWeight.Bold,
-		Position = UDim2.fromOffset(0, 48),
-		Size = UDim2.new(1, 0, 0, 22),
-		TextXAlignment = Enum.TextXAlignment.Center,
-		TextTruncate = Enum.TextTruncate.AtEnd,
-		Theme = { TextColor3 = "Text" },
-		Parent = EmptyState,
-	})
-	New("TextLabel", {
-		Text = "Check the spelling or try a new search.",
-		TextSize = 13,
-		Position = UDim2.fromOffset(0, 74),
-		Size = UDim2.new(1, 0, 0, 18),
-		TextXAlignment = Enum.TextXAlignment.Center,
-		Theme = { TextColor3 = "SubText" },
-		Parent = EmptyState,
-	})
-
-	----------------------------------------------------------------------------
-	-- Traffic lights
-	----------------------------------------------------------------------------
-
-	-- on a touch screen the lights sit further apart, each with a finger-sized
-	-- invisible target around it
-	local lightGap = TouchOnly() and 28 or 20
-	local Lights = New("Frame", {
-		Name = "TrafficLights",
-		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(18, 20),
-		Size = UDim2.fromOffset(lightGap * 2 + 12, 12),
-		ZIndex = 20,
-		Parent = Holder,
-	})
-	local LightGlyphs = {}
-	local LightButtons = {}
-	local LightTargets = {}
-	for index, spec in ipairs(TRAFFIC) do
-		local button = New("TextButton", {
-			Name = spec.Name,
-			Position = UDim2.fromOffset((index - 1) * lightGap, 0),
-			Size = UDim2.fromOffset(12, 12),
-			BackgroundTransparency = 0,
-			BackgroundColor3 = spec.Color,
-			ZIndex = 21,
-			Parent = Lights,
-		})
-		if TouchOnly() then
-			LightTargets[spec.Name] = New("TextButton", {
-				Name = "Target",
-				AnchorPoint = Vector2.new(0.5, 0.5),
-				Position = UDim2.fromScale(0.5, 0.5),
-				Size = UDim2.fromOffset(28, 28),
-				ZIndex = 23,
-				Parent = button,
-			})
-		end
-		Corner(button, 6)
-		New("UIStroke", { Color = spec.Stroke, Thickness = 1, Transparency = 0.45, Parent = button })
-		local glyphs = {}
-		local function Bar(rotation, width)
-			local bar = New("Frame", {
-				AnchorPoint = Vector2.new(0.5, 0.5),
-				Position = UDim2.fromScale(0.5, 0.5),
-				Size = UDim2.fromOffset(width, 1),
-				Rotation = rotation,
-				BackgroundColor3 = spec.Glyph,
-				BackgroundTransparency = 1,
-				ZIndex = 22,
-				Parent = button,
-			})
-			table.insert(glyphs, bar)
-		end
-		if spec.Name == "Close" then
-			Bar(45, 8)
-			Bar(-45, 8)
-		elseif spec.Name == "Minimize" then
-			Bar(0, 7)
-		else
-			Bar(0, 7)
-			Bar(90, 7)
-		end
-		LightGlyphs[spec.Name] = glyphs
-		LightButtons[spec.Name] = button
-	end
-	Lights.MouseEnter:Connect(function()
-		for _, glyphs in pairs(LightGlyphs) do
-			for _, bar in ipairs(glyphs) do
-				Tween(bar, { BackgroundTransparency = 0.15 }, 0.12)
-			end
-		end
-	end)
-	Lights.MouseLeave:Connect(function()
-		for _, glyphs in pairs(LightGlyphs) do
-			for _, bar in ipairs(glyphs) do
-				Tween(bar, { BackgroundTransparency = 1 }, 0.15)
-			end
-		end
-	end)
-
-	----------------------------------------------------------------------------
-	-- Dock icon shown while minimised
-	----------------------------------------------------------------------------
-
-	local Dock = New("TextButton", {
-		Name = "Dock",
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, 90),
-		Size = UDim2.fromOffset(64, 64),
-		Visible = false,
-		ZIndex = 5,
-		Parent = ScreenGui,
-	})
-	local DockScale = New("UIScale", { Scale = 1, Parent = Dock })
-	InterfaceRoots[Dock] = true
-	local DockBody = New("Frame", {
-		Name = "Body",
-		Size = UDim2.fromScale(1, 1),
-		BackgroundTransparency = 0.08,
-		ZIndex = 2,
-		Theme = { BackgroundColor3 = "Menu" },
-		Parent = Dock,
-	})
-	Corner(DockBody, 18)
-	Stroke(DockBody, "HudStroke", 1, 0)
-	IconTile(DockBody, config.Icon or "command", ResolveColor(config.IconColor) or function()
-		return MacUI.Accent
-	end, 48, 12, 26, {
-		AnchorPoint = Vector2.new(0.5, 0.5),
-		Position = UDim2.fromScale(0.5, 0.5),
-	})
-	local DockDot = New("Frame", {
-		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 1, 4),
-		Size = UDim2.fromOffset(4, 4),
-		Theme = { BackgroundColor3 = "Text" },
-		Parent = Dock,
-	})
-	Corner(DockDot, 2)
-	local DockTip = New("TextLabel", {
-		Name = "Tooltip",
-		Text = Window.Title,
-		TextSize = 13,
-		Weight = Enum.FontWeight.Medium,
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 0, -10),
-		Size = UDim2.fromOffset(0, 24),
-		AutomaticSize = Enum.AutomaticSize.X,
-		TextXAlignment = Enum.TextXAlignment.Center,
-		BackgroundTransparency = 0,
-		Visible = false,
-		Theme = { BackgroundColor3 = "Menu", TextColor3 = "Text" },
-		Parent = Dock,
-	})
-	Corner(DockTip, 6)
-	Padding(DockTip, 0, 10, 0, 10)
-	Stroke(DockTip, "HudStroke", 1, 0)
-
-	----------------------------------------------------------------------------
-	-- Scale
-	----------------------------------------------------------------------------
-
-	function Window:SetScale(scale)
-		scale = math.clamp(tonumber(scale) or 1, 0.4, 2)
-		self.Scale = scale
-		if ScaleTween then
-			ScaleTween:Cancel()
-			ScaleTween = nil
-		end
-		RootScale.Scale = scale
-		DockScale.Scale = scale
-		if self._ClosePopup then
-			self:_ClosePopup(true)
-		end
-		if self._OnScale then
-			self:_OnScale(scale)
-		end
-		for _, tab in ipairs(self.Tabs) do
-			for _, row in ipairs(tab.Rows) do
-				row:_UpdateReserve()
-			end
-		end
-		if self._FitToScreen then
-			self._FitToScreen()
-		end
-	end
-
-	local function ScreenSize()
-		local viewport = ScreenGui.AbsoluteSize
-		if viewport.X < 10 or viewport.Y < 10 then
-			viewport = Viewport() - Vector2.new(0, GuiService:GetGuiInset().Y)
-		end
-		return viewport
-	end
-
-	local function AutoScale()
-		local viewport = ScreenSize()
-		-- the largest scale (up to 1) at which the minimum size fits: on a small
-		-- screen the window gets smaller before its text does
-		local fit = math.min((viewport.X - 32) / minSize.X, (viewport.Y - 32) / minSize.Y, 1)
-		-- and on a phone it never gets too small to read or tap
-		return math.max(fit, TouchOnly() and 0.85 or 0.5)
-	end
-
-	local function Between(value, low, high)
-		if low > high then
-			return (low + high) / 2
-		end
-		return math.clamp(value, low, high)
-	end
-
-	-- The size and position that keep the whole window on screen: a size saved
-	-- on a bigger screen, a rotated phone or a bigger interface scale shrinks it
-	-- (below MinSize if the screen is that small) and it's pulled back into
-	-- view. It grows back to the size asked for once there's room.
-	local function FittedLayout(position)
-		local viewport = ScreenSize()
-		if viewport.X < 10 or viewport.Y < 10 then
-			return wantedSize, position
-		end
-		local scale = Window.Scale
-		local width = math.min(wantedSize.X, (viewport.X - 16) / scale)
-		local height = math.min(wantedSize.Y, (viewport.Y - 16) / scale)
-		local halfWidth, halfHeight = width * scale / 2, height * scale / 2
-		local x = Between(position.X.Offset, halfWidth - viewport.X / 2, viewport.X / 2 - halfWidth)
-		local y = Between(position.Y.Offset, halfHeight - viewport.Y / 2, viewport.Y / 2 - halfHeight)
-		return Vector2.new(width, height), UDim2.new(0.5, x, 0.5, y)
-	end
-
-	local function FitToScreen()
-		if Window.Maximized then
-			-- the screen or the scale changed: fill the screen again
-			local viewport = ScreenSize()
-			if viewport.X >= 10 and viewport.Y >= 10 then
-				Window.Size = Vector2.new((viewport.X - 24) / Window.Scale, (viewport.Y - 24) / Window.Scale)
-				Root.Size = UDim2.fromOffset(Window.Size.X, Window.Size.Y)
-				Root.Position = UDim2.fromScale(0.5, 0.5)
-			end
-			return
-		end
-		local fitted, position = FittedLayout(Root.Position)
-		if fitted ~= Window.Size then
-			Window.Size = fitted
-			Root.Size = UDim2.fromOffset(fitted.X, fitted.Y)
-		end
-		Root.Position = position
-	end
-	Window._FitToScreen = FitToScreen
-
-	Window:SetScale(config.Scale or AutoScale())
-	FitToScreen()
-
-	----------------------------------------------------------------------------
-	-- Popups
-	----------------------------------------------------------------------------
-
-	function Window:_ClosePopup(instant)
-		local popup = self.ActivePopup
-		if not popup then
-			return
-		end
-		self.ActivePopup = nil
-		popup.Shown = false
-		for _, connection in ipairs(popup.Connections) do
-			connection:Disconnect()
-		end
-		SafeCall(popup.OnClose)
-		popup.Catcher:Destroy()
-		if instant then
-			popup.Holder:Destroy()
-			return
-		end
-		Tween(popup.Canvas, { GroupTransparency = 1 }, 0.14)
-		Restyle(popup.Shadow, 0.14)
-		Tween(popup.Scale, { Scale = self.Scale * 0.97 }, 0.14)
-		task.delay(0.15, function()
-			popup.Holder:Destroy()
-		end)
-	end
-
-	function Window:_OpenPopup(anchor, width, height, build, options)
-		options = options or {}
-		self:_ClosePopup(true)
-		HideTooltip()
-		local scale = self.Scale
-		local popup = { Connections = {} }
-		function popup:Connect(signal, fn)
-			local connection = signal:Connect(fn)
-			table.insert(popup.Connections, connection)
-			return connection
-		end
-		popup.Catcher = New("TextButton", {
-			Name = "Dismiss",
-			Size = UDim2.fromScale(1, 1),
-			ZIndex = 1,
-			Parent = PopupLayer,
-		})
-		popup.Holder = New("Frame", {
-			Name = "Popover",
-			BackgroundTransparency = 1,
-			Size = UDim2.fromOffset(width, height),
-			ZIndex = 2,
-			Parent = PopupLayer,
-		})
-		-- while a popover is open, a press anywhere is on the interface
-		InterfaceRoots[popup.Catcher] = true
-		InterfaceRoots[popup.Holder] = true
-		popup.Scale = New("UIScale", { Scale = scale * 0.96, Parent = popup.Holder })
-		-- Frames don't sink clicks; without this the dismiss catcher underneath
-		-- would close the popover when clicking its background or colour square.
-		New("TextButton", {
-			Name = "Sink",
-			Size = UDim2.fromScale(1, 1),
-			ZIndex = 1,
-			Parent = popup.Holder,
-		})
-		popup.Shadow = Shadow(popup.Holder, 4, function(t)
-			return popup.Shown and t.ShadowTransparency + 0.2 or 1
-		end)
-		popup.Canvas = New("CanvasGroup", {
-			Name = "Content",
-			Size = UDim2.fromScale(1, 1),
-			GroupTransparency = 1,
-			ZIndex = 2,
-			Theme = { BackgroundColor3 = "Menu" },
-			Parent = popup.Holder,
-		})
-		Corner(popup.Canvas, 10)
-		local border = New("Frame", {
-			Name = "Border",
-			BackgroundTransparency = 1,
-			Position = UDim2.fromOffset(1, 1),
-			Size = UDim2.new(1, -2, 1, -2),
-			ZIndex = 50,
-			Parent = popup.Canvas,
-		})
-		Corner(border, 9)
-		Stroke(border, "MenuStroke", 1, 0.1)
-
-		local layerPos = PopupLayer.AbsolutePosition
-		local screen = PopupLayer.AbsoluteSize
-		local anchorPos, anchorSize, gap
-		if typeof(anchor) == "Vector2" then
-			anchorPos, anchorSize, gap = anchor - layerPos, Vector2.new(0, 0), 2
-			options.Align = "Left"
-		else
-			anchorPos, anchorSize, gap = anchor.AbsolutePosition - layerPos, anchor.AbsoluteSize, 6 * scale
-		end
-		local w, h = width * scale, height * scale
-		local x = options.Align == "Left" and anchorPos.X or (anchorPos.X + anchorSize.X - w)
-		x = math.clamp(x, 8, math.max(screen.X - w - 8, 8))
-		local y = anchorPos.Y + anchorSize.Y + gap
-		if y + h > screen.Y - 8 then
-			y = anchorPos.Y - h - gap
-		end
-		y = math.clamp(y, 8, math.max(screen.Y - h - 8, 8))
-		popup.Holder.Position = UDim2.fromOffset(x, y)
-
-		self.ActivePopup = popup
-		popup.Catcher.MouseButton1Click:Connect(function()
-			self:_ClosePopup()
-		end)
-		popup.Catcher.MouseButton2Click:Connect(function()
-			self:_ClosePopup()
-		end)
-
-		build(popup.Canvas, popup)
-
-		popup.Shown = true
-		Tween(popup.Canvas, { GroupTransparency = 0 }, 0.16)
-		Restyle(popup.Shadow, 0.2)
-		Tween(popup.Scale, { Scale = scale }, 0.2, Enum.EasingStyle.Back)
-		return popup
-	end
-
-	function Window:_OpenMenu(anchor, options)
-		local values = options.Values or {}
-		local itemHeight = 26
-		local searchable = options.Searchable
-		if searchable == nil then
-			searchable = #values > 10
-		end
-		local widest = 0
-		for _, value in ipairs(values) do
-			widest = math.max(widest, MeasureText(tostring(value), 14))
-		end
-		local width = math.clamp(math.max(widest + 52, options.MinWidth or 0), 150, 320)
-		local visible = math.clamp(#values, 1, 9)
-		local height = 10 + (searchable and 34 or 0) + visible * itemHeight
-
-		return self:_OpenPopup(anchor, width, height, function(canvas)
-			local top = 5
-			local query = ""
-			local searchBox
-			if searchable then
-				local field = New("Frame", {
-					Name = "Search",
-					Position = UDim2.fromOffset(6, 6),
-					Size = UDim2.new(1, -12, 0, 26),
-					Theme = { BackgroundColor3 = "Field" },
-					Parent = canvas,
-				})
-				Corner(field, 6)
-				Stroke(field, "FieldStroke")
-				IconImage({
-					Icon = "search",
-					IconSize = 13,
-					AnchorPoint = Vector2.new(0, 0.5),
-					Position = UDim2.new(0, 8, 0.5, 0),
-					Theme = { ImageColor3 = "SubText" },
-					Parent = field,
-				})
-				searchBox = New("TextBox", {
-					PlaceholderText = "Filter",
-					Text = "",
-					TextSize = 13,
-					Position = UDim2.fromOffset(27, 0),
-					Size = UDim2.new(1, -34, 1, 0),
-					ClipsDescendants = true,
-					Theme = { TextColor3 = "Text", PlaceholderColor3 = "Tertiary" },
-					Parent = field,
-				})
-				top = 38
-			end
-
-			local scroll = New("ScrollingFrame", {
-				Name = "Items",
-				Position = UDim2.fromOffset(0, top),
-				Size = UDim2.new(1, 0, 1, -top - 5),
-				CanvasSize = UDim2.new(),
-				AutomaticCanvasSize = Enum.AutomaticSize.Y,
-				ScrollingDirection = Enum.ScrollingDirection.Y,
-				ScrollBarThickness = 3,
-				ScrollBarImageTransparency = 0.4,
-				VerticalScrollBarInset = Enum.ScrollBarInset.None,
-				Theme = { ScrollBarImageColor3 = "Scrollbar" },
-				Parent = canvas,
-			})
-			local listFrame = New("Frame", {
-				BackgroundTransparency = 1,
-				Size = UDim2.new(1, 0, 0, 0),
-				AutomaticSize = Enum.AutomaticSize.Y,
-				Parent = scroll,
-			})
-			Padding(listFrame, 0, 5, 0, 5)
-			List(listFrame, nil, 0)
-
-			local empty = New("TextLabel", {
-				Text = #values == 0 and "No Items" or "No Matches",
-				TextSize = 13,
-				Size = UDim2.new(1, 0, 0, itemHeight),
-				TextXAlignment = Enum.TextXAlignment.Center,
-				Visible = #values == 0,
-				LayoutOrder = 100000,
-				Theme = { TextColor3 = "SubText" },
-				Parent = listFrame,
-			})
-
-			local items = {}
-			for index, value in ipairs(values) do
-				local state = { Hovered = false }
-				local item = New("TextButton", {
-					Name = "Item",
-					Size = UDim2.new(1, 0, 0, itemHeight),
-					BackgroundTransparency = 1,
-					LayoutOrder = index,
-					Theme = {
-						BackgroundColor3 = "Accent",
-						BackgroundTransparency = function()
-							return state.Hovered and 0 or 1
-						end,
-					},
-					Parent = listFrame,
-				})
-				Corner(item, 5)
-				local check = IconImage({
-					Name = "Check",
-					Icon = "check",
-					IconSize = 12,
-					AnchorPoint = Vector2.new(0, 0.5),
-					Position = UDim2.new(0, 8, 0.5, 0),
-					Theme = {
-						ImageColor3 = function(t)
-							return state.Hovered and t.SelectionText or t.Text
-						end,
-					},
-					Parent = item,
-				})
-				local label = New("TextLabel", {
-					Text = tostring(value),
-					TextSize = 14,
-					Position = UDim2.fromOffset(26, 0),
-					Size = UDim2.new(1, -32, 1, 0),
-					TextTruncate = Enum.TextTruncate.AtEnd,
-					Theme = {
-						TextColor3 = function(t)
-							return state.Hovered and t.SelectionText or t.Text
-						end,
-					},
-					Parent = item,
-				})
-				local entry = { Item = item, Check = check, Value = value, Text = tostring(value):lower() }
-				table.insert(items, entry)
-				local function Paint(duration)
-					Restyle(item, duration)
-					Restyle(check, duration)
-					Restyle(label, duration)
-				end
-				item.MouseEnter:Connect(function()
-					state.Hovered = true
-					Paint(0.06)
-				end)
-				item.MouseLeave:Connect(function()
-					state.Hovered = false
-					Paint(0.1)
-				end)
-				item.MouseButton1Click:Connect(function()
-					options.OnPick(value)
-					if options.Multi then
-						for _, other in ipairs(items) do
-							other.Check.Visible = options.IsSelected(other.Value)
-						end
-					else
-						self:_ClosePopup()
-					end
-				end)
-				check.Visible = options.IsSelected(value)
-			end
-
-			if searchBox then
-				searchBox:GetPropertyChangedSignal("Text"):Connect(function()
-					query = searchBox.Text:lower()
-					local shown = 0
-					for _, entry in ipairs(items) do
-						entry.Item.Visible = query == "" or entry.Text:find(query, 1, true) ~= nil
-						if entry.Item.Visible then
-							shown += 1
-						end
-					end
-					empty.Visible = shown == 0
-				end)
-				task.defer(function()
-					-- (on a touch screen the keyboard would cover the list)
-					if searchBox.Parent and not TouchOnly() then
-						searchBox:CaptureFocus()
-					end
-				end)
-			end
-		end, { Align = options.Align })
-	end
-
-	-- Right-click menu. `items` are { Text, Icon?, Shortcut?, Disabled?, Destructive?, Callback } or "-".
-	function Window:_OpenContextMenu(point, items)
-		items = TidySeparators(items or {})
-		if #items == 0 then
-			return
-		end
-		local itemHeight, separatorHeight = 24, 9
-		local hasIcons, widest, height = false, 0, 10
-		for _, item in ipairs(items) do
-			if item == "-" then
-				height += separatorHeight
-			else
-				height += itemHeight
-				hasIcons = hasIcons or item.Icon ~= nil
-				local extra = item.Shortcut and (MeasureText(item.Shortcut, 12) + 24) or 0
-				widest = math.max(widest, MeasureText(item.Text, 13) + extra)
-			end
-		end
-		local width = math.clamp(widest + (hasIcons and 44 or 24) + 10, 180, 320)
-		return self:_OpenPopup(point, width, height, function(canvas)
-			local list = New("Frame", {
-				Name = "Items",
-				BackgroundTransparency = 1,
-				Size = UDim2.fromScale(1, 1),
-				Parent = canvas,
-			})
-			Padding(list, 5, 5, 5, 5)
-			List(list, nil, 0)
-			for index, item in ipairs(items) do
-				if item == "-" then
-					local separator = New("Frame", {
-						Name = "Separator",
-						BackgroundTransparency = 1,
-						Size = UDim2.new(1, 0, 0, separatorHeight),
-						LayoutOrder = index,
-						Parent = list,
-					})
-					New("Frame", {
-						AnchorPoint = Vector2.new(0, 0.5),
-						Position = UDim2.new(0, 8, 0.5, 0),
-						Size = UDim2.new(1, -16, 0, 1),
-						Theme = { BackgroundColor3 = "Separator" },
-						Parent = separator,
-					})
-				else
-					local state = { Hovered = false }
-					local function Foreground(t, normal)
-						if item.Disabled then
-							return t.Tertiary
-						elseif state.Hovered then
-							return t.SelectionText
-						elseif item.Destructive then
-							return t.Destructive
-						end
-						return normal
-					end
-					local button = New("TextButton", {
-						Name = "Item",
-						Size = UDim2.new(1, 0, 0, itemHeight),
-						LayoutOrder = index,
-						Theme = {
-							BackgroundColor3 = function(t)
-								return item.Destructive and t.Destructive or MacUI.Accent
-							end,
-							BackgroundTransparency = function()
-								return state.Hovered and 0 or 1
-							end,
-						},
-						Parent = list,
-					})
-					Corner(button, 5)
-					local painted = { button }
-					if item.Icon then
-						table.insert(painted, IconImage({
-							Icon = item.Icon,
-							IconSize = 14,
-							AnchorPoint = Vector2.new(0, 0.5),
-							Position = UDim2.new(0, 9, 0.5, 0),
-							Theme = {
-								ImageColor3 = function(t)
-									return Foreground(t, t.SubText)
-								end,
-							},
-							Parent = button,
-						}))
-					end
-					table.insert(painted, New("TextLabel", {
-						Text = item.Text,
-						TextSize = 13,
-						Position = UDim2.fromOffset(hasIcons and 31 or 10, 0),
-						Size = UDim2.new(1, -(hasIcons and 41 or 20), 1, 0),
-						TextTruncate = Enum.TextTruncate.AtEnd,
-						Theme = {
-							TextColor3 = function(t)
-								return Foreground(t, t.Text)
-							end,
-						},
-						Parent = button,
-					}))
-					if item.Shortcut then
-						table.insert(painted, New("TextLabel", {
-							Text = item.Shortcut,
-							TextSize = 12,
-							AnchorPoint = Vector2.new(1, 0),
-							Position = UDim2.new(1, -10, 0, 0),
-							Size = UDim2.new(0, 80, 1, 0),
-							TextXAlignment = Enum.TextXAlignment.Right,
-							Theme = {
-								TextColor3 = function(t)
-									return Foreground(t, t.Tertiary)
-								end,
-							},
-							Parent = button,
-						}))
-					end
-					local function Paint(duration)
-						for _, object in ipairs(painted) do
-							Restyle(object, duration)
-						end
-					end
-					button.MouseEnter:Connect(function()
-						if not item.Disabled then
-							state.Hovered = true
-							Paint(0.05)
-						end
-					end)
-					button.MouseLeave:Connect(function()
-						state.Hovered = false
-						Paint(0.1)
-					end)
-					button.MouseButton1Click:Connect(function()
-						if item.Disabled then
-							return
-						end
-						self:_ClosePopup()
-						Spawn(item.Callback)
-					end)
-				end
-			end
-		end)
-	end
-
-	-- A pill under the toolbar while a macro records, with a Stop button: the
-	-- macro's own row may be on another page.
-	local RecordingPill
-	function Window:_SetRecording(macro)
-		if not macro then
-			local pill = RecordingPill
-			RecordingPill = nil
-			if pill then
-				pill.Shown = false
-				Tween(pill.Body, { GroupTransparency = 1 }, 0.2)
-				task.delay(0.21, function()
-					pill.Holder:Destroy()
-				end)
-			end
-			return
-		end
-		if not RecordingPill then
-			local pill = { Shown = true, Macro = macro }
-			pill.Holder = New("Frame", {
-				Name = "Recording",
-				BackgroundTransparency = 1,
-				AnchorPoint = Vector2.new(0.5, 0),
-				Position = UDim2.new(0.5, 0, 0, toolbarHeight + 8),
-				Size = UDim2.fromOffset(220, 32),
-				ZIndex = 30,
-				Parent = Main,
-			})
-			pill.Body = New("CanvasGroup", {
-				Name = "Body",
-				Size = UDim2.fromScale(1, 1),
-				GroupTransparency = 1,
-				ZIndex = 2,
-				Theme = { BackgroundColor3 = "Hud" },
-				Parent = pill.Holder,
-			})
-			Corner(pill.Body, 16)
-			local border = New("Frame", {
-				BackgroundTransparency = 1,
-				Position = UDim2.fromOffset(1, 1),
-				Size = UDim2.new(1, -2, 1, -2),
-				ZIndex = 5,
-				Parent = pill.Body,
-			})
-			Corner(border, 15)
-			Stroke(border, "HudStroke", 1, 0)
-			pill.Dot = New("Frame", {
-				Name = "Dot",
-				AnchorPoint = Vector2.new(0, 0.5),
-				Position = UDim2.new(0, 13, 0.5, 0),
-				Size = UDim2.fromOffset(9, 9),
-				Theme = { BackgroundColor3 = "Destructive" },
-				Parent = pill.Body,
-			})
-			Corner(pill.Dot, 5)
-			pill.Label = New("TextLabel", {
-				Name = "Text",
-				TextSize = 13,
-				Weight = Enum.FontWeight.Medium,
-				Position = UDim2.fromOffset(30, 0),
-				Size = UDim2.new(1, -90, 1, 0),
-				TextTruncate = Enum.TextTruncate.AtEnd,
-				Theme = { TextColor3 = "Text" },
-				Parent = pill.Body,
-			})
-			local stop = PushButton(pill.Body, "Stop", "Destructive", 22)
-			stop.Instance.AnchorPoint = Vector2.new(1, 0.5)
-			stop.Instance.Position = UDim2.new(1, -5, 0.5, 0)
-			stop.Instance.MouseButton1Click:Connect(function()
-				if pill.Macro and pill.Macro.StopRecording then
-					pill.Macro:StopRecording()
-				end
-			end)
-			pill.StopWidth = stop.Instance.Size.X.Offset
-			Tween(pill.Body, { GroupTransparency = 0 }, 0.2)
-			-- the dot breathes while recording
-			task.spawn(function()
-				while pill.Shown and not MacUI.Unloaded do
-					Tween(pill.Dot, { BackgroundTransparency = 0.6 }, 0.6, Enum.EasingStyle.Sine)
-					task.wait(0.6)
-					Tween(pill.Dot, { BackgroundTransparency = 0 }, 0.6, Enum.EasingStyle.Sine)
-					task.wait(0.6)
-				end
-			end)
-			RecordingPill = pill
-		end
-		local pill = RecordingPill
-		pill.Macro = macro
-		local count = #(macro._pending or {})
-		local text = "Recording “" .. tostring(macro.Title or "Macro") .. "” · " .. count .. (count == 1 and " step" or " steps")
-		pill.Label.Text = text
-		local width = math.ceil(MeasureText(text, 13, Enum.FontWeight.Medium)) + 30 + 14 + pill.StopWidth
-		pill.Holder.Size = UDim2.fromOffset(math.clamp(width, 180, 420), 32)
-	end
-
-	-- A short-lived HUD at the bottom of the screen ("Auto Farm  On").
-	local ActiveToast
-	function Window:Toast(text, options)
-		options = options or {}
-		if MacUI.Unloaded then
-			return
-		end
-		if ActiveToast then
-			ActiveToast.Close(true)
-		end
-		text = tostring(text)
-		local scale = Window.Scale
-		local detail = options.Detail and tostring(options.Detail)
-		local width = 36 + (options.Icon and 24 or 0) + MeasureText(text, 14, Enum.FontWeight.Medium)
-		if detail then
-			width += MeasureText(detail, 14, Enum.FontWeight.Medium) + 8
-		end
-		width = math.clamp(math.ceil(width), 110, 440)
-		local toast = { Shown = true }
-		local position = UDim2.new(0.5, 0, 1, -90)
-		if Window.Shown and not Window.Minimized then
-			local layer = PopupLayer.AbsolutePosition
-			local rootPosition, rootSize = Root.AbsolutePosition, Root.AbsoluteSize
-			position = UDim2.fromOffset(
-				rootPosition.X - layer.X + rootSize.X / 2,
-				rootPosition.Y - layer.Y + rootSize.Y - 22 * RootScale.Scale
-			)
-		end
-		local holder = New("Frame", {
-			Name = "Toast",
-			BackgroundTransparency = 1,
-			AnchorPoint = Vector2.new(0.5, 1),
-			Position = position,
-			Size = UDim2.fromOffset(width, 40),
-			ZIndex = 150,
-			Parent = PopupLayer,
-		})
-		local toastScale = New("UIScale", { Scale = scale * 0.9, Parent = holder })
-		local body = New("CanvasGroup", {
-			Name = "Body",
-			Size = UDim2.fromScale(1, 1),
-			GroupTransparency = 1,
-			ZIndex = 2,
-			Theme = { BackgroundColor3 = "Hud" },
-			Parent = holder,
-		})
-		Corner(body, 20)
-		local border = New("Frame", {
-			BackgroundTransparency = 1,
-			Position = UDim2.fromOffset(1, 1),
-			Size = UDim2.new(1, -2, 1, -2),
-			ZIndex = 5,
-			Parent = body,
-		})
-		Corner(border, 19)
-		Stroke(border, "HudStroke", 1, 0)
-		local content = New("Frame", {
-			BackgroundTransparency = 1,
-			Size = UDim2.fromScale(1, 1),
-			Parent = body,
-		})
-		List(content, Enum.FillDirection.Horizontal, 8, {
-			HorizontalAlignment = Enum.HorizontalAlignment.Center,
-			VerticalAlignment = Enum.VerticalAlignment.Center,
-		})
-		if options.Icon then
-			IconImage({
-				Icon = options.Icon,
-				IconSize = 16,
-				LayoutOrder = 1,
-				Theme = { ImageColor3 = options.Highlight and "Accent" or "SubText" },
-				Parent = content,
-			})
-		end
-		New("TextLabel", {
-			Text = text,
-			TextSize = 14,
-			Weight = Enum.FontWeight.Medium,
-			Size = UDim2.fromOffset(0, 18),
-			AutomaticSize = Enum.AutomaticSize.X,
-			LayoutOrder = 2,
-			Theme = { TextColor3 = "Text" },
-			Parent = content,
-		})
-		if detail then
-			New("TextLabel", {
-				Text = detail,
-				TextSize = 14,
-				Weight = Enum.FontWeight.Medium,
-				Size = UDim2.fromOffset(0, 18),
-				AutomaticSize = Enum.AutomaticSize.X,
-				LayoutOrder = 3,
-				Theme = { TextColor3 = options.Highlight and "Accent" or "SubText" },
-				Parent = content,
-			})
-		end
-		Tween(body, { GroupTransparency = 0 }, 0.18)
-		Tween(toastScale, { Scale = scale }, 0.3, Enum.EasingStyle.Back)
-		local closed = false
-		function toast.Close(instant)
-			if closed then
-				return
-			end
-			closed = true
-			toast.Shown = false
-			if ActiveToast == toast then
-				ActiveToast = nil
-			end
-			if instant then
-				holder:Destroy()
-				return
-			end
-			Tween(body, { GroupTransparency = 1 }, 0.25)
-			Tween(toastScale, { Scale = scale * 0.95 }, 0.25)
-			task.delay(0.26, function()
-				holder:Destroy()
-			end)
-		end
-		ActiveToast = toast
-		task.delay(options.Duration or 1.4, toast.Close)
-		return toast
-	end
-
-	----------------------------------------------------------------------------
-	-- Tabs
-	----------------------------------------------------------------------------
-
-	local stateToken = 0
-	local function EmitState()
-		stateToken += 1
-		local token = stateToken
-		task.delay(0.3, function()
-			if token == stateToken and not MacUI.Unloaded then
-				Window.StateChanged:Fire(Window:GetState())
-			end
-		end)
-	end
-
-	local function MovePill(animate)
-		local tab = Window.CurrentTab
-		if not tab then
-			Pill.Visible = false
-			return
-		end
-		local y = (tab.Button.AbsolutePosition.Y - TabList.AbsolutePosition.Y) / Window:GetAbsoluteScale()
-		local goal = UDim2.fromOffset(10, y)
-		Pill.Visible = true
-		if animate then
-			Tween(Pill, { Position = goal }, 0.3, Enum.EasingStyle.Quint)
-		else
-			Pill.Position = goal
-		end
-	end
-
-	local function UpdateNavigation()
-		SetBackEnabled(Window.HistoryIndex > 1)
-		SetForwardEnabled(Window.HistoryIndex < #Window.History)
-	end
-
-	local function UpdateToolbarDivider()
-		local tab = Window.CurrentTab
-		local scrolled = tab and tab.Page.CanvasPosition.Y > 1
-		Tween(ToolbarDivider, { BackgroundTransparency = scrolled and 0 or 1 }, 0.2)
-	end
-
-	function Window:AddTabSection(title)
-		New("TextLabel", {
-			Name = "SectionTitle",
-			Text = tostring(title),
-			TextSize = 12,
-			Weight = Enum.FontWeight.Bold,
-			Size = UDim2.new(1, 0, 0, #Window.Tabs == 0 and TabOrder == 0 and 22 or 30),
-			TextYAlignment = Enum.TextYAlignment.Bottom,
-			LayoutOrder = NextTabOrder(),
-			Theme = { TextColor3 = "SubText" },
-			Children = { New("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingBottom = UDim.new(0, 5) }) },
-			Parent = TabList,
-		})
-		Window.LastTabSection = title
-	end
-	Window.AddSidebarSection = Window.AddTabSection
-
-	function Window:AddTab(info)
-		if type(info) ~= "table" then
-			info = { Title = tostring(info) }
-		end
-		if info.Section and info.Section ~= Window.LastTabSection then
-			Window:AddTabSection(info.Section)
-		end
-		local index = #Window.Tabs + 1
-		local tab = setmetatable({
-			Window = Window,
-			Title = tostring(info.Title or ("Tab " .. index)),
-			Index = index,
-			Blocks = {},
-			Rows = {},
-			Order = 0,
-			Selected = false,
-			Hovered = false,
-			Matches = true,
-		}, TabMethods)
-		tab.Tab = tab
-
-		-- Sidebar entry
-		local button = New("TextButton", {
-			Name = tab.Title,
-			Size = UDim2.new(1, 0, 0, 30),
-			LayoutOrder = NextTabOrder(),
-			Theme = {
-				BackgroundColor3 = "Hover",
-				BackgroundTransparency = function(t)
-					return (tab.Hovered and not tab.Selected) and t.HoverTransparency or 1
-				end,
-			},
-			Parent = TabList,
-		})
-		Corner(button, 7)
-		tab.Button = button
-
-		local textOffset = 12
-		local icon = info.Icon
-		tab.TileColor = ResolveColor(info.IconColor) or MacUI.TileColors[(index - 1) % #MacUI.TileColors + 1]
-		tab.Icon = icon and MacUI:GetIcon(icon) and icon or nil
-		tab.Description = info.Description
-		if icon and MacUI:GetIcon(icon) then
-			if sidebarStyle == "Tile" then
-				local color = tab.TileColor
-				IconTile(button, icon, color, 22, 6, 14, {
-					AnchorPoint = Vector2.new(0, 0.5),
-					Position = UDim2.new(0, 5, 0.5, 0),
-				})
-			else
-				IconImage({
-					Name = "Icon",
-					Icon = icon,
-					IconSize = 17,
-					AnchorPoint = Vector2.new(0, 0.5),
-					Position = UDim2.new(0, 8, 0.5, 0),
-					Theme = {
-						ImageColor3 = function(t)
-							if tab.Selected then
-								return t.SelectionText
-							end
-							return sidebarStyle == "Tinted" and MacUI.Accent or t.SubText
-						end,
-					},
-					Parent = button,
-				})
-			end
-			textOffset = 35
-		end
-		tab.Label = New("TextLabel", {
-			Name = "Title",
-			Text = tab.Title,
-			TextSize = 14,
-			Position = UDim2.fromOffset(textOffset, 0),
-			Size = UDim2.new(1, -textOffset - 8, 1, 0),
-			TextTruncate = Enum.TextTruncate.AtEnd,
-			Theme = {
-				TextColor3 = function(t)
-					return tab.Selected and t.SelectionText or t.Text
-				end,
-				TextTransparency = function()
-					return (tab.Matches or tab.Selected) and 0 or 0.55
-				end,
-			},
-			Parent = button,
-		})
-		tab.Badge = New("TextLabel", {
-			Name = "Badge",
-			Text = "",
-			TextSize = 11,
-			Weight = Enum.FontWeight.Bold,
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -6, 0.5, 0),
-			Size = UDim2.fromOffset(18, 18),
-			TextXAlignment = Enum.TextXAlignment.Center,
-			TextColor3 = Color3.new(1, 1, 1),
-			BackgroundTransparency = 0,
-			BackgroundColor3 = rgb(255, 69, 58),
-			Visible = false,
-			ZIndex = 3,
-			Parent = button,
-		})
-		Corner(tab.Badge, 9)
-		tab.BadgeLabel = tab.Badge
-		if info.Badge then
-			tab:SetBadge(info.Badge)
-		end
-
-		button.MouseEnter:Connect(function()
-			tab.Hovered = true
-			Restyle(button, 0.12)
-		end)
-		button.MouseLeave:Connect(function()
-			tab.Hovered = false
-			Restyle(button, 0.18)
-		end)
-		button.MouseButton1Click:Connect(function()
-			Window:SelectTab(tab)
-		end)
-		button:GetPropertyChangedSignal("AbsolutePosition"):Connect(function()
-			if Window.CurrentTab == tab and not Window.PillMoving then
-				MovePill(false)
-			end
-		end)
-
-		-- Page
-		tab.Page = New("ScrollingFrame", {
-			Name = tab.Title,
-			Size = UDim2.fromScale(1, 1),
-			CanvasSize = UDim2.new(),
-			AutomaticCanvasSize = Enum.AutomaticSize.Y,
-			ScrollingDirection = Enum.ScrollingDirection.Y,
-			ScrollBarThickness = 5,
-			ScrollBarImageTransparency = 1,
-			VerticalScrollBarInset = Enum.ScrollBarInset.None,
-			Visible = false,
-			Theme = { ScrollBarImageColor3 = "Scrollbar" },
-			Parent = PageHost,
-		})
-		tab.Content = New("Frame", {
-			Name = "Content",
-			BackgroundTransparency = 1,
-			Size = UDim2.new(1, 0, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			Parent = tab.Page,
-		})
-		Padding(tab.Content, 6, 22, 26, 22)
-		List(tab.Content, nil, 0)
-
-		-- System Settings pane header: big icon, title and a short description.
-		if info.Description then
-			local block = tab:_NewBlock(0)
-			local hero = New("Frame", {
-				Name = "Hero",
-				Size = UDim2.new(1, 0, 0, 0),
-				AutomaticSize = Enum.AutomaticSize.Y,
-				LayoutOrder = tab:_NextOrder(),
-				Theme = { BackgroundColor3 = "Group" },
-				Parent = tab.Content,
-			})
-			Corner(hero, 12)
-			Stroke(hero, "GroupStroke")
-			Padding(hero, 22, 30, 20, 30)
-			List(hero, nil, 4, { HorizontalAlignment = Enum.HorizontalAlignment.Center })
-			IconTile(hero, tab.Icon or "layers", tab.TileColor, 60, 15, 32, { LayoutOrder = 1 })
-			New("Frame", { Name = "Gap", BackgroundTransparency = 1, Size = UDim2.fromOffset(1, 6), LayoutOrder = 2, Parent = hero })
-			tab.HeroTitle = New("TextLabel", {
-				Name = "Title",
-				Text = tab.Title,
-				TextSize = 20,
-				Weight = Enum.FontWeight.Bold,
-				Size = UDim2.new(1, 0, 0, 0),
-				AutomaticSize = Enum.AutomaticSize.Y,
-				TextWrapped = true,
-				TextXAlignment = Enum.TextXAlignment.Center,
-				LayoutOrder = 3,
-				Theme = { TextColor3 = "Text" },
-				Parent = hero,
-			})
-			New("TextLabel", {
-				Name = "Description",
-				Text = tostring(info.Description),
-				TextSize = 13,
-				Size = UDim2.new(1, 0, 0, 0),
-				AutomaticSize = Enum.AutomaticSize.Y,
-				TextWrapped = true,
-				RichText = true,
-				TextXAlignment = Enum.TextXAlignment.Center,
-				LayoutOrder = 4,
-				Theme = { TextColor3 = "SubText" },
-				Parent = hero,
-			})
-			block.Hero = hero
-			tab.Hero = hero
-		end
-
-		local hideToken = 0
-		tab.Page:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
-			if Window.CurrentTab ~= tab then
-				return
-			end
-			UpdateToolbarDivider()
-			HideTooltip()
-			hideToken += 1
-			local token = hideToken
-			Tween(tab.Page, { ScrollBarImageTransparency = 0.35 }, 0.1)
-			task.delay(1.1, function()
-				if token == hideToken and tab.Page.Parent then
-					Tween(tab.Page, { ScrollBarImageTransparency = 1 }, 0.4)
-				end
-			end)
-		end)
-		table.insert(Window.Tabs, tab)
-		if not Window.CurrentTab and config.AutoSelect ~= false then
-			Window:SelectTab(tab)
-		end
-		return tab
-	end
-
-	function Window:SelectTab(target, fromHistory)
-		local tab = type(target) == "number" and Window.Tabs[target] or target
-		if not tab or tab.Window ~= Window then
-			return
-		end
-		Window:_ClosePopup()
-		if tab == Window.CurrentTab then
-			return
-		end
-		local previous = Window.CurrentTab
-		Window.CurrentTab = tab
-		for _, other in ipairs(Window.Tabs) do
-			local selected = other == tab
-			if other.Selected ~= selected then
-				other.Selected = selected
-				Restyle(other.Button, 0.15)
-				Restyle(other.Label, 0.15)
-				local icon = other.Button:FindFirstChild("Icon")
-				if icon then
-					Restyle(icon, 0.15)
-				end
-			end
-		end
-		Window.PillMoving = previous ~= nil
-		MovePill(previous ~= nil)
-		task.delay(0.32, function()
-			Window.PillMoving = false
-			MovePill(false)
-		end)
-
-		if previous then
-			previous.Page.Visible = false
-		end
-		tab.Page.Visible = true
-		if previous then
-			tab.Page.Position = UDim2.fromOffset(0, 10)
-			Tween(tab.Page, { Position = UDim2.fromOffset(0, 0) }, 0.32, Enum.EasingStyle.Quint)
-			PageFade.BackgroundTransparency = 0
-			Tween(PageFade, { BackgroundTransparency = 1 }, 0.26, Enum.EasingStyle.Quad)
-		end
-
-		if not fromHistory then
-			for i = #Window.History, Window.HistoryIndex + 1, -1 do
-				table.remove(Window.History, i)
-			end
-			table.insert(Window.History, tab)
-			Window.HistoryIndex = #Window.History
-		end
-		UpdateNavigation()
-		UpdateToolbarDivider()
-		EmptyState.Visible = Window.SearchQuery ~= "" and not tab.HasResults
-		EmitState()
-	end
-
-	function Window:GoBack()
-		if Window.HistoryIndex > 1 then
-			Window.HistoryIndex -= 1
-			Window:SelectTab(Window.History[Window.HistoryIndex], true)
-		end
-	end
-
-	function Window:GoForward()
-		if Window.HistoryIndex < #Window.History then
-			Window.HistoryIndex += 1
-			Window:SelectTab(Window.History[Window.HistoryIndex], true)
-		end
-	end
-
-	BackButton.MouseButton1Click:Connect(function()
-		Window:GoBack()
-	end)
-	ForwardButton.MouseButton1Click:Connect(function()
-		Window:GoForward()
-	end)
-
-	----------------------------------------------------------------------------
-	-- Search
-	----------------------------------------------------------------------------
-
-	function Window:_ApplySearch()
-		local query = Window.SearchQuery
-		for _, tab in ipairs(Window.Tabs) do
-			local count = tab:_ApplySearch(query)
-			tab.HasResults = count > 0
-			tab.Matches = query == "" or count > 0
-			Restyle(tab.Label, 0.15)
-		end
-		local current = Window.CurrentTab
-		if query ~= "" and current and not current.HasResults then
-			for _, tab in ipairs(Window.Tabs) do
-				if tab.HasResults then
-					Window:SelectTab(tab)
-					current = tab
-					break
-				end
-			end
-		end
-		EmptyState.Visible = query ~= "" and current ~= nil and not current.HasResults
-		EmptyTitle.Text = "No Results for “" .. SearchBox.Text .. "”"
-	end
-
-	function Window:Search(text)
-		SearchBox.Text = tostring(text or "")
-	end
-
-	local searchToken = 0
-	SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
-		searchToken += 1
-		local token = searchToken
-		task.delay(0.08, function()
-			if token ~= searchToken then
-				return
-			end
-			Window.SearchQuery = SearchBox.Text:lower():gsub("^%s+", ""):gsub("%s+$", "")
-			Window:_ApplySearch()
-		end)
-	end)
-	local function UpdateSearchChrome()
-		local empty = SearchBox.Text == ""
-		SearchClear.Visible = not empty
-		SpotlightHint.Visible = config.Spotlight ~= false and empty and not SearchBox:IsFocused() and (UserInputService.KeyboardEnabled or touchSpotlight)
-	end
-	SearchBox:GetPropertyChangedSignal("Text"):Connect(UpdateSearchChrome)
-	SearchBox.Focused:Connect(function()
-		Tween(SearchStroke, { Transparency = 0.55 }, 0.15)
-		UpdateSearchChrome()
-	end)
-	SearchBox.FocusLost:Connect(function(enterPressed)
-		Tween(SearchStroke, { Transparency = 1 }, 0.2)
-		UpdateSearchChrome()
-		if enterPressed and SearchBox.Text ~= "" then
-			Window.SearchQuery = SearchBox.Text:lower():gsub("^%s+", ""):gsub("%s+$", "")
-			Window:_ApplySearch()
-			for _, row in ipairs(Window.CurrentTab and Window.CurrentTab.Rows or {}) do
-				if row.Frame.Visible then
-					Window:Reveal(row)
-					break
-				end
-			end
-		end
-	end)
-	SearchClear.MouseButton1Click:Connect(function()
-		SearchBox.Text = ""
-	end)
-
-	-- Scrolls a row (element, row or option index) into view and flashes it.
-	function Window:Reveal(target)
-		if type(target) == "string" then
-			target = MacUI.Options[target]
-		end
-		local row = type(target) == "table" and (target.Row or target) or nil
-		if not row or not row.Frame or row.Destroyed or row.Window ~= Window then
-			return
-		end
-		if Window.Minimized then
-			Window:Restore()
-		end
-		if not row.Frame.Visible and Window.SearchQuery ~= "" then
-			SearchBox.Text = ""
-			Window.SearchQuery = ""
-			Window:_ApplySearch()
-		end
-		local block = row.Group and row.Group.Block
-		if block and block.Collapsed and block.Section then
-			block.Section:SetCollapsed(false)
-		end
-		Window:SelectTab(row.Tab)
-		task.delay(0.08, function()
-			local page = row.Tab.Page
-			local scale = Window:GetAbsoluteScale()
-			local top = (row.Frame.AbsolutePosition.Y - row.Tab.Content.AbsolutePosition.Y) / scale
-			local view = page.AbsoluteSize.Y / scale
-			local canvas = page.AbsoluteCanvasSize.Y / scale
-			local goal = math.clamp(top - view * 0.3, 0, math.max(canvas - view, 0))
-			Tween(page, { CanvasPosition = Vector2.new(0, goal) }, 0.35)
-			task.delay(0.15, function()
-				row:Flash()
-			end)
-		end)
-	end
-
-	----------------------------------------------------------------------------
-	-- Sidebar collapse
-	----------------------------------------------------------------------------
-
-	function Window:SetSidebarVisible(visible)
-		Window.SidebarVisible = visible ~= false
-		local width = Window.SidebarVisible and sidebarWidth or 0
-		if Window.SidebarVisible then
-			Sidebar.Visible = true
-		end
-		Tween(Sidebar, { Size = UDim2.new(0, width, 1, 0) }, 0.32)
-		Tween(Main, { Position = UDim2.fromOffset(width, 0), Size = UDim2.new(1, -width, 1, 0) }, 0.32)
-		Tween(Leading, { Position = UDim2.new(0, Window.SidebarVisible and 12 or 84, 0.5, 0) }, 0.32)
-		Restyle(MainSquare, 0.32)
-		EmitState()
-		if not Window.SidebarVisible then
-			task.delay(0.33, function()
-				if not Window.SidebarVisible then
-					Sidebar.Visible = false
-				end
-			end)
-		end
-	end
-
-	function Window:ToggleSidebar()
-		Window:SetSidebarVisible(not Window.SidebarVisible)
-	end
-
-	SidebarButton.MouseButton1Click:Connect(function()
-		Window:ToggleSidebar()
-	end)
-
-	----------------------------------------------------------------------------
-	-- Dragging & resizing
-	----------------------------------------------------------------------------
-
-	local drag, resize
-	local lastToolbarClick = 0
-	local DragExclusions = { SidebarButton, BackButton, ForwardButton, Search, Lights }
-	local function OverControl(position)
-		for _, gui in ipairs(DragExclusions) do
-			local topLeft, extent = gui.AbsolutePosition, gui.AbsoluteSize
-			if gui.Visible
-				and position.X >= topLeft.X
-				and position.X <= topLeft.X + extent.X
-				and position.Y >= topLeft.Y
-				and position.Y <= topLeft.Y + extent.Y
-			then
-				return true
-			end
-		end
-		return false
-	end
-	local function BeginDrag(input)
-		if not IsPointer(input) or OverControl(input.Position) then
-			return
-		end
-		local now = os.clock()
-		if now - lastToolbarClick < 0.35 then
-			lastToolbarClick = 0
-			Window:SetMaximized(not Window.Maximized)
-			return
-		end
-		lastToolbarClick = now
-		if not Window.Maximized then
-			drag = { Start = input.Position, Position = Root.Position, Input = input }
-		end
-	end
-	Toolbar.InputBegan:Connect(BeginDrag)
-	SidebarDrag.InputBegan:Connect(BeginDrag)
-
-	local Grip = New("TextButton", {
-		Name = "ResizeGrip",
-		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.fromScale(1, 1),
-		-- a finger needs a bigger corner to grab than a mouse
-		Size = TouchOnly() and UDim2.fromOffset(34, 34) or UDim2.fromOffset(18, 18),
-		ZIndex = 30,
-		Visible = config.Resizable ~= false,
-		Parent = Root,
-	})
-	Grip.InputBegan:Connect(function(input)
-		if IsPointer(input) and not Window.Maximized then
-			resize = { Start = input.Position, Size = Window.Size, Position = Root.Position, Input = input }
-		end
-	end)
-
-	Connect(UserInputService.InputChanged, function(input)
-		if drag and not DragMoves(drag.Input, input) then
-			return
-		elseif resize and not DragMoves(resize.Input, input) then
-			return
-		end
-		if drag then
-			local delta = input.Position - drag.Start
-			local viewport = ScreenGui.AbsoluteSize
-			local start = drag.Position
-			local x = math.clamp(start.X.Offset + delta.X, -viewport.X / 2 + 60, viewport.X / 2 - 60)
-			local y = math.clamp(start.Y.Offset + delta.Y, -viewport.Y / 2 + 30, viewport.Y / 2 - 30)
-			Root.Position = UDim2.new(start.X.Scale, x, start.Y.Scale, y)
-		elseif resize then
-			local delta = input.Position - resize.Start
-			local scale = Window.Scale
-			local width = math.max(resize.Size.X + delta.X / scale, minSize.X)
-			local height = math.max(resize.Size.Y + delta.Y / scale, minSize.Y)
-			Window.Size = Vector2.new(width, height)
-			wantedSize = Window.Size
-			Root.Size = UDim2.fromOffset(width, height)
-			local grow = (Window.Size - resize.Size) * scale / 2
-			Root.Position = resize.Position + UDim2.fromOffset(grow.X, grow.Y)
-		end
-	end)
-	Connect(UserInputService.InputEnded, function(input)
-		local active = drag or resize
-		if active and DragEnds(active.Input, input) then
-			EmitState()
-			drag = nil
-			resize = nil
-		end
-	end)
-
-	----------------------------------------------------------------------------
-	-- Window state: open / minimise / maximise / close
-	----------------------------------------------------------------------------
-
-	local function BeginTransition()
-		AnimGroup.Visible = true
-		AnimGroup.GroupTransparency = 0
-		local _SH_unused = nil
-	end
-
-	local function EndTransition()
-		if MacUI.Unloaded then
-			return
-		end
-		Holder.Parent = Root
-		AnimGroup.Visible = false
-	end
-
-	local transitionId = 0
-	function Window:SetVisible(visible, instant) instant = true 
-		transitionId += 1
-		local id = transitionId
-		Window:_ClosePopup(true)
-		HideTooltip()
-		Window.Shown = visible
-		MouseUnlock.Visible = visible -- (the mouse locks again as soon as it hides)
-		if visible then
-			Root.Visible = true
-			BeginTransition()
-			AnimGroup.GroupTransparency = 1
-			RootScale.Scale = Window.Scale * 0.94
-			Tween(AnimGroup, { GroupTransparency = 0 }, instant and 0 or 0.28)
-			ScaleTween = Tween(RootScale, { Scale = Window.Scale }, instant and 0 or 0.4, Enum.EasingStyle.Quint)
-			Restyle(WindowShadow, instant and 0 or 0.4)
-			Restyle(ContactShadow, instant and 0 or 0.4)
-			task.delay(instant and 0 or 0.4, function()
-				if id == transitionId then
-					EndTransition()
-					if Window.Blur then
-						Window.Blur:SetEnabled(Window.Acrylic)
-					end
-				end
-			end)
-		else
-			if Window.Blur then
-				Window.Blur:SetEnabled(false)
-			end
-			BeginTransition()
-			Tween(AnimGroup, { GroupTransparency = 1 }, instant and 0 or 0.22)
-			ScaleTween = Tween(RootScale, { Scale = Window.Scale * 0.92 }, instant and 0 or 0.25, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-			Restyle(WindowShadow, instant and 0 or 0.2)
-			Restyle(ContactShadow, instant and 0 or 0.2)
-			task.delay(instant and 0 or 0.26, function()
-				if id == transitionId then
-					Root.Visible = false
-					EndTransition()
-					RootScale.Scale = Window.Scale
-				end
-			end)
-		end
-	end
-
-	function Window:Minimize()
-		Window.Minimized = true
-		Window:SetVisible(false)
-		if config.ShowDock ~= false then
-			Dock.Visible = true
-			Dock.Position = UDim2.new(0.5, 0, 1, 90)
-			Tween(Dock, { Position = UDim2.new(0.5, 0, 1, -26) }, 0.45, Enum.EasingStyle.Back)
-		end
-	end
-
-	function Window:Restore()
-		Window.Minimized = false
-		Window:SetVisible(true)
-		if Dock.Visible then
-			Tween(Dock, { Position = UDim2.new(0.5, 0, 1, 90) }, 0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-			task.delay(0.3, function()
-				if not Window.Minimized then
-					Dock.Visible = false
-				end
-			end)
-		end
-	end
-
-	function Window:Toggle()
-		if Window.Loading then
-			return -- the loading card is still up
-		end
-		if Window.Minimized then
-			Window:Restore()
-		else
-			Window:Minimize()
-		end
-	end
-
-	local restoreState
-	function Window:SetMaximized(maximized)
-		if maximized == Window.Maximized then
-			return
-		end
-		Window.Maximized = maximized
-		if maximized then
-			restoreState = { Position = Root.Position }
-			local viewport = ScreenGui.AbsoluteSize
-			local target = Vector2.new((viewport.X - 24) / Window.Scale, (viewport.Y - 24) / Window.Scale)
-			Window.Size = target
-			Tween(Root, { Size = UDim2.fromOffset(target.X, target.Y), Position = UDim2.fromScale(0.5, 0.5) }, 0.38)
-		elseif restoreState then
-			-- (the screen may have changed while it was maximised)
-			local fitted, position = FittedLayout(restoreState.Position)
-			Window.Size = fitted
-			Tween(Root, { Size = UDim2.fromOffset(fitted.X, fitted.Y), Position = position }, 0.38)
-		end
-		EmitState()
-	end
-
-	-- Position, size, tab and sidebar state (InterfaceManager saves this). The
-	-- size is the one asked for, not what a small screen shrank it to.
-	function Window:GetState()
-		local position = Window.Maximized and restoreState and restoreState.Position or Root.Position
-		return {
-			X = position.X.Offset,
-			Y = position.Y.Offset,
-			Width = wantedSize.X,
-			Height = wantedSize.Y,
-			Tab = Window.CurrentTab and Window.CurrentTab.Title or nil,
-			Sidebar = Window.SidebarVisible,
-		}
-	end
-
-	function Window:ApplyState(state)
-		if type(state) ~= "table" then
-			return
-		end
-		local width, height = tonumber(state.Width), tonumber(state.Height)
-		if width and height then
-			wantedSize = Vector2.new(math.max(width, minSize.X), math.max(height, minSize.Y))
-		end
-		local x, y = tonumber(state.X), tonumber(state.Y)
-		if Window.Maximized then
-			-- applies when it's restored
-			if x and y and restoreState then
-				restoreState.Position = UDim2.new(0.5, x, 0.5, y)
-			end
-		else
-			if x and y then
-				Root.Position = UDim2.new(0.5, x, 0.5, y)
-			end
-			-- (saved on a bigger screen: it shrinks and stays in view)
-			FitToScreen()
-		end
-		if state.Tab then
-			for _, tab in ipairs(Window.Tabs) do
-				if tab.Title == state.Tab then
-					Window:SelectTab(tab)
-					break
-				end
-			end
-		end
-		if state.Sidebar == false then
-			Window:SetSidebarVisible(false)
-		end
-	end
-
-	function Window:SetAcrylic(enabled)
-		if MacUI.Unloaded then
-			return false
-		end
-		if Guard.Engaged and not Guard.Applying and Guard.Saved then
-			-- effects are paused: remember the choice for when they come back
-			Guard.Saved.Acrylic[Window] = (enabled == true) or nil
-			return enabled == true and AcrylicSupported()
-		end
-		enabled = enabled == true and AcrylicSupported()
-		Window.Acrylic = enabled
-		Restyle(SidebarGlass, 0.25)
-		if enabled and not Window.Blur then
-			local ok, blur = pcall(CreateAcrylic, Sidebar)
-			if ok then
-				Window.Blur = blur
-				table.insert(Cleanup, function()
-					blur:Destroy()
-				end)
-			else
-				warn("[MacUI] acrylic unavailable: " .. tostring(blur))
-				Window.Acrylic = false
-				Restyle(SidebarGlass, 0)
-			end
-		end
-		if Window.Blur then
-			Window.Blur:SetEnabled(Window.Acrylic and Window.Shown and not Window.Minimized)
-		end
-		return Window.Acrylic
-	end
-
-	-- Frosted glass as the user set it, even while the performance guard has it paused.
-	function Window:GetAcrylic()
-		if Guard.Engaged and Guard.Saved then
-			return Guard.Saved.Acrylic[Window] == true
-		end
-		return Window.Acrylic == true
-	end
-
-	function Window:SetTitle(text)
-		Window.Title = tostring(text)
-		TitleLabel.Text = Window.Title
-		DockTip.Text = Window.Title
-		FitTitles()
-	end
-
-	function Window:SetSubtitle(text)
-		Window.SubTitle = tostring(text or "")
-		SubtitleLabel.Text = Window.SubTitle
-		SubtitleLabel.Visible = Window.SubTitle ~= ""
-		FitTitles()
-	end
-	Window.SetSubTitle = Window.SetSubtitle
-
-	function Window:SetMinimizeKey(key)
-		if key == "None" or key == false then
-			Window.MinimizeKey = nil
-			return
-		end
-		if type(key) == "string" then
-			local ok, keycode = pcall(function()
-				return Enum.KeyCode[key]
-			end)
-			key = ok and keycode or nil
-		end
-		if typeof(key) == "EnumItem" then
-			Window.MinimizeKey = key
-		end
-	end
-
-	function Window:Notify(options)
-		return MacUI:Notify(options)
-	end
-
-	----------------------------------------------------------------------------
-	-- Dialog (macOS alert)
-	----------------------------------------------------------------------------
-
-	function Window:Dialog(options)
-		options = options or {}
-		Window:_ClosePopup(true)
-		if Window.CloseSpotlight then
-			Window:CloseSpotlight() -- the dialog needs to be on top
-		end
-		local dialog = { Closed = false }
-		local overlay = New("TextButton", {
-			Name = "Dialog",
-			Size = UDim2.fromScale(1, 1),
-			BackgroundTransparency = 1,
-			ZIndex = 40,
-			Theme = { BackgroundColor3 = "Dim" },
-			Parent = Holder,
-		})
-		Corner(overlay, 12)
-		local panelWidth = 280
-		local panelHolder = New("Frame", {
-			Name = "Panel",
-			BackgroundTransparency = 1,
-			AnchorPoint = Vector2.new(0.5, 0.5),
-			Position = UDim2.fromScale(0.5, 0.48),
-			Size = UDim2.fromOffset(panelWidth, 200),
-			ZIndex = 41,
-			Parent = overlay,
-		})
-		local panelScale = New("UIScale", { Scale = 1.08, Parent = panelHolder })
-		local panelShadow = Shadow(panelHolder, 12, function(t)
-			return dialog.Closed and 1 or t.ShadowTransparency
-		end)
-		panelShadow.ImageTransparency = 1
-		local panel = New("CanvasGroup", {
-			Size = UDim2.new(1, 0, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			GroupTransparency = 1,
-			ZIndex = 2,
-			Theme = { BackgroundColor3 = "Menu" },
-			Parent = panelHolder,
-		})
-		Corner(panel, 14)
-		local border = New("Frame", {
-			BackgroundTransparency = 1,
-			Position = UDim2.fromOffset(1, 1),
-			Size = UDim2.new(1, -2, 1, -2),
-			ZIndex = 20,
-			Parent = panel,
-		})
-		Corner(border, 13)
-		Stroke(border, "MenuStroke", 1, 0.1)
-		local body = New("Frame", {
-			BackgroundTransparency = 1,
-			Size = UDim2.new(1, 0, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			Parent = panel,
-		})
-		Padding(body, 20, 18, 16, 18)
-		List(body, nil, 6, { HorizontalAlignment = Enum.HorizontalAlignment.Center })
-
-		IconTile(body, options.Icon or config.Icon or "command", ResolveColor(options.IconColor or config.IconColor) or function()
-			return MacUI.Accent
-		end, 52, 13, 28, { LayoutOrder = 1 })
-		New("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(1, 4), LayoutOrder = 2, Parent = body })
-		New("TextLabel", {
-			Text = tostring(options.Title or "Alert"),
-			TextSize = 15,
-			Weight = Enum.FontWeight.Bold,
-			Size = UDim2.new(1, 0, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			TextWrapped = true,
-			TextXAlignment = Enum.TextXAlignment.Center,
-			LayoutOrder = 3,
-			Theme = { TextColor3 = "Text" },
-			Parent = body,
-		})
-		if options.Content and options.Content ~= "" then
-			New("TextLabel", {
-				Text = tostring(options.Content),
-				TextSize = 13,
-				Size = UDim2.new(1, 0, 0, 0),
-				AutomaticSize = Enum.AutomaticSize.Y,
-				TextWrapped = true,
-				RichText = true,
-				TextXAlignment = Enum.TextXAlignment.Center,
-				LayoutOrder = 4,
-				Theme = { TextColor3 = function(t)
-					return t.Text:Lerp(t.SubText, 0.3)
-				end },
-				Parent = body,
-			})
-		end
-		local inputBox
-		if options.Input then
-			local spec = type(options.Input) == "table" and options.Input or {}
-			New("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(1, 4), LayoutOrder = 5, Parent = body })
-			local field = New("Frame", {
-				Name = "Field",
-				Size = UDim2.new(1, 0, 0, 28),
-				LayoutOrder = 6,
-				Theme = { BackgroundColor3 = "Field" },
-				Parent = body,
-			})
-			Corner(field, 6)
-			local fieldStroke = Stroke(field, "FieldStroke")
-			inputBox = New("TextBox", {
-				Name = "Input",
-				Text = tostring(spec.Default or ""),
-				PlaceholderText = spec.Placeholder or "",
-				TextSize = 13,
-				Position = UDim2.fromOffset(8, 0),
-				Size = UDim2.new(1, -16, 1, 0),
-				ClipsDescendants = true,
-				Theme = { TextColor3 = "Text", PlaceholderColor3 = "Tertiary" },
-				Parent = field,
-			})
-			inputBox.Focused:Connect(function()
-				Themed(fieldStroke, { Color = "Accent" })
-			end)
-			inputBox.FocusLost:Connect(function()
-				Themed(fieldStroke, { Color = "FieldStroke" })
-			end)
-			dialog.Input = inputBox
-			task.defer(function()
-				if inputBox.Parent then
-					inputBox:CaptureFocus()
-				end
-			end)
-		end
-		New("Frame", { BackgroundTransparency = 1, Size = UDim2.fromOffset(1, 8), LayoutOrder = 7, Parent = body })
-
-		local buttons = options.Buttons or { { Title = "OK" } }
-		local row = New("Frame", {
-			BackgroundTransparency = 1,
-			Size = UDim2.new(1, 0, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			LayoutOrder = 8,
-			Parent = body,
-		})
-		local stacked = #buttons > 2
-		List(row, stacked and Enum.FillDirection.Vertical or Enum.FillDirection.Horizontal, 8, {
-			HorizontalAlignment = Enum.HorizontalAlignment.Center,
-		})
-
-		function dialog:Close()
-			if dialog.Closed then
-				return
-			end
-			dialog.Closed = true
-			Tween(panel, { GroupTransparency = 1 }, 0.15)
-			Restyle(panelShadow, 0.15)
-			Tween(panelScale, { Scale = 0.96 }, 0.15)
-			Tween(overlay, { BackgroundTransparency = 1 }, 0.2)
-			task.delay(0.21, function()
-				overlay:Destroy()
-			end)
-		end
-
-		local count = #buttons
-		local buttonWidth = stacked and (panelWidth - 36) or math.floor((panelWidth - 36 - 8 * (count - 1)) / count)
-		for index, spec in ipairs(buttons) do
-			local primary = index == 1
-			local style = spec.Style or (primary and "Primary" or "Default")
-			local push = PushButton(row, spec.Title or "OK", style, 28)
-			push.Instance.AutomaticSize = Enum.AutomaticSize.None
-			push.Instance.Size = UDim2.fromOffset(buttonWidth, 28)
-			push.Instance.TextSize = 13
-			push.Instance.LayoutOrder = stacked and index or (count - index + 1)
-			push.Instance.MouseButton1Click:Connect(function()
-				if dialog.Closed then
-					return
-				end
-				dialog:Close()
-				Spawn(spec.Callback, inputBox and inputBox.Text or nil)
-			end)
-		end
-		if inputBox and buttons[1] then
-			inputBox.FocusLost:Connect(function(enterPressed)
-				if enterPressed and not dialog.Closed then
-					dialog:Close()
-					Spawn(buttons[1].Callback, inputBox.Text)
-				end
-			end)
-		end
-
-		panel:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
-			panelHolder.Size = UDim2.fromOffset(panelWidth, panel.AbsoluteSize.Y / (RootScale.Scale * panelScale.Scale))
-		end)
-
-		Tween(overlay, { BackgroundTransparency = MacUI.ThemeData.DimTransparency }, 0.2)
-		Tween(panel, { GroupTransparency = 0 }, 0.18)
-		Restyle(panelShadow, 0.25)
-		Tween(panelScale, { Scale = 1 }, 0.3, Enum.EasingStyle.Back)
-		return dialog
-	end
-
-	----------------------------------------------------------------------------
-	-- Traffic light actions, dock, keyboard shortcut
-	----------------------------------------------------------------------------
-
-	local LightActions = {
-		Close = function()
-			if config.ConfirmClose == false then
-				MacUI:Destroy()
-				return
-			end
-			Window:Dialog({
-				Title = "Close " .. Window.Title .. "?",
-				Content = "This unloads the interface. Your scripts keep running until you rejoin.",
-				Icon = "power",
-				IconColor = rgb(255, 69, 58),
-				Buttons = {
-					{ Title = "Close", Style = "Destructive", Callback = function()
-						MacUI:Destroy()
-					end },
-					{ Title = "Cancel" },
-				},
-			})
-		end,
-		Minimize = function()
-			Window:Minimize()
-		end,
-		Zoom = function()
-			Window:SetMaximized(not Window.Maximized)
-		end,
-	}
-	for name, action in pairs(LightActions) do
-		LightButtons[name].MouseButton1Click:Connect(action)
-		if LightTargets[name] then
-			LightTargets[name].MouseButton1Click:Connect(action)
-		end
-	end
-
-	Dock.MouseEnter:Connect(function()
-		DockTip.Visible = true
-		Tween(DockScale, { Scale = Window.Scale * 1.08 }, 0.2, Enum.EasingStyle.Back)
-	end)
-	Dock.MouseLeave:Connect(function()
-		DockTip.Visible = false
-		Tween(DockScale, { Scale = Window.Scale }, 0.2)
-	end)
-	Dock.MouseButton1Click:Connect(function()
-		Window:Restore()
-	end)
-
-	----------------------------------------------------------------------------
-	-- Spotlight (Ctrl/Cmd + K): find any setting, toggle or action and run it
-	----------------------------------------------------------------------------
-
-	local Spotlight = { Open = false }
-
-	local function EntryValue(entry)
-		if entry.Kind == "Tab" then
-			return "Open"
-		elseif entry.Kind == "Action" then
-			return entry.ValueText
-		elseif entry.Kind == "Command" then
-			return entry.Command.Shortcut and KeyName(entry.Command.Shortcut) or "Run"
-		end
-		local element = entry.Element
-		if not element or element.Type == "Paragraph" or element.Type == "Code" or element.Type == "Image" then
-			return nil
-		elseif element.Type == "Button" then
-			if entry.Row.Disabled then
-				return nil
-			end
-			if entry.Row.Timer then
-				return "Run · " .. FormatClock(entry.Row.Timer.Ends - os.clock())
-			end
-			return "Run"
-		end
-		local ok, text = pcall(element.GetText, element)
-		if entry.Row.Timer then
-			return (ok and text and (text .. " · ") or "") .. FormatClock(entry.Row.Timer.Ends - os.clock())
-		end
-		return ok and text or nil
-	end
-
-	local function CollectEntries()
-		local entries = {}
-		for tabIndex, tab in ipairs(Window.Tabs) do
-			table.insert(entries, {
-				Kind = "Tab",
-				Tab = tab,
-				Title = tab.Title,
-				Subtitle = tab.Description and tostring(tab.Description) or "Page",
-				TitleLower = tab.Title:lower(),
-				Search = (tab.Title .. " " .. tostring(tab.Description or "")):lower(),
-				Order = tabIndex * 10000,
-			})
-			if tabIndex == 1 then
-				for index, command in ipairs(Window.Commands) do
-					table.insert(entries, {
-						Kind = "Command",
-						Command = command,
-						Title = command.Title,
-						Subtitle = command.Description or "Command",
-						TitleLower = command.Title:lower(),
-						Search = (tostring(command.Description or "") .. " " .. command.Keywords):lower(),
-						Order = 5000 + index,
-						Icon = command.Icon,
-						TileColor = command.TileColor,
-						UsageKey = "c:" .. command.Title,
-					})
-				end
-			end
-			for rowIndex, row in ipairs(tab.Rows) do
-				if row.Title ~= "" and row:_IsShown() and not row.Destroyed then
-					local section = row.Group.Block and row.Group.Block.Title
-					table.insert(entries, {
-						Kind = "Row",
-						Row = row,
-						Element = row.Element,
-						Tab = tab,
-						Title = row.Title,
-						Subtitle = (section and section ~= "") and (tab.Title .. " › " .. section) or tab.Title,
-						TitleLower = row.Title:lower(),
-						Search = (row.Description .. " " .. row.Keywords .. " " .. tab.Title .. " " .. (section or "")):lower(),
-						Order = tabIndex * 10000 + rowIndex,
-						UsageKey = row.Element and UsageKey(row.Element) or nil,
-					})
-				end
-			end
-		end
-		return entries
-	end
-
-	local function Fuzzy(haystack, needle)
-		local position = 1
-		for i = 1, #needle do
-			local found = haystack:find(needle:sub(i, i), position, true)
-			if not found then
-				return false
-			end
-			position = found + 1
-		end
-		return true
-	end
-
-	local function Score(entry, query)
-		local title = entry.TitleLower
-		if title == query then
-			return 100
-		elseif title:sub(1, #query) == query then
-			return 90
-		end
-		local start = title:find(query, 1, true)
-		if start then
-			return title:sub(start - 1, start - 1):match("[%s%p]") and 80 or 70
-		elseif entry.Search:find(query, 1, true) then
-			return 50
-		elseif #query >= 2 and Fuzzy(title, query) then
-			return 30
-		end
-		return 0
-	end
-
-	----------------------------------------------------------------------------
-	-- Spotlight actions: type what you want done. "walk speed 50", "auto farm
-	-- off", "difficulty hard", "fill red", "name = Bob", "auto farm off in 30m",
-	-- "collect every 10s", "reset fov", "play routine", "light mode", "undo"
-	----------------------------------------------------------------------------
-
-	local ON_WORDS = { on = true, enable = true, enabled = true, yes = true, ["true"] = true }
-	local OFF_WORDS = { off = true, disable = true, disabled = true, no = true, ["false"] = true }
-	local COLOR_WORDS = {
-		red = rgb(255, 69, 58),
-		orange = rgb(255, 159, 10),
-		yellow = rgb(255, 214, 10),
-		green = rgb(48, 209, 88),
-		mint = rgb(99, 230, 226),
-		teal = rgb(64, 200, 224),
-		cyan = rgb(100, 210, 255),
-		blue = rgb(10, 132, 255),
-		indigo = rgb(94, 92, 230),
-		purple = rgb(191, 90, 242),
-		pink = rgb(255, 55, 95),
-		brown = rgb(172, 142, 104),
-		white = rgb(255, 255, 255),
-		black = rgb(0, 0, 0),
-		gray = rgb(142, 142, 147),
-		grey = rgb(142, 142, 147),
-	}
-	-- checked in order: "turn on " before "turn "
-	local ACTION_VERBS = {
-		{ "turn on ", "on" },
-		{ "turn off ", "off" },
-		{ "switch on ", "on" },
-		{ "switch off ", "off" },
-		{ "enable ", "on" },
-		{ "disable ", "off" },
-		{ "toggle ", "toggle" },
-		{ "reset ", "reset" },
-		{ "run ", "run" },
-		{ "press ", "run" },
-		{ "click ", "run" },
-		{ "repeat ", "run" },
-		{ "play ", "play" },
-		{ "set ", "set" },
-		{ "turn ", "turn" },
-		{ "switch ", "turn" },
-	}
-	local SUGGESTABLE = {
-		Toggle = true,
-		Slider = true,
-		Dropdown = true,
-		Input = true,
-		Keybind = true,
-		Colorpicker = true,
-		Segmented = true,
-		Stepper = true,
-		Radio = true,
-		Button = true,
-		Macro = true,
-	}
-
-	local function Location(row, tab)
-		local section = row.Group.Block and row.Group.Block.Title
-		return (section and section ~= "") and (tab.Title .. " › " .. section) or tab.Title
-	end
-
-	-- The controls a phrase names. Only title matches of a whole word or more
-	-- count, and only the best of them: Enter runs the first action, so a
-	-- partial match ("lights" in "Highlights") must never become one.
-	local function FindControls(name)
-		local found, best = {}, 0
-		if #name < 2 then
-			return found
-		end
-		for tabIndex, tab in ipairs(Window.Tabs) do
-			for rowIndex, row in ipairs(tab.Rows) do
-				if row.Element and row.Title ~= "" and not row.Destroyed and not row.Disabled and row:_IsShown() then
-					local score = Score({ TitleLower = row.Title:lower(), Search = "" }, name)
-					if score >= 80 and score >= best then
-						if score > best then
-							table.clear(found)
-							best = score
-						end
-						table.insert(found, {
-							Element = row.Element,
-							Row = row,
-							Tab = tab,
-							Score = score,
-							Order = tabIndex * 10000 + rowIndex,
-						})
-					end
-				end
-			end
-		end
-		return found
-	end
-
-	-- What `text` means for this control ("50", "off", "hard", "red"), or nil.
-	-- Text fields only take a value from an explicit "name = value".
-	local function Interpret(element, text, raw, explicit)
-		local kind = element.Type
-		if kind == "Toggle" then
-			if ON_WORDS[text] then
-				return true
-			elseif OFF_WORDS[text] then
-				return false
-			end
-		elseif kind == "Slider" or kind == "Stepper" then
-			local min, max = tonumber(element.Min), tonumber(element.Max)
-			if (text == "max" or text == "maximum") and max then
-				return max
-			elseif (text == "min" or text == "minimum") and min then
-				return min
-			end
-			local number = tonumber(text:match("^(%-?%d*%.?%d+)%s*[^%d%s]*$"))
-			if number then
-				return (min and max) and math.clamp(number, min, max) or number
-			end
-		elseif kind == "Dropdown" or kind == "Segmented" or kind == "Radio" then
-			local prefix, count = nil, 0
-			for _, option in ipairs(element.Values or {}) do
-				local lower = tostring(option):lower()
-				if lower == text then
-					return option
-				elseif #text >= 2 and lower:sub(1, #text) == text then
-					prefix, count = option, count + 1
-				end
-			end
-			if count == 1 then
-				return prefix
-			end
-		elseif kind == "Colorpicker" then
-			if COLOR_WORDS[text] then
-				return COLOR_WORDS[text]
-			end
-			local hex = text:match("^#?(%x%x%x%x%x%x)$")
-			if hex then
-				return Color3.fromHex(hex)
-			end
-		elseif kind == "Input" and explicit and raw ~= "" then
-			return raw
-		end
-		return nil
-	end
-
-	local function Describe(element, value)
-		if typeof(value) == "Color3" then
-			return "#" .. value:ToHex():upper()
-		elseif type(value) == "number" then
-			return tostring(Round(value, 3)) .. tostring(element.Suffix or "")
-		end
-		return tostring(value)
-	end
-
-	local function NewAction(match, title, icon, valueText, run)
-		local element, row = match.Element, match.Row
-		local ok, current = pcall(element.GetText, element)
-		local now = (ok and current and current ~= "") and ("  ·  now " .. tostring(current)) or ""
-		return {
-			Kind = "Action",
-			Key = tostring(row) .. "|" .. title,
-			Row = row,
-			Element = element,
-			Tab = match.Tab,
-			Title = title,
-			Subtitle = Location(row, match.Tab) .. now,
-			Icon = icon or "wand-2",
-			TileColor = function()
-				return MacUI.Accent
-			end,
-			ValueText = valueText,
-			Score = match.Score,
-			Order = match.Order,
-			Run = run,
-		}
-	end
-
-	-- "Set X to V", "Turn off X", "Add V to X"; nil when nothing would change.
-	local function ValueAction(match, value)
-		local element, title = match.Element, match.Row.Title
-		local kind = element.Type
-		if kind == "Toggle" then
-			if element.Value == value then
-				return nil
-			end
-			return NewAction(match, "Turn " .. (value and "on " or "off ") .. title, value and "toggle-right" or "toggle-left", "Apply", function()
-				element:SetValue(value)
-				return title, value and "On" or "Off"
-			end)
-		elseif kind == "Dropdown" and element.Multi then
-			local has = element.Value[value] == true
-			local phrase = has and ("Remove " .. tostring(value) .. " from ") or ("Add " .. tostring(value) .. " to ")
-			return NewAction(match, phrase .. title, "list-checks", "Apply", function()
-				local set = table.clone(element.Value)
-				set[value] = (not has) or nil
-				element:SetValue(set)
-				return title, element:GetText()
-			end)
-		elseif kind == "Colorpicker" then
-			return NewAction(match, "Set " .. title .. " to " .. Describe(element, value), "palette", "Apply", function()
-				element:SetValueRGB(value)
-				return title, Describe(element, value)
-			end)
-		end
-		if SameValue(element.Value, value) then
-			return nil
-		end
-		return NewAction(match, "Set " .. title .. " to " .. Describe(element, value), nil, "Apply", function()
-			element:SetValue(value)
-			return title, element:GetText()
-		end)
-	end
-
-	-- "Turn off X in 30 min" (value nil flips it)
-	local function TimerAction(match, value, seconds)
-		local element, title = match.Element, match.Row.Title
-		if element.Type ~= "Toggle" then
-			return nil
-		end
-		if value == nil then
-			value = not element.Value
-		end
-		if value == element.Value then
-			return nil
-		end
-		local when = DescribeDuration(seconds)
-		return NewAction(match, "Turn " .. (value and "on " or "off ") .. title .. " in " .. when, "timer", "Start", function()
-			element:SetTimer(seconds, value)
-			return title, (value and "on" or "off") .. " in " .. when
-		end)
-	end
-
-	-- "Press X every 10 s"
-	local function RepeatAction(match, seconds)
-		local element, title = match.Element, match.Row.Title
-		if element.Type ~= "Button" then
-			return nil
-		end
-		local every = DescribeDuration(seconds)
-		return NewAction(match, "Press " .. title .. " every " .. every, "repeat", "Start", function()
-			element:SetRepeat(seconds)
-			return title, "every " .. every
-		end)
-	end
-
-	local function WindowAction(key, title, subtitle, icon, run)
-		return {
-			Kind = "Action",
-			Key = key,
-			Title = title,
-			Subtitle = subtitle,
-			Icon = icon,
-			TileColor = function()
-				return MacUI.Accent
-			end,
-			Score = 100,
-			Run = run,
-		}
-	end
-
-	local function ParseActions(input)
-		local raw = input:gsub("^%s+", ""):gsub("%s+$", ""):gsub("%s+", " ")
-		local text = raw:lower()
-		local actions, seen = {}, {}
-		local function Add(action)
-			if action and not seen[action.Key] then
-				seen[action.Key] = true
-				table.insert(actions, action)
-			end
-		end
-		local function Done()
-			table.sort(actions, function(a, b)
-				if (a.Score or 0) ~= (b.Score or 0) then
-					return (a.Score or 0) > (b.Score or 0)
-				end
-				return (a.Order or 0) < (b.Order or 0)
-			end)
-			while #actions > 3 do
-				table.remove(actions)
-			end
-			return actions
-		end
-		if #text < 3 then
-			return actions
-		end
-
-		-- the window itself: "light mode", "theme ocean", "accent purple", "undo"
-		local themeWord = text:match("^(.+) theme$")
-			or text:match("^(.+) mode$")
-			or text:match("^theme (.+)$")
-			or text:match("^switch to (.+)$")
-		if themeWord then
-			for _, name in ipairs(MacUI:GetThemes()) do
-				if name:lower() == themeWord and name ~= MacUI.ThemeName then
-					Add(WindowAction("theme:" .. name, "Switch to the " .. name .. " theme", "Appearance", "palette", function()
-						MacUI:SetTheme(name)
-						return "Theme", name
-					end))
-				end
-			end
-		end
-		local accentWord = text:match("^accent (.+)$") or text:match("^(.+) accent$")
-		if accentWord then
-			for _, name in ipairs(MacUI.AccentOrder) do
-				if name:lower() == accentWord and MacUI.Accents[name] ~= MacUI.Accent then
-					Add(WindowAction("accent:" .. name, "Use " .. name .. " as the accent colour", "Appearance", "palette", function()
-						MacUI:SetAccent(name)
-						return "Accent", name
-					end))
-				end
-			end
-		end
-		if text == "undo" and MacUI:CanUndo() then
-			Add(WindowAction("undo", "Undo the last change", "Ctrl + Z", "undo-2", function()
-				MacUI:Undo()
-			end))
-		elseif text == "redo" and MacUI:CanRedo() then
-			Add(WindowAction("redo", "Redo the last change", "Ctrl + Shift + Z", "redo-2", function()
-				MacUI:Redo()
-			end))
-		elseif (text == "cancel timers" or text == "stop timers") and next(ActiveTimers) ~= nil then
-			Add(WindowAction("timers", "Cancel every timer", "Timers and repeats", "timer-off", function()
-				MacUI:CancelTimers()
-				return "Timers", "Cancelled"
-			end))
-		end
-
-		-- "name = value" or "name: value": everything after the sign is the
-		-- value, word for word ("status = back in 5" keeps its "in 5"). A colon
-		-- needs a space after it, so titles like "Window:Minimize" stay titles.
-		local name, at = text:match("^(.-)%s*=%s*()%S")
-		if not name or name == "" then
-			name, at = text:match("^(.-):%s+()%S")
-		end
-		if name and name ~= "" then
-			name = name:gsub("^set ", "")
-			local value, rawValue = text:sub(at), raw:sub(at)
-			for _, match in ipairs(FindControls(name)) do
-				local parsed = Interpret(match.Element, value, rawValue, true)
-				if parsed ~= nil then
-					Add(ValueAction(match, parsed))
-				end
-			end
-			return Done()
-		end
-
-		-- "... in 20m" / "... after 1h" (a toggle timer), "... every 30s" (a
-		-- repeat); the last "in" counts, so "sign in bonus off in 5m" works
-		local first, last = 1, #text
-		local timing, seconds
-		local head, rest = text:match("^(.*) in (.+)$")
-		if not head then
-			head, rest = text:match("^(.*) after (.+)$")
-		end
-		local duration = head and head ~= "" and ParseDuration(rest, "m")
-		if duration then
-			timing, seconds, last = "in", duration, #head
-		else
-			head, rest = text:match("^(.*) every (.+)$")
-			duration = head and head ~= "" and ParseDuration(rest, "s")
-			if duration then
-				timing, seconds, last = "every", duration, #head
-			end
-		end
-
-		-- a leading verb: "turn off", "enable", "reset", "run", "play", "set"...
-		local verb
-		for _, spec in ipairs(ACTION_VERBS) do
-			if text:sub(1, #spec[1]) == spec[1] and #spec[1] < last then
-				verb, first = spec[2], #spec[1] + 1
-				break
-			end
-		end
-		local body = text:sub(first, last)
-		local rawBody = raw:sub(first, last)
-
-		-- Anything a verb can't do with a time ("press x in 5m") is left out
-		-- rather than done straight away.
-		if verb == "on" or verb == "off" or verb == "toggle" then
-			if timing ~= "every" then
-				for _, match in ipairs(FindControls(body)) do
-					local element = match.Element
-					if element.Type == "Toggle" then
-						local value
-						if verb == "toggle" then
-							value = not element.Value
-						else
-							value = verb == "on"
-						end
-						if timing == "in" then
-							Add(TimerAction(match, value, seconds))
-						else
-							Add(ValueAction(match, value))
-						end
-					end
-				end
-			end
-		elseif verb == "reset" then
-			if timing == nil then
-				for _, match in ipairs(FindControls(body)) do
-					local element = match.Element
-					if (element.Default ~= nil or element._Reset) and not element:IsDefault() then
-						Add(NewAction(match, "Reset " .. match.Row.Title, "rotate-ccw", "Reset", function()
-							element:Reset()
-							return match.Row.Title, "Reset"
-						end))
-					end
-				end
-			end
-		elseif verb == "run" then
-			for _, match in ipairs(FindControls(body)) do
-				local element = match.Element
-				if element.Type == "Button" then
-					if timing == "every" then
-						Add(RepeatAction(match, seconds))
-					elseif timing == nil then
-						Add(NewAction(match, "Press " .. match.Row.Title, "play", "Run", function()
-							element:Fire()
-							return match.Row.Title, nil
-						end))
-					end
-				end
-			end
-			if timing == nil and #body >= 3 then
-				for index, command in ipairs(Window.Commands) do
-					local score = Score({ TitleLower = command.Title:lower(), Search = "" }, body)
-					if score >= 80 then
-						local entry = WindowAction("command:" .. command.Title, "Run " .. command.Title, command.Description or "Command", command.Icon, function()
-							command:Run(true)
-						end)
-						entry.TileColor = command.TileColor
-						entry.Score = score
-						entry.Order = index
-						Add(entry)
-					end
-				end
-			end
-		elseif verb == "play" then
-			if timing == nil then
-				for _, match in ipairs(FindControls(body)) do
-					local element = match.Element
-					if element.Type == "Macro" and #element.Steps > 0 then
-						Add(NewAction(match, (element.Playing and "Stop " or "Play ") .. match.Row.Title, "play", "Play", function()
-							element:_Activate(true)
-						end))
-					end
-				end
-			end
-		end
-
-		if (verb == nil or verb == "set" or verb == "turn") and timing ~= "every" then
-			local function Offer(match, parsed)
-				if timing == "in" then
-					Add(TimerAction(match, parsed, seconds)) -- toggles only
-				else
-					Add(ValueAction(match, parsed))
-				end
-			end
-			-- "walk speed to 50"; "set nickname to Bob" fills a text field too
-			local toName, toAt = body:match("^(.-) to ()%S")
-			if toName and toName ~= "" then
-				local value, rawValue = body:sub(toAt), rawBody:sub(toAt)
-				for _, match in ipairs(FindControls(toName)) do
-					local parsed = Interpret(match.Element, value, rawValue, verb == "set")
-					if parsed ~= nil then
-						Offer(match, parsed)
-					end
-				end
-			end
-			-- "walk speed 50", "auto farm off", "difficulty hard", "fill red"
-			local words = {}
-			for word in body:gmatch("%S+") do
-				table.insert(words, word)
-			end
-			for split = #words - 1, math.max(#words - 3, 1), -1 do
-				local controlName = table.concat(words, " ", 1, split)
-				local value = table.concat(words, " ", split + 1)
-				for _, match in ipairs(FindControls(controlName)) do
-					local parsed = Interpret(match.Element, value, value, false)
-					if parsed ~= nil then
-						Offer(match, parsed)
-					end
-				end
-			end
-		end
-		-- "auto farm in 30m" flips it later; "collect every 10s" presses it
-		if verb == nil and timing == "in" then
-			for _, match in ipairs(FindControls(body)) do
-				Add(TimerAction(match, nil, seconds))
-			end
-		elseif verb == nil and timing == "every" then
-			for _, match in ipairs(FindControls(body)) do
-				Add(RepeatAction(match, seconds))
-			end
-		end
-		return Done()
-	end
-
-	local function Heading(title)
-		return { Kind = "Header", Title = title }
-	end
-
-	local function SpotlightSearch(text)
-		local query = text:lower():gsub("^%s+", ""):gsub("%s+$", "")
-		local entries = CollectEntries()
-		local results = {}
-		if query == "" then
-			-- what you use most, then pages and commands
-			local suggestions = {}
-			for _, entry in ipairs(entries) do
-				local suggestable = entry.Kind == "Command" or (entry.Kind == "Row" and entry.Element and SUGGESTABLE[entry.Element.Type])
-				if suggestable then
-					entry.Frecency = Frecency(entry.UsageKey)
-					if entry.Frecency > 0 then
-						table.insert(suggestions, entry)
-					end
-				end
-			end
-			table.sort(suggestions, function(a, b)
-				if a.Frecency ~= b.Frecency then
-					return a.Frecency > b.Frecency
-				end
-				return a.Order < b.Order
-			end)
-			while #suggestions > 4 do
-				table.remove(suggestions)
-			end
-			local suggested = {}
-			if #suggestions > 0 then
-				table.insert(results, Heading("Suggestions"))
-				for _, entry in ipairs(suggestions) do
-					suggested[entry] = true
-					table.insert(results, entry)
-				end
-			end
-			local pages, commands = {}, {}
-			for _, entry in ipairs(entries) do
-				if entry.Kind == "Tab" then
-					table.insert(pages, entry)
-				elseif entry.Kind == "Command" and not suggested[entry] then
-					table.insert(commands, entry)
-				end
-			end
-			-- headings only when there's more than the list of pages
-			local headed = #suggestions > 0 or #commands > 0
-			if headed then
-				table.insert(results, Heading("Pages"))
-			end
-			for _, entry in ipairs(pages) do
-				table.insert(results, entry)
-			end
-			if #commands > 0 then
-				table.insert(results, Heading("Commands"))
-				for _, entry in ipairs(commands) do
-					table.insert(results, entry)
-				end
-			end
-			return results
-		end
-
-		local matches = {}
-		for _, entry in ipairs(entries) do
-			local score = Score(entry, query)
-			if score > 0 then
-				entry.Score = score
-				entry.Frecency = Frecency(entry.UsageKey)
-				table.insert(matches, entry)
-			end
-		end
-		table.sort(matches, function(a, b)
-			if a.Score ~= b.Score then
-				return a.Score > b.Score
-			elseif (a.Kind == "Tab") ~= (b.Kind == "Tab") then
-				return a.Kind == "Tab" -- pages first on a tie
-			elseif a.Frecency ~= b.Frecency then
-				return a.Frecency > b.Frecency -- then what you use most
-			end
-			return a.Order < b.Order
-		end)
-		while #matches > 40 do
-			table.remove(matches)
-		end
-		local actions = ParseActions(text)
-		if #actions == 0 then
-			return matches
-		end
-		if matches[1] and matches[1].Score == 100 then
-			-- an exact title stays first, so Enter does what it always did
-			table.insert(results, Heading("Results"))
-			for _, entry in ipairs(matches) do
-				table.insert(results, entry)
-			end
-			table.insert(results, Heading("Actions"))
-			for _, action in ipairs(actions) do
-				table.insert(results, action)
-			end
-			return results
-		end
-		table.insert(results, Heading("Actions"))
-		for _, action in ipairs(actions) do
-			table.insert(results, action)
-		end
-		if #matches > 0 then
-			table.insert(results, Heading("Results"))
-			for _, entry in ipairs(matches) do
-				table.insert(results, entry)
-			end
-		end
-		return results
-	end
-
-	-- `query` (optional) starts Spotlight with that text typed in.
-	function Window:OpenSpotlight(query)
-		if Spotlight.Open or MacUI.Unloaded or config.Spotlight == false then
-			return
-		end
-		if Window.Minimized then
-			Window:Restore()
-		end
-		Window:_ClosePopup(true)
-		HideTooltip()
-		Spotlight.Open = true
-		local scale = Window.Scale
-		local width, searchHeight, itemHeight, maxVisible = 580, 54, 46, 7
-		local headerHeight = 26
-		local results, items, rendered, selected, visibleHeight = {}, {}, {}, 1, 0
-		local pointerMoved, renderMouse = false, MousePosition()
-		local connections = {}
-
-		local overlay = New("TextButton", {
-			Name = "Spotlight",
-			Size = UDim2.fromScale(1, 1),
-			ZIndex = 300,
-			Parent = PopupLayer,
-		})
-		InterfaceRoots[overlay] = true
-		-- centred over the window, just under its toolbar, kept on screen
-		local screen = PopupLayer.AbsoluteSize
-		local rootPosition = Root.AbsolutePosition - PopupLayer.AbsolutePosition
-		local rootSize = Root.AbsoluteSize
-		local half = width * scale / 2
-		local centerX = math.clamp(rootPosition.X + rootSize.X / 2, half + 8, math.max(half + 8, screen.X - half - 8))
-		local top = math.clamp(rootPosition.Y + 44 * RootScale.Scale, 8, math.max(8, screen.Y - (searchHeight + maxVisible * itemHeight + 2 * headerHeight + 20) * scale))
-		local holder = New("Frame", {
-			Name = "Panel",
-			BackgroundTransparency = 1,
-			AnchorPoint = Vector2.new(0.5, 0),
-			Position = UDim2.fromOffset(centerX, top),
-			Size = UDim2.fromOffset(width, searchHeight),
-			ZIndex = 301,
-			Parent = overlay,
-		})
-		local panelScale = New("UIScale", { Scale = scale * 0.96, Parent = holder })
-		local sink = New("TextButton", { Name = "Sink", Size = UDim2.fromScale(1, 1), ZIndex = 1, Parent = holder })
-		local shadow = Shadow(holder, 10, function(t)
-			return Spotlight.Open and t.ShadowTransparency or 1
-		end)
-		shadow.ImageTransparency = 1
-		local panel = New("CanvasGroup", {
-			Name = "Content",
-			Size = UDim2.fromScale(1, 1),
-			GroupTransparency = 1,
-			ZIndex = 2,
-			Theme = { BackgroundColor3 = "Menu" },
-			Parent = holder,
-		})
-		Corner(panel, 16)
-		local border = New("Frame", {
-			BackgroundTransparency = 1,
-			Position = UDim2.fromOffset(1, 1),
-			Size = UDim2.new(1, -2, 1, -2),
-			ZIndex = 50,
-			Parent = panel,
-		})
-		Corner(border, 15)
-		Stroke(border, "MenuStroke", 1, 0.1)
-		IconImage({
-			Icon = "search",
-			IconSize = 20,
-			AnchorPoint = Vector2.new(0, 0.5),
-			Position = UDim2.new(0, 18, 0, searchHeight / 2),
-			Theme = { ImageColor3 = "SubText" },
-			Parent = panel,
-		})
-		local box = New("TextBox", {
-			Name = "Query",
-			Text = type(query) == "string" and query or "",
-			PlaceholderText = "Search, or type a setting and a value",
-			TextSize = 19,
-			Position = UDim2.fromOffset(50, 0),
-			Size = UDim2.new(1, -110, 0, searchHeight),
-			ClipsDescendants = true,
-			Theme = { TextColor3 = "Text", PlaceholderColor3 = "Tertiary" },
-			Parent = panel,
-		})
-		local escHint = New("TextLabel", {
-			Text = "esc",
-			TextSize = 11,
-			Weight = Enum.FontWeight.Medium,
-			AnchorPoint = Vector2.new(1, 0.5),
-			Position = UDim2.new(1, -16, 0, searchHeight / 2),
-			Size = UDim2.fromOffset(32, 18),
-			TextXAlignment = Enum.TextXAlignment.Center,
-			BackgroundTransparency = 0,
-			Theme = { BackgroundColor3 = "Control", TextColor3 = "SubText" },
-			Parent = panel,
-		})
-		Corner(escHint, 5)
-		local divider = New("Frame", {
-			Name = "Divider",
-			Position = UDim2.fromOffset(0, searchHeight),
-			Size = UDim2.new(1, 0, 0, 1),
-			Visible = false,
-			Theme = { BackgroundColor3 = "Separator" },
-			Parent = panel,
-		})
-		local list = New("ScrollingFrame", {
-			Name = "Results",
-			Position = UDim2.fromOffset(0, searchHeight + 1),
-			Size = UDim2.new(1, 0, 1, -(searchHeight + 1)),
-			CanvasSize = UDim2.new(),
-			AutomaticCanvasSize = Enum.AutomaticSize.Y,
-			ScrollingDirection = Enum.ScrollingDirection.Y,
-			ScrollBarThickness = 3,
-			ScrollBarImageTransparency = 0.4,
-			VerticalScrollBarInset = Enum.ScrollBarInset.None,
-			Theme = { ScrollBarImageColor3 = "Scrollbar" },
-			Parent = panel,
-		})
-		local listContent = New("Frame", {
-			BackgroundTransparency = 1,
-			Size = UDim2.new(1, 0, 0, 0),
-			AutomaticSize = Enum.AutomaticSize.Y,
-			Parent = list,
-		})
-		Padding(listContent, 6, 8, 6, 8)
-		List(listContent, nil, 0)
-		local empty = New("TextLabel", {
-			Name = "Empty",
-			Text = "No Results",
-			TextSize = 13,
-			Size = UDim2.new(1, 0, 0, 40),
-			TextXAlignment = Enum.TextXAlignment.Center,
-			Visible = false,
-			LayoutOrder = 100000,
-			Theme = { TextColor3 = "SubText" },
-			Parent = listContent,
-		})
-
-		local closed = false
-		local function Close()
-			if closed then
-				return
-			end
-			closed = true
-			Spotlight.Open = false
-			Spotlight.Close = nil
-			for _, connection in ipairs(connections) do
-				connection:Disconnect()
-			end
-			if box:IsFocused() then
-				box:ReleaseFocus()
-			end
-			Restyle(shadow, 0.15)
-			Tween(panel, { GroupTransparency = 1 }, 0.15)
-			Tween(panelScale, { Scale = scale * 0.97 }, 0.15)
-			task.delay(0.16, function()
-				overlay:Destroy()
-			end)
-		end
-		Spotlight.Close = Close
-
-		local function Activate(entry, reveal)
-			if closed then
-				return
-			end
-			Close()
-			if entry.Kind == "Tab" then
-				Window:SelectTab(entry.Tab)
-				return
-			elseif entry.Kind == "Command" then
-				entry.Command:Run(true)
-				return
-			elseif entry.Kind == "Action" then
-				local ok, title, detail = pcall(entry.Run)
-				if not ok then
-					warn("[MacUI] " .. tostring(title))
-				elseif title then
-					Window:Toast(title, { Detail = detail, Icon = entry.Icon, Highlight = true })
-				end
-				return
-			end
-			local element = entry.Element
-			if not reveal and not entry.Row.Disabled and element and element._Activate then
-				element:_Activate(true)
-			else
-				Window:Reveal(entry.Row)
-			end
-		end
-
-		local function Paint()
-			for index, item in ipairs(items) do
-				item.Selected = index == selected
-				for _, object in ipairs(item.Painted) do
-					Restyle(object, 0.08)
-				end
-			end
-			local item = items[selected]
-			if not item then
-				return
-			end
-			-- keep the selection (and the heading above it) in view
-			local top = item.Top - (item.HeaderAbove and headerHeight or 0)
-			local bottom = item.Top + itemHeight
-			local current = list.CanvasPosition.Y
-			if top < current then
-				list.CanvasPosition = Vector2.new(0, math.max(top, 0))
-			elseif bottom > current + visibleHeight then
-				list.CanvasPosition = Vector2.new(0, bottom - visibleHeight)
-			end
-		end
-
-		local function Render()
-			for _, object in ipairs(rendered) do
-				object:Destroy()
-			end
-			table.clear(rendered)
-			table.clear(items)
-			results = SpotlightSearch(box.Text)
-			pointerMoved, renderMouse = false, MousePosition()
-			local y, headingAbove, headings = 0, false, 0
-			for order, entry in ipairs(results) do
-				if entry.Kind == "Header" then
-					headings += 1
-					local heading = New("TextLabel", {
-						Name = "Header",
-						Text = entry.Title,
-						TextSize = 11,
-						Weight = Enum.FontWeight.Bold,
-						Size = UDim2.new(1, 0, 0, headerHeight),
-						TextYAlignment = Enum.TextYAlignment.Bottom,
-						LayoutOrder = order,
-						Theme = { TextColor3 = "SubText" },
-						Parent = listContent,
-					})
-					Padding(heading, 0, 10, 6, 10)
-					table.insert(rendered, heading)
-					y += headerHeight
-					headingAbove = true
-				else
-					local index = #items + 1
-					local item = { Entry = entry, Selected = false, Top = y, HeaderAbove = headingAbove }
-					headingAbove = false
-					y += itemHeight
-					local function Foreground(normal)
-						return function(t)
-							return item.Selected and t.SelectionText or t[normal]
-						end
-					end
-					item.Button = New("TextButton", {
-						Name = "Result",
-						Size = UDim2.new(1, 0, 0, itemHeight),
-						LayoutOrder = order,
-						Theme = {
-							BackgroundColor3 = "Accent",
-							BackgroundTransparency = function()
-								return item.Selected and 0 or 1
-							end,
-						},
-						Parent = listContent,
-					})
-					Corner(item.Button, 9)
-					local tab = entry.Tab
-					IconTile(item.Button, entry.Icon or (tab and tab.Icon) or "layers", entry.TileColor or (tab and tab.TileColor), 28, 7, 16, {
-						AnchorPoint = Vector2.new(0, 0.5),
-						Position = UDim2.new(0, 10, 0.5, 0),
-					})
-					local value = EntryValue(entry)
-					local reserve = value and 150 or 60
-					local title = New("TextLabel", {
-						Text = entry.Title,
-						TextSize = 14,
-						Weight = Enum.FontWeight.Medium,
-						Position = UDim2.fromOffset(50, 6),
-						Size = UDim2.new(1, -reserve, 0, 18),
-						TextTruncate = Enum.TextTruncate.AtEnd,
-						Theme = { TextColor3 = Foreground("Text") },
-						Parent = item.Button,
-					})
-					local subtitle = New("TextLabel", {
-						Text = entry.Subtitle,
-						TextSize = 12,
-						Position = UDim2.fromOffset(50, 24),
-						Size = UDim2.new(1, -reserve, 0, 15),
-						TextTruncate = Enum.TextTruncate.AtEnd,
-						Theme = { TextColor3 = Foreground("SubText") },
-						Parent = item.Button,
-					})
-					item.Painted = { item.Button, title, subtitle }
-					if value then
-						table.insert(item.Painted, New("TextLabel", {
-							Text = value,
-							TextSize = 13,
-							AnchorPoint = Vector2.new(1, 0.5),
-							Position = UDim2.new(1, -14, 0.5, 0),
-							Size = UDim2.fromOffset(110, 18),
-							TextXAlignment = Enum.TextXAlignment.Right,
-							TextTruncate = Enum.TextTruncate.AtEnd,
-							Theme = { TextColor3 = Foreground("SubText") },
-							Parent = item.Button,
-						}))
-					end
-					local function Hover()
-						if not pointerMoved and (MousePosition() - renderMouse).Magnitude > 1 then
-							pointerMoved = true
-						end
-						if pointerMoved and selected ~= index then
-							selected = index
-							Paint()
-						end
-					end
-					item.Button.MouseEnter:Connect(Hover)
-					item.Button.MouseMoved:Connect(Hover)
-					item.Button.MouseButton1Click:Connect(function()
-						Activate(entry, false)
-					end)
-					table.insert(items, item)
-					table.insert(rendered, item.Button)
-				end
-			end
-			if box.Text:match("^%s*$") then
-				-- nothing is picked until you type or move: Enter mustn't run a
-				-- suggestion (a command, say) by accident
-				selected = 0
-			else
-				selected = math.clamp(selected, 1, math.max(#items, 1))
-			end
-			empty.Visible = #items == 0 and box.Text ~= ""
-			divider.Visible = #items > 0 or empty.Visible
-			-- seven rows, plus room for up to two of the headings shown
-			visibleHeight = math.min(y, maxVisible * itemHeight + math.min(headings, 2) * headerHeight)
-			local listHeight = #items > 0 and (visibleHeight + 12) or (empty.Visible and 52 or 0)
-			Tween(holder, { Size = UDim2.fromOffset(width, searchHeight + (listHeight > 0 and listHeight + 1 or 0)) }, 0.18)
-			Paint()
-		end
-
-		table.insert(connections, UserInputService.InputChanged:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseMovement then
-				pointerMoved = true
-			end
-		end))
-		table.insert(connections, UserInputService.InputBegan:Connect(function(input)
-			if input.KeyCode == Enum.KeyCode.Down then
-				selected = math.min(selected + 1, math.max(#items, 1))
-				Paint()
-			elseif input.KeyCode == Enum.KeyCode.Up then
-				selected = math.max(selected - 1, 1)
-				Paint()
-			end
-		end))
-		box:GetPropertyChangedSignal("Text"):Connect(function()
-			selected = 1
-			Render()
-		end)
-		box.FocusLost:Connect(function(enterPressed, input)
-			if not Spotlight.Open then
-				return
-			end
-			if enterPressed then
-				MarkActivity() -- Enter in Spotlight is the user acting
-				local entry = items[selected] and items[selected].Entry
-				if entry then
-					local reveal = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) or UserInputService:IsKeyDown(Enum.KeyCode.RightShift)
-					Activate(entry, reveal)
-				else
-					Close()
-				end
-			elseif input and input.KeyCode == Enum.KeyCode.Escape then
-				Close()
-			end
-		end)
-		sink.MouseButton1Click:Connect(function()
-			box:CaptureFocus()
-		end)
-		overlay.MouseButton1Click:Connect(Close)
-		overlay.MouseButton2Click:Connect(Close)
-
-		Render()
-		Tween(panel, { GroupTransparency = 0 }, 0.16)
-		Tween(panelScale, { Scale = scale }, 0.28, Enum.EasingStyle.Back)
-		Restyle(shadow, 0.2)
-		task.defer(function()
-			if Spotlight.Open then
-				box:CaptureFocus()
-				box.CursorPosition = #box.Text + 1
-			end
-		end)
-	end
-
-	function Window:CloseSpotlight()
-		if Spotlight.Close then
-			Spotlight.Close()
-		end
-	end
-
-	SpotlightHint.MouseButton1Click:Connect(function()
-		Window:OpenSpotlight()
-	end)
-
-	----------------------------------------------------------------------------
-	-- Commands: actions that live in Spotlight (and optionally on a key)
-	----------------------------------------------------------------------------
-
-	--[[
-		local rejoin = Window:AddCommand({
-			Title = "Rejoin server",
-			Description = "Teleports you back into this game.",
-			Icon = "refresh-cw", IconColor = "Green",
-			Keywords = "reconnect server hop",
-			Shortcut = "F8",
-			Callback = function() ... end,
-		})
-		rejoin:Run()  rejoin:SetShortcut("F9")  rejoin:Destroy()
-	]]
-	function Window:AddCommand(info)
-		info = info or {}
-		local command = {
-			Title = tostring(info.Title or "Command"),
-			Description = info.Description and tostring(info.Description) or nil,
-			Icon = info.Icon or "command",
-			TileColor = ResolveColor(info.IconColor) or function()
-				return MacUI.Accent
-			end,
-			Keywords = tostring(info.Keywords or ""),
-			Callback = info.Callback,
-		}
-		local connection
-		-- Runs the command; a short toast confirms it unless announce is false.
-		function command:Run(announce)
-			if announce ~= false then
-				Window:Toast(self.Title, { Icon = self.Icon })
-			end
-			NoteUsage("c:" .. self.Title)
-			RunCallback(self, self.Callback)
-		end
-		function command:SetShortcut(key)
-			if typeof(key) == "EnumItem" then
-				key = key.Name
-			end
-			if key == "None" or key == "" or key == false then
-				key = nil
-			end
-			self.Shortcut = key
-			if connection then
-				connection:Disconnect()
-				connection = nil
-			end
-			if key then
-				connection = Connect(UserInputService.InputBegan, function(input, processed)
-					if processed or KeyCapture.Active or MacUI.Unloaded or UserInputService:GetFocusedTextBox() then
-						return
-					end
-					if KeyMatches(input, key) then
-						self:Run(true)
-					end
-				end)
-			end
-			ShortcutsChanged:Fire()
-		end
-		function command:Destroy()
-			self:SetShortcut(nil)
-			local index = table.find(Window.Commands, self)
-			if index then
-				table.remove(Window.Commands, index)
-			end
-		end
-		table.insert(Window.Commands, command)
-		if info.Shortcut then
-			command:SetShortcut(info.Shortcut)
-		end
-		return command
-	end
-
-	----------------------------------------------------------------------------
-	-- Shortcut list: a floating panel with every keybind and bound shortcut
-	----------------------------------------------------------------------------
-
-	local ShortcutPanel
-	local shortcutRefreshQueued = false
-
-	local function RefreshShortcutList()
-		if not ShortcutPanel then
-			return
-		end
-		local entries = {}
-		local seen = {}
-		local titleCount = {}
-		for _, tab in ipairs(Window.Tabs) do
-			for _, row in ipairs(tab.Rows) do
-				titleCount[row.Title] = (titleCount[row.Title] or 0) + 1
-			end
-		end
-		local function Label(element, fallback)
-			local title = tostring(element.Title or element.Idx or fallback)
-			local block = element.Row and element.Row.Group and element.Row.Group.Block
-			if (titleCount[title] or 0) > 1 and block and block.Title and block.Title ~= "" then
-				return block.Title .. " · " .. title
-			end
-			return title
-		end
-		local function Add(element)
-			if seen[element] then
-				return
-			end
-			seen[element] = true
-			if element.Type == "Keybind" and element.Value ~= "None" then
-				local ok, active = pcall(element.GetState, element)
-				table.insert(entries, { Title = Label(element, "Keybind"), Key = KeyName(element.Value), Active = ok and active == true })
-			elseif element.Shortcut then
-				table.insert(entries, {
-					Title = Label(element, "Shortcut"),
-					Key = KeyName(element.Shortcut),
-					Active = element.Type == "Toggle" and element.Value == true,
-				})
-			end
-		end
-		for _, option in pairs(MacUI.Options) do
-			if type(option) == "table" and option.Type then
-				Add(option)
-			end
-		end
-		for _, tab in ipairs(Window.Tabs) do
-			for _, row in ipairs(tab.Rows) do
-				if row.Element then
-					Add(row.Element)
-				end
-			end
-		end
-		for _, command in ipairs(Window.Commands) do
-			if command.Shortcut then
-				table.insert(entries, { Title = command.Title, Key = KeyName(command.Shortcut), Active = false })
-			end
-		end
-		table.sort(entries, function(a, b)
-			return a.Title < b.Title
-		end)
-		for _, child in ipairs(ShortcutPanel.Rows:GetChildren()) do
-			if child:IsA("GuiObject") then
-				child:Destroy()
-			end
-		end
-		for index, entry in ipairs(entries) do
-			local line = New("Frame", {
-				Name = "Shortcut",
-				BackgroundTransparency = 1,
-				Size = UDim2.new(1, 0, 0, 24),
-				LayoutOrder = index,
-				Parent = ShortcutPanel.Rows,
-			})
-			New("TextLabel", {
-				Text = entry.Title,
-				TextSize = 13,
-				Size = UDim2.new(1, -70, 1, 0),
-				TextTruncate = Enum.TextTruncate.AtEnd,
-				Theme = { TextColor3 = entry.Active and "Text" or "SubText" },
-				Parent = line,
-			})
-			local cap = New("TextLabel", {
-				Text = entry.Key,
-				TextSize = 11,
-				Weight = Enum.FontWeight.Medium,
-				AnchorPoint = Vector2.new(1, 0.5),
-				Position = UDim2.new(1, 0, 0.5, 0),
-				Size = UDim2.fromOffset(0, 18),
-				AutomaticSize = Enum.AutomaticSize.X,
-				TextXAlignment = Enum.TextXAlignment.Center,
-				BackgroundTransparency = 0,
-				Theme = {
-					BackgroundColor3 = entry.Active and "Accent" or "Control",
-					TextColor3 = entry.Active and "SelectionText" or "SubText",
-				},
-				Parent = line,
-			})
-			Corner(cap, 5)
-			Padding(cap, 0, 7, 0, 7)
-		end
-		if #entries == 0 then
-			New("TextLabel", {
-				Name = "Empty",
-				Text = "Right-click a toggle to add one",
-				TextSize = 12,
-				Size = UDim2.new(1, 0, 0, 24),
-				Theme = { TextColor3 = "SubText" },
-				Parent = ShortcutPanel.Rows,
-			})
-		end
-		ShortcutPanel.Holder.Size = UDim2.fromOffset(230, 38 + math.max(#entries, 1) * 26 + 8)
-	end
-
-	local function QueueShortcutRefresh()
-		if shortcutRefreshQueued or not Window.KeybindListVisible then
-			return
-		end
-		shortcutRefreshQueued = true
-		task.defer(function()
-			shortcutRefreshQueued = false
-			RefreshShortcutList()
-		end)
-	end
-
-	function Window:SetKeybindList(visible)
-		visible = visible == true
-		Window.KeybindListVisible = visible
-		if visible and not ShortcutPanel then
-			local holder = New("Frame", {
-				Name = "ShortcutList",
-				BackgroundTransparency = 1,
-				Position = UDim2.fromOffset(14, 14),
-				Size = UDim2.fromOffset(230, 72),
-				ZIndex = 4,
-				Parent = ScreenGui,
-			})
-			local listScale = New("UIScale", { Scale = Window.Scale, Parent = holder })
-			InterfaceRoots[holder] = true
-			local body = New("Frame", {
-				Name = "Body",
-				Size = UDim2.fromScale(1, 1),
-				BackgroundTransparency = 0.03,
-				ZIndex = 2,
-				Active = true,
-				Theme = { BackgroundColor3 = "Menu" },
-				Parent = holder,
-			})
-			Corner(body, 12)
-			Stroke(body, "HudStroke", 1, 0)
-			local header = New("Frame", {
-				Name = "Header",
-				BackgroundTransparency = 1,
-				Size = UDim2.new(1, 0, 0, 36),
-				Parent = body,
-			})
-			IconImage({
-				Icon = "keyboard",
-				IconSize = 15,
-				AnchorPoint = Vector2.new(0, 0.5),
-				Position = UDim2.new(0, 12, 0.5, 0),
-				Theme = { ImageColor3 = "Accent" },
-				Parent = header,
-			})
-			New("TextLabel", {
-				Text = "Shortcuts",
-				TextSize = 13,
-				Weight = Enum.FontWeight.Bold,
-				Position = UDim2.fromOffset(34, 0),
-				Size = UDim2.new(1, -44, 1, 0),
-				Theme = { TextColor3 = "Text" },
-				Parent = header,
-			})
-			local rows = New("Frame", {
-				Name = "Rows",
-				BackgroundTransparency = 1,
-				Position = UDim2.fromOffset(0, 36),
-				Size = UDim2.new(1, 0, 1, -36),
-				Parent = body,
-			})
-			Padding(rows, 0, 12, 8, 12)
-			List(rows, nil, 2)
-			ShortcutPanel = { Holder = holder, Rows = rows, Scale = listScale }
-
-			local dragging
-			header.InputBegan:Connect(function(input)
-				if IsPointer(input) then
-					dragging = { Start = input.Position, Position = holder.Position, Input = input }
-				end
-			end)
-			Connect(UserInputService.InputChanged, function(input)
-				if dragging and DragMoves(dragging.Input, input) then
-					local delta = input.Position - dragging.Start
-					holder.Position = dragging.Position + UDim2.fromOffset(delta.X, delta.Y)
-				end
-			end)
-			Connect(UserInputService.InputEnded, function(input)
-				if dragging and DragEnds(dragging.Input, input) then
-					dragging = nil
-				end
-			end)
-			Connect(ShortcutsChanged, QueueShortcutRefresh)
-			Connect(MacUI.OptionChanged, function(_, _, element)
-				if element and (element.Type == "Toggle" or element.Type == "Keybind") then
-					QueueShortcutRefresh()
-				end
-			end)
-		end
-		if ShortcutPanel then
-			ShortcutPanel.Holder.Visible = visible
-		end
-		if visible then
-			RefreshShortcutList()
-		end
-	end
-
-	function Window:_OnScale(scale)
-		if ShortcutPanel then
-			ShortcutPanel.Scale.Scale = scale
-		end
-		HideTooltip()
-	end
-
-	local MODIFIER_KEYS = {
-		[Enum.KeyCode.LeftControl] = true,
-		[Enum.KeyCode.RightControl] = true,
-		[Enum.KeyCode.LeftShift] = true,
-		[Enum.KeyCode.RightShift] = true,
-		[Enum.KeyCode.LeftAlt] = true,
-		[Enum.KeyCode.RightAlt] = true,
-		[Enum.KeyCode.LeftSuper] = true,
-		[Enum.KeyCode.RightSuper] = true,
-		[Enum.KeyCode.LeftMeta] = true,
-		[Enum.KeyCode.RightMeta] = true,
-	}
-	local pendingToggle
-
-	Connect(UserInputService.InputBegan, function(input, processed)
-		if pendingToggle and input.KeyCode ~= pendingToggle then
-			pendingToggle = nil -- another key or a click while holding it: a chord
-		end
-		if processed or KeyCapture.Active or UserInputService:GetFocusedTextBox() then
-			return
-		end
-		if config.Spotlight ~= false and input.KeyCode == (config.SpotlightKey or Enum.KeyCode.K) then
-			-- Ctrl, or Command on a Mac (reported as Super or Meta)
-			local modifier = UserInputService:IsKeyDown(Enum.KeyCode.LeftControl)
-				or UserInputService:IsKeyDown(Enum.KeyCode.RightControl)
-				or UserInputService:IsKeyDown(Enum.KeyCode.LeftSuper)
-				or UserInputService:IsKeyDown(Enum.KeyCode.RightSuper)
-				or UserInputService:IsKeyDown(Enum.KeyCode.LeftMeta)
-				or UserInputService:IsKeyDown(Enum.KeyCode.RightMeta)
-			if modifier then
-				if Spotlight.Open then
-					Window:CloseSpotlight()
-				else
-					Window:OpenSpotlight()
-				end
-				return
-			end
-		end
-		if Window.MinimizeKey and input.KeyCode == Window.MinimizeKey then
-			if MODIFIER_KEYS[input.KeyCode] then
-				pendingToggle = input.KeyCode
-			else
-				Window:Toggle()
-			end
-		end
-	end)
-
-	Connect(UserInputService.InputEnded, function(input)
-		if pendingToggle and input.KeyCode == pendingToggle then
-			pendingToggle = nil
-			if not KeyCapture.Active and not MacUI.Unloaded then
-				Window:Toggle()
-			end
-		end
-	end)
-
-	-- a rotated phone, a resized game window
-	Connect(ScreenGui:GetPropertyChangedSignal("AbsoluteSize"), FitToScreen)
-
-	function Window:Destroy()
-		MacUI:Destroy()
-	end
-
-	function Window:_Cleanup()
-		Window:CloseSpotlight()
-		for _, fn in ipairs(Cleanup) do
-			SafeCall(fn)
-		end
-	end
-
-	-- Opens the window when a loading card is up (see config.Loading); does
-	-- nothing otherwise.
-	function Window:FinishLoading() end
-
-	UpdateNavigation()
-	if config.Undo == false then
-		MacUI:SetUndoEnabled(false)
-	end
-	if config.Watermark then
-		local spec = type(config.Watermark) == "table" and table.clone(config.Watermark) or {}
-		spec.Text = spec.Text or Window.Title
-		spec.Icon = spec.Icon or config.Icon
-		spec.IconColor = spec.IconColor or config.IconColor
-		MacUI:SetWatermark(spec)
-	end
-	if config.Loading then
-		-- Loading = true | { Title, Subtitle, Icon, Duration = seconds | false }.
-		-- The window stays hidden behind a loading card while the script builds
-		-- its tabs. With Duration = false, drive Window.Loader:SetProgress() and
-		-- call Window:FinishLoading() yourself.
-		local spec = type(config.Loading) == "table" and config.Loading or {}
-		Root.Visible = false
-		local loader = MacUI:ShowLoading({
-			Title = spec.Title or Window.Title,
-			Subtitle = spec.Subtitle or "Loading…",
-			Icon = spec.Icon or config.Icon,
-			IconColor = spec.IconColor or config.IconColor,
-			Dim = spec.Dim,
-		})
-		Window.Loader = loader
-		Window.Loading = true
-		local finished = false
-		function Window:FinishLoading(text)
-			if finished then
-				return
-			end
-			finished = true
-			loader:Finish(text)
-			task.delay(0.4, function()
-				Window.Loading = false
-				if not MacUI.Unloaded and not Window.Minimized then
-					Window:SetVisible(true)
-				end
-			end)
-		end
-		if spec.Duration == false then
-			-- if the script stops (an error) before FinishLoading, don't leave
-			-- the screen dimmed forever
-			task.delay(tonumber(spec.Timeout) or 30, function()
-				if not finished and not MacUI.Unloaded then
-					Window:FinishLoading()
-				end
-			end)
-		end
-		if spec.Duration ~= false then
-			task.spawn(function()
-				local duration = tonumber(spec.Duration) or 1.4
-				local steps = math.max(math.floor(duration / 0.05), 1)
-				for step = 1, steps do
-					task.wait(duration / steps)
-					if finished or MacUI.Unloaded then
-						break
-					end
-					loader:SetProgress(step / steps)
-				end
-				if MacUI.Unloaded then
-					loader:Close()
-					return
-				end
-				Window:FinishLoading()
-			end)
-		end
-	else
-		Window:SetVisible(true)
-	end
-	if config.Acrylic then
-		Window:SetAcrylic(true)
-	end
-	if config.KeybindList then
-		Window:SetKeybindList(true)
-	end
-	if config.PerformanceGuard then
-		MacUI:SetPerformanceGuard(config.PerformanceGuard)
-	end
-	return Window
-end
-
---------------------------------------------------------------------------------
--- Teardown
---------------------------------------------------------------------------------
-
-function MacUI:Destroy()
-	if self.Unloaded then
-		return
-	end
-	self.Unloaded = true
-	-- each runs until it first waits, so a slow one can't hold up the
-	-- teardown (or a re-run of the script that is replacing this copy)
-	for _, fn in ipairs(UnloadCallbacks) do
-		task.spawn(SafeCall, fn)
-	end
-	for _, window in ipairs(self.Windows) do
-		if window._ClosePopup then
-			window:_ClosePopup(true)
-		end
-		if window._Cleanup then
-			SafeCall(window._Cleanup, window)
-		end
-		for _, connection in ipairs(window.Connections) do
-			connection:Disconnect()
-		end
-		for _, tab in ipairs(window.Tabs) do
-			for _, row in ipairs(tab.Rows) do
-				for _, connection in ipairs(row.Connections) do
-					connection:Disconnect()
-				end
-			end
-		end
-		if window.ScreenGui then
-			window.ScreenGui:Destroy()
-		end
-	end
-	if NotificationGui then
-		NotificationGui:Destroy()
-	end
-	for _, connection in ipairs(LibraryConnections) do
-		connection:Disconnect()
-	end
-	table.clear(LibraryConnections)
-	if WatermarkGui then
-		WatermarkGui:Destroy()
-		WatermarkGui = nil
-	end
-	for loader in pairs(ActiveLoaders) do
-		loader:Close()
-	end
-	table.clear(ActiveTimers)
-	Macros.Recorder = nil
-	Activity.Pressing = nil
-	if type(shared) == "table" and type(shared.__MacUIWindows) == "table" then
-		for key, library in pairs(shared.__MacUIWindows) do
-			if library == self then
-				shared.__MacUIWindows[key] = nil
-			end
-		end
-	end
-	if Guard.Connection then
-		Guard.Connection:Disconnect()
-		Guard.Connection = nil
-	end
-	self:ClearHistory()
-	table.clear(ThemeRegistry)
-	table.clear(FontRegistry)
-	table.clear(self.Options)
-	table.clear(self.Windows)
-end
-MacUI.Unload = MacUI.Destroy
-
-return MacUI
+return
