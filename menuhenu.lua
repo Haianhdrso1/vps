@@ -22,7 +22,7 @@ local MacUI = {
 	Unloaded = false,
 	ThemeName = "Dark",
 	Accent = Color3.fromRGB(235, 30, 50),
-	FontFamily = "rbxasset://fonts/families/BuilderSans.json",
+	FontFamily = "rbxasset://fonts/families/GothamSSm.json",
 	MonoFamily = "rbxasset://fonts/families/RobotoMono.json",
 	ReduceMotion = false,
 	UndoEnabled = true,
@@ -32,7 +32,7 @@ local MacUI = {
 MacUI.Flags = MacUI.Options
 
 do
-	local ok, face = pcall(Font.fromEnum, Enum.Font.BuilderSans)
+	local ok, face = pcall(Font.fromEnum, Enum.Font.Gotham)
 	if ok and face then
 		MacUI.FontFamily = face.Family
 	end
@@ -671,10 +671,10 @@ local function GetFont(weight)
 end
 
 local MeasureFonts = {
-	[Enum.FontWeight.Regular] = Enum.Font.BuilderSans,
-	[Enum.FontWeight.Medium] = Enum.Font.BuilderSansMedium,
-	[Enum.FontWeight.SemiBold] = Enum.Font.BuilderSansBold,
-	[Enum.FontWeight.Bold] = Enum.Font.BuilderSansBold,
+	[Enum.FontWeight.Regular] = Enum.Font.Gotham,
+	[Enum.FontWeight.Medium] = Enum.Font.GothamMedium,
+	[Enum.FontWeight.SemiBold] = Enum.Font.GothamBold,
+	[Enum.FontWeight.Bold] = Enum.Font.GothamBold,
 }
 
 -- Width of a single line of text in logical (unscaled) pixels.
@@ -683,7 +683,7 @@ local function MeasureText(text, size, weight)
 		return TextService:GetTextSize(
 			tostring(text),
 			size,
-			MeasureFonts[weight or Enum.FontWeight.Regular] or Enum.Font.BuilderSans,
+			MeasureFonts[weight or Enum.FontWeight.Regular] or Enum.Font.Gotham,
 			Vector2.new(10000, 1000)
 		)
 	end)
@@ -7900,31 +7900,32 @@ function MacUI:CreateWindow(config)
 	-- Top Senden Hub Header in Sidebar
 	local SidebarHeader = New("Frame", {
 		Name = "SendenHeader",
-		Position = UDim2.fromOffset(0, 12),
-		Size = UDim2.new(1, 0, 0, 110),
+		Position = UDim2.fromOffset(0, 10),
+		Size = UDim2.new(1, 0, 0, 96),
 		BackgroundTransparency = 1,
+		ZIndex = 4,
 		Parent = SidebarInner,
 	})
 	local LogoImg = New("ImageLabel", {
 		Name = "Logo",
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 0),
-		Size = UDim2.fromOffset(56, 56),
+		Size = UDim2.fromOffset(48, 48),
 		BackgroundTransparency = 1,
 		ScaleType = Enum.ScaleType.Fit,
 		Image = GetSendenLogoAsset(),
 		Parent = SidebarHeader,
 	})
-	Corner(LogoImg, 28)
+	Corner(LogoImg, 24)
 	New("TextLabel", {
 		Name = "Title",
 		Text = "Senden Hub",
-		TextSize = 16,
+		TextSize = 15,
 		Font = Enum.Font.GothamBold,
 		TextColor3 = Color3.fromRGB(255, 255, 255),
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 62),
-		Size = UDim2.new(1, 0, 0, 20),
+		Position = UDim2.new(0.5, 0, 0, 52),
+		Size = UDim2.new(1, 0, 0, 18),
 		TextXAlignment = Enum.TextXAlignment.Center,
 		BackgroundTransparency = 1,
 		Parent = SidebarHeader,
@@ -7936,8 +7937,8 @@ function MacUI:CreateWindow(config)
 		Font = Enum.Font.Gotham,
 		TextColor3 = Color3.fromRGB(140, 140, 150),
 		AnchorPoint = Vector2.new(0.5, 0),
-		Position = UDim2.new(0.5, 0, 0, 82),
-		Size = UDim2.new(1, 0, 0, 16),
+		Position = UDim2.new(0.5, 0, 0, 72),
+		Size = UDim2.new(1, 0, 0, 15),
 		TextXAlignment = Enum.TextXAlignment.Center,
 		BackgroundTransparency = 1,
 		Parent = SidebarHeader,
@@ -7947,20 +7948,22 @@ function MacUI:CreateWindow(config)
 	local BottomBadge = New("Frame", {
 		Name = "VersionBadge",
 		AnchorPoint = Vector2.new(0, 1),
-		Position = UDim2.new(0, 10, 1, -12),
-		Size = UDim2.new(1, -20, 0, 44),
+		Position = UDim2.new(0, 10, 1, -10),
+		Size = UDim2.new(1, -20, 0, 42),
 		BackgroundColor3 = Color3.fromRGB(20, 20, 24),
 		BorderSizePixel = 0,
+		ZIndex = 6,
 		Parent = SidebarInner,
 	})
 	Corner(BottomBadge, 8)
 	New("UIStroke", { Color = Color3.fromRGB(35, 35, 42), Thickness = 1, Parent = BottomBadge })
 	New("TextLabel", {
 		Text = "👑",
-		TextSize = 15,
-		Position = UDim2.fromOffset(8, 12),
+		TextSize = 14,
+		Position = UDim2.fromOffset(8, 11),
 		Size = UDim2.fromOffset(20, 20),
 		BackgroundTransparency = 1,
+		ZIndex = 7,
 		Parent = BottomBadge,
 	})
 	New("TextLabel", {
@@ -7968,10 +7971,11 @@ function MacUI:CreateWindow(config)
 		TextSize = 11,
 		Font = Enum.Font.GothamBold,
 		TextColor3 = Color3.fromRGB(255, 255, 255),
-		Position = UDim2.fromOffset(32, 6),
+		Position = UDim2.fromOffset(32, 5),
 		Size = UDim2.new(1, -36, 0, 16),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		BackgroundTransparency = 1,
+		ZIndex = 7,
 		Parent = BottomBadge,
 	})
 	New("TextLabel", {
@@ -7979,23 +7983,26 @@ function MacUI:CreateWindow(config)
 		TextSize = 9,
 		Font = Enum.Font.Gotham,
 		TextColor3 = Color3.fromRGB(130, 130, 140),
-		Position = UDim2.fromOffset(32, 22),
+		Position = UDim2.fromOffset(32, 21),
 		Size = UDim2.new(1, -36, 0, 14),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		BackgroundTransparency = 1,
+		ZIndex = 7,
 		Parent = BottomBadge,
 	})
 
-	local listTop = 120
+	local listTop = 104
 
 	local TabScroll = New("ScrollingFrame", {
 		Name = "Tabs",
 		Position = UDim2.fromOffset(0, listTop),
-		Size = UDim2.new(1, 0, 1, -listTop - 64),
+		Size = UDim2.new(1, 0, 1, -listTop - 60),
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 		ScrollBarThickness = 0,
+		ClipsDescendants = true,
+		ZIndex = 2,
 		Parent = SidebarInner,
 	})
 	local Pill = New("Frame", {
@@ -8066,90 +8073,18 @@ function MacUI:CreateWindow(config)
 		Parent = Toolbar,
 	})
 
-	-- Left Stats Container: [ ❤️ 240 FPS ] | [ 🕒 13:35:27 ]
-	local StatsPill = New("Frame", {
-		Name = "StatsPill",
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 12, 0.5, 0),
-		Size = UDim2.fromOffset(200, 30),
-		BackgroundColor3 = Color3.fromRGB(20, 20, 24),
-		BorderSizePixel = 0,
-		Parent = Toolbar,
-	})
-	Corner(StatsPill, 6)
-	New("UIStroke", { Color = Color3.fromRGB(35, 35, 42), Thickness = 1, Parent = StatsPill })
-	local PillList = New("UIListLayout", {
-		FillDirection = Enum.FillDirection.Horizontal,
-		VerticalAlignment = Enum.VerticalAlignment.Center,
-		Padding = UDim.new(0, 6),
-		Parent = StatsPill,
-	})
-	New("UIPadding", { PaddingLeft = UDim.new(0, 8), PaddingRight = UDim.new(0, 8), Parent = StatsPill })
-	New("TextLabel", {
-		Text = "❤️",
-		TextSize = 13,
-		Size = UDim2.fromOffset(16, 16),
-		BackgroundTransparency = 1,
-		Parent = StatsPill,
-	})
-	local TopFPSLabel = New("TextLabel", {
-		Name = "FPSLabel",
-		Text = "240 FPS",
-		TextSize = 12,
-		Font = Enum.Font.GothamBold,
-		TextColor3 = Color3.fromRGB(255, 255, 255),
-		Size = UDim2.fromOffset(50, 16),
-		TextXAlignment = Enum.TextXAlignment.Left,
-		BackgroundTransparency = 1,
-		Parent = StatsPill,
-	})
-	New("TextLabel", {
-		Text = "|",
-		TextSize = 12,
-		TextColor3 = Color3.fromRGB(60, 60, 70),
-		Size = UDim2.fromOffset(8, 16),
-		BackgroundTransparency = 1,
-		Parent = StatsPill,
-	})
-	New("TextLabel", {
-		Text = "🕒",
-		TextSize = 12,
-		Size = UDim2.fromOffset(16, 16),
-		BackgroundTransparency = 1,
-		Parent = StatsPill,
-	})
-	local TopClockLabel = New("TextLabel", {
-		Name = "ClockLabel",
-		Text = os.date("%H:%M:%S"),
-		TextSize = 12,
-		Font = Enum.Font.GothamMedium,
-		TextColor3 = Color3.fromRGB(255, 255, 255),
-		Size = UDim2.fromOffset(60, 16),
-		TextXAlignment = Enum.TextXAlignment.Left,
-		BackgroundTransparency = 1,
-		Parent = StatsPill,
-	})
-
-	-- Live FPS and Clock loop
+	-- Left FPS tracker (for Home Dashboard footer only, no cluttered toolbar pill)
 	task.spawn(function()
 		local frameCount, lastTime = 0, os.clock()
 		RunService.RenderStepped:Connect(function()
 			frameCount = frameCount + 1
 			local now = os.clock()
 			if now - lastTime >= 0.5 then
-				local fps = math.floor(frameCount / (now - lastTime))
-				Window._CurrentFPS = fps
-				TopFPSLabel.Text = tostring(fps) .. " FPS"
+				Window._CurrentFPS = math.floor(frameCount / (now - lastTime))
 				frameCount = 0
 				lastTime = now
 			end
 		end)
-	end)
-	task.spawn(function()
-		while not MacUI.Unloaded and Toolbar.Parent do
-			task.wait(1)
-			TopClockLabel.Text = os.date("%H:%M:%S")
-		end
 	end)
 
 	-- Right Controls: [ 🟢 Online ] [ Avatar ] [ — ] [ □ ] [ ✕ ]
@@ -8157,7 +8092,8 @@ function MacUI:CreateWindow(config)
 		Name = "RightControls",
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -12, 0.5, 0),
-		Size = UDim2.fromOffset(240, 32),
+		Size = UDim2.fromOffset(0, 32),
+		AutomaticSize = Enum.AutomaticSize.X,
 		BackgroundTransparency = 1,
 		Parent = Toolbar,
 	})
@@ -8165,11 +8101,12 @@ function MacUI:CreateWindow(config)
 		FillDirection = Enum.FillDirection.Horizontal,
 		HorizontalAlignment = Enum.HorizontalAlignment.Right,
 		VerticalAlignment = Enum.VerticalAlignment.Center,
-		Padding = UDim.new(0, 8),
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Padding = UDim.new(0, 6),
 		Parent = RightControls,
 	})
 	local OnlineBadge = New("Frame", {
-		Size = UDim2.fromOffset(64, 24),
+		Size = UDim2.fromOffset(60, 24),
 		BackgroundTransparency = 1,
 		LayoutOrder = 1,
 		Parent = RightControls,
@@ -8187,15 +8124,15 @@ function MacUI:CreateWindow(config)
 		TextSize = 12,
 		Font = Enum.Font.GothamMedium,
 		TextColor3 = Color3.fromRGB(255, 255, 255),
-		Position = UDim2.fromOffset(16, 0),
-		Size = UDim2.new(1, -16, 1, 0),
+		Position = UDim2.fromOffset(14, 0),
+		Size = UDim2.new(1, -14, 1, 0),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		BackgroundTransparency = 1,
 		Parent = OnlineBadge,
 	})
 
 	local AvatarBtn = New("TextButton", {
-		Size = UDim2.fromOffset(40, 26),
+		Size = UDim2.fromOffset(28, 26),
 		BackgroundTransparency = 1,
 		Text = "",
 		LayoutOrder = 2,
@@ -8219,16 +8156,6 @@ function MacUI:CreateWindow(config)
 			end
 		end)
 	end
-	New("TextLabel", {
-		Text = "v",
-		TextSize = 10,
-		Font = Enum.Font.GothamBold,
-		TextColor3 = Color3.fromRGB(150, 150, 160),
-		Position = UDim2.fromOffset(28, 4),
-		Size = UDim2.fromOffset(12, 16),
-		BackgroundTransparency = 1,
-		Parent = AvatarBtn,
-	})
 
 	local function MakeWinBtn(text, order, onClick, isClose)
 		local btn = New("TextButton", {
@@ -8254,15 +8181,16 @@ function MacUI:CreateWindow(config)
 	end
 	MakeWinBtn("—", 3, function() Window:Minimize() end, false)
 	MakeWinBtn("□", 4, function() Window:SetMaximized(not Window.Maximized) end, false)
-	MakeWinBtn("✕", 5, function() Window:SetVisible(false) end, true)
+	MakeWinBtn("✕", 5, function() Window:Minimize() end, true)
 
 	local Leading = New("Frame", {
 		Name = "Leading",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 220, 0.5, 0),
+		Position = UDim2.new(0, 12, 0.5, 0),
 		Size = UDim2.fromOffset(0, 32),
 		AutomaticSize = Enum.AutomaticSize.X,
+		ClipsDescendants = true,
 		Parent = Toolbar,
 	})
 	List(Leading, Enum.FillDirection.Horizontal, 2, { VerticalAlignment = Enum.VerticalAlignment.Center })
@@ -8378,19 +8306,18 @@ function MacUI:CreateWindow(config)
 		if toolbarWidth < 1 or scale <= 0 then
 			return
 		end
+		OnlineBadge.Visible = toolbarWidth >= 340
 		local left = (TitleStack.AbsolutePosition.X - Toolbar.AbsolutePosition.X) / scale
-		-- in a narrow window the search field gives up some width first
-		local searchWidth = math.clamp(toolbarWidth - left - 26 - 120, math.min(120, SearchWidth), SearchWidth)
-		if Search.Size.X.Offset ~= searchWidth then
-			Search.Size = UDim2.fromOffset(searchWidth, 28)
-		end
-		local right = Search.Visible and (searchWidth + 14 + 12) or 14
+		local rcWidth = (RightControls.AbsoluteSize.X / scale)
+		local right = math.max(rcWidth + 24, Search.Visible and (SearchWidth + 26) or 14)
 		local room = math.max(toolbarWidth - left - right, 0)
+		TitleStack.Visible = room >= 45
 		TitleLimit.MaxSize = Vector2.new(room, 18)
 		SubtitleLimit.MaxSize = Vector2.new(room, 15)
 	end
 	Toolbar:GetPropertyChangedSignal("AbsoluteSize"):Connect(FitTitles)
 	TitleStack:GetPropertyChangedSignal("AbsolutePosition"):Connect(FitTitles)
+	RightControls:GetPropertyChangedSignal("AbsoluteSize"):Connect(FitTitles)
 	Search:GetPropertyChangedSignal("AbsoluteSize"):Connect(FitTitles)
 	FitTitles()
 	IconImage({
@@ -9888,7 +9815,7 @@ function MacUI:CreateWindow(config)
 		end
 		Tween(Sidebar, { Size = UDim2.new(0, width, 1, 0) }, 0.32)
 		Tween(Main, { Position = UDim2.fromOffset(width, 0), Size = UDim2.new(1, -width, 1, 0) }, 0.32)
-		Tween(Leading, { Position = UDim2.new(0, Window.SidebarVisible and 12 or 84, 0.5, 0) }, 0.32)
+		Tween(Leading, { Position = UDim2.new(0, 12, 0.5, 0) }, 0.32)
 		Restyle(MainSquare, 0.32)
 		EmitState()
 		if not Window.SidebarVisible then
@@ -10059,27 +9986,93 @@ function MacUI:CreateWindow(config)
 		end
 	end
 
+	local SendenLogoToggle = New("TextButton", {
+		Name = "SendenLogoToggle",
+		AutoButtonColor = false,
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 14, 0.42, 0),
+		Size = UDim2.fromOffset(46, 46),
+		BackgroundColor3 = Color3.fromRGB(16, 16, 20),
+		BackgroundTransparency = 0.08,
+		Text = "",
+		ZIndex = 200,
+		Visible = true,
+		Parent = ScreenGui,
+	})
+	Corner(SendenLogoToggle, UDim.new(1, 0))
+	New("UIStroke", {
+		Color = Color3.fromRGB(220, 42, 54),
+		Thickness = 1.6,
+		Transparency = 0.15,
+		Parent = SendenLogoToggle,
+	})
+	local SendenLogoToggleImg = New("ImageLabel", {
+		Name = "LogoImage",
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Position = UDim2.fromScale(0.5, 0.5),
+		Size = UDim2.new(1, -6, 1, -6),
+		BackgroundTransparency = 1,
+		Image = GetSendenLogoAsset(),
+		ScaleType = Enum.ScaleType.Fit,
+		ZIndex = 201,
+		Parent = SendenLogoToggle,
+	})
+	Corner(SendenLogoToggleImg, UDim.new(1, 0))
+
+	task.spawn(function()
+		while SendenLogoToggle.Parent do
+			local latestLogo = GetSendenLogoAsset()
+			if latestLogo ~= "" and SendenLogoToggleImg.Image ~= latestLogo then
+				SendenLogoToggleImg.Image = latestLogo
+			end
+			task.wait(0.8)
+		end
+	end)
+
+	do
+		local logoBeganInput = nil
+		local logoMoved = false
+		local logoDragStart = Vector2.zero
+		local logoStartPos = UDim2.new()
+		trackConn(SendenLogoToggle.InputBegan:Connect(function(input)
+			if not IsPointer(input) then return end
+			logoBeganInput = input
+			logoMoved = false
+			logoDragStart = Vector2.new(input.Position.X, input.Position.Y)
+			logoStartPos = SendenLogoToggle.Position
+		end))
+		trackConn(UserInputService.InputChanged:Connect(function(input)
+			if not logoBeganInput or not DragMoves(logoBeganInput, input) then return end
+			local delta = Vector2.new(input.Position.X, input.Position.Y) - logoDragStart
+			if delta.Magnitude >= 8 then
+				logoMoved = true
+			end
+			if logoMoved then
+				local vp = ScreenGui.AbsoluteSize
+				local nx = math.clamp(logoStartPos.X.Offset + delta.X, 4, math.max(4, vp.X - 50))
+				local ny = math.clamp((logoStartPos.Y.Scale * vp.Y) + logoStartPos.Y.Offset + delta.Y, 26, math.max(26, vp.Y - 26))
+				SendenLogoToggle.Position = UDim2.new(0, nx, 0, ny)
+			end
+		end))
+		trackConn(UserInputService.InputEnded:Connect(function(input)
+			if not logoBeganInput or not DragEnds(logoBeganInput, input) then return end
+			logoBeganInput = nil
+			if not logoMoved then
+				Window:Toggle()
+			end
+		end))
+	end
+
 	function Window:Minimize()
 		Window.Minimized = true
 		Window:SetVisible(false)
-		if config.ShowDock ~= false then
-			Dock.Visible = true
-			Dock.Position = UDim2.new(0.5, 0, 1, 90)
-			Tween(Dock, { Position = UDim2.new(0.5, 0, 1, -26) }, 0.45, Enum.EasingStyle.Back)
-		end
+		Dock.Visible = false
 	end
 
 	function Window:Restore()
 		Window.Minimized = false
 		Window:SetVisible(true)
-		if Dock.Visible then
-			Tween(Dock, { Position = UDim2.new(0.5, 0, 1, 90) }, 0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.In)
-			task.delay(0.3, function()
-				if not Window.Minimized then
-					Dock.Visible = false
-				end
-			end)
-		end
+		Dock.Visible = false
 	end
 
 	function Window:Toggle()
@@ -12058,20 +12051,20 @@ local function BuildSendenHomeDashboard(Window, HomeTab)
 	content.LayoutOrder = 1
 	local contentPadding = content:FindFirstChildOfClass("UIPadding")
 	if contentPadding then
-		contentPadding.PaddingLeft = UDim.new(0, 16)
-		contentPadding.PaddingRight = UDim.new(0, 16)
-		contentPadding.PaddingTop = UDim.new(0, 14)
-		contentPadding.PaddingBottom = UDim.new(0, 20)
+		contentPadding.PaddingLeft = UDim.new(0, 12)
+		contentPadding.PaddingRight = UDim.new(0, 12)
+		contentPadding.PaddingTop = UDim.new(0, 10)
+		contentPadding.PaddingBottom = UDim.new(0, 12)
 	end
 	local contentList = content:FindFirstChildOfClass("UIListLayout")
 	if contentList then
-		contentList.Padding = UDim.new(0, 14)
+		contentList.Padding = UDim.new(0, 10)
 	end
 
 	-- 1. HERO BANNER
 	local HeroCard = New("Frame", {
 		Name = "HeroBanner",
-		Size = UDim2.new(1, 0, 0, 165),
+		Size = UDim2.new(1, 0, 0, 134),
 		BackgroundColor3 = Color3.fromRGB(20, 20, 24),
 		BorderSizePixel = 0,
 		ClipsDescendants = true,
@@ -12087,8 +12080,8 @@ local function BuildSendenHomeDashboard(Window, HomeTab)
 	})
 	local RedAccentPill = New("Frame", {
 		Name = "AccentPill",
-		Position = UDim2.fromOffset(0, 26),
-		Size = UDim2.fromOffset(4, 38),
+		Position = UDim2.fromOffset(0, 16),
+		Size = UDim2.fromOffset(4, 34),
 		BackgroundColor3 = Color3.fromRGB(235, 30, 50),
 		BorderSizePixel = 0,
 		Parent = HeroCard,
@@ -12097,13 +12090,13 @@ local function BuildSendenHomeDashboard(Window, HomeTab)
 	New("TextLabel", {
 		Name = "Watermark",
 		Text = "S",
-		TextSize = 180,
+		TextSize = 150,
 		Font = Enum.Font.GothamBold,
 		TextColor3 = Color3.fromRGB(235, 30, 50),
 		TextTransparency = 0.88,
 		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, 30, 0.5, 0),
-		Size = UDim2.fromOffset(200, 180),
+		Position = UDim2.new(1, 20, 0.5, 0),
+		Size = UDim2.fromOffset(170, 150),
 		BackgroundTransparency = 1,
 		ZIndex = 1,
 		Parent = HeroCard,
@@ -12112,10 +12105,10 @@ local function BuildSendenHomeDashboard(Window, HomeTab)
 		Name = "Title",
 		RichText = true,
 		Text = '<font color="#FFFFFF">Senden </font><font color="#EB1E32">Hub</font>',
-		TextSize = 26,
+		TextSize = 24,
 		Font = Enum.Font.GothamBold,
-		Position = UDim2.fromOffset(22, 22),
-		Size = UDim2.new(0, 300, 0, 30),
+		Position = UDim2.fromOffset(18, 14),
+		Size = UDim2.new(1, -36, 0, 28),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		BackgroundTransparency = 1,
 		ZIndex = 2,
@@ -12124,11 +12117,11 @@ local function BuildSendenHomeDashboard(Window, HomeTab)
 	New("TextLabel", {
 		Name = "Subtitle",
 		Text = "Tối ưu • Mượt mà • An toàn",
-		TextSize = 13,
+		TextSize = 12,
 		Font = Enum.Font.GothamMedium,
 		TextColor3 = Color3.fromRGB(180, 180, 190),
-		Position = UDim2.fromOffset(22, 56),
-		Size = UDim2.new(0, 350, 0, 18),
+		Position = UDim2.fromOffset(18, 44),
+		Size = UDim2.new(1, -36, 0, 16),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		BackgroundTransparency = 1,
 		ZIndex = 2,
@@ -12137,11 +12130,11 @@ local function BuildSendenHomeDashboard(Window, HomeTab)
 	New("TextLabel", {
 		Name = "Description",
 		Text = "Trải nghiệm sức mạnh thực sự với Senden Hub!",
-		TextSize = 12,
+		TextSize = 11,
 		Font = Enum.Font.Gotham,
 		TextColor3 = Color3.fromRGB(130, 130, 140),
-		Position = UDim2.fromOffset(22, 78),
-		Size = UDim2.new(0, 350, 0, 16),
+		Position = UDim2.fromOffset(18, 63),
+		Size = UDim2.new(1, -36, 0, 16),
 		TextXAlignment = Enum.TextXAlignment.Left,
 		BackgroundTransparency = 1,
 		ZIndex = 2,
@@ -12150,18 +12143,18 @@ local function BuildSendenHomeDashboard(Window, HomeTab)
 	local StartButton = New("TextButton", {
 		Name = "StartButton",
 		Text = "⚡  Bắt Đầu Ngay  ->",
-		TextSize = 13,
+		TextSize = 12,
 		Font = Enum.Font.GothamBold,
 		TextColor3 = Color3.fromRGB(255, 255, 255),
 		BackgroundColor3 = Color3.fromRGB(220, 25, 45),
-		Position = UDim2.fromOffset(22, 110),
-		Size = UDim2.fromOffset(150, 34),
+		Position = UDim2.fromOffset(18, 89),
+		Size = UDim2.fromOffset(146, 32),
 		BorderSizePixel = 0,
 		AutoButtonColor = false,
 		ZIndex = 2,
 		Parent = HeroCard,
 	})
-	Corner(StartButton, 17)
+	Corner(StartButton, 16)
 	StartButton.MouseEnter:Connect(function()
 		Tween(StartButton, { BackgroundColor3 = Color3.fromRGB(245, 35, 55) }, 0.15)
 	end)
@@ -12228,14 +12221,14 @@ local function BuildSendenHomeDashboard(Window, HomeTab)
 	-- 4 GRID CARDS
 	local GridContainer = New("Frame", {
 		Name = "GridCards",
-		Size = UDim2.new(1, 0, 0, 115),
+		Size = UDim2.new(1, 0, 0, 96),
 		BackgroundTransparency = 1,
 		LayoutOrder = 3,
 		Parent = content,
 	})
 	New("UIListLayout", {
 		FillDirection = Enum.FillDirection.Horizontal,
-		Padding = UDim.new(0, 10),
+		Padding = UDim.new(0, 8),
 		SortOrder = Enum.SortOrder.LayoutOrder,
 		Parent = GridContainer,
 	})
@@ -12268,7 +12261,7 @@ local function BuildSendenHomeDashboard(Window, HomeTab)
 	for i, data in ipairs(cardData) do
 		local card = New("Frame", {
 			Name = "Card_" .. i,
-			Size = UDim2.new(0.25, -8, 1, 0),
+			Size = UDim2.new(0.25, -6, 1, 0),
 			BackgroundColor3 = Color3.fromRGB(20, 20, 24),
 			BorderSizePixel = 0,
 			LayoutOrder = i,
@@ -12283,20 +12276,20 @@ local function BuildSendenHomeDashboard(Window, HomeTab)
 		})
 		New("TextLabel", {
 			Text = data.Icon,
-			TextSize = 22,
+			TextSize = 18,
 			TextColor3 = Color3.fromRGB(235, 30, 50),
-			Position = UDim2.fromOffset(12, 10),
-			Size = UDim2.fromOffset(26, 26),
+			Position = UDim2.fromOffset(10, 8),
+			Size = UDim2.fromOffset(22, 22),
 			BackgroundTransparency = 1,
 			Parent = card,
 		})
 		New("TextLabel", {
 			Text = data.Title,
-			TextSize = 14,
+			TextSize = 13,
 			Font = Enum.Font.GothamBold,
 			TextColor3 = Color3.fromRGB(255, 255, 255),
-			Position = UDim2.fromOffset(12, 42),
-			Size = UDim2.new(1, -24, 0, 18),
+			Position = UDim2.fromOffset(10, 34),
+			Size = UDim2.new(1, -20, 0, 16),
 			TextXAlignment = Enum.TextXAlignment.Left,
 			BackgroundTransparency = 1,
 			Parent = card,
@@ -12306,8 +12299,8 @@ local function BuildSendenHomeDashboard(Window, HomeTab)
 			TextSize = 10,
 			Font = Enum.Font.Gotham,
 			TextColor3 = Color3.fromRGB(130, 130, 140),
-			Position = UDim2.fromOffset(12, 62),
-			Size = UDim2.new(1, -44, 0, 28),
+			Position = UDim2.fromOffset(10, 52),
+			Size = UDim2.new(1, -36, 0, 34),
 			TextXAlignment = Enum.TextXAlignment.Left,
 			TextWrapped = true,
 			BackgroundTransparency = 1,
@@ -12321,12 +12314,12 @@ local function BuildSendenHomeDashboard(Window, HomeTab)
 			TextColor3 = Color3.fromRGB(180, 180, 190),
 			BackgroundColor3 = Color3.fromRGB(30, 30, 36),
 			AnchorPoint = Vector2.new(1, 1),
-			Position = UDim2.new(1, -10, 1, -10),
-			Size = UDim2.fromOffset(22, 22),
+			Position = UDim2.new(1, -8, 1, -8),
+			Size = UDim2.fromOffset(20, 20),
 			BorderSizePixel = 0,
 			Parent = card,
 		})
-		Corner(ArrowBtn, 11)
+		Corner(ArrowBtn, 10)
 		ArrowBtn.MouseEnter:Connect(function()
 			Tween(ArrowBtn, { BackgroundColor3 = Color3.fromRGB(220, 25, 45), TextColor3 = Color3.fromRGB(255, 255, 255) }, 0.15)
 		end)
@@ -12351,7 +12344,7 @@ local function BuildSendenHomeDashboard(Window, HomeTab)
 	-- 3. BOTTOM FOOTER STATUS DOCK
 	local FooterDock = New("Frame", {
 		Name = "FooterStatus",
-		Size = UDim2.new(1, 0, 0, 48),
+		Size = UDim2.new(1, 0, 0, 40),
 		BackgroundColor3 = Color3.fromRGB(20, 20, 24),
 		BorderSizePixel = 0,
 		LayoutOrder = 4,
