@@ -403,8 +403,11 @@ do
     end
     task.spawn(v70_2)
     v71_3 = function()
+        if v7_13 and v7_13.Character and v7_13.Character.Parent then
+            return v7_13.Character
+        end
         local v1_3 = v13_8:FindFirstChild("Characters")
-        return v1_3 and v1_3:FindFirstChild(v7_13.Name) or v7_13.Character
+        return v1_3 and v7_13 and v1_3:FindFirstChild(v7_13.Name) or nil
     end
     v72_2 = function()
         local v1_2 = v71_3()
@@ -461,7 +464,7 @@ do
         return 0
     end
     v75_2 = function()
-        -- Nếu vẫn còn thương trên tay (v76_2 > 0) thì TUYỆT ĐỐI không nạp sớm!
+        -- N\225\186\191u v\225\186\171n c\195\178n th\198\176\198\161ng tr\195\170n tay (v76_2 > 0) th\195\172 TUY\225\187\134T \196\144\225\187\144I kh\195\180ng n\225\186\161p s\225\187\155m!
         local nextSpear = v76_2()
         if nextSpear and nextSpear > 0 then
             return false
@@ -482,52 +485,24 @@ do
         if v73_2() then
             return false
         end
-        local v1_5 = v72_2() or v71_3()
+        local v1_5 = v72_2()
         if not v1_5 then
-            return true
+            return false
         end
         for v5, v6 in ipairs(v1_5:GetDescendants()) do
-            if v6.Name:sub(1, 5) == "Blade" then
+            if v6:IsA("MeshPart") and v6.Name:sub(1, 5) == "Blade" then
                 return true
             end
         end
-        return true
+        return false
     end
     local function v78_2()
         if not v77_2() then
             return
         end
-        -- 1. VirtualInputManager press R (game keybind)
-        pcall(function()
-            if v17_6 then
-                v17_6:SendKeyEvent(true, Enum.KeyCode.R, false, game)
-                task.wait(0.02)
-                v17_6:SendKeyEvent(false, Enum.KeyCode.R, false, game)
-            end
-        end)
-        -- 2. GET remote
         pcall(function()
             if v69_2 then
                 v69_2:InvokeServer("Blades", "Reload")
-            end
-        end)
-        -- 3. POST remotes
-        pcall(function()
-            if v68_2 then
-                v68_2:FireServer("Attacks", "Reload")
-                v68_2:FireServer("Equipment", "Reload")
-                v68_2:FireServer("S_Equipment", "Reload")
-            end
-        end)
-        -- 4. Host client module if available
-        pcall(function()
-            local host = _G.__CachedHost
-            if host and host.Modules then
-                if host.Modules.ODMG and type(host.Modules.ODMG.Reload) == "function" then
-                    host.Modules.ODMG.Reload(host)
-                elseif host.Modules.Input and type(host.Modules.Input.Reload) == "function" then
-                    host.Modules.Input.Reload(host)
-                end
             end
         end)
         return
@@ -742,7 +717,7 @@ do
             end
         end)
         v61_2.RefillHoldCFrame = nil
-        v41_2 = refillOk and 0 or os.clock()
+        v41_2 = os.clock()
         v35_2 = false
         return
     end
@@ -767,7 +742,8 @@ do
                 for _, child in ipairs(top:GetChildren()) do
                     local blades = (child.Name == "Blades" and child) or child:FindFirstChild("Blades")
                     if blades then
-                        local sets = blades:FindFirstChild("Sets") or blades:FindFirstChild("Amount") or blades:FindFirstChild("Count") or blades:FindFirstChildWhichIsA("TextLabel")
+                        local sets = blades:FindFirstChild("Sets") or blades:FindFirstChild("Amount") or
+                        blades:FindFirstChild("Count") or blades:FindFirstChildWhichIsA("TextLabel")
                         if sets and sets:IsA("TextLabel") and sets.Text ~= "" then
                             local num = sets.Text:match("(%d+)")
                             if num then return tonumber(num) end
@@ -816,9 +792,9 @@ do
             end
 
             -- 1. Character attributes
-            if char:GetAttribute("BladesBroken") == true 
-                or char:GetAttribute("Broken") == true 
-                or char:GetAttribute("BladeBroken") == true 
+            if char:GetAttribute("BladesBroken") == true
+                or char:GetAttribute("Broken") == true
+                or char:GetAttribute("BladeBroken") == true
             then
                 return true
             end
@@ -833,37 +809,28 @@ do
             if char then table.insert(handRoots, char) end
             if rig and rig ~= char then table.insert(handRoots, rig) end
 
-            local foundAnyHand = false
-            local intactBladeFound = false
-            local brokenBladeFound = false
-
+            local foundAnyBlade = false
             for _, root in ipairs(handRoots) do
                 local lh = root:FindFirstChild("LeftHand") or root:FindFirstChild("Left Arm")
                 local rh = root:FindFirstChild("RightHand") or root:FindFirstChild("Right Arm")
                 for _, hand in ipairs({ lh, rh }) do
                     if hand then
-                        foundAnyHand = true
-                        for _, child in ipairs(hand:GetDescendants()) do
-                            if child.Name:sub(1, 5) == "Blade" then
-                                if child:GetAttribute("Broken") == true then
-                                    brokenBladeFound = true
-                                elseif child:IsA("BasePart") then
-                                    if child.Transparency < 0.8 then
-                                        intactBladeFound = true
-                                    end
-                                end
-                            end
+                        local b1 = hand:FindFirstChild("Blade_1")
+                        if b1 and b1:GetAttribute("Broken") == true then
+                            return true
+                        end
+                    end
+                end
+                for _, child in ipairs(root:GetDescendants()) do
+                    if child:IsA("MeshPart") and child.Name:sub(1, 5) == "Blade" then
+                        foundAnyBlade = true
+                        if not child:GetAttribute("Broken") and child.Transparency < 0.9 then
+                            return false
                         end
                     end
                 end
             end
-
-            if brokenBladeFound then
-                return true
-            end
-
-            if foundAnyHand and not intactBladeFound then
-                -- Hands exist but have NO visible intact blade -> blades are broken/empty!
+            if foundAnyBlade then
                 return true
             end
 
@@ -884,31 +851,28 @@ do
         return false
     end
     v84_2 = function()
-        if os.clock() - v41_2 < 3 then
+        if os.clock() - v41_2 < 5 then
             return false
         end
-        local sets = v82_2()
-        if sets ~= nil and sets == 0 then
-            return true
-        end
-        if v83_2() then
-            if v36_2 == nil then
-                v36_2 = os.clock()
-                return false
-            end
-            if os.clock() - v36_2 >= 1.5 then
-                return true
-            end
-        else
+        local v3_4 = v82_2()
+        if not (v3_4 ~= nil and v3_4 == 0) then
             v36_2 = nil
+            return false
         end
-        return false
+        if v36_2 == nil then
+            v36_2 = os.clock()
+            return false
+        end
+        if 2 > os.clock() - v36_2 then
+            return false
+        end
+        return v83_2()
     end
     v85_2 = function()
-        if v26_2 or v35_2 then
+        if v26_2 then
             return
         end
-        if 1.5 > os.clock() - v41_2 then
+        if 5 > os.clock() - v41_2 then
             return
         end
         v26_2 = true
@@ -917,28 +881,16 @@ do
             if v73_2() then
                 v81_2(true)
             elseif v77_2() then
-                local sets = v82_2()
-                if sets ~= nil and sets == 0 then
-                    if v34_2 then
-                        v81_2(false)
-                    end
-                else
-                    v78_2()
-                    local v1_14 = os.clock()
-                    local reloaded = false
-                    while os.clock() - v1_14 < 1.2 do
-                        task.wait(0.1)
-                        if not v83_2() then
-                            reloaded = true
-                            break
-                        end
-                    end
-                    if not reloaded and v34_2 and v83_2() then
-                        v81_2(false)
+                v78_2()
+                local v1_14 = os.clock()
+                while os.clock() - v1_14 < 1.8 do
+                    task.wait(0.1)
+                    if not v83_2() then
+                        break
                     end
                 end
             end
-            task.wait(0.1)
+            task.wait(0.2)
         end)
         v61_2.RefillHoldCFrame = nil
         v35_2 = false
@@ -974,9 +926,6 @@ do
         if not v2_6 or 0 >= v2_6.Health then
             return false
         end
-        if v13_8:FindFirstChild("Titans") ~= nil and v1_4:GetAttribute("Setup") ~= true then
-            return false
-        end
         local v4_8 = v7_13 or v6_21.LocalPlayer
         local v5_6 = v4_8 and v4_8:FindFirstChild("PlayerGui")
         local v6_5 = v5_6 and v5_6:FindFirstChild("Fullscreen")
@@ -984,7 +933,7 @@ do
         if v7_4 and v7_4.Visible == true then
             return false
         end
-        if v1_4:GetAttribute("Ragdolled") ~= nil or v1_4:GetAttribute("Shifter") ~= nil then
+        if v1_4:GetAttribute("Ragdolled") == true or v1_4:GetAttribute("Shifter") == true then
             return false
         end
         if v25_2 and v77_2() and v83_2() then
@@ -1060,19 +1009,9 @@ do
         if v3_8 == "Dead" or v3_8 == "Die" or v3_8 == "Dying" then
             return true
         end
-        local v4_7 = p1:FindFirstChild("Humanoid")
+        local v4_7 = p1:FindFirstChild("Humanoid") or p1:FindFirstChildOfClass("Humanoid")
         if v4_7 and v4_7.Health <= 0 then
             return true
-        end
-        local isBoss = v150_10 and v150_10.IsBossModel and v150_10.IsBossModel(p1)
-        local v2_4 = p1:FindFirstChild("HumanoidRootPart")
-        if not isBoss then
-            if not v2_4 then
-                return true
-            end
-            if v2_4.Anchored == true then
-                return true
-            end
         end
         return false
     end
@@ -1096,89 +1035,219 @@ do
         return not v90_2(p1)
     end
 
-    function v150_10.IsProtectStageActive()
-        return false
+    local _BossDmgWatch = setmetatable({}, { __mode = "k" })
+    function v150_10.NoteBossSpearShot(_bm)
+        if not (_bm and v150_10.IsBossModel(_bm)) then return end
+        local _hm = _bm:FindFirstChildOfClass("Humanoid")
+        if not _hm then return end
+        local _curHp = _hm.Health
+        local _rec = _BossDmgWatch[_bm]
+        local _now = os.clock()
+        if not _rec then
+            _BossDmgWatch[_bm] = {
+                hp = _curHp,
+                windowStart = _now,
+                holdUntil = 0,
+                probeNext = false,
+                probeWaitUntil = 0,
+            }
+            return
+        end
+        if _curHp < (_rec.hp - 0.5) then
+            _rec.hp = _curHp
+            _rec.windowStart = _now
+            _rec.holdUntil = 0
+            _rec.probeNext = false
+            _rec.probeWaitUntil = 0
+        elseif _rec.probeNext then
+            _rec.probeNext = false
+            _rec.probeWaitUntil = _now + 0.35
+            _rec.windowStart = _now
+        elseif (_now - (_rec.windowStart or _now)) >= 0.45 then
+            _rec.holdUntil = _now + 2.5
+            _rec.probeNext = true
+            _rec.probeWaitUntil = 0
+            _rec.windowStart = _now
+        end
     end
 
-    function v150_10.IsTitanHardened(target)
-        if not target then return false end
-        local m = (typeof(target) == "Instance" and (target:IsA("Model") and target or target:FindFirstAncestorOfClass("Model")))
-        if not m then return false end
+    function v150_10.IsBossProbePending(_bm)
+        local _rec = _bm and _BossDmgWatch[_bm]
+        return _rec ~= nil and _rec.probeNext == true
+    end
 
-        -- 1. Attributes on Model / Character
-        if m:GetAttribute("Hardened") == true
-            or m:GetAttribute("Hardening") == true
-            or m:GetAttribute("IsHardened") == true
-            or m:GetAttribute("IsHardening") == true
-            or m:GetAttribute("Blocking") == true
-            or m:GetAttribute("IsBlocking") == true
-            or m:GetAttribute("Courage") == true
-            or m:GetAttribute("Crystallized") == true
-            or m:GetAttribute("Defending") == true
-        then
-            return true
-        end
-
-        local shieldVal = m:GetAttribute("Shield") or m:GetAttribute("ShieldHealth")
-        if type(shieldVal) == "number" and shieldVal > 0 then
-            return true
-        end
-
-        local stateStr = tostring(m:GetAttribute("State") or ""):lower()
-        if stateStr:find("harden") or stateStr:find("crystal") or stateStr:find("block") then
-            return true
-        end
-
-        -- 2. Attributes on Nape
-        local nape = v89_2(m)
-        if nape and nape:IsA("BasePart") then
-            if nape:GetAttribute("Hardened") == true
-                or nape:GetAttribute("Protected") == true
-                or nape:GetAttribute("Crystallized") == true
-                or nape:GetAttribute("Immune") == true
-            then
-                return true
-            end
-            local napeState = tostring(nape:GetAttribute("State") or ""):lower()
-            if napeState:find("harden") or napeState:find("crystal") or napeState:find("block") then
-                return true
-            end
-        end
-
-        -- 3. Hardening Crystal Parts attached to Titan
-        for _, child in ipairs(m:GetChildren()) do
-            if child:IsA("BasePart") then
-                local cname = child.Name:lower()
-                if (cname:find("harden") or cname:find("crystal")) and child.Transparency < 0.8 then
-                    return true
-                end
-            elseif child:IsA("Model") then
-                local cname = child.Name:lower()
-                if cname:find("harden") or cname:find("crystal") then
-                    for _, p in ipairs(child:GetChildren()) do
-                        if p:IsA("BasePart") and p.Transparency < 0.8 then
-                            return true
+    function v150_10.IsProtectStageActive()
+        local _found = false
+        pcall(function()
+            local lp = v7_13 or v6_21.LocalPlayer
+            local pg = lp and lp:FindFirstChild("PlayerGui")
+            for _, _root in ipairs({ pg and pg:FindFirstChild("Objectives"), v13_8:FindFirstChild("Objectives") }) do
+                if _root then
+                    for _, _obj in ipairs(_root:GetDescendants()) do
+                        if _obj:IsA("TextLabel") and _obj.Visible ~= false then
+                            local _txt = tostring(_obj.Text or ""):lower()
+                            if _txt:find("protect", 1, true) or _txt:find("boat", 1, true) or _txt:find("ship", 1, true) then
+                                local _c, _r = _txt:match("(%d+)%s*/%s*(%d+)")
+                                local _done = (_c and _r and tonumber(_r) > 0 and tonumber(_c) >= tonumber(_r))
+                                    or (_txt:find("100%", 1, true) ~= nil)
+                                    or (_txt:find("completed", 1, true) ~= nil)
+                                if not _done then
+                                    _found = true
+                                    return
+                                end
+                            end
                         end
                     end
                 end
             end
-        end
+        end)
+        return _found
+    end
 
-        -- 4. Active Animation Tracks (Hardening / Crystal / Blocking only)
-        local hum = m:FindFirstChild("Humanoid")
-        local anim = hum and hum:FindFirstChild("Animator")
-        if anim then
-            local okTracks, tracks = pcall(function() return anim:GetPlayingAnimationTracks() end)
-            if okTracks and tracks then
-                for _, track in ipairs(tracks) do
-                    local tname = track.Name:lower()
-                    if tname:find("harden") or tname:find("crystal") or tname:find("block_nape") or tname:find("nape_protect") then
+    function v150_10.IsTitanHardened(target)
+        if not target then return false end
+        local _bm = (typeof(target) == "Instance" and (target:IsA("Model") and target or target:FindFirstAncestorOfClass("Model")))
+        if not _bm or not _bm.Parent then return false end
+        if _bm:FindFirstChildOfClass("ForceField") then return true end
+        if _bm:GetAttribute("Hardened") == true
+            or _bm:GetAttribute("Hardening") == true
+            or _bm:GetAttribute("IsHardened") == true
+            or _bm:GetAttribute("IsHardening") == true
+            or _bm:GetAttribute("Blocking") == true
+            or _bm:GetAttribute("IsBlocking") == true
+            or _bm:GetAttribute("Crystallized") == true
+            or _bm:GetAttribute("Defending") == true
+            or _bm:GetAttribute("Invulnerable") == true
+            or _bm:GetAttribute("Immune") == true
+            or _bm:GetAttribute("Protected") == true
+            or _bm:GetAttribute("Roaring") == true
+            or _bm:GetAttribute("Charging") == true
+            or _bm:GetAttribute("Transforming") == true
+            or _bm:GetAttribute("Cutscene") == true
+        then
+            return true
+        end
+        for _, _numAttr in ipairs({ "Shield", "ShieldHealth", "Armor", "ArmorHealth" }) do
+            local _sv = _bm:GetAttribute(_numAttr)
+            if type(_sv) == "number" and _sv > 0 then
+                return true
+            end
+        end
+        local _ph = _bm:GetAttribute("Phase")
+        if type(_ph) == "number" and _ph == 1 and tostring(_bm.Name):lower():find("armor", 1, true) then
+            return true
+        end
+        local _st = tostring(_bm:GetAttribute("State") or ""):lower()
+        if _st ~= "" and (
+            _st:find("harden", 1, true) or _st:find("crystal", 1, true) or _st:find("block", 1, true)
+            or _st:find("invuln", 1, true) or _st:find("immune", 1, true) or _st:find("roar", 1, true)
+            or _st:find("scream", 1, true) or _st:find("shout", 1, true) or _st:find("charge", 1, true)
+            or _st:find("transform", 1, true) or _st:find("protect", 1, true) or _st:find("cutscene", 1, true)
+        ) then
+            return true
+        end
+        local _nape = v89_2(_bm)
+        if _nape and _nape:IsA("BasePart") then
+            if _nape:FindFirstChildOfClass("ForceField")
+                or _nape:GetAttribute("Hardened") == true
+                or _nape:GetAttribute("Protected") == true
+                or _nape:GetAttribute("Crystallized") == true
+                or _nape:GetAttribute("Immune") == true
+                or _nape:GetAttribute("Invulnerable") == true
+            then
+                return true
+            end
+            local _ns = tostring(_nape:GetAttribute("State") or ""):lower()
+            if _ns:find("harden", 1, true) or _ns:find("crystal", 1, true) or _ns:find("block", 1, true)
+                or _ns:find("immune", 1, true) or _ns:find("invuln", 1, true)
+            then
+                return true
+            end
+        else
+            return true
+        end
+        for _, _ch in ipairs(_bm:GetChildren()) do
+            local _cn = _ch.Name:lower()
+            if _ch:IsA("BasePart") then
+                if (_cn:find("harden", 1, true) or _cn:find("crystal", 1, true)) and _ch.Transparency < 0.8 then
+                    return true
+                end
+            elseif _ch:IsA("Model") and (_cn:find("harden", 1, true) or _cn:find("crystal", 1, true)) then
+                for _, _cp in ipairs(_ch:GetChildren()) do
+                    if _cp:IsA("BasePart") and _cp.Transparency < 0.8 then
                         return true
                     end
                 end
             end
         end
+        for _, _nc in ipairs(_nape:GetChildren()) do
+            local _ncn = _nc.Name:lower()
+            if (_ncn:find("harden", 1, true) or _ncn:find("crystal", 1, true) or _ncn:find("shield", 1, true))
+                and (not _nc:IsA("BasePart") or _nc.Transparency < 0.8)
+            then
+                return true
+            end
+        end
+        local _hrpB = _bm:FindFirstChild("HumanoidRootPart") or _bm.PrimaryPart
+        if _hrpB and _hrpB.Anchored == true then
+            return true
+        end
+        local _hmB = _bm:FindFirstChildOfClass("Humanoid")
+        local _animB = _hmB and _hmB:FindFirstChildOfClass("Animator")
+        if _animB then
+            local _okTr, _trks = pcall(function() return _animB:GetPlayingAnimationTracks() end)
+            if _okTr and _trks then
+                for _, _tr in ipairs(_trks) do
+                    local _tn = tostring(_tr.Name or ""):lower()
+                    if _tn:find("harden", 1, true) or _tn:find("crystal", 1, true)
+                        or _tn:find("block_nape", 1, true) or _tn:find("nape_protect", 1, true)
+                        or _tn:find("roar", 1, true) or _tn:find("scream", 1, true)
+                        or _tn:find("shout", 1, true) or _tn:find("charge", 1, true)
+                        or _tn:find("transform", 1, true)
+                    then
+                        return true
+                    end
+                end
+            end
+        end
+        local _rec = _BossDmgWatch[_bm]
+        if _rec then
+            local _now = os.clock()
+            if _hmB and _hmB.Health < (_rec.hp - 0.5) then
+                _rec.hp = _hmB.Health
+                _rec.windowStart = _now
+                _rec.holdUntil = 0
+                _rec.probeNext = false
+                _rec.probeWaitUntil = 0
+            elseif (_rec.probeWaitUntil or 0) > 0 then
+                if _now < _rec.probeWaitUntil then
+                    return true
+                end
+                _rec.probeWaitUntil = 0
+                _rec.holdUntil = _now + 2.5
+                _rec.probeNext = true
+                _rec.windowStart = _now
+                return true
+            elseif (_rec.holdUntil or 0) > _now then
+                return true
+            end
+        end
+        return false
+    end
 
+    v150_10.IsBossProtected = v150_10.IsTitanHardened
+
+    function v150_10.HasRegularAliveTitan()
+        for _, _fn in ipairs({ "Titans", "Enemies", "Spawns" }) do
+            local _fd = v13_8:FindFirstChild(_fn)
+            if _fd then
+                for _, _m in ipairs(_fd:GetChildren()) do
+                    if _m:IsA("Model") and not v150_10.IsBossModel(_m) and v91_2(_m) and not v150_10.IsTitanHardened(_m) then
+                        return true
+                    end
+                end
+            end
+        end
         return false
     end
 
@@ -1221,26 +1290,16 @@ do
         if not v150_10.AutoRaid then
             return nil
         end
+        if v150_10.IsProtectStageActive() and v150_10.HasRegularAliveTitan() then
+            return nil
+        end
 
+        local candidates = {}
         local dedicatedFolders = {
             v13_8:FindFirstChild("Boss"),
             v13_8:FindFirstChild("Bosses"),
             v13_8:FindFirstChild("Shifters"),
-            v13_8:FindFirstChild("Raid")
-        }
-        for _, container in ipairs(dedicatedFolders) do
-            if container then
-                for _, child in ipairs(container:GetChildren()) do
-                    if child:IsA("Model") and v91_2(child) then
-                        if v150_10.IsBossModel(child) or container.Name ~= "Raid" then
-                            return child
-                        end
-                    end
-                end
-            end
-        end
-
-        local fallbackFolders = {
+            v13_8:FindFirstChild("Raid"),
             v13_8:FindFirstChild("Titans"),
             v13_8:FindFirstChild("Enemies"),
             v13_8:FindFirstChild("Spawns"),
@@ -1248,14 +1307,26 @@ do
             v13_8:FindFirstChild("Entities"),
             v13_8
         }
-        for _, container in ipairs(fallbackFolders) do
+        local seen = {}
+        for _, container in ipairs(dedicatedFolders) do
             if container then
                 for _, child in ipairs(container:GetChildren()) do
-                    if child:IsA("Model") and v150_10.IsBossModel(child) and v91_2(child) then
-                        return child
+                    if child:IsA("Model") and not seen[child] and v91_2(child) then
+                        if v150_10.IsBossModel(child) or (container.Name == "Boss" or container.Name == "Bosses" or container.Name == "Shifters") then
+                            seen[child] = true
+                            table.insert(candidates, child)
+                        end
                     end
                 end
             end
+        end
+        for _, boss in ipairs(candidates) do
+            if not v150_10.IsTitanHardened(boss) then
+                return boss
+            end
+        end
+        if not v150_10.HasRegularAliveTitan() and #candidates > 0 then
+            return candidates[1]
         end
         return nil
     end
@@ -1388,7 +1459,7 @@ do
                                     if btn:IsA("GuiButton") and btn.Visible then
                                         local txt = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or
                                             btn.Name):upper()
-                                        if txt:find("CLAIM") or txt:find("NHẬN") or txt:find("COLLECT") or txt:find("ALL") then
+                                        if txt:find("CLAIM") or txt:find("NH\225\186\172N") or txt:find("COLLECT") or txt:find("ALL") then
                                             if v150_10.ClickGuiButton then
                                                 v150_10.ClickGuiButton(btn)
                                             else
@@ -1455,7 +1526,7 @@ do
                                     if btn:IsA("GuiButton") and btn.Visible then
                                         local txt = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or
                                             btn.Name):upper()
-                                        if txt:find("CLAIM") or txt:find("NHẬN") or txt:find("COLLECT") or txt:find("DAY") then
+                                        if txt:find("CLAIM") or txt:find("NH\225\186\172N") or txt:find("COLLECT") or txt:find("DAY") then
                                             if v150_10.ClickGuiButton then
                                                 v150_10.ClickGuiButton(btn)
                                             else
@@ -1518,49 +1589,62 @@ do
             return false
         end
         local v2_3 = {}
+        local targetModels = {}
         local v3_3 = v59_2 and 8 or 1
-        if type(p1) == "table" and p1[1] ~= nil then
-            for v7, v8 in ipairs(p1) do
+        if typeof(p1) ~= "Instance" and type(p1) == "table" and p1[1] ~= nil then
+            for _, v8 in ipairs(p1) do
                 if typeof(v8) == "Instance" then
                     if v8:IsA("BasePart") and v8.Name == "Nape" then
-                        table.insert(v2_3, v8)
+                        local tm = v8:FindFirstAncestorOfClass("Model")
+                        if not (tm and v150_10.IsTitanHardened(tm)) then
+                            table.insert(v2_3, v8)
+                            if tm then table.insert(targetModels, tm) end
+                        end
                     else
-                        local v9_7 = v89_2(v8)
-                        if v9_7 then
-                            table.insert(v2_3, v9_7)
+                        local v9_6 = v8:IsA("Model") and v8 or v8:FindFirstAncestorOfClass("Model")
+                        local v10_4 = v9_6 and v89_2(v9_6)
+                        if v9_6 and v10_4 and v91_2(v9_6) and not v150_10.IsTitanHardened(v9_6) then
+                            table.insert(v2_3, v10_4)
+                            table.insert(targetModels, v9_6)
                         end
                     end
-                    if #v2_3 >= v3_3 then
-                        break
-                    end
+                end
+                if v3_3 <= #v2_3 then
+                    break
                 end
             end
         elseif typeof(p1) == "Instance" then
-            if p1:IsA("BasePart") and p1.Name == "Nape" then
-                table.insert(v2_3, p1)
-            else
-                local v4_13 = v89_2(p1)
-                if v4_13 then
-                    table.insert(v2_3, v4_13)
+            local v4_8 = p1:IsA("Model") and p1 or p1:FindFirstAncestorOfClass("Model")
+            local v5_6 = p1:IsA("BasePart") and p1.Name == "Nape" and p1 or v4_8 and v89_2(v4_8)
+            if v5_6 and v4_8 and v91_2(v4_8) then
+                if v150_10.IsTitanHardened(v4_8) then
+                    return false
                 end
+                table.insert(v2_3, v5_6)
+                table.insert(targetModels, v4_8)
             end
         end
         if #v2_3 == 0 then
             return false
         end
-        local v4_11 = v71_3()
-        if not v4_11 then
+        do
+            local lpChar = v71_3()
+            local lpHrp = lpChar and lpChar:FindFirstChild("HumanoidRootPart")
+            local firstNape = v2_3[1]
+            if lpHrp and firstNape and (firstNape.Position - lpHrp.Position).Magnitude > math.max(220, 120 + v60_2) then
+                return false
+            end
+        end
+        v70_2()
+        if not v68_2 or not v69_2 then
             return false
         end
-        local v5_16 = v4_11:FindFirstChild("Actor") or v66 and v66()[1]
-        if v5_16 and v67_2 then
-            pcall(function()
-                v67_2(v5_16,
-                    string.format(
-                        "                local host = _G.__CachedHost\n                if type(host) ~= \"table\"\n                    or type(rawget(host, \"Modules\")) ~= \"table\"\n                    or type(rawget(host, \"Cache\")) ~= \"table\"\n                    or not host.Modules.Zones\n                then\n                    host = nil\n                    _G.__CachedHost = nil\n                    for _, obj in ipairs(getgc(true)) do\n                        if type(obj) == \"table\"\n                            and type(rawget(obj, \"Modules\")) == \"table\"\n                            and type(rawget(obj, \"Cache\")) == \"table\"\n                            and rawget(obj, \"Services\")\n                            and obj.Modules.Zones\n                        then\n                            host = obj\n                            _G.__CachedHost = obj\n                            break\n                        end\n                    end\n                end\n\n                if host then\n                    if host.Loadout and host.Loadout.Stats then\n                        host.Loadout.Stats.Crit_Chance = 100\n                        host.Loadout.Stats.Strike = %d\n                    end\n                    local zones = host.Modules.Zones\n                    if zones and not zones.__SymbioteCritHooked and type(zones.Damage_Check) == \"function\" then\n                        zones.__SymbioteCritHooked = true\n                        local origDamageCheck = zones.Damage_Check\n                        zones.Damage_Check = function(p2, p3, p4, p5, p6, p7, p8, p9)\n                            return origDamageCheck(p2, p3, p4, true, p6, p7, p8, p9)\n                        end\n                    end\n                end\n            ",
-                        #v2_3))
-                return
-            end)
+        local v4_11 = v71_3()
+        if v4_11 and not v4_11:GetAttribute("Spears") and 0 >= v74_2() then
+            if (v18_4 or v25_2 or v34_2) and not v26_2 then
+                v85_2()
+            end
+            return false
         end
         local v6_17 = v76_2()
         if not v6_17 or v6_17 <= 0 then
@@ -1572,14 +1656,12 @@ do
         local v7_8 = nil
         if not pcall(function()
                 v7_8 = v69_2:InvokeServer("Spears", "S_Fire", tostring(v6_17))
-                return
             end) or v7_8 ~= true then
             local v9_11 = v76_2()
             if v9_11 and 0 < v9_11 and v9_11 ~= v6_17 then
                 local v6_18 = v9_11
                 pcall(function()
                     v7_8 = v69_2:InvokeServer("Spears", "S_Fire", tostring(v6_18))
-                    return
                 end)
             end
         end
@@ -1589,7 +1671,21 @@ do
             local function jitterPos(basePos)
                 return basePos + Vector3.new(math.random(-100, 100) / 1000, math.random(-100, 100) / 1000, math.random(-100, 100) / 1000)
             end
-            if #v2_3 == 1 then
+            local probePending = false
+            for _, tm in ipairs(targetModels) do
+                if v150_10.IsBossProbePending(tm) then
+                    probePending = true
+                    break
+                end
+            end
+            if probePending then
+                local targetPart = v2_3[1]
+                if targetPart and targetPart.Parent then
+                    pcall(function()
+                        v68_2:FireServer("Spears", "S_Explode", jitterPos(targetPart.Position), 2.5)
+                    end)
+                end
+            elseif #v2_3 == 1 then
                 local targetPart = v2_3[1]
                 if targetPart and targetPart.Parent then
                     for _ = 1, 9 do
@@ -1608,7 +1704,7 @@ do
                         end)
                     end
                 end
-                if v150_10.AutoRaid and sent > 0 and sent < 9 then
+                if (v150_10.AutoRaid or #v2_3 < 9) and sent > 0 and sent < 9 then
                     local idx = 1
                     while sent < 9 do
                         local v13_7 = v2_3[idx]
@@ -1622,12 +1718,14 @@ do
                     end
                 end
             end
+            for _, tm in ipairs(targetModels) do
+                v150_10.NoteBossSpearShot(tm)
+            end
             v92_2()
             return true
         end
         pcall(function()
             v68_2:FireServer("Spears", "Reset")
-            return
         end)
         v61_2.SpearFireFails = (v61_2.SpearFireFails or 0) + 1
         local spearAttr = v4_11 and tonumber(v4_11:GetAttribute("Spears"))
@@ -1704,12 +1802,12 @@ do
         local v2_7 = {}
         local v3_6 = {}
         local v4_2 = v59_2 and 8 or 1
-        if type(p1) == "table" then
-            for v8_2, v9_2 in ipairs(p1) do
+        if typeof(p1) ~= "Instance" and type(p1) == "table" then
+            for _, v9_2 in ipairs(p1) do
                 if typeof(v9_2) == "Instance" then
                     local v10_4 = v9_2:IsA("Model") and v9_2 or v9_2:FindFirstAncestorOfClass("Model")
                     local v11_5 = v9_2:IsA("BasePart") and v9_2.Name == "Nape" and v9_2 or (v10_4 and v89_2(v10_4))
-                    if v10_4 and v11_5 and v91_2(v10_4) then
+                    if v10_4 and v11_5 and v91_2(v10_4) and not v150_10.IsTitanHardened(v10_4) then
                         table.insert(v2_7, v10_4)
                         table.insert(v3_6, v11_5)
                         if v4_2 <= #v3_6 then
@@ -1721,7 +1819,7 @@ do
         elseif typeof(p1) == "Instance" then
             local v5_8 = p1:IsA("Model") and p1 or p1:FindFirstAncestorOfClass("Model")
             local v6_11 = p1:IsA("BasePart") and p1.Name == "Nape" and p1 or v5_8 and v89_2(v5_8)
-            if v5_8 and v6_11 and v91_2(v5_8) then
+            if v5_8 and v6_11 and v91_2(v5_8) and not v150_10.IsTitanHardened(v5_8) then
                 table.insert(v2_7, v5_8)
                 table.insert(v3_6, v6_11)
             end
@@ -1735,11 +1833,20 @@ do
         end
         local v6_16 = v5_13:FindFirstChild("HumanoidRootPart")
         local v7_9 = v5_13:FindFirstChild("Humanoid")
-        local v8_8 = v5_13:FindFirstChild("Hitbox")
-        local v9_6 = v5_13:FindFirstChild("Actor")
         if not v6_16 or not v7_9 then
             return false
         end
+        do
+            local firstNape = v3_6[1]
+            if not v59_2 and firstNape and (firstNape.Position - v6_16.Position).Magnitude > math.max(140, 70 + v60_2) then
+                return false
+            end
+        end
+        v70_2()
+        if not v68_2 then
+            return false
+        end
+        local v8_8 = v5_13:FindFirstChild("Hitbox")
         local v10_11 = v8_8 and v8_8.CollisionGroup
         local v11_9 = v8_8 and v8_8.Size
         local v12_10 = math.max(100, (55 + v60_2) * 2 + 30)
@@ -1751,11 +1858,11 @@ do
             v8_8.CanTouch = true
             v8_8.Size = Vector3.new(v12_10, v12_10, v12_10)
         end
-        for v16_6, v17_3 in ipairs(v2_7) do
+        for _, v17_3 in ipairs(v2_7) do
             local v18_3 = v17_3:FindFirstChild("Hitboxes")
             local v19_2 = v18_3 and v18_3:FindFirstChild("Hit")
             if v19_2 then
-                for v23_3, v24_3 in ipairs(v19_2:GetChildren()) do
+                for _, v24_3 in ipairs(v19_2:GetChildren()) do
                     if v24_3:IsA("BasePart") then
                         v24_3.CollisionGroup = "Default"
                         v24_3.CanTouch = v24_3.Name == "Nape"
@@ -1764,215 +1871,38 @@ do
             end
         end
         v64_2 = true
-        local v13_27 = v7_9:FindFirstChild("Animator")
-        if v13_27 then
-            for v17_4, v18_4 in ipairs(v13_27:GetPlayingAnimationTracks()) do
-                if v18_4.Priority == Enum.AnimationPriority.Action4 or v18_4.Priority == Enum.AnimationPriority.Action3 or v18_4.Name:find("Hit") or v18_4.Name:find("Slash") then
-                    v18_4:Stop(0)
+        pcall(function()
+            local v13_27 = v7_9:FindFirstChild("Animator")
+            if v13_27 then
+                for _, v18_4 in ipairs(v13_27:GetPlayingAnimationTracks()) do
+                    if v18_4.Priority == Enum.AnimationPriority.Action4 or v18_4.Priority == Enum.AnimationPriority.Action3 or v18_4.Name:find("Hit") or v18_4.Name:find("Slash") then
+                        v18_4:Stop(0)
+                    end
                 end
             end
-        end
-        local v14_25 = false
-        if v9_6 and v67_2 then
-            local v15_18 = tostring(os.clock()) .. "_" .. tostring(math.random(1000, 9999))
-            local v16_16 = {}
-            for v20_9, v21_9 in ipairs(v2_7) do
-                table.insert(v16_16, v21_9.Name)
-                v21_9:SetAttribute("__SymbioteTarget", v15_18)
+        end)
+        pcall(function()
+            for _, np in ipairs(v3_6) do
+                if np and np.Parent then
+                    v68_2:FireServer("Attacks", "Slash", true)
+                    v68_2:FireServer("Hitboxes", "Register", np, math.random(700, 900))
+                end
             end
-            v9_6:SetAttribute("TargetTitanNames", table.concat(v16_16, ","))
-            v9_6:SetAttribute("TargetTitan", v15_18)
-            v9_6:SetAttribute("SlashMaxTargets", #v3_6)
-            v9_6:SetAttribute("SlashDone", false)
-            v9_6:SetAttribute("SlashHandled", false)
+        end)
+        task.delay(0.04, function()
             pcall(function()
-                v67_2(v9_6,
-                    "                local Players = game:GetService(\"Players\")\n                local lp = Players.LocalPlayer\n                local chars = workspace:FindFirstChild(\"Characters\")\n                local c = (chars and chars:FindFirstChild(lp.Name)) or lp.Character\n                local act = c and c:FindFirstChild(\"Actor\")\n                if not act then return end\n\n                local targetId = act:GetAttribute(\"TargetTitan\")\n                local targetNamesStr = act:GetAttribute(\"TargetTitanNames\") or \"\"\n                local nameMap = {}\n                for name in string.gmatch(targetNamesStr, \"[^,]+\") do\n                    nameMap[name] = true\n                end\n                local maxTargets = tonumber(act:GetAttribute(\"SlashMaxTargets\")) or 1\n                local folders = { workspace:FindFirstChild(\"Titans\"), workspace:FindFirstChild(\"Boss\"), workspace:FindFirstChild(\"Bosses\"), workspace:FindFirstChild(\"Shifters\"), workspace:FindFirstChild(\"Raid\") }\n                local napes = {}\n                for _, tit in ipairs(folders) do\n                    if tit then\n                        for _, m in ipairs(tit:GetChildren()) do\n                            if targetId and m:GetAttribute(\"__SymbioteTarget\") == targetId then\n                                local np = (m:FindFirstChild(\"Hitboxes\") and m.Hitboxes:FindFirstChild(\"Hit\") and m.Hitboxes.Hit:FindFirstChild(\"Nape\")) or m:FindFirstChild(\"Nape\", true)\n                                if np then\n                                    table.insert(napes, np)\n                                    if #napes >= maxTargets then\n                                        break\n                                    end\n                                end\n                            end\n                        end\n                        if #napes >= maxTargets then break end\n                    end\n                end\n                if #napes == 0 then\n                    for _, tit in ipairs(folders) do\n                        if tit then\n                            for _, m in ipairs(tit:GetChildren()) do\n                                local hrp = m:FindFirstChild(\"HumanoidRootPart\")\n                                if m:IsA(\"Model\") and hrp and not hrp.Anchored and not m:GetAttribute(\"State\") then\n                                    local np = (m:FindFirstChild(\"Hitboxes\") and m.Hitboxes:FindFirstChild(\"Hit\") and m.Hitboxes.Hit:FindFirstChild(\"Nape\")) or m:FindFirstChild(\"Nape\", true)\n                                    if np then\n                                        table.insert(napes, np)\n                                        if #napes >= maxTargets then break end\n                                    end\n                                end\n                            end\n                            if #napes >= maxTargets then break end\n                        end\n                    end\n                end\n\n                local h = c and c:FindFirstChild(\"HumanoidRootPart\")\n                local hm = c and c:FindFirstChild(\"Humanoid\")\n                local hb = c and c:FindFirstChild(\"Hitbox\")\n                if hb and hb:IsA(\"BasePart\") then\n                    hb.CanTouch = true\n                end\n\n                local host = _G.__CachedHost\n                if type(host) ~= \"table\"\n                    or type(rawget(host, \"Modules\")) ~= \"table\"\n                    or type(rawget(host, \"Cache\")) ~= \"table\"\n                    or host.Cache.Character ~= c\n                    or not host.Modules.Zones\n                    or not host.Modules.Input\n                    or not host.Modules.ODMG\n                    or not host.Modules.Effects\n                then\n                    host = nil\n                    _G.__CachedHost = nil\n                    local now = os.clock()\n                    local lastScan = _G.__LastHostScan or 0\n                    if (now - lastScan) >= 1 then\n                        _G.__LastHostScan = now\n                        for _, obj in ipairs(getgc(true)) do\n                            if type(obj) == \"table\"\n                                and type(rawget(obj, \"Modules\")) == \"table\"\n                                and type(rawget(obj, \"Cache\")) == \"table\"\n                                and obj.Cache.Character == c\n                                and obj.Modules.Zones\n                            then\n                                host = obj\n                                _G.__CachedHost = obj\n                                break\n                            end\n                        end\n                    end\n                end\n\n                if host and #napes > 0 and h and hm then\n                    act:SetAttribute(\"SlashHandled\", true)\n                    pcall(function()\n                        local slash = host.Cache.Variables.Slash\n                        local odmg = host.Modules.ODMG\n                        local inputMod = host.Modules.Input\n                        local effects = host.Modules.Effects\n                        local zones = host.Modules.Zones\n\n                        if inputMod.Slashing then\n                            pcall(function() task.cancel(inputMod.Slashing) end)\n                            inputMod.Slashing = nil\n                        end\n                        if type(odmg.Events) == \"table\" then\n                            for _, ev in pairs(odmg.Events) do\n                                pcall(function() task.cancel(ev) end)\n                            end\n                            table.clear(odmg.Events)\n                        end\n\n                        if effects.Slash_State == true then\n                            pcall(function() effects.Slash(host, false, true) end)\n                            effects.Slash_State = false\n                        end\n\n                        host.Invoked = false\n                        if host.Modules.Shift then\n                            host.Modules.Shift.Stunned = false\n                        end\n\n                        if host.Loadout and host.Loadout.Stats then\n                            host.Loadout.Stats.Crit_Chance = 100\n                            host.Loadout.Stats.Strike = #napes\n                        end\n\n                        if not zones.__SymbioteCritHooked and type(zones.Damage_Check) == \"function\" then\n                            zones.__SymbioteCritHooked = true\n                            local origDamageCheck = zones.Damage_Check\n                            zones.Damage_Check = function(p2, p3, p4, p5, p6, p7, p8, p9)\n                                return origDamageCheck(p2, p3, p4, true, p6, p7, p8, p9)\n                            end\n                        end\n\n                        slash.Slashing = false\n                        slash.Released = false\n                        slash.Holding = false\n                        slash.Cooldown = false\n                        slash.Combo = 0\n                        table.clear(zones.Hit)\n\n                        if not host.__OrigTasks and type(odmg.Tasks) == \"function\" then\n                            host.__OrigTasks = odmg.Tasks\n                        end\n                        odmg.Tasks = function() end\n                        pcall(function() odmg.M1(host, false) end)\n                        if host.__OrigTasks then\n                            odmg.Tasks = host.__OrigTasks\n                        end\n\n                        slash.Slashing = true\n                        slash.Released = false\n                        slash.Holding = false\n                        slash.Type = \"Air\"\n                        slash.Last = tick() - 0.65\n                        zones.Time_Difference = 0.65\n\n                        task.wait(0.04)\n\n                        table.clear(zones.Hit)\n                        pcall(function() inputMod.Slash(host, h, hm) end)\n                        slash.Slashing = true\n                        slash.Released = true\n                        slash.Holding = false\n                        slash.Type = \"Air\"\n\n                        if effects.Slash_State ~= true then\n                            pcall(function() effects.Slash(host, true, true) end)\n                            effects.Slash_State = true\n                        end\n                        host:Send(\"Attacks\", \"Slash\", true)\n\n                        local a = hm:FindFirstChild(\"Animator\")\n                        if a then\n                            for _, track in ipairs(a:GetPlayingAnimationTracks()) do\n                                if track.Priority == Enum.AnimationPriority.Action4 or track.Priority == Enum.AnimationPriority.Action3 or track.Name:find(\"Hit\") or track.Name:find(\"Slash\") then\n                                    track:Stop(0)\n                                end\n                            end\n                        end\n\n                        for _, np in ipairs(napes) do\n                            table.insert(zones.Hit, np)\n                            host:Send(\"Hitboxes\", \"Register\", np, 0.65)\n                        end\n\n                        task.wait(0.12)\n\n                        if inputMod.Slashing then\n                            pcall(function() task.cancel(inputMod.Slashing) end)\n                            inputMod.Slashing = nil\n                        end\n                        slash.Slashing = false\n                        slash.Released = false\n                        slash.Holding = false\n                        pcall(function() effects.Slash(host, false, true) end)\n                        if effects.Slash_State ~= false then\n                            effects.Slash_State = false\n                        end\n                        host:Send(\"Attacks\", \"Slash\", false)\n                    end)\n                end\n\n                act:SetAttribute(\"SlashDone\", true)\n            ")
-                return
+                if v68_2 then
+                    v68_2:FireServer("Attacks", "Slash", false)
+                end
             end)
-            local v17_20 = os.clock()
-            while os.clock() - v17_20 < 0.22 do
-                if v9_6:GetAttribute("SlashDone") == true then
-                    break
-                else
-                    task.wait(0.02)
-                end
-            end
-            v14_25 = v9_6:GetAttribute("SlashHandled") == true
-        end
-        if not v14_25 then
-            local v15_20 = _G.__CachedHost
-            if type(v15_20) ~= "table" or type(rawget(v15_20, "Modules")) ~= "table" or type(rawget(v15_20, "Cache")) ~= "table" or v15_20.Cache.Character ~= v5_13 or not v15_20.Modules.Zones or not v15_20.Modules.Input or not v15_20.Modules.ODMG or not v15_20.Modules.Effects then
-                v15_20 = nil
-                _G.__CachedHost = nil
-                if getgc then
-                    for v19_36, v20_31 in ipairs(getgc(true)) do
-                        if type(v20_31) == "table" and type(rawget(v20_31, "Modules")) == "table" and type(rawget(v20_31, "Cache")) == "table" and v20_31.Cache.Character == v5_13 and v20_31.Modules.Zones then
-                            v15_20 = v20_31
-                            _G.__CachedHost = v20_31
-                            break
-                        end
-                    end
-                end
-            end
-            if v15_20 then
-                pcall(function()
-                    local v4 = v15_20
-                    local v1 = v4.Cache.Variables.Slash
-                    local v2_2 = v4.Modules.ODMG
-                    local v5 = v4
-                    local v3_3 = v5.Modules.Input
-                    local v6_2 = v5
-                    local v4_4 = v6_2.Modules.Effects
-                    local v5_3 = v6_2.Modules.Zones
-                    if v3_3.Slashing then
-                        pcall(function()
-                            task.cancel(v3_3.Slashing)
-                            return
-                        end)
-                        v3_3.Slashing = nil
-                    end
-                    if type(v2_2.Events) == "table" then
-                        for v9, v10 in pairs(v2_2.Events) do
-                            pcall(function()
-                                task.cancel(v10)
-                                return
-                            end)
-                        end
-                        table.clear(v2_2.Events)
-                    end
-                    if v4_4.Slash_State == true then
-                        pcall(function()
-                            v4_4.Slash(v15_20, false, true)
-                            return
-                        end)
-                        v4_4.Slash_State = false
-                    end
-                    local v6_15 = v15_20
-                    v6_15.Invoked = false
-                    if v6_15.Modules.Shift then
-                        v15_20.Modules.Shift.Stunned = false
-                    end
-                    if v15_20.Loadout and v15_20.Loadout.Stats then
-                        local v8_6 = v15_20
-                        v8_6.Loadout.Stats.Crit_Chance = 100
-                        v8_6.Loadout.Stats.Strike = #v3_6
-                    end
-                    if not v5_3.__SymbioteCritHooked and type(v5_3.Damage_Check) == "function" then
-                        v5_3.__SymbioteCritHooked = true
-                        local v6_23 = v5_3.Damage_Check
-                        v5_3.Damage_Check = function(p1, p2, p3, p4, p5, p6, p7, p8)
-                            return v6_23(p1, p2, p3, true, p5, p6, p7, p8)
-                        end
-                    end
-                    v1.Slashing = false
-                    v1.Released = false
-                    v1.Holding = false
-                    v1.Cooldown = false
-                    v1.Combo = 0
-                    table.clear(v5_3.Hit)
-                    if not v15_20.__OrigTasks and type(v2_2.Tasks) == "function" then
-                        v15_20.__OrigTasks = v2_2.Tasks
-                    end
-                    v2_2.Tasks = function()
-                        return
-                    end
-                    pcall(function()
-                        v2_2.M1(v15_20, false)
-                        return
-                    end)
-                    if v15_20.__OrigTasks then
-                        v2_2.Tasks = v15_20.__OrigTasks
-                    end
-                    v1.Slashing = true
-                    v1.Released = false
-                    v1.Holding = false
-                    v1.Type = "Air"
-                    v1.Last = tick() - 0.65
-                    v5_3.Time_Difference = 0.65
-                    task.wait(0.04)
-                    table.clear(v5_3.Hit)
-                    pcall(function()
-                        v3_3.Slash(v15_20, v6_16, v7_9)
-                        return
-                    end)
-                    v1.Slashing = true
-                    v1.Released = true
-                    v1.Holding = false
-                    v1.Type = "Air"
-                    if v4_4.Slash_State ~= true then
-                        pcall(function()
-                            v4_4.Slash(v15_20, true, true)
-                            return
-                        end)
-                        v4_4.Slash_State = true
-                    end
-                    v15_20:Send("Attacks", "Slash", true)
-                    local v6_47 = v7_9:FindFirstChild("Animator")
-                    if v6_47 then
-                        for v10_3, v11_2 in ipairs(v6_47:GetPlayingAnimationTracks()) do
-                            if v11_2.Priority == Enum.AnimationPriority.Action4 or v11_2.Priority == Enum.AnimationPriority.Action3 or v11_2.Name:find("Hit") or v11_2.Name:find("Slash") then
-                                v11_2:Stop(0)
-                            end
-                        end
-                    end
-                    for v10_5, v11_4 in ipairs(v3_6) do
-                        table.insert(v5_3.Hit, v11_4)
-                        v15_20:Send("Hitboxes", "Register", v11_4, 0.65)
-                    end
-                    task.wait(0.12)
-                    if v3_3.Slashing then
-                        pcall(function()
-                            task.cancel(v3_3.Slashing)
-                            return
-                        end)
-                        v3_3.Slashing = nil
-                    end
-                    v1.Slashing = false
-                    v1.Released = false
-                    v1.Holding = false
-                    pcall(function()
-                        v4_4.Slash(v15_20, false, true)
-                        return
-                    end)
-                    if v4_4.Slash_State ~= false then
-                        v4_4.Slash_State = false
-                    end
-                    v15_20:Send("Attacks", "Slash", false)
-                    return
-                end)
-            else
-                pcall(function()
-                    local v7 = game
-                    v17_6:SendMouseButtonEvent(0, 0, 0, true, v7, 0)
-                    task.wait(0.04)
-                    v17_6:SendMouseButtonEvent(0, 0, 0, false, v7, 0)
-                    return
-                end)
-                task.wait(0.08)
-                local v16_27 = v8_8 and getconnections and getconnections(v8_8.Touched) or {}
-                for v20_33, v21_25 in ipairs(v3_6) do
-                    if v21_25 and v21_25.Parent then
-                        for v25_19, v26_14 in ipairs(v16_27) do
-                            pcall(function()
-                                v26_14:Fire(v21_25)
-                                return
-                            end)
-                        end
-                        pcall(function()
-                            v68_2:FireServer("Hitboxes", "Register", v21_25, 0.65)
-                            return
-                        end)
-                    end
-                end
-                task.wait(0.1)
-            end
-        end
+        end)
         if v8_8 and v8_8:IsA("BasePart") then
-            v8_8.CollisionGroup = v10_11
-            v8_8.Size = v11_9
+            pcall(function()
+                v8_8.CollisionGroup = v10_11
+                v8_8.Size = v11_9
+            end)
         end
-        for v18_31, v19_33 in ipairs(v2_7) do
+        for _, v19_33 in ipairs(v2_7) do
             v95_8(v19_33, true)
         end
         v64_2 = false
@@ -2316,17 +2246,17 @@ do
                     local t = tostring(rawText):upper()
                     local n = tostring(btn.Name):upper()
 
-                    local isLobby = t:find("LOBBY") or t:find("SẢNH") or t:find("TRỞ VỀ")
-                        or t:find("TRỞ LẠI") or t:find("RETURN") or t:find("LEAVE") or t:find("THOÁT")
+                    local isLobby = t:find("LOBBY") or t:find("S\225\186\162NH") or t:find("TR\225\187\158 V\225\187\128")
+                        or t:find("TR\225\187\158 L\225\186\160I") or t:find("RETURN") or t:find("LEAVE") or t:find("THO\195\129T")
                         or n:find("LOBBY")
 
                     if not isLobby then
-                        local isRetry = t:find("CHƠI LẠI") or t:find("CHOI LAI") or t:find("RETRY") or t:find("REPLAY")
-                            or t:find("THỬ LẠI") or t:find("THU LAI") or t:find("AGAIN") or n:find("RETRY") or
+                        local isRetry = t:find("CH\198\160I L\225\186\160I") or t:find("CHOI LAI") or t:find("RETRY") or t:find("REPLAY")
+                            or t:find("TH\225\187\172 L\225\186\160I") or t:find("THU LAI") or t:find("AGAIN") or n:find("RETRY") or
                             n:find("REPLAY")
 
-                        local isClaim = t:find("NHẬN") or t:find("CLAIM") or t:find("XÁC NHẬN") or t:find("CONFIRM")
-                            or t:find("BỎ QUA") or t:find("SKIP") or t:find("OK") or t:find("ACCEPT") or t:find("CLOSE")
+                        local isClaim = t:find("NH\225\186\172N") or t:find("CLAIM") or t:find("X\195\129C NH\225\186\172N") or t:find("CONFIRM")
+                            or t:find("B\225\187\142 QUA") or t:find("SKIP") or t:find("OK") or t:find("ACCEPT") or t:find("CLOSE")
                             or n:find("CLAIM") or n:find("OK") or n:find("CLOSE")
 
                         if isRetry then
@@ -2741,7 +2671,7 @@ do
                 end
             end
 
-            -- Tắt CanTouch ở toàn bộ bộ phận cơ thể khác để tỉ lệ chém vào người là cực thấp, 100% trúng gáy
+            -- T\225\186\175t CanTouch \225\187\159 to\195\160n b\225\187\153 b\225\187\153 ph\225\186\173n c\198\161 th\225\187\131 kh\195\161c \196\145\225\187\131 t\225\187\137 l\225\187\135 ch\195\169m v\195\160o ng\198\176\225\187\157i l\195\160 c\225\187\177c th\225\186\165p, 100% tr\195\186ng g\195\161y
             local v11_2 = v8:FindFirstChild("Hitboxes")
             if v11_2 then
                 for _, desc in ipairs(v11_2:GetDescendants()) do
@@ -2861,22 +2791,23 @@ end
 local v121_4, v122_3, v123_4, v127_2, v128_2, v129_4, v50_2
 do
     local function v119_5(p1)
-        local v2 = v89_2(p1) or p1 and p1:FindFirstChild("HumanoidRootPart")
+        local v2 = v89_2(p1) or p1 and (p1:FindFirstChild("HumanoidRootPart") or p1.PrimaryPart)
         if not v2 then
             return nil
         end
         if v73_2() then
-            local hoverY = 40 + v60_2
-            return CFrame.lookAt(v2.Position + Vector3.new(0, hoverY, 12), v2.Position)
+            return CFrame.lookAt(v2.Position + Vector3.new(0, 48, 0) - v2.CFrame.LookVector * (75 + v60_2), v2.Position)
         end
-        local hoverY = 30 + v60_2
-        return CFrame.lookAt(v2.Position + Vector3.new(0, hoverY, 6), v2.Position)
+        local v3_8 = os.clock() * 6
+        local v4_6 = 38 + v60_2
+        local hoverPos = v2.Position + Vector3.new(math.cos(v3_8) * 20, v4_6, math.sin(v3_8) * 20)
+        return CFrame.lookAt(hoverPos, v2.Position)
     end
     local function v120_4(p1)
         local v3 = math
         local v2 = v3.huge
         local v3_2 = -v3.huge
-        for v7, v8 in ipairs(p1:GetDescendants()) do
+        for _, v8 in ipairs(p1:GetDescendants()) do
             if v8:IsA("BasePart") then
                 local v9_4 = v8.Position.Y + v8.Size.Y / 2
                 local v10_4 = v8.Position.Y - v8.Size.Y / 2
@@ -2903,22 +2834,33 @@ do
             v13_8:FindFirstChild("Bosses"),
             v13_8:FindFirstChild("Shifters")
         }
-        local v3_6 = nil
-        local v4_2 = -math.huge
+        local char = v71_3()
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        local myPos = hrp and hrp.Position
+        local bestOpen, bestOpenDist = nil, math.huge
+        local bestFallback, bestFallbackDist = nil, math.huge
         for _, c in ipairs(containers) do
             if c then
                 for _, v9 in ipairs(c:GetChildren()) do
                     if v9:IsA("Model") and v9 ~= p1 and v91_2(v9) then
-                        local v10_5 = v120_4(v9)
-                        if v10_5 > v4_2 then
-                            v4_2 = v10_5
-                            v3_6 = v9
+                        local np = v89_2(v9)
+                        local dist = (myPos and np) and (np.Position - myPos).Magnitude or 0
+                        if not v150_10.IsTitanHardened(v9) then
+                            if dist < bestOpenDist then
+                                bestOpenDist = dist
+                                bestOpen = v9
+                            end
+                        else
+                            if dist < bestFallbackDist then
+                                bestFallbackDist = dist
+                                bestFallback = v9
+                            end
                         end
                     end
                 end
             end
         end
-        return v3_6
+        return bestOpen or bestFallback
     end
     v122_3 = function(p1)
         local containers = {
@@ -3072,10 +3014,10 @@ do
             return
         end
         v55_2 = p3
-        p1.CFrame = p3
         if p2 then
             p2.PlatformStand = true
         end
+        p1.CFrame = p3
         pcall(function()
             p1.AssemblyLinearVelocity = Vector3.zero
             p1.AssemblyAngularVelocity = Vector3.zero
@@ -3097,7 +3039,7 @@ do
         local v4_4 = v2_4:FindFirstChild("Humanoid")
         local v5_4 = v119_5(p1)
         if v3_7 and v5_4 then
-            v126_3(v3_7, v4_4, v5_4)
+            v126_3(v3_7, v4_4, v5_4, 0.016)
         end
         return
     end
@@ -3118,7 +3060,7 @@ do
         if v54_2 then
             return
         end
-        v54_2 = v14_9.Heartbeat:Connect(function()
+        v54_2 = v14_9.Heartbeat:Connect(function(dt)
             if not (v18_4 or v48_3) then
                 if v54_2 then
                     v54_2:Disconnect()
@@ -3148,14 +3090,11 @@ do
                 return
             end
             if v61_2.RefillHoldCFrame and (v35_2 or v26_2) then
-                v126_3(v4_6, v3_7, v61_2.RefillHoldCFrame)
+                v126_3(v4_6, v3_7, v61_2.RefillHoldCFrame, dt)
                 return
             end
             if v61_2.IsUpgrading and v61_2.TargetCFrame then
-                v126_3(v4_6, v3_7, v61_2.TargetCFrame)
-                return
-            end
-            if v13_8:FindFirstChild("Titans") ~= nil and v2_11:GetAttribute("Setup") ~= true then
+                v126_3(v4_6, v3_7, v61_2.TargetCFrame, dt)
                 return
             end
             local v6_10 = v7_13 or v6_21.LocalPlayer
@@ -3186,7 +3125,10 @@ do
                     end
                 end
             end
-            local v11_5 = not v10_4 and v18_4 and not v35_2 and not v26_2
+            local v11_5 = not v10_4 and v18_4 and not v35_2
+            if v11_5 then
+                v11_5 = not (v26_2 and v73_2())
+            end
             if v11_5 then
                 if v20_2 and v91_2(v20_2) then
                     v10_4 = v119_5(v20_2)
@@ -3195,7 +3137,7 @@ do
                 end
             end
             if v10_4 then
-                v126_3(v4_6, v3_7, v10_4)
+                v126_3(v4_6, v3_7, v10_4, dt)
             elseif not v18_4 and not v52_2 then
                 v3_7.PlatformStand = false
             end
@@ -3297,7 +3239,7 @@ do
             "shadowban", "violation", "tamper", "speedhack", "noclip",
             "hitbox", "kicklog", "banplayer", "flagplayer", "reportexploit",
             "sanity", "detected", "macro", "autoclick", "traceback",
-            "memorycheck", " spoof"
+            "memorycheck", "spoof"
         }
         local CORE_SCRIPT_WHITELIST = {
             actor = true,
@@ -3487,6 +3429,14 @@ do
                         end)
                         if okPs and isHum then
                             return false
+                        end
+                    elseif (key == "WalkSpeed" or key == "JumpPower") and (v27_2 or v33_2) then
+                        local okWs, isHum = pcall(function()
+                            local char = v7_13 and v7_13.Character
+                            return char ~= nil and typeof(self) == "Instance" and self == char:FindFirstChild("Humanoid")
+                        end)
+                        if okWs and isHum then
+                            return key == "WalkSpeed" and 16 or 50
                         end
                     elseif (key == "AssemblyLinearVelocity" or key == "Velocity") and v18_4 then
                         local okVel, isHrp = pcall(function()
@@ -3838,13 +3788,13 @@ do
             v150_10.StopAutoGas()
             if not streakNotified then
                 streakNotified = true
-                local isVi = v8_6("Language") == "Tiếng Việt"
+                local isVi = v8_6("Language") == "Ti\225\186\191ng Vi\225\187\135t"
                 pcall(function()
                     v12_4:Notify({
-                        Title = isVi and "Hủy Chuỗi Giết" or "Auto Reset Streak",
+                        Title = isVi and "H\225\187\167y Chu\225\187\151i Gi\225\186\191t" or "Auto Reset Streak",
                         Content = isVi
-                            and ("Chuỗi giết (" .. tostring(streak) .. ") vượt quá 1000 — đang tự hủy chuỗi để tránh bị quét!")
-                            or ("Kill streak (" .. tostring(streak) .. ") exceeded 1000 — resetting streak to avoid scan!"),
+                            and ("Chu\225\187\151i gi\225\186\191t (" .. tostring(streak) .. ") v\198\176\225\187\163t qu\195\161 1000 \226\128\148 \196\145ang t\225\187\177 h\225\187\167y chu\225\187\151i \196\145\225\187\131 tr\195\161nh b\225\187\139 qu\195\169t!")
+                            or ("Kill streak (" .. tostring(streak) .. ") exceeded 1000 \226\128\148 resetting streak to avoid scan!"),
                         Duration = 5
                     })
                 end)
@@ -4156,6 +4106,9 @@ do
         if type(lpAttr) == "number" and 0 <= lpAttr and 15 >= lpAttr then
             v61_2.CachedWeaponMinLevel = math.max(v61_2.CachedWeaponMinLevel or 0, lpAttr)
             v16_9["CachedWeaponMinLevel"] = v61_2.CachedWeaponMinLevel
+        end
+        if v71_3() == nil and v13_8:FindFirstChild("Characters") == nil and v13_8:FindFirstChild("Titans") == nil then
+            return v61_2.CachedWeaponMinLevel or 0
         end
         local now = os.clock()
         if not v135_scanning and (now - v135_lastScan) > 3.5 then
@@ -4764,9 +4717,12 @@ do
                 if not v18_4 then
                     break
                 else
-                    if v34_2 and not v35_2 and not v26_2 and v77_2() then
+                    if v34_2 and not v35_2 and v77_2() then
                         if v84_2() then
-                            v86_2()
+                            task.spawn(v86_2)
+                            while v35_2 do
+                                task.wait(0.2)
+                            end
                         end
                     end
                     if not v18_4 then
@@ -4777,24 +4733,26 @@ do
                         local raidBoss = v150_10.AutoRaid and v150_10.GetRaidBoss() or nil
                         if raidBoss and v91_2(raidBoss) then
                             v20_2 = raidBoss
-                        elseif not v20_2 or not v91_2(v20_2) then
+                        elseif not v20_2 or not v91_2(v20_2) or (v150_10.IsTitanHardened(v20_2) and v150_10.HasRegularAliveTitan()) then
                             v20_2 = v73_2() and v122_3() or v121_4()
                         end
 
                         if v150_10.AutoRaid and raidBoss and v91_2(raidBoss) then
                             v20_2 = raidBoss
                             v127_2(raidBoss)
-                            if v73_2() then
+                            if v150_10.IsTitanHardened(raidBoss) then
+                                task.wait(0.12)
+                            elseif v73_2() then
                                 if v93_2(raidBoss) then
-                                    task.wait(v57_3 and math.max(v58_2, 0.2) or 0.18)
+                                    task.wait(v57_3 and math.max(v58_2, 0.35) or 0.35)
                                 else
-                                    task.wait(0.06)
+                                    task.wait(0.1)
                                 end
                             else
                                 if v97_6(raidBoss) then
-                                    task.wait(v57_3 and math.max(v58_2, 0.08) or 0.06)
+                                    task.wait(v57_3 and math.max(v58_2, 0.12) or 0.12)
                                 else
-                                    task.wait(0.05)
+                                    task.wait(0.08)
                                 end
                             end
                         elseif v59_2 then
@@ -4935,7 +4893,7 @@ do
                             if not v18_4 then
                                 break
                             elseif v73_2() then
-                                local v2_41 = v122_3(v20_2) or v20_2
+                                local v2_41 = v20_2
                                 if v2_41 and v91_2(v2_41) then
                                     v20_2 = v2_41
                                     v127_2(v2_41)
@@ -4972,7 +4930,7 @@ do
                                     end
                                 end
                             else
-                                local v2_43 = v121_4(v20_2) or v20_2
+                                local v2_43 = v20_2
                                 while true do
                                     if v18_4 and not v59_2 then
                                         task.wait(0.06)
@@ -4992,7 +4950,10 @@ do
                                                 end
                                             end
                                             if v3_42 then
-                                                v86_2()
+                                                task.spawn(v86_2)
+                                                while v35_2 do
+                                                    task.wait(0.2)
+                                                end
                                             end
                                             if not v18_4 then
                                                 break
@@ -5018,11 +4979,8 @@ do
                                                     end
                                                     v1_2 = false
                                                     v2_43 = v121_4(v20_2) or v20_2
-                                                elseif v2_43 == v20_2 then
-                                                    local v3_54 = v121_4(v20_2)
-                                                    if v3_54 then
-                                                        v2_43 = v3_54
-                                                    end
+                                                elseif v20_2 and v91_2(v20_2) then
+                                                    v2_43 = v20_2
                                                 end
                                                 local v3_59 = not v2_43
                                                 if not v3_59 then
@@ -5234,100 +5192,100 @@ do
 end
 local v150_9 = {}
 do
-    local currentLang = v8_6("Language") == "Tiếng Việt" and "Tiếng Việt" or "English"
+    local currentLang = v8_6("Language") == "Ti\225\186\191ng Vi\225\187\135t" and "Ti\225\186\191ng Vi\225\187\135t" or "English"
     local VI_MAP = {
-        ["Loading..."] = "Đang tải...",
-        ["Player"] = "Người Chơi",
-        ["Auto Farm"] = "Tự Động Farm",
-        ["Various"] = "Tiện Ích",
-        ["Stats"] = "Thống Kê",
-        ["WAVES"] = "CHẾ ĐỘ WAVES",
-        ["RAID"] = "CHẾ ĐỘ RAID",
-        ["Auto Raid (Focus Boss)"] = "Tự Động Đi Raid (Dồn Dame Boss)",
-        ["VARIOUS"] = "TIỆN ÍCH",
-        ["LANGUAGE / SETTINGS"] = "NGÔN NGỮ / CÀI ĐẶT",
-        ["AUTO FAMILY ROLL"] = "TỰ QUAY GIA TỘC",
-        ["AUTO SELL PERKS"] = "TỰ BÁN PERK",
-        ["THUNDER SPEARS"] = "LÔI THƯƠNG (THUNDER SPEARS)",
-        ["Language / Ngôn Ngữ"] = "Ngôn Ngữ / Language",
-        ["NoClip"] = "Xuyên Tường (NoClip)",
-        ["Walk Speed"] = "Tăng Tốc Chạy",
-        ["Walk Speed Amount"] = "Mức Tốc Độ Chạy",
-        ["Laggy Run"] = "Chạy Giật Tầm Xa (Laggy Run)",
-        ["Laggy Run Distance"] = "Khoảng Cách Chạy Giật",
-        ["Laggy Run Delay"] = "Độ Trễ Chạy Giật",
-        ["CTRL + Click to TP"] = "CTRL + Click Để Dịch Chuyển",
-        ["Infinite Jump"] = "Nhảy Vô Hạn",
-        ["Auto Reset Kill Streak (>1000)"] = "Tự Hủy Chuỗi Giết (>1000 Kill)",
-        ["Hit All"] = "Đánh Tất Cả (Hit All)",
-        ["Distance to Titan"] = "Khoảng Cách Tới Titan",
-        ["Auto Reload"] = "Tự Nạp Kiếm",
-        ["Delay To Kill"] = "Chờ Trước Khi Giết",
-        ["Delay(s)"] = "Thời Gian Chờ (giây)",
-        ["Expand Nape Hitbox"] = "Mở Rộng Gáy Titan",
-        ["Hitbox Size"] = "Kích Thước Hitbox",
-        ["Visualize Hitbox"] = "Hiện Khung Hitbox",
-        ["TP To Base"] = "Dịch Chuyển Về Căn Cứ",
-        ["Auto Vote Ready"] = "Tự Bấm Sẵn Sàng",
-        ["Auto Upgrade Max HQ HP"] = "Tự Nâng Máu Tối Đa HQ",
-        ["Auto Upgrade HQ Health Regen"] = "Tự Nâng Hồi Máu HQ",
-        ["Auto Upgrade Refill Limit"] = "Tự Nâng Giới Hạn Tiếp Tế",
-        ["Auto Upgrade Weapon"] = "Tự Nâng Cấp Vũ Khí",
-        ["Upgrade Delay"] = "Độ Trễ Nâng Cấp",
-        ["Auto Get & Retrieve Skill Crate"] = "Tự Nhặt & Mở Rương Kỹ Năng",
-        ["Titan ESP"] = "Định Vị Titan (ESP)",
-        ["Change Cursor"] = "Đổi Con Trỏ Chuột",
-        ["Auto Refill"] = "Tự Tiếp Tế (Gas & Kiếm)",
-        ["Auto Retry"] = "Tự Chơi Lại (Auto Retry)",
-        ["Auto Skip Cutscenes"] = "Tự Bỏ Qua Cắt Cảnh",
-        ["Auto Open Raid Chests"] = "Tự Mở Rương Raid",
-        ["Auto Claim Achievements"] = "Tự Nhận Thành Tựu (Auto Claim Achievements)",
-        ["Auto Claim Daily Reward"] = "Tự Nhận Quà Hàng Ngày (Auto Claim Daily)",
-        ["Mission Safety Timer"] = "Bộ Đếm An Toàn (Mission Safety Timer)",
-        ["Auto Family Spin"] = "Tự Quay Gia Tộc",
-        ["Families To Stop"] = "Gia Tộc Muốn Dừng",
-        ["Family Tiers To Stop"] = "Bậc Gia Tộc Muốn Dừng",
-        ["Auto Sell Selected Tier Perks"] = "Tự Bán Perk Đã Chọn",
-        ["Perk Tiers To Sell"] = "Bậc Perk Muốn Bán",
-        ["Select Perks To Sell"] = "Chọn Perk Cụ Thể Để Bán",
-        ["Auto Create Towers(Outskirts)"] = "Tự Tạo Tháp (Outskirts)",
-        ["Auto Retrieve Supply Crates(Forest)"] = "Tự Lấy Thùng Tiếp Tế (Forest)",
-        ["PLAYER STATS:"] = "THỐNG KÊ NGƯỜI CHƠI:",
-        ["MISSION STATS (LIVE):"] = "NHIỆM VỤ HIỆN TẠI (LIVE):",
-        ["LAST ROUND STATS:"] = "THỐNG KÊ TRẬN VỪA RỒI:",
-        ["TOTAL SESSION STATS:"] = "TỔNG THỐNG KÊ PHIÊN CHƠI:",
-        ["Reset Session Stats"] = "Đặt Lại Thống Kê Phiên",
-        ["Refresh Stats"] = "Làm Mới Thống Kê",
-        ["In Lobby"] = "Ở Sảnh",
-        ["In Progress"] = "Đang Chơi",
-        ["Ended"] = "Đã Kết Thúc",
-        ["Completed"] = "Hoàn Thành",
-        ["None"] = "Không có",
-        ["Kaitun"] = "Kaitun (Cày Cấp)",
-        ["Settings"] = "Cài Đặt",
-        ["KAITUN STATUS:"] = "TRẠNG THÁI KAITUN:",
-        ["KAITUN AUTOMATION"] = "TỰ ĐỘNG HÓA KAITUN",
-        ["WEAPON & MAP PROGRESSION"] = "NÂNG KIẾM & CHUYỂN MAP (E- -> S)",
-        ["AUTO PRESTIGE (REBIRTH)"] = "TỰ ĐỘNG TÁI SINH (PRESTIGE)",
-        ["Enable Kaitun (Auto Level & Prestige)"] = "Bật Kaitun (Tự Cày Cấp & Tái Sinh)",
-        ["Auto Upgrade Weapon (E- -> S)"] = "Tự Nâng Hạng Kiếm (E- -> S)",
-        ["Kaitun Weapon"] = "Vũ Khí Kaitun",
-        ["Auto Select Map & Difficulty (E- -> S)"] = "Tự Chuyển Map & Độ Khó (E- -> S)",
-        ["Kaitun Map"] = "Bản Đồ Kaitun",
-        ["Auto Prestige (Rebirth)"] = "Tự Động Tái Sinh (Prestige)",
-        ["Target Max Prestige"] = "Giới Hạn Cấp Tái Sinh Tối Đa",
-        ["Upgrade Weapon Now"] = "Nâng Hạng Vũ Khí Ngay",
-        ["SHADOW BAN DETECTION"] = "KIỂM TRA SHADOW BAN LIÊN TỤC",
-        ["SHADOW BAN STATUS:"] = "TRẠNG THÁI SHADOW BAN:",
-        ["Check Shadow Ban Now"] = "Kiểm Tra Shadow Ban Ngay",
-        ["CONFIG & SETTINGS"] = "LƯU TRỮ & ĐỒNG BỘ CÀI ĐẶT",
-        ["CONFIG STATUS:"] = "TRẠNG THÁI CẤU HÌNH:",
-        ["Select Setting File (Order)"] = "Chọn File Setting (Theo Thứ Tự)",
-        ["Create Next Setting File (In Order)"] = "Tạo & Lưu File Setting Tiếp Theo (Theo Thứ Tự)",
-        ["Auto Load Global Settings"] = "Tự Tải Setting Cũ Khi Đổi Map",
-        ["Save Settings Now"] = "Lưu Vào File Setting Đang Chọn",
-        ["Load Saved Settings"] = "Tải File Setting Đang Chọn",
-        ["Reset Default Settings"] = "Đặt Lại Mặc Định"
+        ["Loading..."] = "\196\144ang t\225\186\163i...",
+        ["Player"] = "Ng\198\176\225\187\157i Ch\198\161i",
+        ["Auto Farm"] = "T\225\187\177 \196\144\225\187\153ng Farm",
+        ["Various"] = "Ti\225\187\135n \195\141ch",
+        ["Stats"] = "Th\225\187\145ng K\195\170",
+        ["WAVES"] = "CH\225\186\190 \196\144\225\187\152 WAVES",
+        ["RAID"] = "CH\225\186\190 \196\144\225\187\152 RAID",
+        ["Auto Raid (Focus Boss)"] = "T\225\187\177 \196\144\225\187\153ng \196\144i Raid (D\225\187\147n Dame Boss)",
+        ["VARIOUS"] = "TI\225\187\134N \195\141CH",
+        ["LANGUAGE / SETTINGS"] = "NG\195\148N NG\225\187\174 / C\195\128I \196\144\225\186\182T",
+        ["AUTO FAMILY ROLL"] = "T\225\187\176 QUAY GIA T\225\187\152C",
+        ["AUTO SELL PERKS"] = "T\225\187\176 B\195\129N PERK",
+        ["THUNDER SPEARS"] = "L\195\148I TH\198\175\198\160NG (THUNDER SPEARS)",
+        ["Language / Ng\195\180n Ng\225\187\175"] = "Ng\195\180n Ng\225\187\175 / Language",
+        ["NoClip"] = "Xuy\195\170n T\198\176\225\187\157ng (NoClip)",
+        ["Walk Speed"] = "T\196\131ng T\225\187\145c Ch\225\186\161y",
+        ["Walk Speed Amount"] = "M\225\187\169c T\225\187\145c \196\144\225\187\153 Ch\225\186\161y",
+        ["Laggy Run"] = "Ch\225\186\161y Gi\225\186\173t T\225\186\167m Xa (Laggy Run)",
+        ["Laggy Run Distance"] = "Kho\225\186\163ng C\195\161ch Ch\225\186\161y Gi\225\186\173t",
+        ["Laggy Run Delay"] = "\196\144\225\187\153 Tr\225\187\133 Ch\225\186\161y Gi\225\186\173t",
+        ["CTRL + Click to TP"] = "CTRL + Click \196\144\225\187\131 D\225\187\139ch Chuy\225\187\131n",
+        ["Infinite Jump"] = "Nh\225\186\163y V\195\180 H\225\186\161n",
+        ["Auto Reset Kill Streak (>1000)"] = "T\225\187\177 H\225\187\167y Chu\225\187\151i Gi\225\186\191t (>1000 Kill)",
+        ["Hit All"] = "\196\144\195\161nh T\225\186\165t C\225\186\163 (Hit All)",
+        ["Distance to Titan"] = "Kho\225\186\163ng C\195\161ch T\225\187\155i Titan",
+        ["Auto Reload"] = "T\225\187\177 N\225\186\161p Ki\225\186\191m",
+        ["Delay To Kill"] = "Ch\225\187\157 Tr\198\176\225\187\155c Khi Gi\225\186\191t",
+        ["Delay(s)"] = "Th\225\187\157i Gian Ch\225\187\157 (gi\195\162y)",
+        ["Expand Nape Hitbox"] = "M\225\187\159 R\225\187\153ng G\195\161y Titan",
+        ["Hitbox Size"] = "K\195\173ch Th\198\176\225\187\155c Hitbox",
+        ["Visualize Hitbox"] = "Hi\225\187\135n Khung Hitbox",
+        ["TP To Base"] = "D\225\187\139ch Chuy\225\187\131n V\225\187\129 C\196\131n C\225\187\169",
+        ["Auto Vote Ready"] = "T\225\187\177 B\225\186\165m S\225\186\181n S\195\160ng",
+        ["Auto Upgrade Max HQ HP"] = "T\225\187\177 N\195\162ng M\195\161u T\225\187\145i \196\144a HQ",
+        ["Auto Upgrade HQ Health Regen"] = "T\225\187\177 N\195\162ng H\225\187\147i M\195\161u HQ",
+        ["Auto Upgrade Refill Limit"] = "T\225\187\177 N\195\162ng Gi\225\187\155i H\225\186\161n Ti\225\186\191p T\225\186\191",
+        ["Auto Upgrade Weapon"] = "T\225\187\177 N\195\162ng C\225\186\165p V\197\169 Kh\195\173",
+        ["Upgrade Delay"] = "\196\144\225\187\153 Tr\225\187\133 N\195\162ng C\225\186\165p",
+        ["Auto Get & Retrieve Skill Crate"] = "T\225\187\177 Nh\225\186\183t & M\225\187\159 R\198\176\198\161ng K\225\187\185 N\196\131ng",
+        ["Titan ESP"] = "\196\144\225\187\139nh V\225\187\139 Titan (ESP)",
+        ["Change Cursor"] = "\196\144\225\187\149i Con Tr\225\187\143 Chu\225\187\153t",
+        ["Auto Refill"] = "T\225\187\177 Ti\225\186\191p T\225\186\191 (Gas & Ki\225\186\191m)",
+        ["Auto Retry"] = "T\225\187\177 Ch\198\161i L\225\186\161i (Auto Retry)",
+        ["Auto Skip Cutscenes"] = "T\225\187\177 B\225\187\143 Qua C\225\186\175t C\225\186\163nh",
+        ["Auto Open Raid Chests"] = "T\225\187\177 M\225\187\159 R\198\176\198\161ng Raid",
+        ["Auto Claim Achievements"] = "T\225\187\177 Nh\225\186\173n Th\195\160nh T\225\187\177u (Auto Claim Achievements)",
+        ["Auto Claim Daily Reward"] = "T\225\187\177 Nh\225\186\173n Qu\195\160 H\195\160ng Ng\195\160y (Auto Claim Daily)",
+        ["Mission Safety Timer"] = "B\225\187\153 \196\144\225\186\191m An To\195\160n (Mission Safety Timer)",
+        ["Auto Family Spin"] = "T\225\187\177 Quay Gia T\225\187\153c",
+        ["Families To Stop"] = "Gia T\225\187\153c Mu\225\187\145n D\225\187\171ng",
+        ["Family Tiers To Stop"] = "B\225\186\173c Gia T\225\187\153c Mu\225\187\145n D\225\187\171ng",
+        ["Auto Sell Selected Tier Perks"] = "T\225\187\177 B\195\161n Perk \196\144\195\163 Ch\225\187\141n",
+        ["Perk Tiers To Sell"] = "B\225\186\173c Perk Mu\225\187\145n B\195\161n",
+        ["Select Perks To Sell"] = "Ch\225\187\141n Perk C\225\187\165 Th\225\187\131 \196\144\225\187\131 B\195\161n",
+        ["Auto Create Towers(Outskirts)"] = "T\225\187\177 T\225\186\161o Th\195\161p (Outskirts)",
+        ["Auto Retrieve Supply Crates(Forest)"] = "T\225\187\177 L\225\186\165y Th\195\185ng Ti\225\186\191p T\225\186\191 (Forest)",
+        ["PLAYER STATS:"] = "TH\225\187\144NG K\195\138 NG\198\175\225\187\156I CH\198\160I:",
+        ["MISSION STATS (LIVE):"] = "NHI\225\187\134M V\225\187\164 HI\225\187\134N T\225\186\160I (LIVE):",
+        ["LAST ROUND STATS:"] = "TH\225\187\144NG K\195\138 TR\225\186\172N V\225\187\170A R\225\187\146I:",
+        ["TOTAL SESSION STATS:"] = "T\225\187\148NG TH\225\187\144NG K\195\138 PHI\195\138N CH\198\160I:",
+        ["Reset Session Stats"] = "\196\144\225\186\183t L\225\186\161i Th\225\187\145ng K\195\170 Phi\195\170n",
+        ["Refresh Stats"] = "L\195\160m M\225\187\155i Th\225\187\145ng K\195\170",
+        ["In Lobby"] = "\225\187\158 S\225\186\163nh",
+        ["In Progress"] = "\196\144ang Ch\198\161i",
+        ["Ended"] = "\196\144\195\163 K\225\186\191t Th\195\186c",
+        ["Completed"] = "Ho\195\160n Th\195\160nh",
+        ["None"] = "Kh\195\180ng c\195\179",
+        ["Kaitun"] = "Kaitun (C\195\160y C\225\186\165p)",
+        ["Settings"] = "C\195\160i \196\144\225\186\183t",
+        ["KAITUN STATUS:"] = "TR\225\186\160NG TH\195\129I KAITUN:",
+        ["KAITUN AUTOMATION"] = "T\225\187\176 \196\144\225\187\152NG H\195\147A KAITUN",
+        ["WEAPON & MAP PROGRESSION"] = "N\195\130NG KI\225\186\190M & CHUY\225\187\130N MAP (E- -> S)",
+        ["AUTO PRESTIGE (REBIRTH)"] = "T\225\187\176 \196\144\225\187\152NG T\195\129I SINH (PRESTIGE)",
+        ["Enable Kaitun (Auto Level & Prestige)"] = "B\225\186\173t Kaitun (T\225\187\177 C\195\160y C\225\186\165p & T\195\161i Sinh)",
+        ["Auto Upgrade Weapon (E- -> S)"] = "T\225\187\177 N\195\162ng H\225\186\161ng Ki\225\186\191m (E- -> S)",
+        ["Kaitun Weapon"] = "V\197\169 Kh\195\173 Kaitun",
+        ["Auto Select Map & Difficulty (E- -> S)"] = "T\225\187\177 Chuy\225\187\131n Map & \196\144\225\187\153 Kh\195\179 (E- -> S)",
+        ["Kaitun Map"] = "B\225\186\163n \196\144\225\187\147 Kaitun",
+        ["Auto Prestige (Rebirth)"] = "T\225\187\177 \196\144\225\187\153ng T\195\161i Sinh (Prestige)",
+        ["Target Max Prestige"] = "Gi\225\187\155i H\225\186\161n C\225\186\165p T\195\161i Sinh T\225\187\145i \196\144a",
+        ["Upgrade Weapon Now"] = "N\195\162ng H\225\186\161ng V\197\169 Kh\195\173 Ngay",
+        ["SHADOW BAN DETECTION"] = "KI\225\187\130M TRA SHADOW BAN LI\195\138N T\225\187\164C",
+        ["SHADOW BAN STATUS:"] = "TR\225\186\160NG TH\195\129I SHADOW BAN:",
+        ["Check Shadow Ban Now"] = "Ki\225\187\131m Tra Shadow Ban Ngay",
+        ["CONFIG & SETTINGS"] = "L\198\175U TR\225\187\174 & \196\144\225\187\146NG B\225\187\152 C\195\128I \196\144\225\186\182T",
+        ["CONFIG STATUS:"] = "TR\225\186\160NG TH\195\129I C\225\186\164U H\195\140NH:",
+        ["Select Setting File (Order)"] = "Ch\225\187\141n File Setting (Theo Th\225\187\169 T\225\187\177)",
+        ["Create Next Setting File (In Order)"] = "T\225\186\161o & L\198\176u File Setting Ti\225\186\191p Theo (Theo Th\225\187\169 T\225\187\177)",
+        ["Auto Load Global Settings"] = "T\225\187\177 T\225\186\163i Setting C\197\169 Khi \196\144\225\187\149i Map",
+        ["Save Settings Now"] = "L\198\176u V\195\160o File Setting \196\144ang Ch\225\187\141n",
+        ["Load Saved Settings"] = "T\225\186\163i File Setting \196\144ang Ch\225\187\141n",
+        ["Reset Default Settings"] = "\196\144\225\186\183t L\225\186\161i M\225\186\183c \196\144\225\187\139nh"
     }
     local REVERSE_KEY = {}
     for en, vi in pairs(VI_MAP) do
@@ -5338,7 +5296,7 @@ do
 
     local function tr(key)
         local s = tostring(key or "")
-        if currentLang == "Tiếng Việt" then
+        if currentLang == "Ti\225\186\191ng Vi\225\187\135t" then
             return VI_MAP[s] or s
         end
         return s
@@ -5464,13 +5422,14 @@ do
     end
 
     function v150_9.IsVietnamese()
-        return currentLang == "Tiếng Việt"
+        return currentLang == "Ti\225\186\191ng Vi\225\187\135t"
     end
 
-    local isMacUI = type(v12_4) == "table" and (type(v12_4.SetAccent) == "function" or type(v12_4.AddTheme) == "function")
+    local isMacUI = type(v12_4) == "table" and
+    (type(v12_4.SetAccent) == "function" or type(v12_4.AddTheme) == "function")
 
     function v150_9.SetLanguage(lang)
-        local norm = lang == "Tiếng Việt" and "Tiếng Việt" or "English"
+        local norm = lang == "Ti\225\186\191ng Vi\225\187\135t" and "Ti\225\186\191ng Vi\225\187\135t" or "English"
         local changed = currentLang ~= norm
         currentLang = norm
         v9_4("Language", norm)
@@ -5524,8 +5483,8 @@ do
         if changed then
             pcall(function()
                 v12_4:Notify({
-                    Title = norm == "Tiếng Việt" and "Ngôn Ngữ" or "Language",
-                    Content = norm == "Tiếng Việt" and "Đã chuyển sang Tiếng Việt." or "Switched language to English.",
+                    Title = norm == "Ti\225\186\191ng Vi\225\187\135t" and "Ng\195\180n Ng\225\187\175" or "Language",
+                    Content = norm == "Ti\225\186\191ng Vi\225\187\135t" and "\196\144\195\163 chuy\225\187\131n sang Ti\225\186\191ng Vi\225\187\135t." or "Switched language to English.",
                     Duration = 3
                 })
             end)
@@ -5536,7 +5495,8 @@ do
         local wrappedWin = {
             Rayfield = v12_4
         }
-        local macMode = isMacUI or (type(win) == "table" and type(win.AddTab) == "function" and type(win.CreateTab) ~= "function")
+        local macMode = isMacUI or
+        (type(win) == "table" and type(win.AddTab) == "function" and type(win.CreateTab) ~= "function")
         local macTabIcons = {
             ["Player"] = "user",
             ["Auto Farm"] = "swords",
@@ -5750,6 +5710,7 @@ do
                         warn("[Symbiote] SetState error:", err)
                     end
                 end
+
                 return toggle
             end
             toggle = rayfieldTab:CreateToggle({
@@ -5827,6 +5788,7 @@ do
                         warn("[Symbiote] SetValue error:", err)
                     end
                 end
+
                 return slider
             end
             local slider = rayfieldTab:CreateSlider({
@@ -5902,6 +5864,7 @@ do
                         warn("[Symbiote] SetSelected error:", err)
                     end
                 end
+
                 return dropdown
             end
             local dropdown = rayfieldTab:CreateDropdown({
@@ -5979,6 +5942,7 @@ do
                         warn("[Symbiote] SetSelected error:", err)
                     end
                 end
+
                 return dropdown
             end
             local dropdown = rayfieldTab:CreateDropdown({
@@ -6024,7 +5988,7 @@ local v150_8 = v150_9.wrapWindow(
     (type(v12_4) == "table" and (type(v12_4.SetAccent) == "function" or type(v12_4.AddTheme) == "function"))
     and v12_4:CreateWindow({
         Title = "senden hub",
-        SubTitle = "Phiên bản 0.0.1",
+        SubTitle = "Phi\195\170n b\225\186\163n 0.0.1",
         Theme = "Dark",
         Accent = Color3.fromRGB(146, 66, 255),
         SidebarStyle = "Tile",
@@ -6035,7 +5999,7 @@ local v150_8 = v150_9.wrapWindow(
     or v12_4:CreateWindow({
         Name = "HAIANHHUB (premium)",
         LoadingTitle = "HAIANHHUB",
-        LoadingSubtitle = "Phiên bản 0.0.1",
+        LoadingSubtitle = "Phi\195\170n b\225\186\163n 0.0.1",
         Theme = "Default",
         ConfigurationSaving = {
             Enabled = false
@@ -6257,7 +6221,7 @@ local function v174_5()
     local pPrestige = math.min(5, math.max(0, tonumber(v6.Player.Prestige) or 0))
     local pLevel = math.min(225, math.max(1, tonumber(v6.Player.Level) or 1))
     v173_2.Player:Set(string.format(
-        isVi and "Prestige: %s\nCấp Độ (Level): %s\nGems: %s\nGold: %s\nPumpkins: %s"
+        isVi and "Prestige: %s\nC\225\186\165p \196\144\225\187\153 (Level): %s\nGems: %s\nGold: %s\nPumpkins: %s"
         or "Prestige: %s\nLevel: %s\nGems: %s\nGold: %s\nPumpkins: %s",
         v165_3(pPrestige),
         v165_3(pLevel),
@@ -6266,7 +6230,7 @@ local function v174_5()
         v165_3(v6.Player.Pumpkins or 0)
     ))
     v173_2.LiveMission:Set(string.format(
-        isVi and "Trạng Thái: %s\nThời Gian: %s\nĐộ Khó: %s\nChuỗi Giết (Streak): %s"
+        isVi and "Tr\225\186\161ng Th\195\161i: %s\nTh\225\187\157i Gian: %s\n\196\144\225\187\153 Kh\195\179: %s\nChu\225\187\151i Gi\225\186\191t (Streak): %s"
         or "Status: %s\nTime: %s\nDifficulty: %s\nKill Streak: %s",
         v150_9.T(v158_4.Status),
         v166_2(v158_4.Seconds),
@@ -6276,17 +6240,17 @@ local function v174_5()
     local v1_3 = v156_4.LastRound
     local v2_3 = v1_3.Items and #v1_3.Items or 0
     local v3_6 = {
-        (isVi and "Thời Gian Hoàn Thành: " or "Time Taken: ") .. tostring(v1_3.TimeTaken),
-        (isVi and "Độ Khó: " or "Difficulty: ") .. tostring(v1_3.Difficulty),
-        (isVi and "Titan Đã Giết: " or "Titans Killed: ") .. v165_3(v1_3.TitansKilled or 0),
-        (isVi and "Sát Thương Gây Ra: " or "Damage Dealt: ") .. v165_3(v1_3.DamageDealt or 0),
+        (isVi and "Th\225\187\157i Gian Ho\195\160n Th\195\160nh: " or "Time Taken: ") .. tostring(v1_3.TimeTaken),
+        (isVi and "\196\144\225\187\153 Kh\195\179: " or "Difficulty: ") .. tostring(v1_3.Difficulty),
+        (isVi and "Titan \196\144\195\163 Gi\225\186\191t: " or "Titans Killed: ") .. v165_3(v1_3.TitansKilled or 0),
+        (isVi and "S\195\161t Th\198\176\198\161ng G\195\162y Ra: " or "Damage Dealt: ") .. v165_3(v1_3.DamageDealt or 0),
         "Gold: " .. v165_3(v1_3.Gold),
         "Gems: " .. v165_3(v1_3.Gems),
         "Pumpkins: " .. v165_3(v1_3.Pumpkins or 0),
         "Divine Fragments: " .. v165_3(v1_3.DivineFragments or 0),
         "BP XP: " .. v165_3(v1_3.BP_XP or 0),
         "XP: " .. v165_3(v1_3.XP),
-        (isVi and "Vật Phẩm Rơi (" or "Drops (") .. tostring(v2_3) .. "):"
+        (isVi and "V\225\186\173t Ph\225\186\169m R\198\161i (" or "Drops (") .. tostring(v2_3) .. "):"
     }
     if 0 < v2_3 then
         for _, v8_11 in ipairs(v1_3.Items) do
@@ -6311,19 +6275,19 @@ local function v174_5()
         table.insert(v9_12, string.format("Secret: %s", v165_3(v8_14.Secret)))
     end
     local v11_13 = {
-        (isVi and "Số Trận Hoàn Thành: " or "Missions Completed: ") .. v165_3(v5_13),
-        (isVi and "Trận Nhanh Nhất: " or "Fastest Time: ") .. v6_17,
-        (isVi and "Thời Gian Trung Bình: " or "Average Time: ") .. v7_16,
-        (isVi and "Tổng Titan Đã Giết: " or "Titans Killed: ") .. v165_3(v4_10.TitansKilled or 0),
-        (isVi and "Tổng Sát Thương: " or "Damage Dealt: ") .. v165_3(v4_10.DamageDealt or 0),
+        (isVi and "S\225\187\145 Tr\225\186\173n Ho\195\160n Th\195\160nh: " or "Missions Completed: ") .. v165_3(v5_13),
+        (isVi and "Tr\225\186\173n Nhanh Nh\225\186\165t: " or "Fastest Time: ") .. v6_17,
+        (isVi and "Th\225\187\157i Gian Trung B\195\172nh: " or "Average Time: ") .. v7_16,
+        (isVi and "T\225\187\149ng Titan \196\144\195\163 Gi\225\186\191t: " or "Titans Killed: ") .. v165_3(v4_10.TitansKilled or 0),
+        (isVi and "T\225\187\149ng S\195\161t Th\198\176\198\161ng: " or "Damage Dealt: ") .. v165_3(v4_10.DamageDealt or 0),
         "Gold: " .. v165_3(v4_10.Gold or 0),
         "Gems: " .. v165_3(v4_10.Gems or 0),
         "Pumpkins: " .. v165_3(v4_10.Pumpkins or 0),
         "Divine Fragments: " .. v165_3(v4_10.DivineFragments or 0),
         "BP XP: " .. v165_3(v4_10.BP_XP or 0),
         "XP: " .. v165_3(v4_10.XP or 0),
-        (isVi and "Tổng Vật Phẩm Rơi: " or "Total Drops: ") .. tostring(#(v4_10.Items or {})),
-        (isVi and "Thống Kê Độ Hiếm:\n  " or "Rarity Breakdown:\n  ") .. table.concat(v9_12, "\n  ")
+        (isVi and "T\225\187\149ng V\225\186\173t Ph\225\186\169m R\198\161i: " or "Total Drops: ") .. tostring(#(v4_10.Items or {})),
+        (isVi and "Th\225\187\145ng K\195\170 \196\144\225\187\153 Hi\225\186\191m:\n  " or "Rarity Breakdown:\n  ") .. table.concat(v9_12, "\n  ")
     }
     v173_2.Session:Set(table.concat(v11_13, "\n"))
     if v150_10.UpdateKaitunParagraph then
@@ -6422,7 +6386,7 @@ local function v176_5()
                 end
             end
         end
-    else
+    elseif v71_3() ~= nil or v13_8:FindFirstChild("Titans") ~= nil then
         local v5_12, v6_10, v7_5 = pcall(function()
             return v69_2:InvokeServer("S_Rewards", "Get")
         end)
@@ -7136,13 +7100,19 @@ v56_2.AutoRaid = v152_7:AddToggle("Auto Raid (Focus Boss)", function(p1)
         if not v18_4 then
             if v56_2.AutoFarm then
                 v56_2.AutoFarm:SetState(true)
-            else
-                v18_4 = true
-                v22_2 = true
-                v116_4(v23_2)
-                v150_10.StartAutoGas()
-                task.spawn(v148_4)
             end
+            v9_4("AutoFarm", true)
+            v18_4 = true
+            v22_2 = true
+            if v16_9["HitboxSize"] == nil then
+                v23_2 = 100
+                if v56_2.HitboxSizeSlider then
+                    v56_2.HitboxSizeSlider:SetValue(100)
+                end
+            end
+            v116_4(v23_2)
+            v150_10.StartAutoGas()
+            task.spawn(v148_4)
         end
         v40_2 = true
         v9_4("AutoOpenRaidChests", true)
@@ -7264,7 +7234,7 @@ v56_2.AutoGetRetrieveSkillCrate = v152_7:AddToggle("Auto Get & Retrieve Skill Cr
     return
 end)
 v153_9:AddLabel("LANGUAGE / SETTINGS")
-v56_2.LanguageDropdown = v153_9:AddSingleDropdown("Language / Ngôn Ngữ", { "English", "Tiếng Việt" },
+v56_2.LanguageDropdown = v153_9:AddSingleDropdown("Language / Ng\195\180n Ng\225\187\175", { "English", "Ti\225\186\191ng Vi\225\187\135t" },
     v150_9.GetLanguage(), function(p1)
         v150_9.SetLanguage(p1)
         return
@@ -8142,31 +8112,31 @@ do
         local lastUpgradeAttemptTime = 0
 
         local VI_FOLD_PAIRS = {
-            { "à", "a" }, { "á", "a" }, { "ả", "a" }, { "ã", "a" }, { "ạ", "a" },
-            { "ă", "a" }, { "ằ", "a" }, { "ắ", "a" }, { "ẳ", "a" }, { "ẵ", "a" }, { "ặ", "a" },
-            { "â", "a" }, { "ầ", "a" }, { "ấ", "a" }, { "ẩ", "a" }, { "ẫ", "a" }, { "ậ", "a" },
-            { "À", "a" }, { "Á", "a" }, { "Ả", "a" }, { "Ã", "a" }, { "Ạ", "a" },
-            { "Ă", "a" }, { "Ằ", "a" }, { "Ắ", "a" }, { "Ẳ", "a" }, { "Ẵ", "a" }, { "Ặ", "a" },
-            { "Â", "a" }, { "Ầ", "a" }, { "Ấ", "a" }, { "Ẩ", "a" }, { "Ẫ", "a" }, { "Ậ", "a" },
-            { "đ", "d" }, { "Đ", "d" },
-            { "è", "e" }, { "é", "e" }, { "ẻ", "e" }, { "ẽ", "e" }, { "ẹ", "e" },
-            { "ê", "e" }, { "ề", "e" }, { "ế", "e" }, { "ể", "e" }, { "ễ", "e" }, { "ệ", "e" },
-            { "È", "e" }, { "É", "e" }, { "Ẻ", "e" }, { "Ẽ", "e" }, { "Ẹ", "e" },
-            { "Ê", "e" }, { "Ề", "e" }, { "Ế", "e" }, { "Ể", "e" }, { "Ễ", "e" }, { "Ệ", "e" },
-            { "ì", "i" }, { "í", "i" }, { "ỉ", "i" }, { "ĩ", "i" }, { "ị", "i" },
-            { "Ì", "i" }, { "Í", "i" }, { "Ỉ", "i" }, { "Ĩ", "i" }, { "Ị", "i" },
-            { "ò", "o" }, { "ó", "o" }, { "ỏ", "o" }, { "õ", "o" }, { "ọ", "o" },
-            { "ô", "o" }, { "ồ", "o" }, { "ố", "o" }, { "ổ", "o" }, { "ỗ", "o" }, { "ộ", "o" },
-            { "ơ", "o" }, { "ờ", "o" }, { "ớ", "o" }, { "ở", "o" }, { "ỡ", "o" }, { "ợ", "o" },
-            { "Ò", "o" }, { "Ó", "o" }, { "Ỏ", "o" }, { "Õ", "o" }, { "Ọ", "o" },
-            { "Ô", "o" }, { "Ồ", "o" }, { "Ố", "o" }, { "Ổ", "o" }, { "Ỗ", "o" }, { "Ộ", "o" },
-            { "Ơ", "o" }, { "Ờ", "o" }, { "Ớ", "o" }, { "Ở", "o" }, { "Ỡ", "o" }, { "Ợ", "o" },
-            { "ù", "u" }, { "ú", "u" }, { "ủ", "u" }, { "ũ", "u" }, { "ụ", "u" },
-            { "ư", "u" }, { "ừ", "u" }, { "ứ", "u" }, { "ử", "u" }, { "ữ", "u" }, { "ự", "u" },
-            { "Ù", "u" }, { "Ú", "u" }, { "Ủ", "u" }, { "Ũ", "u" }, { "Ụ", "u" },
-            { "Ư", "u" }, { "Ừ", "u" }, { "Ứ", "u" }, { "Ử", "u" }, { "Ữ", "u" }, { "Ự", "u" },
-            { "ỳ", "y" }, { "ý", "y" }, { "ỷ", "y" }, { "ỹ", "y" }, { "ỵ", "y" },
-            { "Ỳ", "y" }, { "Ý", "y" }, { "Ỷ", "y" }, { "Ỹ", "y" }, { "Ỵ", "y" }
+            { "\195\160", "a" }, { "\195\161", "a" }, { "\225\186\163", "a" }, { "\195\163", "a" }, { "\225\186\161", "a" },
+            { "\196\131", "a" }, { "\225\186\177", "a" }, { "\225\186\175", "a" }, { "\225\186\179", "a" }, { "\225\186\181", "a" }, { "\225\186\183", "a" },
+            { "\195\162", "a" }, { "\225\186\167", "a" }, { "\225\186\165", "a" }, { "\225\186\169", "a" }, { "\225\186\171", "a" }, { "\225\186\173", "a" },
+            { "\195\128", "a" }, { "\195\129", "a" }, { "\225\186\162", "a" }, { "\195\131", "a" }, { "\225\186\160", "a" },
+            { "\196\130", "a" }, { "\225\186\176", "a" }, { "\225\186\174", "a" }, { "\225\186\178", "a" }, { "\225\186\180", "a" }, { "\225\186\182", "a" },
+            { "\195\130", "a" }, { "\225\186\166", "a" }, { "\225\186\164", "a" }, { "\225\186\168", "a" }, { "\225\186\170", "a" }, { "\225\186\172", "a" },
+            { "\196\145", "d" }, { "\196\144", "d" },
+            { "\195\168", "e" }, { "\195\169", "e" }, { "\225\186\187", "e" }, { "\225\186\189", "e" }, { "\225\186\185", "e" },
+            { "\195\170", "e" }, { "\225\187\129", "e" }, { "\225\186\191", "e" }, { "\225\187\131", "e" }, { "\225\187\133", "e" }, { "\225\187\135", "e" },
+            { "\195\136", "e" }, { "\195\137", "e" }, { "\225\186\186", "e" }, { "\225\186\188", "e" }, { "\225\186\184", "e" },
+            { "\195\138", "e" }, { "\225\187\128", "e" }, { "\225\186\190", "e" }, { "\225\187\130", "e" }, { "\225\187\132", "e" }, { "\225\187\134", "e" },
+            { "\195\172", "i" }, { "\195\173", "i" }, { "\225\187\137", "i" }, { "\196\169", "i" }, { "\225\187\139", "i" },
+            { "\195\140", "i" }, { "\195\141", "i" }, { "\225\187\136", "i" }, { "\196\168", "i" }, { "\225\187\138", "i" },
+            { "\195\178", "o" }, { "\195\179", "o" }, { "\225\187\143", "o" }, { "\195\181", "o" }, { "\225\187\141", "o" },
+            { "\195\180", "o" }, { "\225\187\147", "o" }, { "\225\187\145", "o" }, { "\225\187\149", "o" }, { "\225\187\151", "o" }, { "\225\187\153", "o" },
+            { "\198\161", "o" }, { "\225\187\157", "o" }, { "\225\187\155", "o" }, { "\225\187\159", "o" }, { "\225\187\161", "o" }, { "\225\187\163", "o" },
+            { "\195\146", "o" }, { "\195\147", "o" }, { "\225\187\142", "o" }, { "\195\149", "o" }, { "\225\187\140", "o" },
+            { "\195\148", "o" }, { "\225\187\146", "o" }, { "\225\187\144", "o" }, { "\225\187\148", "o" }, { "\225\187\150", "o" }, { "\225\187\152", "o" },
+            { "\198\160", "o" }, { "\225\187\156", "o" }, { "\225\187\154", "o" }, { "\225\187\158", "o" }, { "\225\187\160", "o" }, { "\225\187\162", "o" },
+            { "\195\185", "u" }, { "\195\186", "u" }, { "\225\187\167", "u" }, { "\197\169", "u" }, { "\225\187\165", "u" },
+            { "\198\176", "u" }, { "\225\187\171", "u" }, { "\225\187\169", "u" }, { "\225\187\173", "u" }, { "\225\187\175", "u" }, { "\225\187\177", "u" },
+            { "\195\153", "u" }, { "\195\154", "u" }, { "\225\187\166", "u" }, { "\197\168", "u" }, { "\225\187\164", "u" },
+            { "\198\175", "u" }, { "\225\187\170", "u" }, { "\225\187\168", "u" }, { "\225\187\172", "u" }, { "\225\187\174", "u" }, { "\225\187\176", "u" },
+            { "\225\187\179", "y" }, { "\195\189", "y" }, { "\225\187\183", "y" }, { "\225\187\185", "y" }, { "\225\187\181", "y" },
+            { "\225\187\178", "y" }, { "\195\157", "y" }, { "\225\187\182", "y" }, { "\225\187\184", "y" }, { "\225\187\180", "y" }
         }
 
         local function normalizeVi(str)
@@ -8205,7 +8175,7 @@ do
                 return {
                     Grade = "E-",
                     DiffEN = "Easy",
-                    DiffVI = "Dễ (E- Grade)",
+                    DiffVI = "D\225\187\133 (E- Grade)",
                     NextMinLvl = 2,
                     NextGrade = "E+",
                     Order = 1
@@ -8214,7 +8184,7 @@ do
                 return {
                     Grade = "E+",
                     DiffEN = "Normal",
-                    DiffVI = "Bình thường (E+ Grade)",
+                    DiffVI = "B\195\172nh th\198\176\225\187\157ng (E+ Grade)",
                     NextMinLvl = 5,
                     NextGrade = "D+",
                     Order = 2
@@ -8223,7 +8193,7 @@ do
                 return {
                     Grade = "D+",
                     DiffEN = "Hard",
-                    DiffVI = "Khó (D+ Grade)",
+                    DiffVI = "Kh\195\179 (D+ Grade)",
                     NextMinLvl = 10,
                     NextGrade = "B",
                     Order = 3
@@ -8232,7 +8202,7 @@ do
                 return {
                     Grade = "B",
                     DiffEN = "Severe",
-                    DiffVI = "Khốc liệt (B Grade)",
+                    DiffVI = "Kh\225\187\145c li\225\187\135t (B Grade)",
                     NextMinLvl = 13,
                     NextGrade = "A",
                     Order = 4
@@ -8241,7 +8211,7 @@ do
                 return {
                     Grade = "A",
                     DiffEN = "Aberrant",
-                    DiffVI = "Dị thường (A Grade)",
+                    DiffVI = "D\225\187\139 th\198\176\225\187\157ng (A Grade)",
                     NextMinLvl = 15,
                     NextGrade = "S",
                     Order = 5
@@ -8250,7 +8220,7 @@ do
                 return {
                     Grade = "S",
                     DiffEN = "Aberrant",
-                    DiffVI = "Cấp S (S Grade)",
+                    DiffVI = "C\225\186\165p S (S Grade)",
                     NextMinLvl = nil,
                     NextGrade = nil,
                     Order = 6
@@ -8522,15 +8492,15 @@ do
             local reason = ""
 
             pcall(function()
-                -- 1. Kiểm tra Lỗi Trừng phạt / Moderation đã bị chặn từ Hook trước đó (nếu có)
+                -- 1. Ki\225\187\131m tra L\225\187\151i Tr\225\187\171ng ph\225\186\161t / Moderation \196\145\195\163 b\225\187\139 ch\225\186\183n t\225\187\171 Hook tr\198\176\225\187\155c \196\145\195\179 (n\225\186\191u c\195\179)
                 if v150_10.LastModerationError and tostring(v150_10.LastModerationError) ~= "" then
                     detected = true
-                    reason = "Máy chủ phản hồi vi phạm: \"" .. tostring(v150_10.LastModerationError) .. "\""
+                    reason = "M\195\161y ch\225\187\167 ph\225\186\163n h\225\187\147i vi ph\225\186\161m: \"" .. tostring(v150_10.LastModerationError) .. "\""
                     return
                 end
 
-                -- 2. GỬI LỆNH TRỰC TIẾP VÀO PARTY HOẶC TRADE (Server Remote Probe)
-                -- Gửi lệnh vào một Party hoặc Trade. Nếu Server trả về một bảng có chứa chữ Error hoặc Success = false -> Bạn bị ban!
+                -- 2. G\225\187\172I L\225\187\134NH TR\225\187\176C TI\225\186\190P V\195\128O PARTY HO\225\186\182C TRADE (Server Remote Probe)
+                -- G\225\187\173i l\225\187\135nh v\195\160o m\225\187\153t Party ho\225\186\183c Trade. N\225\186\191u Server tr\225\186\163 v\225\187\129 m\225\187\153t b\225\186\163ng c\195\179 ch\225\187\169a ch\225\187\175 Error ho\225\186\183c Success = false -> B\225\186\161n b\225\187\139 ban!
                 if v69_2 then
                     local probeCalls = {
                         { "Party",     "Check" },
@@ -8553,34 +8523,34 @@ do
 
                         if ok and res ~= nil then
                             if type(res) == "table" then
-                                -- Nếu Server trả về một bảng có Success = false -> Bị ban!
+                                -- N\225\186\191u Server tr\225\186\163 v\225\187\129 m\225\187\153t b\225\186\163ng c\195\179 Success = false -> B\225\187\139 ban!
                                 if res.Success == false or res.success == false then
                                     detected = true
                                     local detailErr = tostring(res.Error or res.error or res.Reason or res.reason or
-                                        res.Message or "Bị máy chủ cấm/từ chối quyền")
-                                    reason = string.format("Server %s phản hồi: Success = false (%s)", args[1], detailErr)
+                                        res.Message or "B\225\187\139 m\195\161y ch\225\187\167 c\225\186\165m/t\225\187\171 ch\225\187\145i quy\225\187\129n")
+                                    reason = string.format("Server %s ph\225\186\163n h\225\187\147i: Success = false (%s)", args[1], detailErr)
                                     return
                                 end
 
-                                -- Nếu Server trả về một bảng có chứa Error -> Bị ban!
+                                -- N\225\186\191u Server tr\225\186\163 v\225\187\129 m\225\187\153t b\225\186\163ng c\195\179 ch\225\187\169a Error -> B\225\187\139 ban!
                                 if res.Error ~= nil and res.Error ~= false and tostring(res.Error) ~= "" then
                                     detected = true
-                                    reason = string.format("Server %s trả về Error: \"%s\"", args[1], tostring(res.Error))
+                                    reason = string.format("Server %s tr\225\186\163 v\225\187\129 Error: \"%s\"", args[1], tostring(res.Error))
                                     return
                                 end
                                 if res.error ~= nil and res.error ~= false and tostring(res.error) ~= "" then
                                     detected = true
-                                    reason = string.format("Server %s trả về Error: \"%s\"", args[1], tostring(res.error))
+                                    reason = string.format("Server %s tr\225\186\163 v\225\187\129 Error: \"%s\"", args[1], tostring(res.error))
                                     return
                                 end
 
-                                -- Quét các key hoặc giá trị text trong bảng nếu có chứa chữ error / ban / exploit / restrict
+                                -- Qu\195\169t c\195\161c key ho\225\186\183c gi\195\161 tr\225\187\139 text trong b\225\186\163ng n\225\186\191u c\195\179 ch\225\187\169a ch\225\187\175 error / ban / exploit / restrict
                                 for k, v in pairs(res) do
                                     local kn = string.lower(tostring(k))
                                     local vn = type(v) == "string" and string.lower(v) or ""
                                     if kn:find("error") or vn:find("error") or vn:find("banned") or vn:find("exploiter") or vn:find("restricted") then
                                         detected = true
-                                        reason = string.format("Server %s phát hiện cờ lỗi: %s = %s", args[1],
+                                        reason = string.format("Server %s ph\195\161t hi\225\187\135n c\225\187\157 l\225\187\151i: %s = %s", args[1],
                                             tostring(k), tostring(v))
                                         return
                                     end
@@ -8589,7 +8559,7 @@ do
                                 local rl = string.lower(res)
                                 if rl:find("error") or rl:find("ban") or rl:find("exploit") or rl:find("restrict") or rl:find("fail") then
                                     detected = true
-                                    reason = string.format("Server %s trả về chuỗi lỗi: \"%s\"", args[1], res)
+                                    reason = string.format("Server %s tr\225\186\163 v\225\187\129 chu\225\187\151i l\225\187\151i: \"%s\"", args[1], res)
                                     return
                                 end
                             end
@@ -8597,14 +8567,14 @@ do
                     end
                 end
 
-                -- 3. ĐỌC TRỰC TIẾP VÀO DATA CACHE CỦA GAME (Direct Game Data Cache Inspection)
-                -- Khi bị Shadow Ban, server gửi data về máy nhưng đính kèm cờ ẩn: IsBanned, IsExploiter, CanTrade = false
+                -- 3. \196\144\225\187\140C TR\225\187\176C TI\225\186\190P V\195\128O DATA CACHE C\225\187\166A GAME (Direct Game Data Cache Inspection)
+                -- Khi b\225\187\139 Shadow Ban, server g\225\187\173i data v\225\187\129 m\195\161y nh\198\176ng \196\145\195\173nh k\195\168m c\225\187\157 \225\186\169n: IsBanned, IsExploiter, CanTrade = false
                 local data, host = v150_10.GetGameDataCache()
 
                 local function checkDataFlags(tbl, scopeName)
                     if type(tbl) ~= "table" then return false end
 
-                    -- Cờ ẩn dạng vi phạm (IsBanned, IsExploiter, ShadowBanned, Blacklisted, v.v.):
+                    -- C\225\187\157 \225\186\169n d\225\186\161ng vi ph\225\186\161m (IsBanned, IsExploiter, ShadowBanned, Blacklisted, v.v.):
                     local banFlags = {
                         "isbanned", "banned", "is_banned",
                         "isexploiter", "exploiter", "is_exploiter",
@@ -8626,7 +8596,7 @@ do
                         end
                     end
 
-                    -- Cờ ẩn bị khóa quyền (CanTrade = false, CanParty = false, TradeEnabled = false):
+                    -- C\225\187\157 \225\186\169n b\225\187\139 kh\195\179a quy\225\187\129n (CanTrade = false, CanParty = false, TradeEnabled = false):
                     local permissionFlags = {
                         "cantrade", "can_trade", "tradeenabled", "trade_enabled",
                         "canparty", "can_party", "partyenabled", "party_enabled",
@@ -8637,7 +8607,7 @@ do
                             if string.lower(tostring(k)) == flag then
                                 if v == false then
                                     return true,
-                                        string.format("Data Cache (%s): %s = false (Bị tước quyền giao dịch/tổ đội)",
+                                        string.format("Data Cache (%s): %s = false (B\225\187\139 t\198\176\225\187\155c quy\225\187\129n giao d\225\187\139ch/t\225\187\149 \196\145\225\187\153i)",
                                             scopeName, tostring(k))
                                 end
                             end
@@ -8647,7 +8617,7 @@ do
                     return false
                 end
 
-                -- Quét trực tiếp Data Cache
+                -- Qu\195\169t tr\225\187\177c ti\225\186\191p Data Cache
                 if type(data) == "table" then
                     local isFlagged, msg = checkDataFlags(data, "Host.Cache.Data")
                     if isFlagged then
@@ -8656,7 +8626,7 @@ do
                         return
                     end
 
-                    -- Duyệt các nhánh con bên trong Data (Slots, Info, Moderation)
+                    -- Duy\225\187\135t c\195\161c nh\195\161nh con b\195\170n trong Data (Slots, Info, Moderation)
                     for k, sub in pairs(data) do
                         if type(sub) == "table" then
                             local subFlagged, subMsg = checkDataFlags(sub, "Data." .. tostring(k))
@@ -8669,7 +8639,7 @@ do
                     end
                 end
 
-                -- Quét thêm toàn bộ Cache của host nếu tồn tại
+                -- Qu\195\169t th\195\170m to\195\160n b\225\187\153 Cache c\225\187\167a host n\225\186\191u t\225\187\147n t\225\186\161i
                 if host and type(host.Cache) == "table" and host.Cache ~= data then
                     local isFlaggedC, msgC = checkDataFlags(host.Cache, "Host.Cache")
                     if isFlaggedC then
@@ -8679,7 +8649,7 @@ do
                     end
                 end
 
-                -- 4. ĐỌC TRỰC TIẾP TỪ THUỘC TÍNH PLAYER (Player Attributes)
+                -- 4. \196\144\225\187\140C TR\225\187\176C TI\225\186\190P T\225\187\170 THU\225\187\152C T\195\141NH PLAYER (Player Attributes)
                 if lp and type(lp.GetAttributes) == "function" then
                     local isAttrFlagged, attrMsg = checkDataFlags(lp:GetAttributes(), "Player:GetAttributes")
                     if isAttrFlagged then
@@ -8689,7 +8659,7 @@ do
                     end
                 end
 
-                -- 5. QUÉT BỘ NHỚ GC (getgc) CHO CÁC BẢNG DATA NỘI BỘ
+                -- 5. QU\195\137T B\225\187\152 NH\225\187\154 GC (getgc) CHO C\195\129C B\225\186\162NG DATA N\225\187\152I B\225\187\152
                 if not detected and type(getgc) == "function" then
                     for _, obj in ipairs(getgc(true)) do
                         if type(obj) == "table" then
@@ -8703,7 +8673,7 @@ do
                             then
                                 detected = true
                                 reason =
-                                "Bộ nhớ Game (GC Data): Tìm thấy bảng chứa cờ vi phạm (IsBanned / IsExploiter / CanTrade = false)"
+                                "B\225\187\153 nh\225\187\155 Game (GC Data): T\195\172m th\225\186\165y b\225\186\163ng ch\225\187\169a c\225\187\157 vi ph\225\186\161m (IsBanned / IsExploiter / CanTrade = false)"
                                 return
                             end
                         end
@@ -8716,12 +8686,12 @@ do
             v150_10.ShadowBanData.CheckCount = v150_10.ShadowBanData.CheckCount + 1
 
             if detected then
-                v150_10.ShadowBanData.Reason = isVi and ("BỊ SHADOW BAN! (" .. reason .. ")") or
+                v150_10.ShadowBanData.Reason = isVi and ("B\225\187\138 SHADOW BAN! (" .. reason .. ")") or
                     ("SHADOW BANNED! (" .. reason .. ")")
                 pcall(function()
                     v150_8.Rayfield:Notify({
-                        Title = isVi and "CẢNH BÁO: TÀI KHOẢN BỊ SHADOW BAN!" or "WARNING: SHADOW BANNED!",
-                        Content = isVi and ("Chi tiết:\n" .. reason) or
+                        Title = isVi and "C\225\186\162NH B\195\129O: T\195\128I KHO\225\186\162N B\225\187\138 SHADOW BAN!" or "WARNING: SHADOW BANNED!",
+                        Content = isVi and ("Chi ti\225\186\191t:\n" .. reason) or
                             ("Details:\n" .. reason),
                         Duration = 12,
                         Image = 4483362458
@@ -8729,14 +8699,14 @@ do
                 end)
             else
                 v150_10.ShadowBanData.Reason = isVi
-                    and "Tài khoản sạch 100% (Đã xác thực Data Cache, Server Party/Trade và GC)"
+                    and "T\195\160i kho\225\186\163n s\225\186\161ch 100% (\196\144\195\163 x\195\161c th\225\187\177c Data Cache, Server Party/Trade v\195\160 GC)"
                     or "100% Clean (Verified Game Data Cache, Server Party/Trade and GC)"
                 if isManual then
                     pcall(function()
                         v150_8.Rayfield:Notify({
-                            Title = isVi and "KIỂM TRA SHADOW BAN" or "SHADOW BAN CHECK",
+                            Title = isVi and "KI\225\187\130M TRA SHADOW BAN" or "SHADOW BAN CHECK",
                             Content = isVi and
-                                "Tài khoản 100% Sạch! Đã kiểm tra trực tiếp Data Cache và Server Party/Trade an toàn." or
+                                "T\195\160i kho\225\186\163n 100% S\225\186\161ch! \196\144\195\163 ki\225\187\131m tra tr\225\187\177c ti\225\186\191p Data Cache v\195\160 Server Party/Trade an to\195\160n." or
                                 "Account is 100% Clean! Verified Game Data Cache and Server Party/Trade safely.",
                             Duration = 6,
                             Image = 4483362458
@@ -8757,13 +8727,13 @@ do
                 local isVi = v150_9.IsVietnamese()
                 local sb = v150_10.ShadowBanData
                 local statusStr = sb.IsBanned
-                    and (isVi and "[⚠️ BỊ PHÁT HIỆN SHADOW BAN]" or "[⚠️ SHADOW BAN DETECTED]")
-                    or (isVi and "[✅ 100% AN TOÀN / SẠCH]" or "[✅ 100% CLEAN / SAFE]")
+                    and (isVi and "[\226\154\160\239\184\143 B\225\187\138 PH\195\129T HI\225\187\134N SHADOW BAN]" or "[\226\154\160\239\184\143 SHADOW BAN DETECTED]")
+                    or (isVi and "[\226\156\133 100% AN TO\195\128N / S\225\186\160CH]" or "[\226\156\133 100% CLEAN / SAFE]")
                 local timeStr = os.date("%H:%M:%S")
 
                 if isVi then
                     v56_2.ShadowBanParagraph:Set(string.format(
-                        "Trạng Thái Shadow Ban: %s\nChi Tiết: %s\nSố Lần Đã Quét: %d lần\nThời Gian Quét Gần Nhất: %s",
+                        "Tr\225\186\161ng Th\195\161i Shadow Ban: %s\nChi Ti\225\186\191t: %s\nS\225\187\145 L\225\186\167n \196\144\195\163 Qu\195\169t: %d l\225\186\167n\nTh\225\187\157i Gian Qu\195\169t G\225\186\167n Nh\225\186\165t: %s",
                         statusStr,
                         sb.Reason,
                         sb.CheckCount,
@@ -9157,7 +9127,7 @@ do
                     end
 
                     if equip and isTrulyVisible(equip, iface) then
-                        -- Ensure "Nâng cấp" tab on left sidebar is clicked
+                        -- Ensure "N\195\162ng c\225\186\165p" tab on left sidebar is clicked
                         for _, b in ipairs(equip:GetDescendants()) do
                             if b:IsA("GuiButton") and isTrulyVisible(b, equip) then
                                 local nb = normalizeVi(getGuiObjectText(b) .. " " .. tostring(b.Name or ""))
@@ -9171,7 +9141,7 @@ do
                             end
                         end
 
-                        -- Priority 1: CLICK "Nâng cấp tất cả" / "Upgrade All" button!
+                        -- Priority 1: CLICK "N\195\162ng c\225\186\165p t\225\186\165t c\225\186\163" / "Upgrade All" button!
                         for _ = 1, 15 do
                             local upgradeAllBtn = nil
                             for _, b in ipairs(equip:GetDescendants()) do
@@ -9339,7 +9309,7 @@ do
                     end
                 end
 
-                -- STEP 1: Click left sidebar "Linh Mục" tab
+                -- STEP 1: Click left sidebar "Linh M\225\187\165c" tab
                 local sidebarPriestBtn = nil
                 for _, btn in ipairs(iface:GetDescendants()) do
                     if btn:IsA("GuiButton") and isTrulyVisible(btn, iface) then
@@ -9357,7 +9327,7 @@ do
                     task.wait(0.4)
                 end
 
-                -- STEP 2: Click the golden "Linh Mục" / Prestige action button inside the panel
+                -- STEP 2: Click the golden "Linh M\225\187\165c" / Prestige action button inside the panel
                 for _, btn in ipairs(iface:GetDescendants()) do
                     if btn:IsA("GuiButton") and isTrulyVisible(btn, iface) then
                         local nb = normalizeVi(getGuiObjectText(btn) .. " " .. tostring(btn.Name or ""))
@@ -9372,7 +9342,7 @@ do
                     end
                 end
 
-                -- STEP 3: Confirm modal ("Xác nhận", "Bảo quản", "Confirm", "Yes")
+                -- STEP 3: Confirm modal ("X\195\161c nh\225\186\173n", "B\225\186\163o qu\225\186\163n", "Confirm", "Yes")
                 for _, btn in ipairs(iface:GetDescendants()) do
                     if btn:IsA("GuiButton") and isTrulyVisible(btn, iface) then
                         local nb = normalizeVi(getGuiObjectText(btn) .. " " .. tostring(btn.Name or ""))
@@ -9461,7 +9431,7 @@ do
                                 end
                             elseif d:IsA("TextLabel") or d:IsA("TextButton") then
                                 local t = tostring(d.Text or "")
-                                if t:find("✓") or t == "X" or t == "x" then
+                                if t:find("\226\156\147") or t == "X" or t == "x" then
                                     return true
                                 end
                             end
@@ -9570,7 +9540,7 @@ do
                     end
 
                     -- Difficulty label & arrows
-                    if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and (up:find("GRADE)", 1, true) or up:find("CAP DO)", 1, true) or up:find("CẤP ĐỘ)", 1, true)) then
+                    if (obj:IsA("TextLabel") or obj:IsA("TextButton")) and (up:find("GRADE)", 1, true) or up:find("CAP DO)", 1, true) or up:find("C\225\186\164P \196\144\225\187\152)", 1, true)) then
                         diffLabel = obj
                     end
                     if rawTxt == ">" or lname == "next" or lname == "right" or lname == "arrowright" then
@@ -9638,7 +9608,7 @@ do
                 return true
             end
 
-            -- STATE 3: Room Creation Screen (TẠO button is visible)
+            -- STATE 3: Room Creation Screen (T\225\186\160O button is visible)
             if createRoomBtn then
                 kaitunActionState = "Creating Room: " .. targetMap .. " [" .. targetGrade .. " GRADE]..."
                 if v150_10.UpdateKaitunParagraph then pcall(v150_10.UpdateKaitunParagraph) end
@@ -9678,31 +9648,31 @@ do
                     return true
                 end
 
-                -- 3d. Click TẠO
+                -- 3d. Click T\225\186\160O
                 v150_10.ClickGuiButton(createRoomBtn)
                 task.wait(0.75)
                 return true
             end
 
-            -- STATE 4: 4-Card Mode Selection Screen (Cards + CHƠI button visible)
+            -- STATE 4: 4-Card Mode Selection Screen (Cards + CH\198\160I button visible)
             if (modeCards.missions or modeCards.raid) and modePlayBtn then
-                kaitunActionState = "Selecting Mode: NHIỆM VỤ..."
+                kaitunActionState = "Selecting Mode: NHI\225\187\134M V\225\187\164..."
                 if v150_10.UpdateKaitunParagraph then pcall(v150_10.UpdateKaitunParagraph) end
 
-                -- Select NHIỆM VỤ
+                -- Select NHI\225\187\134M V\225\187\164
                 local targetCard = modeCards.missions or modeCards.raid
                 if targetCard then
                     v150_10.ClickGuiButton(targetCard)
                     task.wait(0.3)
                 end
 
-                -- Click CHƠI
+                -- Click CH\198\160I
                 v150_10.ClickGuiButton(modePlayBtn)
                 task.wait(0.75)
                 return true
             end
 
-            -- STATE 5: Lobby Idle (Nothing open -> Click Topbar NHIỆM VỤ)
+            -- STATE 5: Lobby Idle (Nothing open -> Click Topbar NHI\225\187\134M V\225\187\164)
             if topbarMissionBtn then
                 kaitunActionState = "Opening Missions Menu from Topbar..."
                 if v150_10.UpdateKaitunParagraph then pcall(v150_10.UpdateKaitunParagraph) end
@@ -9762,7 +9732,7 @@ do
                     for _, btn in ipairs(rewards:GetDescendants()) do
                         if btn:IsA("GuiButton") and btn.Visible then
                             local t = tostring(btn.Text or (btn:FindFirstChild("Title") and btn.Title.Text) or ""):upper()
-                            if t:find("LOBBY", 1, true) or t:find("TRỞ LẠI", 1, true) or t:find("RETURN", 1, true) or btn.Name == "Lobby" then
+                            if t:find("LOBBY", 1, true) or t:find("TR\225\187\158 L\225\186\160I", 1, true) or t:find("RETURN", 1, true) or btn.Name == "Lobby" then
                                 v150_10.ClickGuiButton(btn)
                                 break
                             end
@@ -9780,19 +9750,19 @@ do
             pcall(function()
                 local isVi = v150_9.IsVietnamese()
                 local st = v150_10.GetKaitunPlayerState()
-                local enabledStr = v8_6("KaitunEnabled") and (isVi and "ĐANG BẬT (ON)" or "ACTIVE (ON)") or
-                    (isVi and "ĐANG TẮT (OFF)" or "DISABLED (OFF)")
+                local enabledStr = v8_6("KaitunEnabled") and (isVi and "\196\144ANG B\225\186\172T (ON)" or "ACTIVE (ON)") or
+                    (isVi and "\196\144ANG T\225\186\174T (OFF)" or "DISABLED (OFF)")
                 local nextBracketTxt = st.Bracket.NextGrade
                     and string.format("%s (%s Gold)", st.Bracket.NextGrade, v165_3(st.GoldForNextBracket or 0))
-                    or (isVi and "Đã tối đa (MAX S)" or "MAXED (S Grade)")
+                    or (isVi and "\196\144\195\163 t\225\187\145i \196\145a (MAX S)" or "MAXED (S Grade)")
                 local isMaxPrestige = st.Prestige >= st.MaxPrestigeTarget
                 local prestigeReadyTxt = isMaxPrestige
                     and
                     string.format(
-                        isVi and "ĐÃ ĐẠT CẤP TÁI SINH MỤC TIÊU (MAX PRESTIGE %d)" or
+                        isVi and "\196\144\195\131 \196\144\225\186\160T C\225\186\164P T\195\129I SINH M\225\187\164C TI\195\138U (MAX PRESTIGE %d)" or
                         "TARGET MAX PRESTIGE REACHED (PRESTIGE %d)", st.MaxPrestigeTarget)
                     or (st.ReadyToPrestige
-                        and (isVi and "SẴN SÀNG TÁI SINH! (Vào Linh Mục)" or "READY TO PRESTIGE!")
+                        and (isVi and "S\225\186\180N S\195\128NG T\195\129I SINH! (V\195\160o Linh M\225\187\165c)" or "READY TO PRESTIGE!")
                         or string.format("Lv.%d/%d (XP: %d%%)", st.Level, st.MaxLevelCap, st.XPPercent))
                 local prestigeDisplay = isMaxPrestige
                     and string.format("%s/%s (MAX)", tostring(st.Prestige), tostring(st.MaxPrestigeTarget))
@@ -9800,7 +9770,7 @@ do
 
                 if isVi then
                     v56_2.KaitunStatusParagraph:Set(string.format(
-                        "Trạng Thái Kaitun: %s\nHành Động: %s\nCấp Độ: Lv.%s / %s (Prestige %s)\nTiến Độ Tái Sinh: %s\nGold Hiện Tại: %s\nHạng Vũ Khí: [%s GRADE] (Cấp %d/15)\nMap & Độ Khó Mục Tiêu: %s - %s\nMốc Mở Khóa Độ Khó Tiếp: %s",
+                        "Tr\225\186\161ng Th\195\161i Kaitun: %s\nH\195\160nh \196\144\225\187\153ng: %s\nC\225\186\165p \196\144\225\187\153: Lv.%s / %s (Prestige %s)\nTi\225\186\191n \196\144\225\187\153 T\195\161i Sinh: %s\nGold Hi\225\187\135n T\225\186\161i: %s\nH\225\186\161ng V\197\169 Kh\195\173: [%s GRADE] (C\225\186\165p %d/15)\nMap & \196\144\225\187\153 Kh\195\179 M\225\187\165c Ti\195\170u: %s - %s\nM\225\187\145c M\225\187\159 Kh\195\179a \196\144\225\187\153 Kh\195\179 Ti\225\186\191p: %s",
                         tostring(enabledStr),
                         tostring(kaitunActionState),
                         tostring(v165_3(st.Level)),
@@ -9811,7 +9781,7 @@ do
                         tostring(st.WeaponGradeLetter or st.GradeLetter or "E-"),
                         tonumber(st.WeaponMinLevel) or 0,
                         tostring(st.TargetMap or "Shiganshina"),
-                        tostring(st.Bracket and st.Bracket.DiffVI or "Dễ"),
+                        tostring(st.Bracket and st.Bracket.DiffVI or "D\225\187\133"),
                         tostring(nextBracketTxt or "N/A")
                     ))
                 else
@@ -9851,13 +9821,13 @@ do
                     or normSlot
                 if isVi then
                     v56_2.ConfigStatusParagraph:Set(string.format(
-                        "File Setting Đang Dùng: %s (%s)\nCác File Đã Tạo Theo Thứ Tự: %s\nTự Tải Setting Khi Đổi Map: %s\nTrạng Thái Lưu: Kaitun [%s] | Auto Farm [%s]",
+                        "File Setting \196\144ang D\195\185ng: %s (%s)\nC\195\161c File \196\144\195\163 T\225\186\161o Theo Th\225\187\169 T\225\187\177: %s\nT\225\187\177 T\225\186\163i Setting Khi \196\144\225\187\149i Map: %s\nTr\225\186\161ng Th\195\161i L\198\176u: Kaitun [%s] | Auto Farm [%s]",
                         normSlot,
                         slotFile,
                         createdList,
-                        globalSync and "ĐANG BẬT (ON)" or "ĐANG TẮT (OFF)",
-                        kaitunOn and "BẬT" or "TẮT",
-                        autoFarmOn and "BẬT" or "TẮT"
+                        globalSync and "\196\144ANG B\225\186\172T (ON)" or "\196\144ANG T\225\186\174T (OFF)",
+                        kaitunOn and "B\225\186\172T" or "T\225\186\174T",
+                        autoFarmOn and "B\225\186\172T" or "T\225\186\174T"
                     ))
                 else
                     v56_2.ConfigStatusParagraph:Set(string.format(
@@ -10075,7 +10045,7 @@ do
 
                 v150_10.AutoClaimAchievements = v8_6("AutoClaimAchievements") ~= false
                 if v56_2.AutoClaimAchievements then v56_2.AutoClaimAchievements:SetState(v150_10.AutoClaimAchievements) end
-                if v150_10.AutoClaimAchievements and v150_10.ClaimAchievements then v150_10.ClaimAchievements() end
+                if v150_10.AutoClaimAchievements and v150_10.ClaimAchievements and (v71_3() ~= nil or v13_8:FindFirstChild("Titans") ~= nil) then v150_10.ClaimAchievements() end
 
                 v45_3 = v8_6("AutoSellPerks") == true
                 if v56_2.AutoSellPerks then v56_2.AutoSellPerks:SetState(v45_3) end
@@ -10189,9 +10159,9 @@ do
             local isVi = v150_9.IsVietnamese()
             pcall(function()
                 v12_4:Notify({
-                    Title = isVi and "Đã Lưu Cài Đặt" or "Settings Saved",
+                    Title = isVi and "\196\144\195\163 L\198\176u C\195\160i \196\144\225\186\183t" or "Settings Saved",
                     Content = isVi
-                        and ("Đã lưu vào " .. normSlot .. " (" .. slotFile .. ")!")
+                        and ("\196\144\195\163 l\198\176u v\195\160o " .. normSlot .. " (" .. slotFile .. ")!")
                         or ("Saved configuration to " .. normSlot .. " (" .. slotFile .. ")!"),
                     Duration = 3
                 })
@@ -10218,9 +10188,9 @@ do
             local isVi = v150_9.IsVietnamese()
             pcall(function()
                 v12_4:Notify({
-                    Title = isVi and "Tạo File Setting Theo Thứ Tự" or "Created Sequential Setting",
+                    Title = isVi and "T\225\186\161o File Setting Theo Th\225\187\169 T\225\187\177" or "Created Sequential Setting",
                     Content = isVi
-                        and ("Đã tạo & lưu " .. normSlot .. " (" .. slotFile .. ")!")
+                        and ("\196\144\195\163 t\225\186\161o & l\198\176u " .. normSlot .. " (" .. slotFile .. ")!")
                         or ("Created & saved " .. normSlot .. " (" .. slotFile .. ")!"),
                     Duration = 3
                 })
@@ -10250,9 +10220,9 @@ do
                     local isVi = v150_9.IsVietnamese()
                     pcall(function()
                         v12_4:Notify({
-                            Title = isVi and ("Đã Chuyển Sang " .. normSlot) or ("Switched To " .. normSlot),
+                            Title = isVi and ("\196\144\195\163 Chuy\225\187\131n Sang " .. normSlot) or ("Switched To " .. normSlot),
                             Content = isVi
-                                and ("Đã tải tự động file " .. slotFile .. "!")
+                                and ("\196\144\195\163 t\225\186\163i t\225\187\177 \196\145\225\187\153ng file " .. slotFile .. "!")
                                 or ("Automatically loaded " .. slotFile .. "!"),
                             Duration = 3
                         })
@@ -10287,9 +10257,9 @@ do
             local isVi = v150_9.IsVietnamese()
             pcall(function()
                 v12_4:Notify({
-                    Title = isVi and "Đã Tải Cài Đặt" or "Settings Loaded",
+                    Title = isVi and "\196\144\195\163 T\225\186\163i C\195\160i \196\144\225\186\183t" or "Settings Loaded",
                     Content = isVi
-                        and ("Đã tải cấu hình từ " .. normSlot .. " (" .. slotFile .. ")!")
+                        and ("\196\144\195\163 t\225\186\163i c\225\186\165u h\195\172nh t\225\187\171 " .. normSlot .. " (" .. slotFile .. ")!")
                         or ("Loaded configuration from " .. normSlot .. " (" .. slotFile .. ")!"),
                     Duration = 3
                 })
@@ -10410,7 +10380,7 @@ do
         task.spawn(function()
             while true do
                 task.wait(6)
-                if v150_10.CheckShadowBan then
+                if v150_10.CheckShadowBan and (v71_3() ~= nil or v13_8:FindFirstChild("Titans") ~= nil) then
                     pcall(function()
                         v150_10.CheckShadowBan(false)
                     end)
@@ -10433,11 +10403,7 @@ do
             local v10_3 = v7_6 and v7_6:FindFirstChild("Interface")
             local v11_3 = not v9_3 or v9_3.Visible == false
             local v12_4
-            if v3 then
-                v12_4 = v5_20 ~= nil and v6_10 ~= nil and (v4_16 and v4_16:GetAttribute("Setup")) == true
-            else
-                v12_4 = v5_20 ~= nil and v6_10 ~= nil
-            end
+            v12_4 = v5_20 ~= nil and v6_10 ~= nil
             if v11_3 and v12_4 and (v10_3 == nil or v10_3.Enabled ~= false) then
                 break
             else
@@ -10468,12 +10434,16 @@ do
         -- Background standing task: Auto Claim Daily Reward (always on), Achievements, and Auto Retry Watchdog
         task.spawn(function()
             task.wait(2.0)
-            if v150_10.ClaimDailyReward then pcall(v150_10.ClaimDailyReward) end
-            if v150_10.AutoClaimAchievements and v150_10.ClaimAchievements then pcall(v150_10.ClaimAchievements) end
-            while true do
-                task.wait(10)
+            if v71_3() ~= nil or v13_8:FindFirstChild("Titans") ~= nil then
                 if v150_10.ClaimDailyReward then pcall(v150_10.ClaimDailyReward) end
                 if v150_10.AutoClaimAchievements and v150_10.ClaimAchievements then pcall(v150_10.ClaimAchievements) end
+            end
+            while true do
+                task.wait(10)
+                if v71_3() ~= nil or v13_8:FindFirstChild("Titans") ~= nil then
+                    if v150_10.ClaimDailyReward then pcall(v150_10.ClaimDailyReward) end
+                    if v150_10.AutoClaimAchievements and v150_10.ClaimAchievements then pcall(v150_10.ClaimAchievements) end
+                end
                 if v38_2 and (not autoRetryWatcherThread or coroutine.status(autoRetryWatcherThread) == "dead") then
                     pcall(v110_3)
                 end
