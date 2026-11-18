@@ -22,7 +22,7 @@ local MacUI = {
 	Unloaded = false,
 	ThemeName = "Dark",
 	Accent = Color3.fromRGB(235, 30, 50),
-	FontFamily = "rbxasset://fonts/families/GothamSSm.json",
+	FontFamily = "rbxasset://fonts/families/Roboto.json",
 	MonoFamily = "rbxasset://fonts/families/RobotoMono.json",
 	ReduceMotion = false,
 	UndoEnabled = true,
@@ -32,7 +32,7 @@ local MacUI = {
 MacUI.Flags = MacUI.Options
 
 do
-	local ok, face = pcall(Font.fromEnum, Enum.Font.Gotham)
+	local ok, face = pcall(Font.fromEnum, Enum.Font.Roboto)
 	if ok and face then
 		MacUI.FontFamily = face.Family
 	end
@@ -674,10 +674,10 @@ local function GetFont(weight)
 end
 
 local MeasureFonts = {
-	[Enum.FontWeight.Regular] = Enum.Font.Gotham,
-	[Enum.FontWeight.Medium] = Enum.Font.GothamMedium,
-	[Enum.FontWeight.SemiBold] = Enum.Font.GothamBold,
-	[Enum.FontWeight.Bold] = Enum.Font.GothamBold,
+	[Enum.FontWeight.Regular] = Enum.Font.Roboto,
+	[Enum.FontWeight.Medium] = Enum.Font.SourceSansSemibold,
+	[Enum.FontWeight.SemiBold] = Enum.Font.SourceSansBold,
+	[Enum.FontWeight.Bold] = Enum.Font.SourceSansBold,
 }
 
 -- Width of a single line of text in logical (unscaled) pixels.
@@ -686,7 +686,7 @@ local function MeasureText(text, size, weight)
 		return TextService:GetTextSize(
 			tostring(text),
 			size,
-			MeasureFonts[weight or Enum.FontWeight.Regular] or Enum.Font.Gotham,
+			MeasureFonts[weight or Enum.FontWeight.Regular] or Enum.Font.Roboto,
 			Vector2.new(10000, 1000)
 		)
 	end)
