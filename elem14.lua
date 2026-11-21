@@ -345,92 +345,128 @@ pcall(function()
     end
 end)
 
--- Minimal UI overlay (top-right)
+-- Minimal UI overlay (top-center, always visible + F9 print + Roblox notification)
+print("[AoTR Logger] Dang khoi dong... Neu khong thay bang UI, bam F9 de xem.")
 pcall(function()
-    local guiParent = (type(gethui) == "function" and gethui()) or CoreGui
-    local existing = guiParent:FindFirstChild("AoTRRaidLoggerGui")
-    if existing then existing:Destroy() end
-
-    local sg = Instance.new("ScreenGui")
-    sg.Name = "AoTRRaidLoggerGui"
-    sg.ResetOnSpawn = false
-    sg.Parent = guiParent
-
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.fromOffset(330, 64)
-    frame.Position = UDim2.new(1, -345, 0, 12)
-    frame.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
-    frame.BorderSizePixel = 0
-    frame.Parent = sg
-
-    local corner = Instance.new("UICorner")
-    corner.CornerRadius = UDim.new(0, 8)
-    corner.Parent = frame
-
-    statusLabel = Instance.new("TextLabel")
-    statusLabel.Size = UDim2.new(1, -12, 0, 24)
-    statusLabel.Position = UDim2.fromOffset(6, 4)
-    statusLabel.BackgroundTransparency = 1
-    statusLabel.TextColor3 = Color3.fromRGB(235, 235, 245)
-    statusLabel.TextSize = 13
-    statusLabel.Font = Enum.Font.GothamBold
-    statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-    statusLabel.Text = "AoTR Logger | Ready"
-    statusLabel.Parent = frame
-
-    local snapBtn = Instance.new("TextButton")
-    snapBtn.Size = UDim2.fromOffset(105, 26)
-    snapBtn.Position = UDim2.fromOffset(6, 32)
-    snapBtn.BackgroundColor3 = Color3.fromRGB(52, 118, 224)
-    snapBtn.TextColor3 = Color3.new(1, 1, 1)
-    snapBtn.TextSize = 12
-    snapBtn.Font = Enum.Font.GothamSemibold
-    snapBtn.Text = "Chup Snapshot"
-    snapBtn.Parent = frame
-    Instance.new("UICorner", snapBtn).CornerRadius = UDim.new(0, 6)
-    snapBtn.MouseButton1Click:Connect(function()
-        takeSnapshot("Manual")
-    end)
-
-    local copyBtn = Instance.new("TextButton")
-    copyBtn.Size = UDim2.fromOffset(105, 26)
-    copyBtn.Position = UDim2.fromOffset(116, 32)
-    copyBtn.BackgroundColor3 = Color3.fromRGB(46, 160, 92)
-    copyBtn.TextColor3 = Color3.new(1, 1, 1)
-    copyBtn.TextSize = 12
-    copyBtn.Font = Enum.Font.GothamSemibold
-    copyBtn.Text = "Copy Log"
-    copyBtn.Parent = frame
-    Instance.new("UICorner", copyBtn).CornerRadius = UDim.new(0, 6)
-    copyBtn.MouseButton1Click:Connect(function()
-        flushLog(true)
-        local text = table.concat(logs, "\n")
-        if type(setclipboard) == "function" then
-            pcall(setclipboard, text)
-            copyBtn.Text = "Copied!"
-        else
-            copyBtn.Text = "Saved txt!"
-        end
-        task.delay(1.5, function()
-            if copyBtn and copyBtn.Parent then copyBtn.Text = "Copy Log" end
-        end)
-    end)
-
-    local closeBtn = Instance.new("TextButton")
-    closeBtn.Size = UDim2.fromOffset(96, 26)
-    closeBtn.Position = UDim2.fromOffset(226, 32)
-    closeBtn.BackgroundColor3 = Color3.fromRGB(175, 55, 55)
-    closeBtn.TextColor3 = Color3.new(1, 1, 1)
-    closeBtn.TextSize = 12
-    closeBtn.Font = Enum.Font.GothamSemibold
-    closeBtn.Text = "Luu & Dong"
-    closeBtn.Parent = frame
-    Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
-    closeBtn.MouseButton1Click:Connect(function()
-        flushLog(true)
-        sg:Destroy()
-    end)
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "AoTR Raid Logger",
+        Text = "Da bat thanh cong! Choi 1 tran Colo roi bam Copy Log.",
+        Duration = 5,
+    })
 end)
+
+local function mountLoggerGui()
+    local candidates = {}
+    if type(gethui) == "function" then
+        local okH, h = pcall(gethui)
+        if okH and h then candidates[#candidates + 1] = h end
+    end
+    candidates[#candidates + 1] = CoreGui
+    if lp then
+        local pg = lp:FindFirstChildOfClass("PlayerGui") or lp:WaitForChild("PlayerGui", 3)
+        if pg then candidates[#candidates + 1] = pg end
+    end
+
+    for _, guiParent in ipairs(candidates) do
+        local okMount = pcall(function()
+            local existing = guiParent:FindFirstChild("AoTRRaidLoggerGui")
+            if existing then existing:Destroy() end
+
+            local sg = Instance.new("ScreenGui")
+            sg.Name = "AoTRRaidLoggerGui"
+            sg.ResetOnSpawn = false
+            sg.IgnoreGuiInset = true
+            sg.DisplayOrder = 999999
+
+            local frame = Instance.new("Frame")
+            frame.Size = UDim2.fromOffset(330, 68)
+            frame.Position = UDim2.new(0.5, -165, 0, 10)
+            frame.BackgroundColor3 = Color3.fromRGB(22, 24, 32)
+            frame.BorderSizePixel = 0
+            frame.Active = true
+            frame.Draggable = true
+            frame.Parent = sg
+
+            Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 8)
+            local stroke = Instance.new("UIStroke")
+            stroke.Color = Color3.fromRGB(70, 170, 255)
+            stroke.Thickness = 1.5
+            stroke.Parent = frame
+
+            local lbl = Instance.new("TextLabel")
+            lbl.Size = UDim2.new(1, -12, 0, 24)
+            lbl.Position = UDim2.fromOffset(6, 4)
+            lbl.BackgroundTransparency = 1
+            lbl.TextColor3 = Color3.fromRGB(120, 255, 160)
+            lbl.TextSize = 13
+            lbl.Font = Enum.Font.GothamBold
+            lbl.TextXAlignment = Enum.TextXAlignment.Left
+            lbl.Text = "AoTR Logger | DANG CHAY (keo duoc)"
+            lbl.Parent = frame
+
+            local snapBtn = Instance.new("TextButton")
+            snapBtn.Size = UDim2.fromOffset(105, 26)
+            snapBtn.Position = UDim2.fromOffset(6, 34)
+            snapBtn.BackgroundColor3 = Color3.fromRGB(52, 118, 224)
+            snapBtn.TextColor3 = Color3.new(1, 1, 1)
+            snapBtn.TextSize = 12
+            snapBtn.Font = Enum.Font.GothamSemibold
+            snapBtn.Text = "Chup Snapshot"
+            snapBtn.Parent = frame
+            Instance.new("UICorner", snapBtn).CornerRadius = UDim.new(0, 6)
+            snapBtn.MouseButton1Click:Connect(function()
+                takeSnapshot("Manual")
+            end)
+
+            local copyBtn = Instance.new("TextButton")
+            copyBtn.Size = UDim2.fromOffset(105, 26)
+            copyBtn.Position = UDim2.fromOffset(116, 34)
+            copyBtn.BackgroundColor3 = Color3.fromRGB(46, 160, 92)
+            copyBtn.TextColor3 = Color3.new(1, 1, 1)
+            copyBtn.TextSize = 12
+            copyBtn.Font = Enum.Font.GothamSemibold
+            copyBtn.Text = "Copy Log"
+            copyBtn.Parent = frame
+            Instance.new("UICorner", copyBtn).CornerRadius = UDim.new(0, 6)
+            copyBtn.MouseButton1Click:Connect(function()
+                flushLog(true)
+                local text = table.concat(logs, "\n")
+                if type(setclipboard) == "function" then
+                    pcall(setclipboard, text)
+                    copyBtn.Text = "Copied!"
+                else
+                    copyBtn.Text = "Saved txt!"
+                end
+                task.delay(1.5, function()
+                    if copyBtn and copyBtn.Parent then copyBtn.Text = "Copy Log" end
+                end)
+            end)
+
+            local closeBtn = Instance.new("TextButton")
+            closeBtn.Size = UDim2.fromOffset(96, 26)
+            closeBtn.Position = UDim2.fromOffset(226, 34)
+            closeBtn.BackgroundColor3 = Color3.fromRGB(175, 55, 55)
+            closeBtn.TextColor3 = Color3.new(1, 1, 1)
+            closeBtn.TextSize = 12
+            closeBtn.Font = Enum.Font.GothamSemibold
+            closeBtn.Text = "Luu & Dong"
+            closeBtn.Parent = frame
+            Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 6)
+            closeBtn.MouseButton1Click:Connect(function()
+                flushLog(true)
+                sg:Destroy()
+            end)
+
+            sg.Parent = guiParent
+            statusLabel = lbl
+        end)
+        if okMount and statusLabel then
+            print("[AoTR Logger] Da hien bang UI o giua-tren man hinh (" .. guiParent:GetFullName() .. ")")
+            break
+        end
+    end
+end
+mountLoggerGui()
 
 addLog("Logger started | hookmetamethod=" .. tostring(hookInstalled) .. " | writefile=" .. tostring(type(writefile) == "function"))
 
