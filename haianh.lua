@@ -199,10 +199,11 @@ local function getErenPos()
 end
 
 local function readGuiObjectives()
-    local erenPct, stallText, stallCur, stallReq = nil, nil, nil, nil
+    local erenPct, stallText, stallCur, stallReq, bossPct = nil, nil, nil, nil, nil
     local pg = lp and lp:FindFirstChild("PlayerGui")
-    if not pg then return nil, nil, nil, nil end
+    if not pg then return nil, nil, nil, nil, nil end
 
+    local bossContainers = {}
     for _, d in ipairs(pg:GetDescendants()) do
         if d:IsA("TextLabel") then
             local name = d.Name
@@ -218,10 +219,51 @@ local function readGuiObjectives()
                     stallCur = tonumber(c1)
                     stallReq = tonumber(c2)
                 end
+            elseif name == "Boss" or low:find("colossal titan", 1, true) or low:find("khổng lồ titan", 1, true) or low:find("harbinger", 1, true) or low:find("hủy diệt", 1, true) then
+                if d.Visible and d.Parent then
+                    bossContainers[#bossContainers + 1] = d.Parent
+                    if d.Parent.Parent and d.Parent.Parent ~= pg then
+                        bossContainers[#bossContainers + 1] = d.Parent.Parent
+                    end
+                end
             end
         end
     end
-    return erenPct, stallText, stallCur, stallReq
+
+    for _, box in ipairs(bossContainers) do
+        if box and box.Parent then
+            for _, child in ipairs(box:GetDescendants()) do
+                if child:IsA("TextLabel") and child.Visible then
+                    local t = tostring(child.Text or "")
+                    local pct = t:match("^%s*(%d+%.?%d*)%%%s*$")
+                    if pct then
+                        bossPct = tonumber(pct)
+                        break
+                    end
+                end
+            end
+        end
+        if bossPct then break end
+    end
+
+    return erenPct, stallText, stallCur, stallReq, bossPct
+end
+
+local function readBossHpPct(col)
+    local _, _, _, _, guiPct = readGuiObjectives()
+    if guiPct then return guiPct end
+    if col then
+        local hpA = tonumber(col:GetAttribute("Health")) or tonumber(col:GetAttribute("HP"))
+        local maxA = tonumber(col:GetAttribute("MaxHealth")) or tonumber(col:GetAttribute("MaxHP"))
+        if hpA and maxA and maxA > 0 then
+            return math.clamp(hpA / maxA * 100, 0, 100)
+        end
+        local hum = col:FindFirstChildOfClass("Humanoid")
+        if hum and hum.MaxHealth > 0 then
+            return math.clamp(hum.Health / hum.MaxHealth * 100, 0, 100)
+        end
+    end
+    return 100
 end
 
 local function getColossalModel()
@@ -254,6 +296,33 @@ local function getTitanNape(model)
     local np2 = model:FindFirstChild("Nape", true)
     if np2 and np2:IsA("BasePart") then return np2 end
     return model.PrimaryPart or model:FindFirstChild("HumanoidRootPart") or model:FindFirstChild("Head")
+end
+
+local function collectColossalHitboxParts(model)
+    local out, seen = {}, {}
+    local function pushPart(p)
+        if p and p:IsA("BasePart") and p.Parent and not seen[p] then
+            seen[p] = true
+            out[#out + 1] = p
+        end
+    end
+    local nape = getTitanNape(model)
+    if nape then pushPart(nape) end
+    if model and model.Parent then
+        local hb = model:FindFirstChild("Hitboxes")
+        if hb then
+            local hit = hb:FindFirstChild("Hit")
+            if hit then
+                for _, d in ipairs(hit:GetDescendants()) do
+                    pushPart(d)
+                end
+            end
+            for _, d in ipairs(hb:GetDescendants()) do
+                pushPart(d)
+            end
+        end
+    end
+    return out
 end
 
 local function isTitanAlive(model)
@@ -771,33 +840,79 @@ end
 -- Single Unified Hover + NoClip Heartbeat (Yields 100% during Cannon!)
 -- ============================================================================
 local orbAngle = 0
+local lastSafeHoverPos = nil
 local hbConn, stepConn = nil, nil
+
+local function setCharNoClip(ch, enabled)
+    if not ch then return end
+    for _, d in ipairs(ch:GetDescendants()) do
+        if d:IsA("BasePart") then
+            d.CanCollide = not enabled
+        end
+    end
+end
 
 local function startMovementHooks()
     if not stepConn then
         stepConn = RunService.Stepped:Connect(function()
-            if not Config.Enabled or State.Mode == "IDLE" or State.Mode == "CANNON" then return end
             local ch = getChar()
-            if ch then
-                for _, d in ipairs(ch:GetDescendants()) do
-                    if d:IsA("BasePart") then d.CanCollide = false end
-                end
+            if not ch then return end
+            local activeHover = Config.Enabled
+                and (State.Mode == "DEFEND_EREN" or State.Mode == "PHASE2")
+                and State.HoverTarget ~= nil
+                and State.HoverTarget.Parent ~= nil
+                and isTitanAlive(State.HoverTarget)
+            local activeRefill = Config.Enabled and State.Mode == "REFILL"
+            if activeHover or activeRefill then
+                setCharNoClip(ch, true)
+            elseif State.Mode == "CANNON" or State.Mode == "IDLE" or not Config.Enabled then
+                setCharNoClip(ch, false)
             end
         end)
     end
     if not hbConn then
         hbConn = RunService.Heartbeat:Connect(function(dt)
-            if not Config.Enabled then return end
+            if not Config.Enabled then
+                lastSafeHoverPos = nil
+                return
+            end
             -- Nhuong hoan toan khi dang ngoi/dung phao
-            if State.CannonBusy or isAttachedToCannon() then return end
-            local target = State.HoverTarget
-            if not (target and target.Parent and isTitanAlive(target)) then return end
-            local np = getTitanNape(target)
-            if not np then return end
+            if State.CannonBusy or isAttachedToCannon() then
+                lastSafeHoverPos = nil
+                return
+            end
+
             local ch = getChar()
             local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
             local hum = ch and ch:FindFirstChildOfClass("Humanoid")
-            if not (hrp and hum and hum.Health > 0) then return end
+            if not (hrp and hum and hum.Health > 0) then
+                lastSafeHoverPos = nil
+                return
+            end
+
+            local target = State.HoverTarget
+            local alive = (target and target.Parent and isTitanAlive(target)) == true
+            local np = alive and getTitanNape(target) or nil
+
+            -- Neu dang o che do bay danh (DEFEND_EREN / PHASE2) ma target vua chet:
+            -- GIU LO LUNG tai cho an toan, TUYET DOI KHONG tha roi xuyen dat xuong Void!
+            if not np then
+                if (State.Mode == "DEFEND_EREN" or State.Mode == "PHASE2") and lastSafeHoverPos then
+                    local erenPos = getErenPos()
+                    local minY = (erenPos and (erenPos.Y + 35)) or 75
+                    local holdPos = Vector3.new(lastSafeHoverPos.X, math.max(lastSafeHoverPos.Y, minY), lastSafeHoverPos.Z)
+                    hum.PlatformStand = false
+                    pcall(function()
+                        hrp.AssemblyLinearVelocity = Vector3.zero
+                        hrp.AssemblyAngularVelocity = Vector3.zero
+                    end)
+                    hrp.CFrame = CFrame.new(holdPos)
+                else
+                    lastSafeHoverPos = nil
+                    if hum.PlatformStand then hum.PlatformStand = false end
+                end
+                return
+            end
 
             local stepDt = math.clamp(tonumber(dt) or 0.016, 0.005, 0.08)
             local isSp = isSpearEquipped()
@@ -805,7 +920,12 @@ local function startMovementHooks()
             local hoverY = isSp and 40 or 10
             local radius = isSp and 12 or 6
             local bob = isSp and 4 or 1.5
+            local erenPos = getErenPos()
+            local minFloorY = (erenPos and State.Mode == "DEFEND_EREN") and (erenPos.Y + 18) or 55
             local dest = np.Position + Vector3.new(math.cos(orbAngle) * radius, hoverY + math.sin(orbAngle * 2) * bob, math.sin(orbAngle) * radius)
+            if dest.Y < minFloorY then
+                dest = Vector3.new(dest.X, minFloorY, dest.Z)
+            end
 
             hum.PlatformStand = true
             if hum.SeatPart ~= nil or hum.Sit == true then hum.Sit = false end
@@ -815,12 +935,18 @@ local function startMovementHooks()
             end)
             local diff = dest - hrp.Position
             local dist = diff.Magnitude
+            local finalPos = dest
             if dist > 1 then
                 local nextPos = hrp.Position + diff.Unit * math.min(600 * stepDt, dist)
+                if nextPos.Y < minFloorY then
+                    nextPos = Vector3.new(nextPos.X, minFloorY, nextPos.Z)
+                end
+                finalPos = nextPos
                 hrp.CFrame = CFrame.lookAt(nextPos, Vector3.new(np.Position.X, nextPos.Y, np.Position.Z))
             else
                 hrp.CFrame = CFrame.lookAt(dest, Vector3.new(np.Position.X, dest.Y, np.Position.Z))
             end
+            lastSafeHoverPos = finalPos
         end)
     end
 end
@@ -1035,17 +1161,24 @@ task.spawn(function()
 
                 -- MUC 1 (Phase 1): Bao ve Eren neu co Titan ap sat hoac Eren mat mau
                 if not phase2 and Config.AutoDefendEren and #nearEren > 0 then
-                    State.Mode = "DEFEND_EREN"
                     State.DefendErenActive = true
                     releaseCannonState()
+                    State.Mode = "DEFEND_EREN"
                     local batch = {}
                     for i = 1, math.min(Config.HitAllBatch, #nearEren) do
                         batch[#batch + 1] = nearEren[i].titan
                     end
                     State.HoverTarget = batch[1]
                     setStatus(string.format("[Bao Ve Eren] %d Titan (Eren: %.1f%%)", #nearEren, erenPct or 100))
-                    if attackTargets(batch) then
-                        task.wait(isSpearEquipped() and 0.35 or 0.12)
+                    -- Cho bay toi gan titan truoc khi ban Thuong/Chem (tranh ban tu tren tuong 500+ studs)
+                    local chNow = getChar()
+                    local hrpNow = chNow and chNow:FindFirstChild("HumanoidRootPart")
+                    local firstNape = getTitanNape(batch[1])
+                    local distTarget = (hrpNow and firstNape) and (hrpNow.Position - firstNape.Position).Magnitude or 999
+                    if distTarget <= 130 then
+                        if attackTargets(batch) then
+                            task.wait(isSpearEquipped() and 0.35 or 0.12)
+                        end
                     end
                 elseif not phase2 and Config.AutoCannon then
                     -- MUC 2 (Phase 1, Eren an toan): Ban phao
@@ -1066,22 +1199,36 @@ task.spawn(function()
                         State.CannonBusy = true
                         State.ActiveCannon = cannon
 
+                        local function fireSpreadImpacts(targetProj, activeCol)
+                            if not (POST and targetProj and targetProj.Parent) then return 0, 0 end
+                            local parts = collectColossalHitboxParts(activeCol)
+                            if #parts == 0 then
+                                local liveNape = getTitanNape(activeCol)
+                                if liveNape then parts[1] = liveNape end
+                            end
+                            if #parts == 0 then return 0, 0 end
+                            local burst = math.max(1, tonumber(Config.CannonImpactBurst) or 15)
+                            for i = 1, burst do
+                                local hbPart = parts[((i - 1) % #parts) + 1]
+                                if hbPart and hbPart.Parent then
+                                    local pos = hbPart.Position
+                                    pcall(function() POST:FireServer("S_Skills", "Impact", targetProj, pos) end)
+                                end
+                            end
+                            State.Impacts = State.Impacts + burst
+                            return burst, #parts
+                        end
+
                         if POST and not impactListenerBound then
                             impactListenerBound = true
                             POST.OnClientEvent:Connect(function(a1, a2, ...)
                                 if a1 == "Skills" and a2 == "Impact" and Config.Enabled and State.Mode == "CANNON" then
                                     State.ImpactEvents = State.ImpactEvents + 1
-                                    local liveNape = getTitanNape(getColossalModel())
-                                    if liveNape then
+                                    local activeCol = getColossalModel()
+                                    if activeCol then
                                         local evtProj = findModelInArgs({ ... }, 0)
                                         local targetProj = evtProj or getOwnedProjectile()
-                                        if targetProj and targetProj.Parent then
-                                            local burst = math.max(1, tonumber(Config.CannonImpactBurst) or 15)
-                                            for _ = 1, burst do
-                                                pcall(function() POST:FireServer("S_Skills", "Impact", targetProj, liveNape.Position) end)
-                                            end
-                                            State.Impacts = State.Impacts + burst
-                                        end
+                                        fireSpreadImpacts(targetProj, activeCol)
                                     end
                                 end
                             end)
@@ -1122,8 +1269,8 @@ task.spawn(function()
                             task.wait(0.03)
                         end
 
-                        local colHum = col:FindFirstChildOfClass("Humanoid")
-                        local colHpPct = (colHum and colHum.MaxHealth > 0) and (colHum.Health / colHum.MaxHealth * 100) or 100
+                        local colHpPct = readBossHpPct(col)
+                        local hbCount = #collectColossalHitboxParts(col)
                         local cdSec = tonumber(cannon:GetAttribute("CD")) or 2.7
                         local sinceShot = os.clock() - State.LastShotAt
                         local isFiringAttr = cannon:GetAttribute("Firing") == true
@@ -1144,36 +1291,31 @@ task.spawn(function()
                                 -- Chi fallback neu server chua tra event ma vien dan Workspace.Cannon dang ton tai
                                 if State.ImpactEvents == prevImpactEvts then
                                     local proj = getOwnedProjectile()
-                                    if proj and POST then
-                                        local burst = math.max(1, tonumber(Config.CannonImpactBurst) or 15)
-                                        for _ = 1, burst do
-                                            pcall(function() POST:FireServer("S_Skills", "Impact", proj, nape.Position) end)
-                                        end
-                                        State.Impacts = State.Impacts + burst
+                                    if proj then
+                                        fireSpreadImpacts(proj, col)
                                     end
                                 end
-                                colHpPct = (colHum and colHum.MaxHealth > 0) and (colHum.Health / colHum.MaxHealth * 100) or colHpPct
-                                setStatus(string.format("[Phao P1] HP:%.1f%% | Plr:%s | Ban:%d Evt:%d Imp:%d | %.0fst (L %.0f/%.0f)",
-                                    colHpPct, mountedNow and "OK" or "?", State.Shots, State.ImpactEvents, State.Impacts, distXZ or 0, ey or 0, ep or 0))
+                                colHpPct = readBossHpPct(col)
+                                setStatus(string.format("[Phao P1] HP:%.1f%% | Hb:%d Plr:%s | Ban:%d Evt:%d Imp:%d | %.0fst (L %.0f/%.0f)",
+                                    colHpPct, hbCount, mountedNow and "OK" or "?", State.Shots, State.ImpactEvents, State.Impacts, distXZ or 0, ey or 0, ep or 0))
                             else
-                                setStatus(string.format("[Phao CD] HP:%.1f%% | Plr:%s | CD:%.1fs | Ban:%d Evt:%d",
-                                    colHpPct, mountedNow and "OK" or "NO", cdSec, State.Shots, State.ImpactEvents))
+                                setStatus(string.format("[Phao CD] HP:%.1f%% | Hb:%d Plr:%s | CD:%.1fs | Ban:%d Evt:%d",
+                                    colHpPct, hbCount, mountedNow and "OK" or "NO", cdSec, State.Shots, State.ImpactEvents))
                             end
                         else
-                            setStatus(string.format("[Phao] HP:%.1f%% | Plr:%s | Cho CD... | Ban:%d Evt:%d Imp:%d",
-                                colHpPct, mountedNow and "OK" or "NO", State.Shots, State.ImpactEvents, State.Impacts))
+                            setStatus(string.format("[Phao] HP:%.1f%% | Hb:%d Plr:%s | Cho CD... | Ban:%d Evt:%d Imp:%d",
+                                colHpPct, hbCount, mountedNow and "OK" or "NO", State.Shots, State.ImpactEvents, State.Impacts))
                         end
                         task.wait(0.18)
                     end
                 elseif phase2 then
                     -- MUC 3 (Phase 2): Guc roi -> nha phao, don 9 hit vao Nape Colossal
                     State.DefendErenActive = false
-                    State.Mode = "PHASE2"
                     releaseCannonState()
+                    State.Mode = "PHASE2"
                     if isTitanAlive(col) then
                         State.HoverTarget = col
-                        local hum = col:FindFirstChildOfClass("Humanoid")
-                        local hpPct = (hum and hum.MaxHealth > 0) and (hum.Health / hum.MaxHealth * 100) or 0
+                        local hpPct = readBossHpPct(col)
                         setStatus(string.format("[Phase 2] Don dame Colossal (HP: %.1f%%)", hpPct))
                         if attackTargets({ col }) then
                             task.wait(isSpearEquipped() and 0.35 or 0.12)
