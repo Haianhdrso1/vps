@@ -16,6 +16,7 @@ local lp = Players.LocalPlayer
 local Config = {
     Enabled = true,
     AutoCannon = true,
+    DirectColossalP1 = false,
     AutoDefendEren = true,
     AutoRefill = true,
     AntiBanSafe = true,
@@ -1014,8 +1015,8 @@ local function mountGui()
             sg.DisplayOrder = 999999
 
             local frame = Instance.new("Frame")
-            frame.Size = UDim2.fromOffset(486, 74)
-            frame.Position = UDim2.new(0.5, -243, 0, 10)
+            frame.Size = UDim2.fromOffset(556, 74)
+            frame.Position = UDim2.new(0.5, -278, 0, 10)
             frame.BackgroundColor3 = Color3.fromRGB(20, 22, 30)
             frame.BorderSizePixel = 0
             frame.Active = true
@@ -1052,7 +1053,7 @@ local function mountGui()
                 return b
             end
 
-            makeBtn("Chay: BAT", 6, 86, Color3.fromRGB(46, 160, 92), function(b)
+            makeBtn("Chay: BAT", 6, 76, Color3.fromRGB(46, 160, 92), function(b)
                 Config.Enabled = not Config.Enabled
                 b.Text = Config.Enabled and "Chay: BAT" or "Chay: TAT"
                 b.BackgroundColor3 = Config.Enabled and Color3.fromRGB(46, 160, 92) or Color3.fromRGB(110, 110, 120)
@@ -1063,20 +1064,26 @@ local function mountGui()
                 end
             end)
 
-            makeBtn("Phao: ON", 98, 86, Color3.fromRGB(52, 118, 224), function(b)
+            makeBtn("Phao: ON", 87, 74, Color3.fromRGB(52, 118, 224), function(b)
                 Config.AutoCannon = not Config.AutoCannon
                 b.Text = Config.AutoCannon and "Phao: ON" or "Phao: OFF"
                 b.BackgroundColor3 = Config.AutoCannon and Color3.fromRGB(52, 118, 224) or Color3.fromRGB(110, 110, 120)
             end)
 
-            makeBtn("Bao Ve: ON", 190, 98, Color3.fromRGB(145, 85, 210), function(b)
+            makeBtn("Danh P1: OFF", 166, 94, Color3.fromRGB(110, 110, 120), function(b)
+                Config.DirectColossalP1 = not Config.DirectColossalP1
+                b.Text = Config.DirectColossalP1 and "Danh P1: ON" or "Danh P1: OFF"
+                b.BackgroundColor3 = Config.DirectColossalP1 and Color3.fromRGB(220, 95, 45) or Color3.fromRGB(110, 110, 120)
+            end)
+
+            makeBtn("Bao Ve: ON", 265, 86, Color3.fromRGB(145, 85, 210), function(b)
                 Config.AutoDefendEren = not Config.AutoDefendEren
                 b.Text = Config.AutoDefendEren and "Bao Ve: ON" or "Bao Ve: OFF"
                 b.BackgroundColor3 = Config.AutoDefendEren and Color3.fromRGB(145, 85, 210) or
                     Color3.fromRGB(110, 110, 120)
             end)
 
-            makeBtn("Burst: 1", 294, 92, Color3.fromRGB(215, 130, 35), function(b)
+            makeBtn("Burst: 1", 356, 76, Color3.fromRGB(215, 130, 35), function(b)
                 if Config.CannonImpactBurst == 1 then
                     Config.CannonImpactBurst = 3
                 elseif Config.CannonImpactBurst == 3 then
@@ -1087,7 +1094,7 @@ local function mountGui()
                 b.Text = "Burst: " .. tostring(Config.CannonImpactBurst)
             end)
 
-            makeBtn("Thoat Han", 392, 88, Color3.fromRGB(175, 55, 55), function()
+            makeBtn("Thoat Han", 437, 113, Color3.fromRGB(175, 55, 55), function()
                 stopAllHooks()
                 sg:Destroy()
             end)
@@ -1283,6 +1290,29 @@ task.spawn(function()
                             task.wait(isSpearEquipped() and (0.38 + math.random() * 0.14) or
                                 (0.13 + math.random() * 0.05))
                         end
+                    end
+                elseif not phase2 and Config.DirectColossalP1 then
+                    -- THU NGHIEM PHASE 1: Lao thang vao Colossal danh bang Thuong Loi / Kiem (nhu anh 301k x 5)
+                    State.DefendErenActive = false
+                    releaseCannonState()
+                    State.Mode = "PHASE2"
+                    if isTitanAlive(col) then
+                        State.HoverTarget = col
+                        local hpPct = readBossHpPct(col)
+                        local chNow = getChar()
+                        local hrpNow = chNow and chNow:FindFirstChild("HumanoidRootPart")
+                        local colNape = getTitanNape(col)
+                        local distCol = (hrpNow and colNape) and (hrpNow.Position - colNape.Position).Magnitude or 999
+                        setStatus(string.format("[Test P1] Danh Nape Colossal (HP: %.1f%% | %.0fst)", hpPct, distCol))
+                        if distCol <= 145 then
+                            if attackTargets({ col }) then
+                                task.wait(isSpearEquipped() and (0.38 + math.random() * 0.14) or (0.13 + math.random() * 0.05))
+                            end
+                        end
+                    else
+                        State.HoverTarget = nil
+                        setStatus("[Test P1] Khong thay Colossal!")
+                        task.wait(0.25)
                     end
                 elseif not phase2 and Config.AutoCannon then
                     -- MUC 2 (Phase 1, Eren an toan): Ban phao theo dung chu ky Server Cannon.lua
