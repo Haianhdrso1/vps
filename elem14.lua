@@ -162,6 +162,7 @@ end
 
 local function takeSnapshot(reason)
     addLog("========== SNAPSHOT (" .. tostring(reason) .. ") ==========")
+    local okSnap, snapErr = xpcall(function()
     addLog("PlaceId=" .. tostring(game.PlaceId) .. " | StreamingEnabled=" .. tostring(workspace.StreamingEnabled))
 
     -- 1. Character & Attributes
@@ -366,6 +367,10 @@ local function takeSnapshot(reason)
             end
         end
     end
+    end, debug.traceback)
+    if not okSnap then
+        addLog("[SNAP_ERR] " .. tostring(snapErr))
+    end
     flushLog(true)
 end
 
@@ -529,195 +534,8 @@ if type(hookmetamethod) == "function" and type(getnamecallmethod) == "function" 
     end
 end
 
--- Cross-VM Bridge & Actor VM Hooks (captures AoTR scripts running inside Actors!)
-local BRIDGE_NAME = "__AoTRLoggerBridge__"
-local bridge = nil
-pcall(function()
-    local oldBridge = CoreGui:FindFirstChild(BRIDGE_NAME)
-    if oldBridge then oldBridge:Destroy() end
-    bridge = Instance.new("BindableEvent")
-    bridge.Name = BRIDGE_NAME
-    bridge.Parent = CoreGui
-    bridge.Event:Connect(function(kind, text)
-        if kind == "REMOTE" then
-            remoteCount = remoteCount + 1
-        end
-        addLog(text)
-    end)
-end)
-
-local ACTOR_PAYLOAD = [=[
-local BRIDGE_NAME = "__AoTRLoggerBridge__"
-local ACTOR_FALLBACK_FILE = "aotr_raid_actor_log.txt"
-local CoreGuiOk, CoreGuiSvc = pcall(function() return game:GetService("CoreGui") end)
-local bridge = CoreGuiOk and CoreGuiSvc and CoreGuiSvc:FindFirstChild(BRIDGE_NAME) or nil
-
-local function emit(kind, text)
-    if bridge then
-        pcall(function() bridge:Fire(kind, text) end)
-    elseif type(appendfile) == "function" then
-        pcall(appendfile, ACTOR_FALLBACK_FILE, string.format("[%.2fs] %s\n", os.clock(), tostring(text)))
-    end
-end
-
-local IGNORED = {
-    Replication = true, Movement = true, Move = true, Position = true,
-    Ping = true, Heartbeat = true, StateSync = true, Camera = true,
-}
-
-local IMPORTANT = {
-    Cannon = true, Skills = true, S_Skills = true, Attacks = true, Hitboxes = true,
-    Spears = true, Blades = true, Raid = true, Interact = true, Combat = true,
-    Damage = true, Prompt = true, Seat = true, Mount = true, Turret = true,
-    Titans = true, Colossal = true, Boss = true, Projectile = true,
-}
-
-local function fmtVal(v, depth)
-    depth = depth or 0
-    local tv = typeof(v)
-    if tv == "Vector3" then
-        return string.format("Vec3(%.2f, %.2f, %.2f)", v.X, v.Y, v.Z)
-    elseif tv == "CFrame" then
-        local p = v.Position
-        local lv = v.LookVector
-        return string.format("CF(pos=%.2f,%.2f,%.2f | look=%.3f,%.3f,%.3f)", p.X, p.Y, p.Z, lv.X, lv.Y, lv.Z)
-    elseif tv == "Instance" then
-        local ok, full = pcall(function() return v:GetFullName() end)
-        return string.format("<%s:%s>", v.ClassName, ok and full or v.Name)
-    elseif tv == "table" then
-        if depth >= 2 then return "{...}" end
-        local parts, n = {}, 0
-        for k, val in pairs(v) do
-            n = n + 1
-            if n > 16 then parts[#parts + 1] = "..." break end
-            parts[#parts + 1] = tostring(k) .. "=" .. fmtVal(val, depth + 1)
-        end
-        return "{" .. table.concat(parts, ", ") .. "}"
-    elseif tv == "string" then
-        return string.format("%q", v)
-    end
-    return tostring(v)
-end
-
-local winT, winC = os.clock(), {}
-local function handleCall(tag, self, method, args)
-    if typeof(self) ~= "Instance" then return end
-    local a1 = type(args[1]) == "string" and args[1] or ""
-    if IGNORED[a1] then return end
-
-    local rname = self.Name
-    local rn = string.lower(tostring(rname))
-    local isImp = IMPORTANT[a1] == true
-        or rn:find("cannon", 1, true) ~= nil
-        or rn:find("skill", 1, true) ~= nil
-        or rn:find("attack", 1, true) ~= nil
-        or rn:find("combat", 1, true) ~= nil
-    if not isImp and rn ~= "post" and rn ~= "get" and not rn:find("remote", 1, true) then
-        return
-    end
-
-    local now = os.clock()
-    if now - winT > 2.0 then
-        winT, winC = now, {}
-    end
-    local key = rname .. ":" .. method .. ":" .. a1 .. ":" .. tostring(args[2] or "")
-    winC[key] = (winC[key] or 0) + 1
-    if winC[key] > (IMPORTANT[a1] and 24 or 5) then
-        return
-    end
-
-    local parts = {}
-    for i = 1, #args do
-        parts[#parts + 1] = fmtVal(args[i], 0)
-    end
-    emit("REMOTE", string.format("REMOTE[ACTOR-%s] %s:%s(%s)", tag, rname, method, table.concat(parts, ", ")))
-end
-
-local wrapC = type(newcclosure) == "function" and newcclosure or function(f) return f end
-local function fromCaller()
-    return type(checkcaller) == "function" and checkcaller()
-end
-
-local okFn, okNC = false, false
-if type(hookfunction) == "function" then
-    pcall(function()
-        local tmpRE = Instance.new("RemoteEvent")
-        local oldFire
-        oldFire = hookfunction(tmpRE.FireServer, wrapC(function(self, ...)
-            if not fromCaller() then
-                pcall(handleCall, "FN", self, "FireServer", { ... })
-            end
-            return oldFire(self, ...)
-        end))
-        tmpRE:Destroy()
-        okFn = true
-    end)
-    pcall(function()
-        local tmpRF = Instance.new("RemoteFunction")
-        local oldInvoke
-        oldInvoke = hookfunction(tmpRF.InvokeServer, wrapC(function(self, ...)
-            if not fromCaller() then
-                pcall(handleCall, "FN", self, "InvokeServer", { ... })
-            end
-            return oldInvoke(self, ...)
-        end))
-        tmpRF:Destroy()
-        okFn = true
-    end)
-end
-
-if type(hookmetamethod) == "function" and type(getnamecallmethod) == "function" then
-    pcall(function()
-        local oldNC
-        oldNC = hookmetamethod(game, "__namecall", wrapC(function(self, ...)
-            local m = getnamecallmethod()
-            if (m == "FireServer" or m == "InvokeServer") and not fromCaller() then
-                pcall(handleCall, "NC", self, m, { ... })
-            end
-            return oldNC(self, ...)
-        end))
-        okNC = true
-    end)
-end
-
-emit("INFO", string.format("[ACTOR_HOOK_READY] hookFn=%s | hookNC=%s | bridge=%s", tostring(okFn), tostring(okNC), tostring(bridge ~= nil)))
-]=]
-
-local hookedActors = {}
-local actorsHookedCount = 0
-local function tryHookActor(actor)
-    if not actor or hookedActors[actor] then return false end
-    hookedActors[actor] = true
-    if not runOnActorFn then return false end
-    local okRun, errRun = pcall(runOnActorFn, actor, ACTOR_PAYLOAD)
-    local okName, aName = pcall(function() return actor:GetFullName() end)
-    if okRun then
-        actorsHookedCount = actorsHookedCount + 1
-        addLog("Hooked Actor -> " .. (okName and aName or tostring(actor)))
-    else
-        addLog("Actor Hook ERR (" .. (okName and aName or "?") .. "): " .. tostring(errRun))
-    end
-    return okRun
-end
-
-local function scanAndHookActors()
-    if not getActorsFn then return 0 end
-    local okA, list = pcall(getActorsFn)
-    if not okA or type(list) ~= "table" then return 0 end
-    for _, act in ipairs(list) do
-        tryHookActor(act)
-    end
-    return #list
-end
-
-local initialActorsCount = scanAndHookActors()
-pcall(function()
-    game.DescendantAdded:Connect(function(d)
-        if d:IsA("Actor") then
-            task.defer(function() tryHookActor(d) end)
-        end
-    end)
-end)
+-- Khong tu tiem run_on_actor tren Delta iOS de tranh loi/treo Actor cua game;
+-- chi doc danh sach Actor trong snapshot va dung hook an toan o luong chinh.
 
 -- Watch Workspace.Cannon spawn & Player Seated state
 pcall(function()
@@ -770,11 +588,11 @@ pcall(function()
 end)
 
 -- Minimal UI overlay (top-center, always visible + F9 print + Roblox notification)
-print("[AoTR Logger] Dang khoi dong (Co Actor Hook)... Neu khong thay bang UI, bam F9 de xem.")
+print("[AoTR Logger] Dang khoi dong (Delta iOS Safe)... Neu khong thay bang UI, bam F9 de xem.")
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "AoTR Raid Logger (+Actor)",
-        Text = "Ngoi phao ban tay 1-2 phat roi bam Copy Log!",
+        Title = "AoTR Raid Logger",
+        Text = "Da bat an toan! Ngoi phao ban tay 1-2 phat roi bam Copy Log.",
         Duration = 5,
     })
 end)
@@ -825,7 +643,7 @@ local function mountLoggerGui()
             lbl.TextSize = 13
             lbl.Font = Enum.Font.GothamBold
             lbl.TextXAlignment = Enum.TextXAlignment.Left
-            lbl.Text = "AoTR Logger (+Actor) | DANG CHAY"
+            lbl.Text = "AoTR Logger | DANG CHAY (keo duoc)"
             lbl.Parent = frame
 
             local snapBtn = Instance.new("TextButton")
@@ -893,27 +711,22 @@ end
 mountLoggerGui()
 
 addLog(string.format(
-    "Logger started | hookmetamethod=%s | hookfunction=%s | getactors=%s(%d) | run_on_actor=%s(%d) | writefile=%s",
+    "Logger started | hookmetamethod=%s | hookfunction=%s | getactors=%s | writefile=%s",
     tostring(hookInstalled),
     tostring(hookFnInstalled),
     tostring(getActorsFn ~= nil),
-    initialActorsCount,
-    tostring(runOnActorFn ~= nil),
-    actorsHookedCount,
     tostring(type(writefile) == "function")
 ))
 
--- Auto-snapshots + periodic Actor rescan
+-- Auto-snapshots
 task.spawn(function()
     task.wait(1.5)
-    scanAndHookActors()
     takeSnapshot("Initial")
     local lastColPhase = nil
     local lastHpBucket = nil
     local lastAutoSnap = os.clock()
     while #logs < MAX_LINES do
         task.wait(2)
-        scanAndHookActors()
         local _, colModel = findNapePos()
         local curPhase = colModel and colModel:GetAttribute("Phase")
         local hum = colModel and colModel:FindFirstChildOfClass("Humanoid")
