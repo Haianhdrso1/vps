@@ -18,8 +18,9 @@ local Config = {
     AutoCannon = true,
     AutoDefendEren = true,
     AutoRefill = true,
+    AntiBanSafe = true,
     DefendRadius = 420,
-    CannonImpactBurst = 15,
+    CannonImpactBurst = 1,
     HitAllBatch = 8,
 }
 
@@ -37,6 +38,7 @@ local State = {
     Shots = 0,
     ImpactEvents = 0,
     Impacts = 0,
+    AntiBanSilenced = 0,
     StatusText = "Dang khoi tao...",
 }
 
@@ -526,9 +528,9 @@ local function getCannonGeometry(cannon)
         end
         local cf = bw.CFrame
         local candidates = {
-            { axis = "LookVector", sign = 1, vec = cf.LookVector },
-            { axis = "LookVector", sign = -1, vec = -cf.LookVector },
-            { axis = "RightVector", sign = 1, vec = cf.RightVector },
+            { axis = "LookVector",  sign = 1,  vec = cf.LookVector },
+            { axis = "LookVector",  sign = -1, vec = -cf.LookVector },
+            { axis = "RightVector", sign = 1,  vec = cf.RightVector },
             { axis = "RightVector", sign = -1, vec = -cf.RightVector },
         }
         local best = candidates[2]
@@ -632,7 +634,8 @@ local function calibrateAfterShot(cannon, sentAngles, napePos, dirBeforeShot)
             return errYaw, errPitch
         end
     end
-    local confirmed = (calib.lastYawErr ~= nil) or (math.abs(errYaw) <= 8) or (errBefore ~= nil and math.abs(errYaw) < math.abs(errBefore))
+    local confirmed = (calib.lastYawErr ~= nil) or (math.abs(errYaw) <= 8) or
+        (errBefore ~= nil and math.abs(errYaw) < math.abs(errBefore))
     if moved and confirmed and math.abs(errYaw) <= 55 then
         calib.yawTrim = math.clamp(calib.yawTrim + errYaw * calib.yawSign * 0.40, -45, 45)
     end
@@ -697,7 +700,9 @@ local function mountCannonPrompt(cannon)
         local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
         if pPos and hrp and (hrp.Position - pPos).Magnitude > math.max((prompt.MaxActivationDistance or 10) - 2, 5) then
             hrp.CFrame = CFrame.new(pPos + Vector3.new(0, 3, 0))
-            pcall(function() hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero end)
+            pcall(function()
+                hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero
+            end)
             task.wait(0.2)
         end
         fireproximityprompt(prompt)
@@ -723,7 +728,9 @@ local function doRefill()
         local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
         if refillPart and hrp then
             hrp.CFrame = refillPart.CFrame + Vector3.new(0, 3, 0)
-            pcall(function() hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero end)
+            pcall(function()
+                hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero
+            end)
             task.wait(0.45)
             resolveRemotes()
             if POST then pcall(function() POST:FireServer("Attacks", "Reload", refillPart) end) end
@@ -760,10 +767,14 @@ local function attackTargets(targetsList)
         if slot <= 0 or not GET then return false end
         local fired = false
         pcall(function() fired = GET:InvokeServer("Spears", "S_Fire", tostring(slot)) == true end)
-        if not fired then return false end
-        task.wait(0.03)
+        if not fired then
+            pcall(function() POST:FireServer("Spears", "Reset") end)
+            return false
+        end
+        task.wait(0.035 + math.random() * 0.025)
         local function jitter(p)
-            return p + Vector3.new((math.random() - 0.5) * 0.6, (math.random() - 0.5) * 0.6, (math.random() - 0.5) * 0.6)
+            return p +
+                Vector3.new((math.random() - 0.5) * 0.75, (math.random() - 0.5) * 0.75, (math.random() - 0.5) * 0.75)
         end
         for i = 1, 9 do
             local np = napes[((i - 1) % #napes) + 1]
@@ -774,7 +785,7 @@ local function attackTargets(targetsList)
         return true
     end
 
-    -- Blades 9-hit ("chem no 9 dame")
+    -- Blades 9-hit (gian dame ngau nhien tu nhien + tra ve Hitbox goc)
     local ch = getChar()
     local hb = ch and ch:FindFirstChild("Hitbox")
     State.AttackBusy = true
@@ -785,7 +796,7 @@ local function attackTargets(targetsList)
             if not OriginalSizes[hb] then OriginalSizes[hb] = oldSize end
             hb.CollisionGroup = "Default"
             hb.CanTouch = true
-            hb.Size = Vector3.new(140, 140, 140)
+            hb.Size = Vector3.new(120, 120, 120)
         end
         for _, m in ipairs(models) do
             local hit = m:FindFirstChild("Hitboxes") and m.Hitboxes:FindFirstChild("Hit")
@@ -810,7 +821,7 @@ local function attackTargets(targetsList)
             local np = napes[((i - 1) % #napes) + 1]
             if np and np.Parent then
                 POST:FireServer("Attacks", "Slash", true)
-                POST:FireServer("Hitboxes", "Register", np, math.random(700, 900))
+                POST:FireServer("Hitboxes", "Register", np, math.random(620, 880))
             end
         end
         if os.clock() - (_G.__coloLastM1Anim or 0) >= 0.35 then
@@ -900,7 +911,8 @@ local function startMovementHooks()
                 if (State.Mode == "DEFEND_EREN" or State.Mode == "PHASE2") and lastSafeHoverPos then
                     local erenPos = getErenPos()
                     local minY = (erenPos and (erenPos.Y + 35)) or 75
-                    local holdPos = Vector3.new(lastSafeHoverPos.X, math.max(lastSafeHoverPos.Y, minY), lastSafeHoverPos.Z)
+                    local holdPos = Vector3.new(lastSafeHoverPos.X, math.max(lastSafeHoverPos.Y, minY),
+                        lastSafeHoverPos.Z)
                     hum.PlatformStand = false
                     pcall(function()
                         hrp.AssemblyLinearVelocity = Vector3.zero
@@ -922,7 +934,9 @@ local function startMovementHooks()
             local bob = isSp and 4 or 1.5
             local erenPos = getErenPos()
             local minFloorY = (erenPos and State.Mode == "DEFEND_EREN") and (erenPos.Y + 18) or 55
-            local dest = np.Position + Vector3.new(math.cos(orbAngle) * radius, hoverY + math.sin(orbAngle * 2) * bob, math.sin(orbAngle) * radius)
+            local dest = np.Position +
+                Vector3.new(math.cos(orbAngle) * radius, hoverY + math.sin(orbAngle * 2) * bob,
+                    math.sin(orbAngle) * radius)
             if dest.Y < minFloorY then
                 dest = Vector3.new(dest.X, minFloorY, dest.Z)
             end
@@ -956,8 +970,12 @@ local function stopAllHooks()
     State.HoverTarget = nil
     State.CannonBusy = false
     detachFromCannon(false)
-    if hbConn then hbConn:Disconnect(); hbConn = nil end
-    if stepConn then stepConn:Disconnect(); stepConn = nil end
+    if hbConn then
+        hbConn:Disconnect(); hbConn = nil
+    end
+    if stepConn then
+        stepConn:Disconnect(); stepConn = nil
+    end
     local ch = getChar()
     if ch then
         local hum = ch:FindFirstChildOfClass("Humanoid")
@@ -1054,16 +1072,17 @@ local function mountGui()
             makeBtn("Bao Ve: ON", 190, 98, Color3.fromRGB(145, 85, 210), function(b)
                 Config.AutoDefendEren = not Config.AutoDefendEren
                 b.Text = Config.AutoDefendEren and "Bao Ve: ON" or "Bao Ve: OFF"
-                b.BackgroundColor3 = Config.AutoDefendEren and Color3.fromRGB(145, 85, 210) or Color3.fromRGB(110, 110, 120)
+                b.BackgroundColor3 = Config.AutoDefendEren and Color3.fromRGB(145, 85, 210) or
+                    Color3.fromRGB(110, 110, 120)
             end)
 
-            makeBtn("Burst: 15", 294, 92, Color3.fromRGB(215, 130, 35), function(b)
-                if Config.CannonImpactBurst == 15 then
-                    Config.CannonImpactBurst = 25
-                elseif Config.CannonImpactBurst == 25 then
-                    Config.CannonImpactBurst = 1
-                else
+            makeBtn("Burst: 1", 294, 92, Color3.fromRGB(215, 130, 35), function(b)
+                if Config.CannonImpactBurst == 1 then
+                    Config.CannonImpactBurst = 3
+                elseif Config.CannonImpactBurst == 3 then
                     Config.CannonImpactBurst = 15
+                else
+                    Config.CannonImpactBurst = 1
                 end
                 b.Text = "Burst: " .. tostring(Config.CannonImpactBurst)
             end)
@@ -1088,9 +1107,79 @@ local function setStatus(txt)
 end
 
 -- ============================================================================
+-- Anti-Ban / Anti-AFK / Error Silencer (Client-Safe Pacing)
+-- ============================================================================
+local antiBanInstalled = false
+local function installAntiBanSafe()
+    if antiBanInstalled or not Config.AntiBanSafe then return end
+    antiBanInstalled = true
+    local silenced = 0
+    pcall(function()
+        if lp and lp.Idled then
+            if type(getconnections) == "function" then
+                for _, conn in ipairs(getconnections(lp.Idled)) do
+                    pcall(function() if conn.Disable then conn:Disable() end end)
+                end
+            end
+            lp.Idled:Connect(function()
+                pcall(function()
+                    local vu = game:GetService("VirtualUser")
+                    vu:CaptureController()
+                    vu:ClickButton2(Vector2.new(0, 0))
+                end)
+            end)
+        end
+    end)
+    pcall(function()
+        local badNames = { "anticheat", "anti_cheat", "antiexploit", "cheatdetect", "integrity", "flagcheck" }
+        local ps = lp and lp:FindFirstChild("PlayerScripts")
+        local pg = lp and lp:FindFirstChild("PlayerGui")
+        for _, root in ipairs({ ps, pg, getChar() }) do
+            if root then
+                for _, inst in ipairs(root:GetDescendants()) do
+                    if inst:IsA("LocalScript") and not inst.Disabled then
+                        local ln = string.lower(inst.Name)
+                        for _, tok in ipairs(badNames) do
+                            if ln:find(tok, 1, true) then
+                                inst.Disabled = true
+                                silenced = silenced + 1
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+    pcall(function()
+        if type(getconnections) == "function" then
+            local function disableNonCore(sig)
+                if not sig then return end
+                for _, conn in ipairs(getconnections(sig)) do
+                    if conn.Function and type(getfenv) == "function" then
+                        local okE, env = pcall(getfenv, conn.Function)
+                        local src = okE and type(env) == "table" and rawget(env, "script")
+                        if typeof(src) == "Instance" and not src:IsA("CoreScript") and not src:IsDescendantOf(CoreGui) then
+                            pcall(function() conn:Disable() end)
+                            silenced = silenced + 1
+                        end
+                    end
+                end
+            end
+            local sc = game:GetService("ScriptContext")
+            local ls = game:GetService("LogService")
+            if sc and sc.Error then disableNonCore(sc.Error) end
+            if ls and ls.MessageOut then disableNonCore(ls.MessageOut) end
+        end
+    end)
+    State.AntiBanSilenced = silenced
+end
+
+-- ============================================================================
 -- Single Coordinated State-Machine Loop (No Fighting Threads!)
 -- ============================================================================
 mountGui()
+installAntiBanSafe()
 startMovementHooks()
 
 local impactListenerBound = false
@@ -1100,14 +1189,28 @@ local lastStateYaw, lastStatePitch = nil, nil
 local function releaseCannonState()
     if State.MountedCannon or State.CannonBusy or isAttachedToCannon() then
         local c = State.MountedCannon or State.ActiveCannon
+        -- Theo code that Cannon.lua: phai cho Firing == nil VA giu nguyen Weld "Cannon" truoc khi goi State(false, tbl)!
+        if c and c.Parent then
+            local wT0 = os.clock()
+            while c:GetAttribute("Firing") == true and os.clock() - wT0 < 1.65 do
+                task.wait(0.05)
+            end
+            pcall(function() invokeCannon("Cannon", "State", c, false, buildCannonTable(c)) end)
+            task.wait(0.06)
+        end
         State.MountedCannon = nil
         State.ActiveCannon = nil
         State.CannonBusy = false
         lastStateYaw, lastStatePitch = nil, nil
-        if c then
-            pcall(function() invokeCannon("Cannon", "State", c, false, buildCannonTable(c)) end)
+        detachFromCannon(false)
+        local ch = getChar()
+        local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            pcall(function()
+                hrp.AssemblyLinearVelocity = Vector3.zero
+                hrp.AssemblyAngularVelocity = Vector3.zero
+            end)
         end
-        detachFromCannon(true)
     end
 end
 
@@ -1175,13 +1278,14 @@ task.spawn(function()
                     local hrpNow = chNow and chNow:FindFirstChild("HumanoidRootPart")
                     local firstNape = getTitanNape(batch[1])
                     local distTarget = (hrpNow and firstNape) and (hrpNow.Position - firstNape.Position).Magnitude or 999
-                    if distTarget <= 130 then
+                    if distTarget <= 135 then
                         if attackTargets(batch) then
-                            task.wait(isSpearEquipped() and 0.35 or 0.12)
+                            task.wait(isSpearEquipped() and (0.38 + math.random() * 0.14) or
+                                (0.13 + math.random() * 0.05))
                         end
                     end
                 elseif not phase2 and Config.AutoCannon then
-                    -- MUC 2 (Phase 1, Eren an toan): Ban phao
+                    -- MUC 2 (Phase 1, Eren an toan): Ban phao theo dung chu ky Server Cannon.lua
                     State.DefendErenActive = false
                     local cannons = findWallCannons()
                     local cannon = cannons[1]
@@ -1200,23 +1304,24 @@ task.spawn(function()
                         State.ActiveCannon = cannon
 
                         local function fireSpreadImpacts(targetProj, activeCol)
-                            if not (POST and targetProj and targetProj.Parent) then return 0, 0 end
-                            local parts = collectColossalHitboxParts(activeCol)
-                            if #parts == 0 then
-                                local liveNape = getTitanNape(activeCol)
-                                if liveNape then parts[1] = liveNape end
-                            end
-                            if #parts == 0 then return 0, 0 end
-                            local burst = math.max(1, tonumber(Config.CannonImpactBurst) or 15)
+                            if not (POST and targetProj and targetProj.Parent) then return 0 end
+                            local liveNape = getTitanNape(activeCol)
+                            if not liveNape then return 0 end
+                            local burst = math.max(1, tonumber(Config.CannonImpactBurst) or 1)
+                            local parts = (burst > 1) and collectColossalHitboxParts(activeCol) or { liveNape }
+                            if #parts == 0 then parts[1] = liveNape end
                             for i = 1, burst do
                                 local hbPart = parts[((i - 1) % #parts) + 1]
                                 if hbPart and hbPart.Parent then
-                                    local pos = hbPart.Position
+                                    -- Jitter nhe trong vung Nape cho giong vien dan cham tu nhien
+                                    local jit = Vector3.new((math.random() - 0.5) * 2.2, (math.random() - 0.5) * 1.4,
+                                        (math.random() - 0.5) * 2.2)
+                                    local pos = hbPart.Position + jit
                                     pcall(function() POST:FireServer("S_Skills", "Impact", targetProj, pos) end)
                                 end
                             end
                             State.Impacts = State.Impacts + burst
-                            return burst, #parts
+                            return burst
                         end
 
                         if POST and not impactListenerBound then
@@ -1234,7 +1339,7 @@ task.spawn(function()
                             end)
                         end
 
-                        -- Kiem tra ngoi phao bang attribute Player == lp.Name tren model phao that
+                        -- Kiem tra ngoi phao bang attribute Player == lp.Name va Spawn theo Cannon.lua
                         local isMountedAttr = lp and cannon:GetAttribute("Player") == lp.Name
                         if State.MountedCannon ~= cannon or not isMountedAttr then
                             local ch = getChar()
@@ -1244,11 +1349,21 @@ task.spawn(function()
                                 local dCan = (hrp.Position - geoMount.base.Position).Magnitude
                                 if dCan > 45 then
                                     hrp.CFrame = CFrame.new(geoMount.base.Position + Vector3.new(0, 6, 0))
-                                    pcall(function() hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero end)
-                                    task.wait(0.15)
+                                    pcall(function()
+                                        hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3
+                                            .zero
+                                    end)
+                                    task.wait(0.18 + math.random() * 0.08)
                                 end
                             end
-                            -- Thu nil theo kieu game/SmoothHub truoc, neu chua nhan Player thi thu gui kem tbl
+                            if cannon:GetAttribute("Spawn") == nil then
+                                pcall(function() invokeCannon("Cannon", "Claim", cannon) end)
+                                task.wait(0.06)
+                            end
+                            -- Neu con sot weld cu hoac Ragdoll==false ma chua dung Player, goi State(false) don sach truoc
+                            if ch and hrp and hrp:FindFirstChild("Cannon") and cannon:GetAttribute("Player") ~= lp.Name then
+                                pcall(function() hrp.Cannon:Destroy() end)
+                            end
                             local okS = invokeCannon("Cannon", "State", cannon, true, nil)
                             task.wait(0.12)
                             if not okS or (lp and cannon:GetAttribute("Player") ~= lp.Name) then
@@ -1263,32 +1378,32 @@ task.spawn(function()
                         local freshNape = nape.Position
                         local aimAngles, _, distXZ, geo = computeCannonAim(cannon, freshNape)
                         local dirBefore = geo and readMuzzleDir(geo.barrelWood, geo.home)
-                        if lastStateYaw == nil or math.abs(aimAngles.Base - lastStateYaw) >= 3 or math.abs(aimAngles.BarrelWood - (lastStatePitch or 0)) >= 3 then
+                        if lastStateYaw == nil or math.abs(aimAngles.Base - lastStateYaw) >= 4 or math.abs(aimAngles.BarrelWood - (lastStatePitch or 0)) >= 4 then
                             lastStateYaw, lastStatePitch = aimAngles.Base, aimAngles.BarrelWood
                             invokeCannon("Cannon", "State", cannon, true, buildCannonTable(cannon, freshNape))
-                            task.wait(0.03)
+                            task.wait(0.04)
                         end
 
                         local colHpPct = readBossHpPct(col)
-                        local hbCount = #collectColossalHitboxParts(col)
-                        local cdSec = tonumber(cannon:GetAttribute("CD")) or 2.7
-                        local sinceShot = os.clock() - State.LastShotAt
+                        local cdRem = tonumber(cannon:GetAttribute("Cooldown"))
+                        local cdBase = tonumber(cannon:GetAttribute("CD")) or 2.7
                         local isFiringAttr = cannon:GetAttribute("Firing") == true
                         local mountedNow = (lp and cannon:GetAttribute("Player") == lp.Name)
+                        local readyToShoot = mountedNow and (not isFiringAttr) and (cdRem == nil or cdRem <= 0)
 
-                        if not isFiringAttr and sinceShot >= math.min(cdSec, 0.75) then
+                        if readyToShoot then
+                            task.wait(0.04 + math.random() * 0.1)
                             local prevImpactEvts = State.ImpactEvents
                             local okShoot, resShoot = invokeCannon("Cannon", "Shoot", aimAngles)
                             if okShoot and resShoot ~= false then
                                 State.Shots = State.Shots + 1
                                 State.LastShotAt = os.clock()
-                                -- Cho server spawn vien dan Workspace.Cannon va tra ve Skills/Impact
+                                -- Theo Cannon.lua: server sinh Workspace.Cannon sau ~0.77s va gui Impact sau ~0.87s
                                 local waitT0 = os.clock()
-                                while State.ImpactEvents == prevImpactEvts and os.clock() - waitT0 < 0.65 do
+                                while State.ImpactEvents == prevImpactEvts and os.clock() - waitT0 < 1.15 do
                                     task.wait(0.04)
                                 end
                                 local ey, ep = calibrateAfterShot(cannon, aimAngles, nape.Position, dirBefore)
-                                -- Chi fallback neu server chua tra event ma vien dan Workspace.Cannon dang ton tai
                                 if State.ImpactEvents == prevImpactEvts then
                                     local proj = getOwnedProjectile()
                                     if proj then
@@ -1296,20 +1411,23 @@ task.spawn(function()
                                     end
                                 end
                                 colHpPct = readBossHpPct(col)
-                                setStatus(string.format("[Phao P1] HP:%.1f%% | Hb:%d Plr:%s | Ban:%d Evt:%d Imp:%d | %.0fst (L %.0f/%.0f)",
-                                    colHpPct, hbCount, mountedNow and "OK" or "?", State.Shots, State.ImpactEvents, State.Impacts, distXZ or 0, ey or 0, ep or 0))
+                                setStatus(string.format(
+                                    "[Phao P1] HP:%.1f%% | %s | Ban:%d Evt:%d | %.0fst (L %.0f/%.0f)",
+                                    colHpPct, stallTxt or "P1", State.Shots, State.ImpactEvents, distXZ or 0, ey or 0,
+                                    ep or 0))
                             else
-                                setStatus(string.format("[Phao CD] HP:%.1f%% | Hb:%d Plr:%s | CD:%.1fs | Ban:%d Evt:%d",
-                                    colHpPct, hbCount, mountedNow and "OK" or "NO", cdSec, State.Shots, State.ImpactEvents))
+                                setStatus(string.format("[Phao] Cho | HP:%.1f%% | %s | Plr:%s | Ban:%d",
+                                    colHpPct, stallTxt or "P1", mountedNow and "OK" or "NO", State.Shots))
                             end
                         else
-                            setStatus(string.format("[Phao] HP:%.1f%% | Hb:%d Plr:%s | Cho CD... | Ban:%d Evt:%d Imp:%d",
-                                colHpPct, hbCount, mountedNow and "OK" or "NO", State.Shots, State.ImpactEvents, State.Impacts))
+                            local cdShow = cdRem or (isFiringAttr and 1.0 or cdBase)
+                            setStatus(string.format("[Phao CD:%.1fs] HP:%.1f%% | %s | Ban:%d Evt:%d",
+                                cdShow, colHpPct, stallTxt or "P1", State.Shots, State.ImpactEvents))
                         end
-                        task.wait(0.18)
+                        task.wait(0.16)
                     end
                 elseif phase2 then
-                    -- MUC 3 (Phase 2): Guc roi -> nha phao, don 9 hit vao Nape Colossal
+                    -- MUC 3 (Phase 2): Guc roi -> nha phao dung luat Server, ap sat Nape roi don 9 dame
                     State.DefendErenActive = false
                     releaseCannonState()
                     State.Mode = "PHASE2"
@@ -1317,8 +1435,15 @@ task.spawn(function()
                         State.HoverTarget = col
                         local hpPct = readBossHpPct(col)
                         setStatus(string.format("[Phase 2] Don dame Colossal (HP: %.1f%%)", hpPct))
-                        if attackTargets({ col }) then
-                            task.wait(isSpearEquipped() and 0.35 or 0.12)
+                        local chNow = getChar()
+                        local hrpNow = chNow and chNow:FindFirstChild("HumanoidRootPart")
+                        local colNape = getTitanNape(col)
+                        local distCol = (hrpNow and colNape) and (hrpNow.Position - colNape.Position).Magnitude or 999
+                        if distCol <= 140 then
+                            if attackTargets({ col }) then
+                                task.wait(isSpearEquipped() and (0.38 + math.random() * 0.14) or
+                                    (0.13 + math.random() * 0.05))
+                            end
                         end
                     else
                         State.HoverTarget = nil
