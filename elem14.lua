@@ -1,17 +1,18 @@
--- AoTR Raid & Colossal Diagnostic Logger (Standalone - Safe Read-Only)
+-- AoTR Raid & Colossal Diagnostic Logger (Standalone - Safe Read-Only + Actor VM Spy)
 -- Huong dan:
---   1. Chay script nay trong game (truoc hoac ngay khi vao tran Raid Colossal / Attack Titan).
---   2. Tu tay ban: ngoi len 1 khau phao xoay va ban 1-2 phat trung Colossal, danh 1 con Titan gan Eren, doi qua Phase 2.
---   3. Script tu luu log vao file "aotr_raid_log.txt" trong thu muc workspace cua Executor (hoac bam nut [Copy Log] o goc tren).
+--   1. Chay script nay trong game (truoc hoac ngay khi vao tran Raid Colossal).
+--   2. Tu tay bam E ngoi len 1 khau phao va ban 1-2 phat vao Colossal.
+--   3. Bam [Chup Snapshot] (hoac doi auto snapshot) roi bam [Copy Log], hoac lay file "aotr_raid_log.txt".
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local CoreGui = game:GetService("CoreGui")
-local HttpService = game:GetService("HttpService")
+local CollectionService = game:GetService("CollectionService")
 
 local lp = Players.LocalPlayer
 local LOG_FILE = "aotr_raid_log.txt"
-local MAX_LINES = 600
+local ACTOR_FALLBACK_FILE = "aotr_raid_actor_log.txt"
+local MAX_LINES = 1200
 
 local logs = {}
 local remoteCount = 0
@@ -71,12 +72,12 @@ local function fmtVal(v, depth)
         local ok, full = pcall(function() return v:GetFullName() end)
         return string.format("<%s:%s>", v.ClassName, ok and full or v.Name)
     elseif tv == "table" then
-        if depth >= 2 then return "{...}" end
+        if depth >= 3 then return "{...}" end
         local parts = {}
         local n = 0
         for k, val in pairs(v) do
             n = n + 1
-            if n > 12 then
+            if n > 20 then
                 parts[#parts + 1] = "..."
                 break
             end
@@ -122,9 +123,46 @@ local function findNapePos()
     return nil, nil
 end
 
+local getActorsFn = type(getactors) == "function" and getactors or (syn and type(syn.getactors) == "function" and syn.getactors) or nil
+local runOnActorFn = type(run_on_actor) == "function" and run_on_actor or (syn and type(syn.run_on_actor) == "function" and syn.run_on_actor) or nil
+
+local function collectAllCannons()
+    local seen = {}
+    local list = {}
+    local function push(cn)
+        if cn and cn:IsA("Model") and not seen[cn] then
+            seen[cn] = true
+            list[#list + 1] = cn
+        end
+    end
+
+    local cl = workspace:FindFirstChild("Climbable")
+    for _, root in ipairs({ cl, workspace:FindFirstChild("Cannons"), workspace:FindFirstChild("Map") }) do
+        if root then
+            for _, d in ipairs(root:GetDescendants()) do
+                if d:IsA("Model") and (d.Name == "Cannon" or (d:FindFirstChild("Barrel") and d:FindFirstChild("Base"))) then
+                    push(d)
+                end
+            end
+        end
+    end
+
+    pcall(function()
+        for _, tagged in ipairs(CollectionService:GetTagged("Cannon")) do
+            if tagged:IsA("Model") then
+                push(tagged)
+            elseif tagged:IsA("BasePart") and tagged.Parent and tagged.Parent:IsA("Model") then
+                push(tagged.Parent)
+            end
+        end
+    end)
+
+    return list
+end
+
 local function takeSnapshot(reason)
     addLog("========== SNAPSHOT (" .. tostring(reason) .. ") ==========")
-    addLog("PlaceId=" .. tostring(game.PlaceId))
+    addLog("PlaceId=" .. tostring(game.PlaceId) .. " | StreamingEnabled=" .. tostring(workspace.StreamingEnabled))
 
     -- 1. Character & Attributes
     local chars = workspace:FindFirstChild("Characters")
@@ -183,6 +221,7 @@ local function takeSnapshot(reason)
     end
 
     -- 4. Titans / Bosses / Allies / Eren / Colossal
+    local napePos = findNapePos()
     local containers = { "Titans", "Boss", "Bosses", "Shifters", "Raid", "Allies", "NPCs", "Friendly", "Enemies", "Spawns", "Living", "Entities" }
     local pureSample = 0
     for _, cname in ipairs(containers) do
@@ -217,44 +256,102 @@ local function takeSnapshot(reason)
         end
     end
 
-    -- 5. Cannons sample
+    -- 5. Wall & Cannons Full Scan
     local cl = workspace:FindFirstChild("Climbable")
-    local cannonList = {}
-    for _, root in ipairs({ cl, workspace:FindFirstChild("Cannons"), workspace:FindFirstChild("Map") }) do
-        if root then
-            for _, d in ipairs(root:GetDescendants()) do
-                if d:IsA("Model") and (d.Name == "Cannon" or (d:FindFirstChild("Barrel") and d:FindFirstChild("Base"))) then
-                    cannonList[#cannonList + 1] = d
-                end
+    if cl then
+        local clNames = {}
+        for _, child in ipairs(cl:GetChildren()) do
+            clNames[#clNames + 1] = child.Name .. "(" .. child.ClassName .. ")"
+        end
+        addLog("Climbable children: " .. table.concat(clNames, ", "))
+        local walls = cl:FindFirstChild("Walls")
+        if walls then
+            local wallFolders = {}
+            for _, w in ipairs(walls:GetChildren()) do
+                local cFolder = w:FindFirstChild("Cannons", true)
+                local cCnt = cFolder and #cFolder:GetChildren() or 0
+                wallFolders[#wallFolders + 1] = string.format("%s(Cannons=%d)", w.Name, cCnt)
             end
+            addLog("Climbable.Walls children: " .. table.concat(wallFolders, ", "))
         end
-    end
-    addLog("Cannons found: " .. tostring(#cannonList))
-    for i = 1, math.min(2, #cannonList) do
-        local cn = cannonList[i]
-        local barrel = cn:FindFirstChild("Barrel")
-        local bw = barrel and barrel:FindFirstChild("BarrelWood") or cn:FindFirstChild("BarrelWood", true)
-        local base = cn:FindFirstChild("Base")
-        local seat = cn:FindFirstChildWhichIsA("Seat", true) or cn:FindFirstChildWhichIsA("VehicleSeat", true)
-        local childNames = {}
-        for _, chPart in ipairs(cn:GetChildren()) do
-            childNames[#childNames + 1] = chPart.Name .. "(" .. chPart.ClassName .. ")"
-        end
-        addLog(string.format("  Cannon[%d]=%s | Children=%s", i, cn:GetFullName(), table.concat(childNames, ",")))
-        if bw and bw:IsA("BasePart") then addLog("    BarrelWood=" .. fmtVec(bw.CFrame)) end
-        if base and base:IsA("BasePart") then addLog("    Base=" .. fmtVec(base.CFrame)) end
-        if seat and seat:IsA("BasePart") then addLog("    Seat=" .. fmtVec(seat.CFrame)) end
     end
 
-    -- 6. Active Workspace.Cannon + one-time Eren locator
+    local cannonList = collectAllCannons()
+    addLog("Cannons found: " .. tostring(#cannonList))
+    for i = 1, math.min(30, #cannonList) do
+        local cn = cannonList[i]
+        local barrel = cn:FindFirstChild("Barrel")
+        local bw = (barrel and barrel:FindFirstChild("BarrelWood")) or cn:FindFirstChild("BarrelWood", true)
+        local base = cn:FindFirstChild("Base")
+        local prompt = cn:FindFirstChildWhichIsA("ProximityPrompt", true)
+        local seat = cn:FindFirstChildWhichIsA("Seat", true) or cn:FindFirstChildWhichIsA("VehicleSeat", true)
+        local distTxt = "noNape"
+        if napePos then
+            local refPart = (base and base:IsA("BasePart") and base) or (bw and bw:IsA("BasePart") and bw)
+            if refPart then
+                distTxt = string.format("%.1f", (napePos - refPart.Position).Magnitude)
+            end
+        end
+        local tagsTxt = ""
+        pcall(function()
+            local tags = CollectionService:GetTags(cn)
+            if #tags > 0 then tagsTxt = " | Tags=" .. table.concat(tags, ",") end
+        end)
+        addLog(string.format(
+            "  Cannon[%d]=%s | DistNape=%s | Prompt=%s | Seat=%s | Attrs=%s%s",
+            i,
+            cn:GetFullName(),
+            distTxt,
+            prompt and (prompt.Name .. "(en=" .. tostring(prompt.Enabled) .. ")") or "nil",
+            seat and seat.Name or "nil",
+            fmtAttrs(cn),
+            tagsTxt
+        ))
+        if i <= 3 then
+            local childNames = {}
+            for _, chPart in ipairs(cn:GetChildren()) do
+                childNames[#childNames + 1] = chPart.Name .. "(" .. chPart.ClassName .. ")"
+            end
+            addLog("    Children=" .. table.concat(childNames, ","))
+            if bw and bw:IsA("BasePart") then addLog("    BarrelWood=" .. fmtVec(bw.CFrame)) end
+            if base and base:IsA("BasePart") then addLog("    Base=" .. fmtVec(base.CFrame)) end
+        end
+    end
+
+    -- 6. Active Workspace.Cannon + Actors Check
     local activeCn = workspace:FindFirstChild("Cannon")
     if activeCn then
         local bw = activeCn:FindFirstChild("BarrelWood", true)
         local base = activeCn:FindFirstChild("Base")
+        local acChildren = {}
+        for _, chPart in ipairs(activeCn:GetChildren()) do
+            acChildren[#acChildren + 1] = chPart.Name .. "(" .. chPart.ClassName .. ")"
+        end
         addLog("Active workspace.Cannon=" .. activeCn:GetFullName()
+            .. " | Attrs=" .. fmtAttrs(activeCn)
             .. " | BW=" .. (bw and bw:IsA("BasePart") and fmtVec(bw.CFrame) or "nil")
-            .. " | Base=" .. (base and base:IsA("BasePart") and fmtVec(base.CFrame) or "nil"))
+            .. " | Base=" .. (base and base:IsA("BasePart") and fmtVec(base.CFrame) or "nil")
+            .. " | Children=" .. table.concat(acChildren, ","))
     end
+
+    if reason == "Initial" or reason == "Manual" then
+        if getActorsFn then
+            local okA, actors = pcall(getActorsFn)
+            if okA and type(actors) == "table" then
+                local aNames = {}
+                for _, act in ipairs(actors) do
+                    local okN, fn = pcall(function() return act:GetFullName() end)
+                    aNames[#aNames + 1] = okN and fn or tostring(act)
+                end
+                addLog("Actors(" .. tostring(#actors) .. "): " .. table.concat(aNames, " ; "))
+            else
+                addLog("Actors=ERR(" .. tostring(actors) .. ")")
+            end
+        else
+            addLog("Actors=UNSUPPORTED(no getactors)")
+        end
+    end
+
     if reason == "Initial" then
         local erenHits = 0
         for _, d in ipairs(workspace:GetDescendants()) do
@@ -272,7 +369,7 @@ local function takeSnapshot(reason)
     flushLog(true)
 end
 
--- Remote Spy Hook (both __namecall AND cached FireServer/InvokeServer via hookfunction!)
+-- Remote Spy Filter & Logger (Main VM + Cross-VM Actor Bridge)
 local IMPORTANT_CATEGORIES = {
     Cannon = true,
     Skills = true,
@@ -286,42 +383,83 @@ local IMPORTANT_CATEGORIES = {
     Waves = true,
     Mission = true,
     Missions = true,
+    Interact = true,
+    Combat = true,
+    Damage = true,
+    Prompt = true,
+    Seat = true,
+    Mount = true,
+    Turret = true,
+    Titans = true,
+    Colossal = true,
+    Boss = true,
+    Projectile = true,
+}
+
+local IGNORED_CATEGORIES = {
+    Replication = true,
+    Movement = true,
+    Move = true,
+    Position = true,
+    Ping = true,
+    Heartbeat = true,
+    StateSync = true,
+    Camera = true,
 }
 
 local function shouldLogRemote(remoteName, args)
     local a1 = type(args[1]) == "string" and args[1] or ""
+    if IGNORED_CATEGORIES[a1] then
+        return false
+    end
     if IMPORTANT_CATEGORIES[a1] then
         return true
     end
     local rn = string.lower(tostring(remoteName or ""))
     if rn:find("cannon", 1, true) or rn:find("skill", 1, true) or rn:find("attack", 1, true)
         or rn:find("hitbox", 1, true) or rn:find("spear", 1, true) or rn:find("raid", 1, true)
+        or rn == "post" or rn == "get" or rn:find("remote", 1, true)
     then
         return true
     end
     return false
 end
 
-local lastSig, lastSigAt = "", 0
+local sigWindowStart, sigCounts = os.clock(), {}
+local function allowThrottle(key, isImportant)
+    local now = os.clock()
+    if now - sigWindowStart > 2.0 then
+        sigWindowStart = now
+        sigCounts = {}
+    end
+    local c = (sigCounts[key] or 0) + 1
+    sigCounts[key] = c
+    local limit = isImportant and 18 or 4
+    return c <= limit
+end
+
 local function logOutgoingRemote(sourceTag, remoteInst, method, args)
     if typeof(remoteInst) ~= "Instance" then return end
     local okCheck, isImp = pcall(shouldLogRemote, remoteInst.Name, args)
     if not okCheck or not isImp then return end
+
+    local a1 = tostring(args[1] or "")
+    local a2 = tostring(args[2] or "")
+    local catImp = IMPORTANT_CATEGORIES[a1] == true
+    local key = remoteInst.Name .. ":" .. method .. ":" .. a1 .. ":" .. a2
+    if not allowThrottle(key, catImp) then
+        return
+    end
 
     local formattedArgs = {}
     for i = 1, #args do
         formattedArgs[#formattedArgs + 1] = fmtVal(args[i], 0)
     end
     local msg = string.format("REMOTE[%s] %s:%s(%s)", sourceTag, remoteInst.Name, method, table.concat(formattedArgs, ", "))
-    local now = os.clock()
-    if msg == lastSig and (now - lastSigAt) < 0.005 then
-        return
-    end
-    lastSig, lastSigAt = msg, now
     remoteCount = remoteCount + 1
     addLog(msg)
 
-    if args[1] == "Cannon" then
+    if args[1] == "Cannon" or args[1] == "S_Skills" then
         pcall(function()
             local napePos = findNapePos()
             local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
@@ -391,18 +529,236 @@ if type(hookmetamethod) == "function" and type(getnamecallmethod) == "function" 
     end
 end
 
--- Also listen to OnClientEvent for Skills/Impact/Cannon if found
+-- Cross-VM Bridge & Actor VM Hooks (captures AoTR scripts running inside Actors!)
+local BRIDGE_NAME = "__AoTRLoggerBridge__"
+local bridge = nil
+pcall(function()
+    local oldBridge = CoreGui:FindFirstChild(BRIDGE_NAME)
+    if oldBridge then oldBridge:Destroy() end
+    bridge = Instance.new("BindableEvent")
+    bridge.Name = BRIDGE_NAME
+    bridge.Parent = CoreGui
+    bridge.Event:Connect(function(kind, text)
+        if kind == "REMOTE" then
+            remoteCount = remoteCount + 1
+        end
+        addLog(text)
+    end)
+end)
+
+local ACTOR_PAYLOAD = [=[
+local BRIDGE_NAME = "__AoTRLoggerBridge__"
+local ACTOR_FALLBACK_FILE = "aotr_raid_actor_log.txt"
+local CoreGuiOk, CoreGuiSvc = pcall(function() return game:GetService("CoreGui") end)
+local bridge = CoreGuiOk and CoreGuiSvc and CoreGuiSvc:FindFirstChild(BRIDGE_NAME) or nil
+
+local function emit(kind, text)
+    if bridge then
+        pcall(function() bridge:Fire(kind, text) end)
+    elseif type(appendfile) == "function" then
+        pcall(appendfile, ACTOR_FALLBACK_FILE, string.format("[%.2fs] %s\n", os.clock(), tostring(text)))
+    end
+end
+
+local IGNORED = {
+    Replication = true, Movement = true, Move = true, Position = true,
+    Ping = true, Heartbeat = true, StateSync = true, Camera = true,
+}
+
+local IMPORTANT = {
+    Cannon = true, Skills = true, S_Skills = true, Attacks = true, Hitboxes = true,
+    Spears = true, Blades = true, Raid = true, Interact = true, Combat = true,
+    Damage = true, Prompt = true, Seat = true, Mount = true, Turret = true,
+    Titans = true, Colossal = true, Boss = true, Projectile = true,
+}
+
+local function fmtVal(v, depth)
+    depth = depth or 0
+    local tv = typeof(v)
+    if tv == "Vector3" then
+        return string.format("Vec3(%.2f, %.2f, %.2f)", v.X, v.Y, v.Z)
+    elseif tv == "CFrame" then
+        local p = v.Position
+        local lv = v.LookVector
+        return string.format("CF(pos=%.2f,%.2f,%.2f | look=%.3f,%.3f,%.3f)", p.X, p.Y, p.Z, lv.X, lv.Y, lv.Z)
+    elseif tv == "Instance" then
+        local ok, full = pcall(function() return v:GetFullName() end)
+        return string.format("<%s:%s>", v.ClassName, ok and full or v.Name)
+    elseif tv == "table" then
+        if depth >= 2 then return "{...}" end
+        local parts, n = {}, 0
+        for k, val in pairs(v) do
+            n = n + 1
+            if n > 16 then parts[#parts + 1] = "..." break end
+            parts[#parts + 1] = tostring(k) .. "=" .. fmtVal(val, depth + 1)
+        end
+        return "{" .. table.concat(parts, ", ") .. "}"
+    elseif tv == "string" then
+        return string.format("%q", v)
+    end
+    return tostring(v)
+end
+
+local winT, winC = os.clock(), {}
+local function handleCall(tag, self, method, args)
+    if typeof(self) ~= "Instance" then return end
+    local a1 = type(args[1]) == "string" and args[1] or ""
+    if IGNORED[a1] then return end
+
+    local rname = self.Name
+    local rn = string.lower(tostring(rname))
+    local isImp = IMPORTANT[a1] == true
+        or rn:find("cannon", 1, true) ~= nil
+        or rn:find("skill", 1, true) ~= nil
+        or rn:find("attack", 1, true) ~= nil
+        or rn:find("combat", 1, true) ~= nil
+    if not isImp and rn ~= "post" and rn ~= "get" and not rn:find("remote", 1, true) then
+        return
+    end
+
+    local now = os.clock()
+    if now - winT > 2.0 then
+        winT, winC = now, {}
+    end
+    local key = rname .. ":" .. method .. ":" .. a1 .. ":" .. tostring(args[2] or "")
+    winC[key] = (winC[key] or 0) + 1
+    if winC[key] > (IMPORTANT[a1] and 24 or 5) then
+        return
+    end
+
+    local parts = {}
+    for i = 1, #args do
+        parts[#parts + 1] = fmtVal(args[i], 0)
+    end
+    emit("REMOTE", string.format("REMOTE[ACTOR-%s] %s:%s(%s)", tag, rname, method, table.concat(parts, ", ")))
+end
+
+local wrapC = type(newcclosure) == "function" and newcclosure or function(f) return f end
+local function fromCaller()
+    return type(checkcaller) == "function" and checkcaller()
+end
+
+local okFn, okNC = false, false
+if type(hookfunction) == "function" then
+    pcall(function()
+        local tmpRE = Instance.new("RemoteEvent")
+        local oldFire
+        oldFire = hookfunction(tmpRE.FireServer, wrapC(function(self, ...)
+            if not fromCaller() then
+                pcall(handleCall, "FN", self, "FireServer", { ... })
+            end
+            return oldFire(self, ...)
+        end))
+        tmpRE:Destroy()
+        okFn = true
+    end)
+    pcall(function()
+        local tmpRF = Instance.new("RemoteFunction")
+        local oldInvoke
+        oldInvoke = hookfunction(tmpRF.InvokeServer, wrapC(function(self, ...)
+            if not fromCaller() then
+                pcall(handleCall, "FN", self, "InvokeServer", { ... })
+            end
+            return oldInvoke(self, ...)
+        end))
+        tmpRF:Destroy()
+        okFn = true
+    end)
+end
+
+if type(hookmetamethod) == "function" and type(getnamecallmethod) == "function" then
+    pcall(function()
+        local oldNC
+        oldNC = hookmetamethod(game, "__namecall", wrapC(function(self, ...)
+            local m = getnamecallmethod()
+            if (m == "FireServer" or m == "InvokeServer") and not fromCaller() then
+                pcall(handleCall, "NC", self, m, { ... })
+            end
+            return oldNC(self, ...)
+        end))
+        okNC = true
+    end)
+end
+
+emit("INFO", string.format("[ACTOR_HOOK_READY] hookFn=%s | hookNC=%s | bridge=%s", tostring(okFn), tostring(okNC), tostring(bridge ~= nil)))
+]=]
+
+local hookedActors = {}
+local actorsHookedCount = 0
+local function tryHookActor(actor)
+    if not actor or hookedActors[actor] then return false end
+    hookedActors[actor] = true
+    if not runOnActorFn then return false end
+    local okRun, errRun = pcall(runOnActorFn, actor, ACTOR_PAYLOAD)
+    local okName, aName = pcall(function() return actor:GetFullName() end)
+    if okRun then
+        actorsHookedCount = actorsHookedCount + 1
+        addLog("Hooked Actor -> " .. (okName and aName or tostring(actor)))
+    else
+        addLog("Actor Hook ERR (" .. (okName and aName or "?") .. "): " .. tostring(errRun))
+    end
+    return okRun
+end
+
+local function scanAndHookActors()
+    if not getActorsFn then return 0 end
+    local okA, list = pcall(getActorsFn)
+    if not okA or type(list) ~= "table" then return 0 end
+    for _, act in ipairs(list) do
+        tryHookActor(act)
+    end
+    return #list
+end
+
+local initialActorsCount = scanAndHookActors()
+pcall(function()
+    game.DescendantAdded:Connect(function(d)
+        if d:IsA("Actor") then
+            task.defer(function() tryHookActor(d) end)
+        end
+    end)
+end)
+
+-- Watch Workspace.Cannon spawn & Player Seated state
+pcall(function()
+    workspace.ChildAdded:Connect(function(child)
+        if child.Name == "Cannon" then
+            task.defer(function()
+                local bw = child:FindFirstChild("BarrelWood", true)
+                addLog("EVENT[WS_CANNON_ADDED] " .. child:GetFullName()
+                    .. " | Attrs=" .. fmtAttrs(child)
+                    .. " | BW=" .. (bw and bw:IsA("BasePart") and fmtVec(bw.CFrame) or "nil"))
+            end)
+        end
+    end)
+end)
+
+local function bindSeatedWatch(char)
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid") or char:WaitForChild("Humanoid", 5)
+    if hum then
+        hum.Seated:Connect(function(active, seatPart)
+            addLog("EVENT[SEATED] active=" .. tostring(active) .. " | seat=" .. (seatPart and seatPart:GetFullName() or "nil"))
+        end)
+    end
+end
+if lp then
+    if lp.Character then task.spawn(bindSeatedWatch, lp.Character) end
+    lp.CharacterAdded:Connect(function(c) task.spawn(bindSeatedWatch, c) end)
+end
+
+-- Also listen to OnClientEvent for Skills/Impact/Cannon/Raid if found
 pcall(function()
     for _, d in ipairs(ReplicatedStorage:GetDescendants()) do
         if d:IsA("RemoteEvent") then
             local dn = string.lower(d.Name)
             if dn:find("event") or dn:find("post") or dn:find("remote") or dn:find("cannon") or dn:find("skill") then
                 d.OnClientEvent:Connect(function(a1, a2, ...)
-                    if a1 == "Skills" or a1 == "Cannon" or a1 == "Raid" or a1 == "Phase" then
+                    if a1 == "Skills" or a1 == "Cannon" or a1 == "Raid" or a1 == "Phase" or a1 == "Boss" then
                         remoteCount = remoteCount + 1
                         local extra = { a1, a2, ... }
                         local parts = {}
-                        for i = 1, math.min(#extra, 6) do
+                        for i = 1, math.min(#extra, 10) do
                             parts[#parts + 1] = fmtVal(extra[i], 0)
                         end
                         addLog("CLIENT_EVT[" .. d.Name .. "](" .. table.concat(parts, ", ") .. ")")
@@ -414,11 +770,11 @@ pcall(function()
 end)
 
 -- Minimal UI overlay (top-center, always visible + F9 print + Roblox notification)
-print("[AoTR Logger] Dang khoi dong... Neu khong thay bang UI, bam F9 de xem.")
+print("[AoTR Logger] Dang khoi dong (Co Actor Hook)... Neu khong thay bang UI, bam F9 de xem.")
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "AoTR Raid Logger",
-        Text = "Da bat thanh cong! Choi 1 tran Colo roi bam Copy Log.",
+        Title = "AoTR Raid Logger (+Actor)",
+        Text = "Ngoi phao ban tay 1-2 phat roi bam Copy Log!",
         Duration = 5,
     })
 end)
@@ -469,7 +825,7 @@ local function mountLoggerGui()
             lbl.TextSize = 13
             lbl.Font = Enum.Font.GothamBold
             lbl.TextXAlignment = Enum.TextXAlignment.Left
-            lbl.Text = "AoTR Logger | DANG CHAY (keo duoc)"
+            lbl.Text = "AoTR Logger (+Actor) | DANG CHAY"
             lbl.Parent = frame
 
             local snapBtn = Instance.new("TextButton")
@@ -536,17 +892,28 @@ local function mountLoggerGui()
 end
 mountLoggerGui()
 
-addLog("Logger started | hookmetamethod=" .. tostring(hookInstalled) .. " | hookfunction=" .. tostring(hookFnInstalled) .. " | writefile=" .. tostring(type(writefile) == "function"))
+addLog(string.format(
+    "Logger started | hookmetamethod=%s | hookfunction=%s | getactors=%s(%d) | run_on_actor=%s(%d) | writefile=%s",
+    tostring(hookInstalled),
+    tostring(hookFnInstalled),
+    tostring(getActorsFn ~= nil),
+    initialActorsCount,
+    tostring(runOnActorFn ~= nil),
+    actorsHookedCount,
+    tostring(type(writefile) == "function")
+))
 
--- Auto-snapshots: at start, and whenever Colossal HP crosses Phase milestones or every 15s
+-- Auto-snapshots + periodic Actor rescan
 task.spawn(function()
     task.wait(1.5)
+    scanAndHookActors()
     takeSnapshot("Initial")
     local lastColPhase = nil
     local lastHpBucket = nil
     local lastAutoSnap = os.clock()
     while #logs < MAX_LINES do
         task.wait(2)
+        scanAndHookActors()
         local _, colModel = findNapePos()
         local curPhase = colModel and colModel:GetAttribute("Phase")
         local hum = colModel and colModel:FindFirstChildOfClass("Humanoid")
