@@ -140,7 +140,13 @@ local function collectAllCannons()
     for _, root in ipairs({ cl, workspace:FindFirstChild("Cannons"), workspace:FindFirstChild("Map") }) do
         if root then
             for _, d in ipairs(root:GetDescendants()) do
-                if d:IsA("Model") and (d.Name == "Cannon" or (d:FindFirstChild("Barrel") and d:FindFirstChild("Base"))) then
+                if d.Name == "Cannons" and not d:IsA("BasePart") then
+                    for _, ch in ipairs(d:GetChildren()) do
+                        if ch:IsA("Model") then
+                            push(ch)
+                        end
+                    end
+                elseif d:IsA("Model") and (d.Name == "Cannon" or (d:FindFirstChild("Barrel") and d:FindFirstChild("Base"))) then
                     push(d)
                 end
             end
@@ -267,42 +273,47 @@ local function takeSnapshot(reason)
         addLog("Climbable children: " .. table.concat(clNames, ", "))
         local walls = cl:FindFirstChild("Walls")
         if walls then
-            local wallFolders = {}
-            for _, w in ipairs(walls:GetChildren()) do
+            local wallKids = walls:GetChildren()
+            local nonEmpty = {}
+            for idx, w in ipairs(wallKids) do
                 local cFolder = w:FindFirstChild("Cannons", true)
                 local cCnt = cFolder and #cFolder:GetChildren() or 0
-                wallFolders[#wallFolders + 1] = string.format("%s(Cannons=%d)", w.Name, cCnt)
+                if cCnt > 0 then
+                    nonEmpty[#nonEmpty + 1] = string.format("#%d:%s(Cannons=%d)", idx, w.Name, cCnt)
+                end
             end
-            addLog("Climbable.Walls children: " .. table.concat(wallFolders, ", "))
+            addLog(string.format("Climbable.Walls total=%d | WithCannons=%s", #wallKids, #nonEmpty > 0 and table.concat(nonEmpty, ", ") or "none"))
         end
     end
 
     local cannonList = collectAllCannons()
     addLog("Cannons found: " .. tostring(#cannonList))
-    for i = 1, math.min(30, #cannonList) do
+    for i = 1, math.min(50, #cannonList) do
         local cn = cannonList[i]
         local barrel = cn:FindFirstChild("Barrel")
         local bw = (barrel and barrel:FindFirstChild("BarrelWood")) or cn:FindFirstChild("BarrelWood", true)
         local base = cn:FindFirstChild("Base")
         local prompt = cn:FindFirstChildWhichIsA("ProximityPrompt", true)
         local seat = cn:FindFirstChildWhichIsA("Seat", true) or cn:FindFirstChildWhichIsA("VehicleSeat", true)
-        local distTxt = "noNape"
-        if napePos then
-            local refPart = (base and base:IsA("BasePart") and base) or (bw and bw:IsA("BasePart") and bw)
-            if refPart then
-                distTxt = string.format("%.1f", (napePos - refPart.Position).Magnitude)
-            end
-        end
+        local okPiv, pivCF = pcall(function() return cn:GetPivot() end)
+        local refPos = (base and base:IsA("BasePart") and base.Position)
+            or (bw and bw:IsA("BasePart") and bw.Position)
+            or (okPiv and pivCF and pivCF.Position)
+            or nil
+        local distTxt = (napePos and refPos) and string.format("%.1f", (napePos - refPos).Magnitude) or "noNape"
         local tagsTxt = ""
         pcall(function()
             local tags = CollectionService:GetTags(cn)
             if #tags > 0 then tagsTxt = " | Tags=" .. table.concat(tags, ",") end
         end)
         addLog(string.format(
-            "  Cannon[%d]=%s | DistNape=%s | Prompt=%s | Seat=%s | Attrs=%s%s",
+            "  Cannon[%d]=%s | Pos=%s | DistNape=%s | HasBarrel=%s | HasBase=%s | Prompt=%s | Seat=%s | Attrs=%s%s",
             i,
             cn:GetFullName(),
+            refPos and fmtVec(refPos) or "nil",
             distTxt,
+            tostring(barrel ~= nil),
+            tostring(base ~= nil),
             prompt and (prompt.Name .. "(en=" .. tostring(prompt.Enabled) .. ")") or "nil",
             seat and seat.Name or "nil",
             fmtAttrs(cn),
@@ -587,6 +598,154 @@ pcall(function()
     end
 end)
 
+-- Full Wall Cannon Sweep (handles StreamingEnabled=true by visiting sampled wall segments)
+local isFullScanning = false
+local function scanAllWallCannons(btnRef)
+    if isFullScanning then return end
+    isFullScanning = true
+    task.spawn(function()
+        local okScan, errScan = xpcall(function()
+            local chars = workspace:FindFirstChild("Characters")
+            local ch = (chars and lp and chars:FindFirstChild(lp.Name)) or (lp and lp.Character)
+            local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+            local hum = ch and ch:FindFirstChildOfClass("Humanoid")
+            local cl = workspace:FindFirstChild("Climbable")
+            local walls = cl and cl:FindFirstChild("Walls")
+
+            local discovered = {}
+            local order = {}
+            local function recordVisible()
+                local napePos = findNapePos()
+                for _, cn in ipairs(collectAllCannons()) do
+                    local okF, full = pcall(function() return cn:GetFullName() end)
+                    local key = okF and full or tostring(cn)
+                    local barrel = cn:FindFirstChild("Barrel")
+                    local base = cn:FindFirstChild("Base")
+                    local bw = (barrel and barrel:FindFirstChild("BarrelWood")) or cn:FindFirstChild("BarrelWood", true)
+                    local okP, piv = pcall(function() return cn:GetPivot() end)
+                    local pos = (base and base:IsA("BasePart") and base.Position)
+                        or (bw and bw:IsA("BasePart") and bw.Position)
+                        or (okP and piv and piv.Position)
+                        or nil
+                    local prev = discovered[key]
+                    if not prev then
+                        order[#order + 1] = key
+                        discovered[key] = {
+                            pos = pos,
+                            hasBarrel = barrel ~= nil,
+                            hasBase = base ~= nil,
+                            distNape = (napePos and pos) and (napePos - pos).Magnitude or nil,
+                        }
+                    else
+                        if not prev.pos and pos then prev.pos = pos end
+                        if barrel ~= nil then prev.hasBarrel = true end
+                        if base ~= nil then prev.hasBase = true end
+                        if not prev.distNape and napePos and pos then prev.distNape = (napePos - pos).Magnitude end
+                    end
+                end
+            end
+
+            recordVisible()
+            local waypoints = {}
+            if walls then
+                for _, w in ipairs(walls:GetChildren()) do
+                    local okP, cf = pcall(function() return w:GetPivot() end)
+                    local pos = okP and cf and cf.Position or nil
+                    if not pos then
+                        local bp = w:FindFirstChildWhichIsA("BasePart", true)
+                        if bp then pos = bp.Position end
+                    end
+                    if pos then
+                        local tooClose = false
+                        for _, wp in ipairs(waypoints) do
+                            if (wp - pos).Magnitude < 180 then
+                                tooClose = true
+                                break
+                            end
+                        end
+                        if not tooClose then
+                            waypoints[#waypoints + 1] = pos
+                        end
+                    end
+                end
+            end
+
+            addLog(string.format("========== FULL CANNON SWEEP (Waypoints=%d) ==========", #waypoints))
+            local savedCF = hrp and hrp.CFrame or nil
+            local wasPS = hum and hum.PlatformStand or false
+            if hum then hum.PlatformStand = true end
+
+            for idx, wp in ipairs(waypoints) do
+                if btnRef and btnRef.Parent then
+                    btnRef.Text = string.format("Quet %d/%d", idx, #waypoints)
+                end
+                pcall(function()
+                    if lp and type(lp.RequestStreamAroundAsync) == "function" then
+                        lp:RequestStreamAroundAsync(wp + Vector3.new(0, 20, 0))
+                    end
+                end)
+                if hrp and hrp.Parent then
+                    hrp.CFrame = CFrame.new(wp + Vector3.new(0, 30, 0))
+                    pcall(function()
+                        hrp.AssemblyLinearVelocity = Vector3.zero
+                        hrp.AssemblyAngularVelocity = Vector3.zero
+                    end)
+                end
+                task.wait(0.22)
+                recordVisible()
+            end
+
+            if hrp and hrp.Parent and savedCF then
+                hrp.CFrame = savedCF
+                pcall(function()
+                    hrp.AssemblyLinearVelocity = Vector3.zero
+                    hrp.AssemblyAngularVelocity = Vector3.zero
+                end)
+            end
+            if hum then hum.PlatformStand = wasPS end
+
+            if walls then
+                local nonEmpty = {}
+                for idx, w in ipairs(walls:GetChildren()) do
+                    local cFolder = w:FindFirstChild("Cannons", true)
+                    local cCnt = cFolder and #cFolder:GetChildren() or 0
+                    if cCnt > 0 then
+                        nonEmpty[#nonEmpty + 1] = string.format("#%d:%s(Cannons=%d)", idx, w.Name, cCnt)
+                    end
+                end
+                addLog("  [SWEEP_WALLS_WITH_CANNONS] " .. (#nonEmpty > 0 and table.concat(nonEmpty, ", ") or "none"))
+            end
+
+            addLog("  [SWEEP_TOTAL_CANNONS] " .. tostring(#order))
+            for i, key in ipairs(order) do
+                local info = discovered[key]
+                addLog(string.format(
+                    "  FullCannon[%d]=%s | Pos=%s | DistNape=%s | HasBarrel=%s | HasBase=%s",
+                    i,
+                    key,
+                    info.pos and fmtVec(info.pos) or "nil",
+                    info.distNape and string.format("%.1f", info.distNape) or "nil",
+                    tostring(info.hasBarrel),
+                    tostring(info.hasBase)
+                ))
+            end
+            flushLog(true)
+
+            if btnRef and btnRef.Parent then
+                btnRef.Text = "Xong: " .. tostring(#order)
+                task.delay(2.5, function()
+                    if btnRef and btnRef.Parent then btnRef.Text = "Quet Full Phao" end
+                end)
+            end
+        end, debug.traceback)
+        if not okScan then
+            addLog("[FULL_SWEEP_ERR] " .. tostring(errScan))
+            if btnRef and btnRef.Parent then btnRef.Text = "Quet Loi!" end
+        end
+        isFullScanning = false
+    end)
+end
+
 -- Minimal UI overlay (top-center, always visible + F9 print + Roblox notification)
 print("[AoTR Logger] Dang khoi dong (Delta iOS Safe)... Neu khong thay bang UI, bam F9 de xem.")
 pcall(function()
@@ -621,8 +780,8 @@ local function mountLoggerGui()
             sg.DisplayOrder = 999999
 
             local frame = Instance.new("Frame")
-            frame.Size = UDim2.fromOffset(330, 68)
-            frame.Position = UDim2.new(0.5, -165, 0, 10)
+            frame.Size = UDim2.fromOffset(410, 68)
+            frame.Position = UDim2.new(0.5, -205, 0, 10)
             frame.BackgroundColor3 = Color3.fromRGB(22, 24, 32)
             frame.BorderSizePixel = 0
             frame.Active = true
@@ -647,11 +806,11 @@ local function mountLoggerGui()
             lbl.Parent = frame
 
             local snapBtn = Instance.new("TextButton")
-            snapBtn.Size = UDim2.fromOffset(105, 26)
+            snapBtn.Size = UDim2.fromOffset(96, 26)
             snapBtn.Position = UDim2.fromOffset(6, 34)
             snapBtn.BackgroundColor3 = Color3.fromRGB(52, 118, 224)
             snapBtn.TextColor3 = Color3.new(1, 1, 1)
-            snapBtn.TextSize = 12
+            snapBtn.TextSize = 11
             snapBtn.Font = Enum.Font.GothamSemibold
             snapBtn.Text = "Chup Snapshot"
             snapBtn.Parent = frame
@@ -660,12 +819,26 @@ local function mountLoggerGui()
                 takeSnapshot("Manual")
             end)
 
+            local sweepBtn = Instance.new("TextButton")
+            sweepBtn.Size = UDim2.fromOffset(104, 26)
+            sweepBtn.Position = UDim2.fromOffset(107, 34)
+            sweepBtn.BackgroundColor3 = Color3.fromRGB(215, 130, 35)
+            sweepBtn.TextColor3 = Color3.new(1, 1, 1)
+            sweepBtn.TextSize = 11
+            sweepBtn.Font = Enum.Font.GothamSemibold
+            sweepBtn.Text = "Quet Full Phao"
+            sweepBtn.Parent = frame
+            Instance.new("UICorner", sweepBtn).CornerRadius = UDim.new(0, 6)
+            sweepBtn.MouseButton1Click:Connect(function()
+                scanAllWallCannons(sweepBtn)
+            end)
+
             local copyBtn = Instance.new("TextButton")
-            copyBtn.Size = UDim2.fromOffset(105, 26)
-            copyBtn.Position = UDim2.fromOffset(116, 34)
+            copyBtn.Size = UDim2.fromOffset(92, 26)
+            copyBtn.Position = UDim2.fromOffset(216, 34)
             copyBtn.BackgroundColor3 = Color3.fromRGB(46, 160, 92)
             copyBtn.TextColor3 = Color3.new(1, 1, 1)
-            copyBtn.TextSize = 12
+            copyBtn.TextSize = 11
             copyBtn.Font = Enum.Font.GothamSemibold
             copyBtn.Text = "Copy Log"
             copyBtn.Parent = frame
@@ -685,11 +858,11 @@ local function mountLoggerGui()
             end)
 
             local closeBtn = Instance.new("TextButton")
-            closeBtn.Size = UDim2.fromOffset(96, 26)
-            closeBtn.Position = UDim2.fromOffset(226, 34)
+            closeBtn.Size = UDim2.fromOffset(91, 26)
+            closeBtn.Position = UDim2.fromOffset(313, 34)
             closeBtn.BackgroundColor3 = Color3.fromRGB(175, 55, 55)
             closeBtn.TextColor3 = Color3.new(1, 1, 1)
-            closeBtn.TextSize = 12
+            closeBtn.TextSize = 11
             closeBtn.Font = Enum.Font.GothamSemibold
             closeBtn.Text = "Luu & Dong"
             closeBtn.Parent = frame
