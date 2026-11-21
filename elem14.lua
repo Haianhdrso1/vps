@@ -131,24 +131,36 @@ local function collectAllCannons()
     local list = {}
     local function push(cn)
         if cn and cn:IsA("Model") and not seen[cn] then
+            -- Bo qua model dan bay Workspace.Cannon (co Attr Skill=="Cannon" va khong co Base/Barrel)
+            if cn.Parent == workspace and cn.Name == "Cannon" and not cn:FindFirstChild("Base") and not cn:FindFirstChild("Barrel") then
+                return
+            end
             seen[cn] = true
             list[#list + 1] = cn
         end
     end
 
-    local cl = workspace:FindFirstChild("Climbable")
-    for _, root in ipairs({ cl, workspace:FindFirstChild("Cannons"), workspace:FindFirstChild("Map") }) do
-        if root then
-            for _, d in ipairs(root:GetDescendants()) do
-                if d.Name == "Cannons" and not d:IsA("BasePart") then
-                    for _, ch in ipairs(d:GetChildren()) do
-                        if ch:IsA("Model") then
-                            push(ch)
-                        end
+    for _, d in ipairs(workspace:GetDescendants()) do
+        if d.Name == "Cannons" and not d:IsA("BasePart") then
+            for _, ch in ipairs(d:GetChildren()) do
+                if ch:IsA("Model") then
+                    push(ch)
+                elseif ch:IsA("ObjectValue") and ch.Value then
+                    local val = ch.Value
+                    if val:IsA("Model") then
+                        push(val)
+                    elseif val:IsA("BasePart") and val.Parent and val.Parent:IsA("Model") then
+                        push(val.Parent)
                     end
-                elseif d:IsA("Model") and (d.Name == "Cannon" or (d:FindFirstChild("Barrel") and d:FindFirstChild("Base"))) then
-                    push(d)
                 end
+            end
+        elseif d:IsA("Model") then
+            local okTag, hasTag = pcall(function() return d:HasTag("Cannon") end)
+            if (okTag and hasTag)
+                or (d:FindFirstChild("Barrel") and d:FindFirstChild("Base"))
+                or (d:FindFirstChild("BarrelWood", true) and d:FindFirstChild("Base"))
+            then
+                push(d)
             end
         end
     end
@@ -169,7 +181,10 @@ end
 local function takeSnapshot(reason)
     addLog("========== SNAPSHOT (" .. tostring(reason) .. ") ==========")
     local okSnap, snapErr = xpcall(function()
-    addLog("PlaceId=" .. tostring(game.PlaceId) .. " | StreamingEnabled=" .. tostring(workspace.StreamingEnabled))
+    local plrs = Players:GetPlayers()
+    local pNames = {}
+    for _, p in ipairs(plrs) do pNames[#pNames + 1] = p.Name end
+    addLog("PlaceId=" .. tostring(game.PlaceId) .. " | StreamingEnabled=" .. tostring(workspace.StreamingEnabled) .. " | Players(" .. tostring(#plrs) .. "): " .. table.concat(pNames, ","))
 
     -- 1. Character & Attributes
     local chars = workspace:FindFirstChild("Characters")
@@ -289,7 +304,11 @@ local function takeSnapshot(reason)
                                     local gc = sub:GetChildren()[k]
                                     subKids[#subKids + 1] = gc.Name .. "(" .. gc.ClassName .. ")"
                                 end
-                                itemDesc[#itemDesc + 1] = string.format("%s[%s|Attrs=%s|Kids=%s]", sub.Name, sub.ClassName, fmtAttrs(sub), table.concat(subKids, ","))
+                                local valTxt = ""
+                                if sub:IsA("ObjectValue") then
+                                    valTxt = "|Val=" .. (sub.Value and sub.Value:GetFullName() or "nil")
+                                end
+                                itemDesc[#itemDesc + 1] = string.format("%s[%s%s|Attrs=%s|Kids=%s]", sub.Name, sub.ClassName, valTxt, fmtAttrs(sub), table.concat(subKids, ","))
                             end
                             folderDetails[#folderDetails + 1] = string.format("  [CANNON_DIR] %s -> %s", cFolder:GetFullName(), table.concat(itemDesc, " ; "))
                         end
@@ -680,53 +699,88 @@ local function scanAllWallCannons(btnRef)
             end
 
             recordVisible()
-            local waypoints = {}
-            if walls then
-                for _, w in ipairs(walls:GetChildren()) do
+            local visitedPos = {}
+            local function isVisited(pos)
+                for _, vp in ipairs(visitedPos) do
+                    if (vp - pos).Magnitude < 140 then
+                        return true
+                    end
+                end
+                return false
+            end
+
+            local function collectPendingWaypoints()
+                local pending = {}
+                local roots = {}
+                if walls then
+                    for _, w in ipairs(walls:GetChildren()) do roots[#roots + 1] = w end
+                end
+                local uncl = workspace:FindFirstChild("Unclimbable")
+                if uncl then
+                    for _, u in ipairs(uncl:GetChildren()) do
+                        local un = string.lower(u.Name)
+                        if un:find("wall", 1, true) or un:find("cannon", 1, true) then
+                            roots[#roots + 1] = u
+                        end
+                    end
+                end
+                for _, w in ipairs(roots) do
                     local okP, cf = pcall(function() return w:GetPivot() end)
                     local pos = okP and cf and cf.Position or nil
                     if not pos then
                         local bp = w:FindFirstChildWhichIsA("BasePart", true)
                         if bp then pos = bp.Position end
                     end
-                    if pos then
-                        local tooClose = false
-                        for _, wp in ipairs(waypoints) do
-                            if (wp - pos).Magnitude < 180 then
-                                tooClose = true
+                    if pos and not isVisited(pos) then
+                        local tooClosePending = false
+                        for _, pp in ipairs(pending) do
+                            if (pp - pos).Magnitude < 140 then
+                                tooClosePending = true
                                 break
                             end
                         end
-                        if not tooClose then
-                            waypoints[#waypoints + 1] = pos
+                        if not tooClosePending then
+                            pending[#pending + 1] = pos
                         end
                     end
                 end
+                return pending
             end
 
-            addLog(string.format("========== FULL CANNON SWEEP (Waypoints=%d) ==========", #waypoints))
+            addLog("========== FULL CANNON SWEEP (Dynamic Streaming) ==========")
             local savedCF = hrp and hrp.CFrame or nil
             local wasPS = hum and hum.PlatformStand or false
             if hum then hum.PlatformStand = true end
 
-            for idx, wp in ipairs(waypoints) do
-                if btnRef and btnRef.Parent then
-                    btnRef.Text = string.format("Quet %d/%d", idx, #waypoints)
-                end
-                pcall(function()
-                    if lp and type(lp.RequestStreamAroundAsync) == "function" then
-                        lp:RequestStreamAroundAsync(wp + Vector3.new(0, 20, 0))
+            local stepCount = 0
+            local pass = 0
+            while pass < 4 and stepCount < 90 do
+                pass = pass + 1
+                local pending = collectPendingWaypoints()
+                if #pending == 0 then break end
+                addLog(string.format("  Sweep pass %d: %d new wall waypoints (Walls=%d)", pass, #pending, walls and #walls:GetChildren() or 0))
+                for idx, wp in ipairs(pending) do
+                    stepCount = stepCount + 1
+                    visitedPos[#visitedPos + 1] = wp
+                    if btnRef and btnRef.Parent then
+                        btnRef.Text = string.format("Quet P%d %d/%d", pass, idx, #pending)
                     end
-                end)
-                if hrp and hrp.Parent then
-                    hrp.CFrame = CFrame.new(wp + Vector3.new(0, 30, 0))
                     pcall(function()
-                        hrp.AssemblyLinearVelocity = Vector3.zero
-                        hrp.AssemblyAngularVelocity = Vector3.zero
+                        if lp and type(lp.RequestStreamAroundAsync) == "function" then
+                            lp:RequestStreamAroundAsync(wp + Vector3.new(0, 20, 0))
+                        end
                     end)
+                    if hrp and hrp.Parent then
+                        hrp.CFrame = CFrame.new(wp + Vector3.new(0, 30, 0))
+                        pcall(function()
+                            hrp.AssemblyLinearVelocity = Vector3.zero
+                            hrp.AssemblyAngularVelocity = Vector3.zero
+                        end)
+                    end
+                    task.wait(0.26)
+                    recordVisible()
+                    if stepCount >= 90 then break end
                 end
-                task.wait(0.22)
-                recordVisible()
             end
 
             if hrp and hrp.Parent and savedCF then
@@ -741,13 +795,25 @@ local function scanAllWallCannons(btnRef)
             if walls then
                 local nonEmpty = {}
                 for idx, w in ipairs(walls:GetChildren()) do
-                    local cFolder = w:FindFirstChild("Cannons", true)
-                    local cCnt = cFolder and #cFolder:GetChildren() or 0
-                    if cCnt > 0 then
-                        nonEmpty[#nonEmpty + 1] = string.format("#%d:%s(Cannons=%d)", idx, w.Name, cCnt)
+                    for _, cFolder in ipairs(w:GetDescendants()) do
+                        if cFolder.Name == "Cannons" and not cFolder:IsA("BasePart") then
+                            local ch = cFolder:GetChildren()
+                            if #ch > 0 then
+                                nonEmpty[#nonEmpty + 1] = string.format("#%d:%s(Cannons=%d)", idx, w.Name, #ch)
+                                local itemDesc = {}
+                                for _, sub in ipairs(ch) do
+                                    local valTxt = ""
+                                    if sub:IsA("ObjectValue") then
+                                        valTxt = "|Val=" .. (sub.Value and sub.Value:GetFullName() or "nil")
+                                    end
+                                    itemDesc[#itemDesc + 1] = string.format("%s[%s%s|Attrs=%s]", sub.Name, sub.ClassName, valTxt, fmtAttrs(sub))
+                                end
+                                addLog(string.format("  [SWEEP_CANNON_DIR] %s -> %s", cFolder:GetFullName(), table.concat(itemDesc, " ; ")))
+                            end
+                        end
                     end
                 end
-                addLog("  [SWEEP_WALLS_WITH_CANNONS] " .. (#nonEmpty > 0 and table.concat(nonEmpty, ", ") or "none"))
+                addLog("  [SWEEP_WALLS_WITH_CANNONS] totalWalls=" .. tostring(#walls:GetChildren()) .. " | " .. (#nonEmpty > 0 and table.concat(nonEmpty, ", ") or "none"))
             end
 
             addLog("  [SWEEP_TOTAL_CANNONS] " .. tostring(#order))
@@ -810,6 +876,15 @@ local function inspectGameCannonCode(btnRef)
                     or ln:find("bertholdt", 1, true)
                     or ln:find("raid", 1, true)
                     or ln:find("client", 1, true)
+                    or ln:find("spear", 1, true)
+                    or ln:find("blade", 1, true)
+                    or ln:find("titan", 1, true)
+                    or ln:find("shifter", 1, true)
+                    or ln:find("core", 1, true)
+                    or ln:find("utilities", 1, true)
+                    or ln:find("shared", 1, true)
+                    or ln:find("damage", 1, true)
+                    or ln:find("host", 1, true)
             end
 
             local candidates, seen = {}, {}
@@ -842,48 +917,74 @@ local function inspectGameCannonCode(btnRef)
                 end)
             end
 
+            local function getPriority(full)
+                local lf = string.lower(full)
+                if lf:find(".skills.family.", 1, true) or lf:find(".skills.odm.", 1, true) or lf:find(".skills.meshes.", 1, true) then
+                    return 0
+                end
+                if lf:find("core.spear", 1, true) or lf:find("core.hitbox", 1, true) or lf:find("core.attack", 1, true) or lf:find("core.blade", 1, true) then
+                    return 10
+                end
+                if lf:find("titan", 1, true) or lf:find("colossal", 1, true) or lf:find("shifter", 1, true) or lf:find("boss", 1, true) or lf:find("raid", 1, true) then
+                    return 9
+                end
+                if lf:find("modules.core.", 1, true) then return 8 end
+                if lf:find("modules.utilities.", 1, true) then return 7 end
+                if lf:find("actor.client.", 1, true) then return 6 end
+                if lf:find("spear", 1, true) or lf:find("blade", 1, true) or lf:find("hitbox", 1, true) or lf:find("attack", 1, true) then
+                    return 5
+                end
+                return 2
+            end
+
             table.sort(candidates, function(a, b)
-                local la, lb = string.lower(a.full), string.lower(b.full)
-                local pa = (la:find("cannon", 1, true) and 3) or (la:find("skill", 1, true) and 2) or 1
-                local pb = (lb:find("cannon", 1, true) and 3) or (lb:find("skill", 1, true) and 2) or 1
+                local pa, pb = getPriority(a.full), getPriority(b.full)
                 if pa ~= pb then return pa > pb end
                 return a.full < b.full
             end)
 
             addLog("Matching scripts/modules: " .. tostring(#candidates))
-            for i = 1, math.min(40, #candidates) do
-                local c = candidates[i]
-                addLog(string.format("  Script[%d]=%s (%s)", i, c.full, c.scr.ClassName))
+            local listed = 0
+            for _, c in ipairs(candidates) do
+                if getPriority(c.full) > 0 then
+                    listed = listed + 1
+                    addLog(string.format("  Script[%d]=%s (%s)", listed, c.full, c.scr.ClassName))
+                    if listed >= 80 then break end
+                end
             end
 
             if decompFn then
                 local decompCount = 0
+                local dumpedNames = {}
                 for _, c in ipairs(candidates) do
-                    local lf = string.lower(c.full)
-                    if lf:find("cannon", 1, true) or lf:find("skill", 1, true) or lf:find("hitbox", 1, true) or lf:find("combat", 1, true) then
+                    local prio = getPriority(c.full)
+                    local dedupKey = string.lower(c.name) .. "_" .. tostring(prio >= 6)
+                    if prio >= 5 and not dumpedNames[c.name] then
+                        dumpedNames[c.name] = true
                         decompCount = decompCount + 1
                         local okD, src = pcall(decompFn, c.scr)
                         if okD and type(src) == "string" and #src > 0 then
                             addLog(string.format("  [DECOMP_OK] %s (len=%d)", c.full, #src))
-                            if type(writefile) == "function" and decompCount <= 6 then
-                                local safeName = ("aotr_src_" .. c.name):gsub("[^%w_]", "_") .. ".lua"
+                            if type(writefile) == "function" then
+                                local safeName = ("aotr_core_" .. c.name):gsub("[^%w_]", "_") .. ".lua"
                                 pcall(writefile, safeName, src)
                             end
                             local hits = 0
                             for line in src:gmatch("[^\r\n]+") do
                                 local ll = string.lower(line)
-                                if ll:find("s_skills", 1, true) or ll:find("impact", 1, true) or ll:find("cannon", 1, true)
-                                    or ll:find("shoot", 1, true) or ll:find("fireserver", 1, true) or ll:find("invokeserver", 1, true)
+                                if ll:find("s_skills", 1, true) or ll:find("s_explode", 1, true) or ll:find("register", 1, true)
+                                    or ll:find("colossal", 1, true) or ll:find("titan", 1, true) or ll:find("nape", 1, true)
+                                    or ll:find(":send(", 1, true) or ll:find(":invoke(", 1, true) or ll:find("fireserver", 1, true)
                                 then
                                     hits = hits + 1
                                     addLog("    SRC: " .. line:gsub("^%s+", ""):sub(1, 180))
-                                    if hits >= 35 then break end
+                                    if hits >= 20 then break end
                                 end
                             end
                         else
                             addLog(string.format("  [DECOMP_FAIL] %s -> %s", c.full, tostring(src)))
                         end
-                        if decompCount >= 6 then break end
+                        if decompCount >= 22 then break end
                     end
                 end
             end
