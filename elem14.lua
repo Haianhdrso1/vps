@@ -245,10 +245,34 @@ local function takeSnapshot(reason)
         if base and base:IsA("BasePart") then addLog("    Base=" .. fmtVec(base.CFrame)) end
         if seat and seat:IsA("BasePart") then addLog("    Seat=" .. fmtVec(seat.CFrame)) end
     end
+
+    -- 6. Active Workspace.Cannon + one-time Eren locator
+    local activeCn = workspace:FindFirstChild("Cannon")
+    if activeCn then
+        local bw = activeCn:FindFirstChild("BarrelWood", true)
+        local base = activeCn:FindFirstChild("Base")
+        addLog("Active workspace.Cannon=" .. activeCn:GetFullName()
+            .. " | BW=" .. (bw and bw:IsA("BasePart") and fmtVec(bw.CFrame) or "nil")
+            .. " | Base=" .. (base and base:IsA("BasePart") and fmtVec(base.CFrame) or "nil"))
+    end
+    if reason == "Initial" then
+        local erenHits = 0
+        for _, d in ipairs(workspace:GetDescendants()) do
+            if d:IsA("Model") or d:IsA("BasePart") then
+                local ln = string.lower(d.Name)
+                if ln:find("eren", 1, true) then
+                    erenHits = erenHits + 1
+                    local posTxt = d:IsA("BasePart") and fmtVec(d.Position) or (d.PrimaryPart and fmtVec(d.PrimaryPart.Position) or "noPos")
+                    addLog("  [EREN_SCAN] " .. d:GetFullName() .. " [" .. d.ClassName .. "] " .. posTxt .. " Attrs=" .. fmtAttrs(d))
+                    if erenHits >= 10 then break end
+                end
+            end
+        end
+    end
     flushLog(true)
 end
 
--- Remote Spy Hook (only important AoTR remotes, ignoring spam!)
+-- Remote Spy Hook (both __namecall AND cached FireServer/InvokeServer via hookfunction!)
 local IMPORTANT_CATEGORIES = {
     Cannon = true,
     Skills = true,
@@ -278,44 +302,88 @@ local function shouldLogRemote(remoteName, args)
     return false
 end
 
+local lastSig, lastSigAt = "", 0
+local function logOutgoingRemote(sourceTag, remoteInst, method, args)
+    if typeof(remoteInst) ~= "Instance" then return end
+    local okCheck, isImp = pcall(shouldLogRemote, remoteInst.Name, args)
+    if not okCheck or not isImp then return end
+
+    local formattedArgs = {}
+    for i = 1, #args do
+        formattedArgs[#formattedArgs + 1] = fmtVal(args[i], 0)
+    end
+    local msg = string.format("REMOTE[%s] %s:%s(%s)", sourceTag, remoteInst.Name, method, table.concat(formattedArgs, ", "))
+    local now = os.clock()
+    if msg == lastSig and (now - lastSigAt) < 0.005 then
+        return
+    end
+    lastSig, lastSigAt = msg, now
+    remoteCount = remoteCount + 1
+    addLog(msg)
+
+    if args[1] == "Cannon" then
+        pcall(function()
+            local napePos = findNapePos()
+            local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
+            local seat = hum and hum.SeatPart
+            local cn = (seat and seat:FindFirstAncestorOfClass("Model")) or workspace:FindFirstChild("Cannon")
+            if cn then
+                local bw = cn:FindFirstChild("BarrelWood", true)
+                local base = cn:FindFirstChild("Base")
+                addLog("  [CANNON_GEO] Model=" .. cn:GetFullName()
+                    .. " | BW=" .. (bw and bw:IsA("BasePart") and fmtVec(bw.CFrame) or "nil")
+                    .. " | Base=" .. (base and base:IsA("BasePart") and fmtVec(base.CFrame) or "nil")
+                    .. " | Nape=" .. (napePos and fmtVec(napePos) or "nil"))
+            end
+        end)
+    end
+end
+
+local wrapC = type(newcclosure) == "function" and newcclosure or function(f) return f end
+local function isFromCaller()
+    return type(checkcaller) == "function" and checkcaller()
+end
+
 local hookInstalled = false
+local hookFnInstalled = false
+
+if type(hookfunction) == "function" then
+    pcall(function()
+        local tmpRE = Instance.new("RemoteEvent")
+        local oldFire
+        oldFire = hookfunction(tmpRE.FireServer, wrapC(function(self, ...)
+            if not isFromCaller() then
+                pcall(logOutgoingRemote, "FN", self, "FireServer", { ... })
+            end
+            return oldFire(self, ...)
+        end))
+        tmpRE:Destroy()
+        hookFnInstalled = true
+    end)
+    pcall(function()
+        local tmpRF = Instance.new("RemoteFunction")
+        local oldInvoke
+        oldInvoke = hookfunction(tmpRF.InvokeServer, wrapC(function(self, ...)
+            if not isFromCaller() then
+                pcall(logOutgoingRemote, "FN", self, "InvokeServer", { ... })
+            end
+            return oldInvoke(self, ...)
+        end))
+        tmpRF:Destroy()
+        hookFnInstalled = true
+    end)
+end
+
 if type(hookmetamethod) == "function" and type(getnamecallmethod) == "function" then
     local okHook = pcall(function()
         local oldNamecall
-        oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+        oldNamecall = hookmetamethod(game, "__namecall", wrapC(function(self, ...)
             local method = getnamecallmethod()
-            if (method == "FireServer" or method == "InvokeServer") and not checkcaller() then
-                local args = { ... }
-                local okCheck, isImp = pcall(shouldLogRemote, self.Name, args)
-                if okCheck and isImp then
-                    remoteCount = remoteCount + 1
-                    local formattedArgs = {}
-                    for i = 1, #args do
-                        formattedArgs[#formattedArgs + 1] = fmtVal(args[i], 0)
-                    end
-                    addLog(string.format("REMOTE %s:%s(%s)", self.Name, method, table.concat(formattedArgs, ", ")))
-
-                    -- Extra geometry capture when user fires or aims a Cannon!
-                    if args[1] == "Cannon" then
-                        pcall(function()
-                            local napePos = findNapePos()
-                            local hum = lp.Character and lp.Character:FindFirstChildOfClass("Humanoid")
-                            local seat = hum and hum.SeatPart
-                            local cn = seat and seat:FindFirstAncestorOfClass("Model")
-                            if cn then
-                                local bw = cn:FindFirstChild("BarrelWood", true)
-                                local base = cn:FindFirstChild("Base")
-                                addLog("  [CANNON_GEO] Model=" .. cn:GetFullName()
-                                    .. " | BW=" .. (bw and fmtVec(bw.CFrame) or "nil")
-                                    .. " | Base=" .. (base and base:IsA("BasePart") and fmtVec(base.CFrame) or "nil")
-                                    .. " | Nape=" .. (napePos and fmtVec(napePos) or "nil"))
-                            end
-                        end)
-                    end
-                end
+            if (method == "FireServer" or method == "InvokeServer") and not isFromCaller() then
+                pcall(logOutgoingRemote, "NC", self, method, { ... })
             end
             return oldNamecall(self, ...)
-        end)
+        end))
         hookInstalled = true
     end)
     if not okHook then
@@ -468,7 +536,7 @@ local function mountLoggerGui()
 end
 mountLoggerGui()
 
-addLog("Logger started | hookmetamethod=" .. tostring(hookInstalled) .. " | writefile=" .. tostring(type(writefile) == "function"))
+addLog("Logger started | hookmetamethod=" .. tostring(hookInstalled) .. " | hookfunction=" .. tostring(hookFnInstalled) .. " | writefile=" .. tostring(type(writefile) == "function"))
 
 -- Auto-snapshots: at start, and whenever Colossal HP crosses Phase milestones or every 15s
 task.spawn(function()
