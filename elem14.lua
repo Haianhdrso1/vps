@@ -12,7 +12,7 @@ local CollectionService = game:GetService("CollectionService")
 local lp = Players.LocalPlayer
 local LOG_FILE = "aotr_raid_log.txt"
 local ACTOR_FALLBACK_FILE = "aotr_raid_actor_log.txt"
-local MAX_LINES = 1200
+local MAX_LINES = 2000
 
 local logs = {}
 local remoteCount = 0
@@ -275,14 +275,33 @@ local function takeSnapshot(reason)
         if walls then
             local wallKids = walls:GetChildren()
             local nonEmpty = {}
+            local folderDetails = {}
             for idx, w in ipairs(wallKids) do
-                local cFolder = w:FindFirstChild("Cannons", true)
-                local cCnt = cFolder and #cFolder:GetChildren() or 0
-                if cCnt > 0 then
-                    nonEmpty[#nonEmpty + 1] = string.format("#%d:%s(Cannons=%d)", idx, w.Name, cCnt)
+                for _, cFolder in ipairs(w:GetDescendants()) do
+                    if cFolder.Name == "Cannons" and not cFolder:IsA("BasePart") then
+                        local ch = cFolder:GetChildren()
+                        if #ch > 0 then
+                            nonEmpty[#nonEmpty + 1] = string.format("#%d:%s(Cannons=%d)", idx, w.Name, #ch)
+                            local itemDesc = {}
+                            for _, sub in ipairs(ch) do
+                                local subKids = {}
+                                for k = 1, math.min(6, #sub:GetChildren()) do
+                                    local gc = sub:GetChildren()[k]
+                                    subKids[#subKids + 1] = gc.Name .. "(" .. gc.ClassName .. ")"
+                                end
+                                itemDesc[#itemDesc + 1] = string.format("%s[%s|Attrs=%s|Kids=%s]", sub.Name, sub.ClassName, fmtAttrs(sub), table.concat(subKids, ","))
+                            end
+                            folderDetails[#folderDetails + 1] = string.format("  [CANNON_DIR] %s -> %s", cFolder:GetFullName(), table.concat(itemDesc, " ; "))
+                        end
+                    end
                 end
             end
             addLog(string.format("Climbable.Walls total=%d | WithCannons=%s", #wallKids, #nonEmpty > 0 and table.concat(nonEmpty, ", ") or "none"))
+            if reason == "Initial" or reason == "Manual" then
+                for _, line in ipairs(folderDetails) do
+                    addLog(line)
+                end
+            end
         end
     end
 
@@ -347,6 +366,21 @@ local function takeSnapshot(reason)
     end
 
     if reason == "Initial" or reason == "Manual" then
+        -- Dump chi tiet Colossal_Titan.Hitboxes
+        local _, colM = findNapePos()
+        if colM then
+            local hb = colM:FindFirstChild("Hitboxes")
+            if hb then
+                local partsOut = {}
+                for _, p in ipairs(hb:GetDescendants()) do
+                    if p:IsA("BasePart") then
+                        partsOut[#partsOut + 1] = string.format("%s(sz=%.1f,%.1f,%.1f|pos=%s|touch=%s)", p:GetFullName():gsub("^.-Hitboxes%.", "Hitboxes."), p.Size.X, p.Size.Y, p.Size.Z, fmtVec(p.Position), tostring(p.CanTouch))
+                    end
+                end
+                addLog("Colossal Hitboxes (" .. tostring(#partsOut) .. "): " .. table.concat(partsOut, " ; "))
+            end
+        end
+
         if getActorsFn then
             local okA, actors = pcall(getActorsFn)
             if okA and type(actors) == "table" then
@@ -746,6 +780,172 @@ local function scanAllWallCannons(btnRef)
     end)
 end
 
+-- Safe Read-Only Cannon / Skills Script & Constant Inspector (Android / iOS safe, no Actor hooks)
+local isInspectingCode = false
+local function inspectGameCannonCode(btnRef)
+    if isInspectingCode then return end
+    isInspectingCode = true
+    if btnRef and btnRef.Parent then btnRef.Text = "Dang soi..." end
+    task.spawn(function()
+        local okCode, errCode = xpcall(function()
+            local decompFn = type(decompile) == "function" and decompile or (syn and type(syn.decompile) == "function" and syn.decompile) or nil
+            local getScriptsFn = type(getscripts) == "function" and getscripts or nil
+            local getGcFn = type(getgc) == "function" and getgc or nil
+            local getConstsFn = type(getconstants) == "function" and getconstants or (debug and type(debug.getconstants) == "function" and debug.getconstants) or nil
+
+            addLog("========== CODE INSPECT (Android/Mobile Safe) ==========")
+            addLog(string.format(
+                "Capabilities | decompile=%s | getscripts=%s | getgc=%s | getconstants=%s",
+                tostring(decompFn ~= nil), tostring(getScriptsFn ~= nil), tostring(getGcFn ~= nil), tostring(getConstsFn ~= nil)
+            ))
+
+            local function isInterestingName(name)
+                local ln = string.lower(tostring(name or ""))
+                return ln:find("cannon", 1, true)
+                    or ln:find("skill", 1, true)
+                    or ln:find("combat", 1, true)
+                    or ln:find("attack", 1, true)
+                    or ln:find("hitbox", 1, true)
+                    or ln:find("colossal", 1, true)
+                    or ln:find("bertholdt", 1, true)
+                    or ln:find("raid", 1, true)
+                    or ln:find("client", 1, true)
+            end
+
+            local candidates, seen = {}, {}
+            local function addCand(scr)
+                if scr and not seen[scr] and (scr:IsA("LocalScript") or scr:IsA("ModuleScript")) then
+                    seen[scr] = true
+                    local okF, fn = pcall(function() return scr:GetFullName() end)
+                    local full = okF and fn or scr.Name
+                    if isInterestingName(scr.Name) or isInterestingName(full) then
+                        candidates[#candidates + 1] = { scr = scr, full = full, name = scr.Name }
+                    end
+                end
+            end
+
+            local chars = workspace:FindFirstChild("Characters")
+            local ch = (chars and lp and chars:FindFirstChild(lp.Name)) or (lp and lp.Character)
+            local ps = lp and lp:FindFirstChild("PlayerScripts")
+            for _, root in ipairs({ ReplicatedStorage, ps, ch }) do
+                if root then
+                    for _, d in ipairs(root:GetDescendants()) do
+                        addCand(d)
+                    end
+                end
+            end
+            if getScriptsFn then
+                pcall(function()
+                    for _, s in ipairs(getScriptsFn()) do
+                        addCand(s)
+                    end
+                end)
+            end
+
+            table.sort(candidates, function(a, b)
+                local la, lb = string.lower(a.full), string.lower(b.full)
+                local pa = (la:find("cannon", 1, true) and 3) or (la:find("skill", 1, true) and 2) or 1
+                local pb = (lb:find("cannon", 1, true) and 3) or (lb:find("skill", 1, true) and 2) or 1
+                if pa ~= pb then return pa > pb end
+                return a.full < b.full
+            end)
+
+            addLog("Matching scripts/modules: " .. tostring(#candidates))
+            for i = 1, math.min(40, #candidates) do
+                local c = candidates[i]
+                addLog(string.format("  Script[%d]=%s (%s)", i, c.full, c.scr.ClassName))
+            end
+
+            if decompFn then
+                local decompCount = 0
+                for _, c in ipairs(candidates) do
+                    local lf = string.lower(c.full)
+                    if lf:find("cannon", 1, true) or lf:find("skill", 1, true) or lf:find("hitbox", 1, true) or lf:find("combat", 1, true) then
+                        decompCount = decompCount + 1
+                        local okD, src = pcall(decompFn, c.scr)
+                        if okD and type(src) == "string" and #src > 0 then
+                            addLog(string.format("  [DECOMP_OK] %s (len=%d)", c.full, #src))
+                            if type(writefile) == "function" and decompCount <= 6 then
+                                local safeName = ("aotr_src_" .. c.name):gsub("[^%w_]", "_") .. ".lua"
+                                pcall(writefile, safeName, src)
+                            end
+                            local hits = 0
+                            for line in src:gmatch("[^\r\n]+") do
+                                local ll = string.lower(line)
+                                if ll:find("s_skills", 1, true) or ll:find("impact", 1, true) or ll:find("cannon", 1, true)
+                                    or ll:find("shoot", 1, true) or ll:find("fireserver", 1, true) or ll:find("invokeserver", 1, true)
+                                then
+                                    hits = hits + 1
+                                    addLog("    SRC: " .. line:gsub("^%s+", ""):sub(1, 180))
+                                    if hits >= 35 then break end
+                                end
+                            end
+                        else
+                            addLog(string.format("  [DECOMP_FAIL] %s -> %s", c.full, tostring(src)))
+                        end
+                        if decompCount >= 6 then break end
+                    end
+                end
+            end
+
+            if getGcFn and getConstsFn then
+                local fnHits = 0
+                pcall(function()
+                    for _, obj in ipairs(getGcFn(false)) do
+                        if type(obj) == "function" then
+                            local okC, consts = pcall(getConstsFn, obj)
+                            if okC and type(consts) == "table" then
+                                local hasKey = false
+                                local strList = {}
+                                for _, cv in pairs(consts) do
+                                    if type(cv) == "string" then
+                                        if cv == "S_Skills" or cv == "Impact" or cv == "Cannon" or cv == "Shoot" or cv == "State" then
+                                            hasKey = true
+                                        end
+                                        if #cv > 0 and #cv <= 50 and #strList < 14 then
+                                            strList[#strList + 1] = string.format("%q", cv)
+                                        end
+                                    elseif type(cv) == "number" and #strList < 14 then
+                                        strList[#strList + 1] = tostring(cv)
+                                    end
+                                end
+                                if hasKey then
+                                    local matchedStrong = false
+                                    for _, cv in pairs(consts) do
+                                        if cv == "S_Skills" or cv == "Shoot" or (cv == "Cannon" and #strList >= 3) then
+                                            matchedStrong = true
+                                            break
+                                        end
+                                    end
+                                    if matchedStrong then
+                                        fnHits = fnHits + 1
+                                        addLog("  [GC_FN#" .. fnHits .. "] consts={" .. table.concat(strList, ", ") .. "}")
+                                        if fnHits >= 20 then break end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end)
+                addLog("GC matching function count: " .. tostring(fnHits))
+            end
+
+            flushLog(true)
+            if btnRef and btnRef.Parent then
+                btnRef.Text = "Soi xong!"
+                task.delay(2.5, function()
+                    if btnRef and btnRef.Parent then btnRef.Text = "Soi Code" end
+                end)
+            end
+        end, debug.traceback)
+        if not okCode then
+            addLog("[CODE_INSPECT_ERR] " .. tostring(errCode))
+            if btnRef and btnRef.Parent then btnRef.Text = "Soi Loi!" end
+        end
+        isInspectingCode = false
+    end)
+end
+
 -- Minimal UI overlay (top-center, always visible + F9 print + Roblox notification)
 print("[AoTR Logger] Dang khoi dong (Delta iOS Safe)... Neu khong thay bang UI, bam F9 de xem.")
 pcall(function()
@@ -780,8 +980,8 @@ local function mountLoggerGui()
             sg.DisplayOrder = 999999
 
             local frame = Instance.new("Frame")
-            frame.Size = UDim2.fromOffset(410, 68)
-            frame.Position = UDim2.new(0.5, -205, 0, 10)
+            frame.Size = UDim2.fromOffset(478, 68)
+            frame.Position = UDim2.new(0.5, -239, 0, 10)
             frame.BackgroundColor3 = Color3.fromRGB(22, 24, 32)
             frame.BorderSizePixel = 0
             frame.Active = true
@@ -806,13 +1006,13 @@ local function mountLoggerGui()
             lbl.Parent = frame
 
             local snapBtn = Instance.new("TextButton")
-            snapBtn.Size = UDim2.fromOffset(96, 26)
+            snapBtn.Size = UDim2.fromOffset(88, 26)
             snapBtn.Position = UDim2.fromOffset(6, 34)
             snapBtn.BackgroundColor3 = Color3.fromRGB(52, 118, 224)
             snapBtn.TextColor3 = Color3.new(1, 1, 1)
             snapBtn.TextSize = 11
             snapBtn.Font = Enum.Font.GothamSemibold
-            snapBtn.Text = "Chup Snapshot"
+            snapBtn.Text = "Snapshot"
             snapBtn.Parent = frame
             Instance.new("UICorner", snapBtn).CornerRadius = UDim.new(0, 6)
             snapBtn.MouseButton1Click:Connect(function()
@@ -820,22 +1020,36 @@ local function mountLoggerGui()
             end)
 
             local sweepBtn = Instance.new("TextButton")
-            sweepBtn.Size = UDim2.fromOffset(104, 26)
-            sweepBtn.Position = UDim2.fromOffset(107, 34)
+            sweepBtn.Size = UDim2.fromOffset(96, 26)
+            sweepBtn.Position = UDim2.fromOffset(99, 34)
             sweepBtn.BackgroundColor3 = Color3.fromRGB(215, 130, 35)
             sweepBtn.TextColor3 = Color3.new(1, 1, 1)
             sweepBtn.TextSize = 11
             sweepBtn.Font = Enum.Font.GothamSemibold
-            sweepBtn.Text = "Quet Full Phao"
+            sweepBtn.Text = "Quet Phao"
             sweepBtn.Parent = frame
             Instance.new("UICorner", sweepBtn).CornerRadius = UDim.new(0, 6)
             sweepBtn.MouseButton1Click:Connect(function()
                 scanAllWallCannons(sweepBtn)
             end)
 
+            local codeBtn = Instance.new("TextButton")
+            codeBtn.Size = UDim2.fromOffset(82, 26)
+            codeBtn.Position = UDim2.fromOffset(200, 34)
+            codeBtn.BackgroundColor3 = Color3.fromRGB(135, 80, 205)
+            codeBtn.TextColor3 = Color3.new(1, 1, 1)
+            codeBtn.TextSize = 11
+            codeBtn.Font = Enum.Font.GothamSemibold
+            codeBtn.Text = "Soi Code"
+            codeBtn.Parent = frame
+            Instance.new("UICorner", codeBtn).CornerRadius = UDim.new(0, 6)
+            codeBtn.MouseButton1Click:Connect(function()
+                inspectGameCannonCode(codeBtn)
+            end)
+
             local copyBtn = Instance.new("TextButton")
-            copyBtn.Size = UDim2.fromOffset(92, 26)
-            copyBtn.Position = UDim2.fromOffset(216, 34)
+            copyBtn.Size = UDim2.fromOffset(90, 26)
+            copyBtn.Position = UDim2.fromOffset(287, 34)
             copyBtn.BackgroundColor3 = Color3.fromRGB(46, 160, 92)
             copyBtn.TextColor3 = Color3.new(1, 1, 1)
             copyBtn.TextSize = 11
@@ -858,8 +1072,8 @@ local function mountLoggerGui()
             end)
 
             local closeBtn = Instance.new("TextButton")
-            closeBtn.Size = UDim2.fromOffset(91, 26)
-            closeBtn.Position = UDim2.fromOffset(313, 34)
+            closeBtn.Size = UDim2.fromOffset(90, 26)
+            closeBtn.Position = UDim2.fromOffset(382, 34)
             closeBtn.BackgroundColor3 = Color3.fromRGB(175, 55, 55)
             closeBtn.TextColor3 = Color3.new(1, 1, 1)
             closeBtn.TextSize = 11
