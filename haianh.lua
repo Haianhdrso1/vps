@@ -19,7 +19,7 @@ local Config = {
     AutoDefendEren = true,
     AutoRefill = true,
     DefendRadius = 420,
-    CannonImpactBurst = 9,
+    CannonImpactBurst = 15,
     HitAllBatch = 8,
 }
 
@@ -33,7 +33,9 @@ local State = {
     AttackBusy = false,
     RefillBusy = false,
     LastRefillAt = 0,
+    LastShotAt = 0,
     Shots = 0,
+    ImpactEvents = 0,
     Impacts = 0,
     StatusText = "Dang khoi tao...",
 }
@@ -271,22 +273,33 @@ local function isTitanAlive(model)
     return getTitanNape(model) ~= nil
 end
 
+local sawStallGui, reachedPhase2 = false, false
 local function isColossalPhase2()
     local col = getColossalModel()
-    if not col then return false end
+    if not col then
+        sawStallGui, reachedPhase2 = false, false
+        return false
+    end
+    if reachedPhase2 then return true end
     if col:GetAttribute("Phase") == 2 or col:GetAttribute("Phase2") == true then
+        reachedPhase2 = true
         return true
     end
     local em = getErenModel()
     if em and em:GetAttribute("Phase") == 2 then
+        reachedPhase2 = true
         return true
     end
-    local _, _, stallCur, stallReq = readGuiObjectives()
-    if stallCur and stallReq and stallReq > 0 and stallCur >= stallReq then
-        return true
-    end
-    local hum = col:FindFirstChildOfClass("Humanoid")
-    if hum and hum.MaxHealth > 0 and (hum.Health / hum.MaxHealth) < 0.85 then
+    local _, stallTxt, stallCur, stallReq = readGuiObjectives()
+    if stallTxt then
+        sawStallGui = true
+        if stallCur and stallReq and stallReq > 0 and stallCur >= stallReq then
+            reachedPhase2 = true
+            return true
+        end
+    elseif sawStallGui then
+        -- Chi sang Phase 2 neu Stall muc tieu da xuat hien o Phase 1 roi bien mat
+        reachedPhase2 = true
         return true
     end
     return false
@@ -329,6 +342,9 @@ end
 local function isAttachedToCannon()
     local ch = getChar()
     if not ch then return false end
+    if lp and State.ActiveCannon and State.ActiveCannon.Parent and State.ActiveCannon:GetAttribute("Player") == lp.Name then
+        return true
+    end
     local hm = ch:FindFirstChildOfClass("Humanoid")
     if hm and (hm.SeatPart ~= nil or hm.Sit == true) then
         return true
@@ -421,13 +437,11 @@ end
 
 local function getCannonGeometry(cannon)
     if not cannon or not cannon.Parent then return nil end
-    -- Uu tien model Workspace.Cannon neu dang ngoi, de do BarrelWood that
-    local liveModel = workspace:FindFirstChild("Cannon") or cannon
-    local barrel = liveModel:FindFirstChild("Barrel") or cannon:FindFirstChild("Barrel")
+    -- Luon doc tu khau phao tren thanh (Workspace.Cannon la vien dan bay, khong phai nong phao)
+    local barrel = cannon:FindFirstChild("Barrel")
     local bw = (barrel and (barrel:FindFirstChild("BarrelWood") or barrel:FindFirstChildWhichIsA("BasePart")))
-        or liveModel:FindFirstChild("BarrelWood", true)
         or cannon:FindFirstChild("BarrelWood", true)
-    local base = liveModel:FindFirstChild("Base") or cannon:FindFirstChild("Base")
+    local base = cannon:FindFirstChild("Base")
     local seat = cannon:FindFirstChildWhichIsA("Seat", true) or cannon:FindFirstChildWhichIsA("VehicleSeat", true)
     if not (bw and bw:IsA("BasePart")) then return nil end
 
@@ -572,6 +586,35 @@ local function buildCannonTable(cannon, napePos)
         Base = geo and geo.base,
         Directions = {},
     }
+end
+
+local function findModelInArgs(val, depth)
+    depth = depth or 0
+    if typeof(val) == "Instance" then
+        if val:IsA("Model") then return val end
+        if val:IsA("BasePart") and val.Parent and val.Parent:IsA("Model") then return val.Parent end
+        return nil
+    end
+    if type(val) == "table" and depth < 4 then
+        for _, v in pairs(val) do
+            local m = findModelInArgs(v, depth + 1)
+            if m then return m end
+        end
+    end
+    return nil
+end
+
+local function getOwnedProjectile()
+    local fallback = nil
+    for _, child in ipairs(workspace:GetChildren()) do
+        if child.Name == "Cannon" and child:IsA("Model") then
+            if lp and child:GetAttribute("Player") == lp.Name then
+                return child
+            end
+            fallback = fallback or child
+        end
+    end
+    return fallback
 end
 
 local function mountCannonPrompt(cannon)
@@ -827,8 +870,8 @@ local function mountGui()
             sg.DisplayOrder = 999999
 
             local frame = Instance.new("Frame")
-            frame.Size = UDim2.fromOffset(420, 74)
-            frame.Position = UDim2.new(0.5, -210, 0, 10)
+            frame.Size = UDim2.fromOffset(486, 74)
+            frame.Position = UDim2.new(0.5, -243, 0, 10)
             frame.BackgroundColor3 = Color3.fromRGB(20, 22, 30)
             frame.BorderSizePixel = 0
             frame.Active = true
@@ -844,7 +887,7 @@ local function mountGui()
             lbl.Position = UDim2.fromOffset(6, 4)
             lbl.BackgroundTransparency = 1
             lbl.TextColor3 = Color3.fromRGB(255, 220, 140)
-            lbl.TextSize = 13
+            lbl.TextSize = 12
             lbl.Font = Enum.Font.GothamBold
             lbl.TextXAlignment = Enum.TextXAlignment.Left
             lbl.Text = "[Colo Test] Dang khoi dong..."
@@ -856,7 +899,7 @@ local function mountGui()
                 b.Position = UDim2.fromOffset(x, 38)
                 b.BackgroundColor3 = col
                 b.TextColor3 = Color3.new(1, 1, 1)
-                b.TextSize = 12
+                b.TextSize = 11
                 b.Font = Enum.Font.GothamSemibold
                 b.Text = txt
                 b.Parent = frame
@@ -865,7 +908,7 @@ local function mountGui()
                 return b
             end
 
-            makeBtn("Chay: BAT", 6, 92, Color3.fromRGB(46, 160, 92), function(b)
+            makeBtn("Chay: BAT", 6, 86, Color3.fromRGB(46, 160, 92), function(b)
                 Config.Enabled = not Config.Enabled
                 b.Text = Config.Enabled and "Chay: BAT" or "Chay: TAT"
                 b.BackgroundColor3 = Config.Enabled and Color3.fromRGB(46, 160, 92) or Color3.fromRGB(110, 110, 120)
@@ -876,19 +919,30 @@ local function mountGui()
                 end
             end)
 
-            makeBtn("Phao: ON", 104, 96, Color3.fromRGB(52, 118, 224), function(b)
+            makeBtn("Phao: ON", 98, 86, Color3.fromRGB(52, 118, 224), function(b)
                 Config.AutoCannon = not Config.AutoCannon
                 b.Text = Config.AutoCannon and "Phao: ON" or "Phao: OFF"
                 b.BackgroundColor3 = Config.AutoCannon and Color3.fromRGB(52, 118, 224) or Color3.fromRGB(110, 110, 120)
             end)
 
-            makeBtn("Bao Ve: ON", 206, 108, Color3.fromRGB(145, 85, 210), function(b)
+            makeBtn("Bao Ve: ON", 190, 98, Color3.fromRGB(145, 85, 210), function(b)
                 Config.AutoDefendEren = not Config.AutoDefendEren
                 b.Text = Config.AutoDefendEren and "Bao Ve: ON" or "Bao Ve: OFF"
                 b.BackgroundColor3 = Config.AutoDefendEren and Color3.fromRGB(145, 85, 210) or Color3.fromRGB(110, 110, 120)
             end)
 
-            makeBtn("Thoat Han", 320, 94, Color3.fromRGB(175, 55, 55), function()
+            makeBtn("Burst: 15", 294, 92, Color3.fromRGB(215, 130, 35), function(b)
+                if Config.CannonImpactBurst == 15 then
+                    Config.CannonImpactBurst = 25
+                elseif Config.CannonImpactBurst == 25 then
+                    Config.CannonImpactBurst = 1
+                else
+                    Config.CannonImpactBurst = 15
+                end
+                b.Text = "Burst: " .. tostring(Config.CannonImpactBurst)
+            end)
+
+            makeBtn("Thoat Han", 392, 88, Color3.fromRGB(175, 55, 55), function()
                 stopAllHooks()
                 sg:Destroy()
             end)
@@ -1014,34 +1068,49 @@ task.spawn(function()
 
                         if POST and not impactListenerBound then
                             impactListenerBound = true
-                            POST.OnClientEvent:Connect(function(a1, a2)
+                            POST.OnClientEvent:Connect(function(a1, a2, ...)
                                 if a1 == "Skills" and a2 == "Impact" and Config.Enabled and State.Mode == "CANNON" then
+                                    State.ImpactEvents = State.ImpactEvents + 1
                                     local liveNape = getTitanNape(getColossalModel())
                                     if liveNape then
-                                        local targetCn = workspace:FindFirstChild("Cannon") or State.ActiveCannon
-                                        if targetCn then
-                                            for _ = 1, Config.CannonImpactBurst do
-                                                pcall(function() POST:FireServer("S_Skills", "Impact", targetCn, liveNape.Position) end)
+                                        local evtProj = findModelInArgs({ ... }, 0)
+                                        local targetProj = evtProj or getOwnedProjectile()
+                                        if targetProj and targetProj.Parent then
+                                            local burst = math.max(1, tonumber(Config.CannonImpactBurst) or 15)
+                                            for _ = 1, burst do
+                                                pcall(function() POST:FireServer("S_Skills", "Impact", targetProj, liveNape.Position) end)
                                             end
-                                            State.Impacts = State.Impacts + Config.CannonImpactBurst
+                                            State.Impacts = State.Impacts + burst
                                         end
                                     end
                                 end
                             end)
                         end
 
-                        if State.MountedCannon ~= cannon then
-                            local tbl = buildCannonTable(cannon, nape.Position)
-                            local okS = invokeCannon("Cannon", "State", cannon, true, tbl)
-                            if not okS then
-                                mountCannonPrompt(cannon)
-                                task.wait(0.25)
+                        -- Kiem tra ngoi phao bang attribute Player == lp.Name tren model phao that
+                        local isMountedAttr = lp and cannon:GetAttribute("Player") == lp.Name
+                        if State.MountedCannon ~= cannon or not isMountedAttr then
+                            local ch = getChar()
+                            local hrp = ch and ch:FindFirstChild("HumanoidRootPart")
+                            local geoMount = getCannonGeometry(cannon)
+                            if hrp and geoMount and geoMount.base then
+                                local dCan = (hrp.Position - geoMount.base.Position).Magnitude
+                                if dCan > 45 then
+                                    hrp.CFrame = CFrame.new(geoMount.base.Position + Vector3.new(0, 6, 0))
+                                    pcall(function() hrp.AssemblyLinearVelocity = Vector3.zero; hrp.AssemblyAngularVelocity = Vector3.zero end)
+                                    task.wait(0.15)
+                                end
+                            end
+                            -- Thu nil theo kieu game/SmoothHub truoc, neu chua nhan Player thi thu gui kem tbl
+                            local okS = invokeCannon("Cannon", "State", cannon, true, nil)
+                            task.wait(0.12)
+                            if not okS or (lp and cannon:GetAttribute("Player") ~= lp.Name) then
+                                local tbl = buildCannonTable(cannon, nape.Position)
                                 invokeCannon("Cannon", "State", cannon, true, tbl)
+                                task.wait(0.12)
                             end
                             State.MountedCannon = cannon
-                            lastStateYaw = tbl.Angles.Base
-                            lastStatePitch = tbl.Angles.BarrelWood
-                            task.wait(0.12)
+                            lastStateYaw, lastStatePitch = nil, nil
                         end
 
                         local freshNape = nape.Position
@@ -1053,25 +1122,48 @@ task.spawn(function()
                             task.wait(0.03)
                         end
 
-                        local okShoot, resShoot = invokeCannon("Cannon", "Shoot", aimAngles)
-                        if okShoot and resShoot ~= false then
-                            State.Shots = State.Shots + 1
-                            task.wait(0.08)
-                            local ey, ep = calibrateAfterShot(cannon, aimAngles, nape.Position, dirBefore)
-                            local targetCn = workspace:FindFirstChild("Cannon") or cannon
-                            if POST then
-                                for _ = 1, Config.CannonImpactBurst do
-                                    pcall(function() POST:FireServer("S_Skills", "Impact", targetCn, nape.Position) end)
+                        local colHum = col:FindFirstChildOfClass("Humanoid")
+                        local colHpPct = (colHum and colHum.MaxHealth > 0) and (colHum.Health / colHum.MaxHealth * 100) or 100
+                        local cdSec = tonumber(cannon:GetAttribute("CD")) or 2.7
+                        local sinceShot = os.clock() - State.LastShotAt
+                        local isFiringAttr = cannon:GetAttribute("Firing") == true
+                        local mountedNow = (lp and cannon:GetAttribute("Player") == lp.Name)
+
+                        if not isFiringAttr and sinceShot >= math.min(cdSec, 0.75) then
+                            local prevImpactEvts = State.ImpactEvents
+                            local okShoot, resShoot = invokeCannon("Cannon", "Shoot", aimAngles)
+                            if okShoot and resShoot ~= false then
+                                State.Shots = State.Shots + 1
+                                State.LastShotAt = os.clock()
+                                -- Cho server spawn vien dan Workspace.Cannon va tra ve Skills/Impact
+                                local waitT0 = os.clock()
+                                while State.ImpactEvents == prevImpactEvts and os.clock() - waitT0 < 0.65 do
+                                    task.wait(0.04)
                                 end
-                                State.Impacts = State.Impacts + Config.CannonImpactBurst
+                                local ey, ep = calibrateAfterShot(cannon, aimAngles, nape.Position, dirBefore)
+                                -- Chi fallback neu server chua tra event ma vien dan Workspace.Cannon dang ton tai
+                                if State.ImpactEvents == prevImpactEvts then
+                                    local proj = getOwnedProjectile()
+                                    if proj and POST then
+                                        local burst = math.max(1, tonumber(Config.CannonImpactBurst) or 15)
+                                        for _ = 1, burst do
+                                            pcall(function() POST:FireServer("S_Skills", "Impact", proj, nape.Position) end)
+                                        end
+                                        State.Impacts = State.Impacts + burst
+                                    end
+                                end
+                                colHpPct = (colHum and colHum.MaxHealth > 0) and (colHum.Health / colHum.MaxHealth * 100) or colHpPct
+                                setStatus(string.format("[Phao P1] HP:%.1f%% | Plr:%s | Ban:%d Evt:%d Imp:%d | %.0fst (L %.0f/%.0f)",
+                                    colHpPct, mountedNow and "OK" or "?", State.Shots, State.ImpactEvents, State.Impacts, distXZ or 0, ey or 0, ep or 0))
+                            else
+                                setStatus(string.format("[Phao CD] HP:%.1f%% | Plr:%s | CD:%.1fs | Ban:%d Evt:%d",
+                                    colHpPct, mountedNow and "OK" or "NO", cdSec, State.Shots, State.ImpactEvents))
                             end
-                            setStatus(string.format("[Phao P1] %d/%d deg (%.0fst | Lech %.0f/%.0f) | Ban:%d | %s",
-                                aimAngles.BarrelWood, aimAngles.Base, distXZ or 0, ey or 0, ep or 0, State.Shots, stallTxt or "Stall"))
                         else
-                            State.MountedCannon = nil
-                            setStatus("[Phao P1] Thu ket noi lai phao...")
+                            setStatus(string.format("[Phao] HP:%.1f%% | Plr:%s | Cho CD... | Ban:%d Evt:%d Imp:%d",
+                                colHpPct, mountedNow and "OK" or "NO", State.Shots, State.ImpactEvents, State.Impacts))
                         end
-                        task.wait(0.28)
+                        task.wait(0.18)
                     end
                 elseif phase2 then
                     -- MUC 3 (Phase 2): Guc roi -> nha phao, don 9 hit vao Nape Colossal
