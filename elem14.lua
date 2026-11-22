@@ -912,8 +912,8 @@ function Recorder.push(rec)
 
     local useArgs = rec.finalArgs
     local useN = rec.finalN or 0
-    local rawArgsStr = useN > 0 and Parser.serializeTuple(useArgs, useN, RAW_SER_OPTS) or ""
-    local rawRetStr = (rec.retN and rec.retN > 0) and Parser.serializeTuple(rec.srvRets, rec.retN, RAW_SER_OPTS) or nil
+    local rawArgsStr = rec.actorRawPreview or (useN > 0 and Parser.serializeTuple(useArgs, useN, RAW_SER_OPTS) or "")
+    local rawRetStr = rec.actorRawRet or ((rec.retN and rec.retN > 0) and Parser.serializeTuple(rec.srvRets, rec.retN, RAW_SER_OPTS) or nil)
     local rawExtra = ""
     if rec.argsSpoofed and (rec.argN or 0) > 0 then
         rawExtra = rawExtra .. " | ORIG(" .. Parser.serializeTuple(origSnap, rec.argN, RAW_SER_OPTS) .. ")"
@@ -947,9 +947,9 @@ function Recorder.push(rec)
     rec.id = State.nextId
 
     local previewOpts = { pretty = false, maxDepth = 2, maxItems = 12, maxStrLen = 64, shortInst = true }
-    rec.preview = useN > 0 and Parser.serializeTuple(useArgs, useN, previewOpts) or ""
+    rec.preview = rec.actorRawPreview and rec.actorRawPreview:sub(1, 140) or (useN > 0 and Parser.serializeTuple(useArgs, useN, previewOpts) or "")
     if rawRetStr then
-        rec.retPreview = Parser.serializeTuple(rec.srvRets, rec.retN, previewOpts)
+        rec.retPreview = rec.actorRawRet and rec.actorRawRet:sub(1, 140) or Parser.serializeTuple(rec.srvRets, rec.retN, previewOpts)
     end
 
     -- Cap nhat counters & grouped map
@@ -1708,7 +1708,7 @@ function Hooks.ensureActorBridge()
         local okH, h = pcall(Caps.gethui)
         if okH and h then huiHost = h end
     end
-    local host = huiHost or Services.CoreGui
+    local host = Services.CoreGui or huiHost
     if not host then return nil end
 
     local existing = host:FindFirstChild(BRIDGE_NAME)
@@ -1742,6 +1742,7 @@ function Hooks.ensureActorBridge()
             status = blockedFlag and "BLOCKED" or "OK",
             callerName = "Actor:" .. tostring(actorName or "?"),
             actorRawPreview = preview,
+            actorRawRet = (retPreview and #retPreview > 0) and retPreview or nil,
             actorRawCode = codeBody,
         })
     end))
@@ -1769,10 +1770,12 @@ function Hooks.injectActors()
         if g.__SIGMA_ACTOR_HOOKED then return end
         g.__SIGMA_ACTOR_HOOKED = true
 
-        local CoreGui = game:GetService("CoreGui")
+        local okCG, CoreGui = pcall(function() return game:GetService("CoreGui") end)
         local function findBridge()
-            local b = CoreGui:FindFirstChild("__AOTR_SigmaSpyBridge")
-            if b then return b end
+            if okCG and CoreGui then
+                local b = CoreGui:FindFirstChild("__AOTR_SigmaSpyBridge")
+                if b then return b end
+            end
             if type(gethui) == "function" then
                 local okH, h = pcall(gethui)
                 if okH and h then
@@ -1788,24 +1791,35 @@ function Hooks.injectActors()
             actorName = scr and scr:GetFullName() or tostring(script)
         end)
 
-        local function serVal(v, d)
+        local wrapC = type(newcclosure) == "function" and newcclosure or function(f) return f end
+        local function serVal(v, d, seen)
             d = d or 0
             local tv = typeof(v)
-            if tv == "string" then return string.format("%q", #v > 120 and v:sub(1, 120) or v)
-            elseif tv == "number" or tv == "boolean" or tv == "nil" then return tostring(v)
-            elseif tv == "Vector3" then return string.format("Vector3.new(%.4g, %.4g, %.4g)", v.X, v.Y, v.Z)
-            elseif tv == "CFrame" then return string.format("CFrame.new(%.3g, %.3g, %.3g)", v.X, v.Y, v.Z)
+            if tv == "string" then return string.format("%q", #v > 8192 and v:sub(1, 8192) or v)
+            elseif tv == "number" then
+                if v == math.floor(v) and math.abs(v) < 1e15 then return string.format("%.0f", v) end
+                return string.format("%.10g", v)
+            elseif tv == "boolean" or tv == "nil" or tv == "EnumItem" then return tostring(v)
+            elseif tv == "Vector3" then return string.format("Vector3.new(%.6g, %.6g, %.6g)", v.X, v.Y, v.Z)
+            elseif tv == "CFrame" then
+                local p = v.Position
+                return string.format("CFrame.new(%.6g, %.6g, %.6g)", p.X, p.Y, p.Z)
             elseif tv == "Instance" then
                 local okF, f = pcall(function() return v:GetFullName() end)
                 return okF and f or v.Name
             elseif tv == "table" then
-                if d >= 3 then return "{...}" end
+                if d >= 8 then return "{...}" end
+                seen = seen or {}
+                if seen[v] then return "nil --[[cycle]]" end
+                seen[v] = true
                 local p, c = {}, 0
                 for k, vv in next, v do
                     c = c + 1
-                    if c > 20 then p[#p + 1] = "..."; break end
-                    p[#p + 1] = tostring(k) .. "=" .. serVal(vv, d + 1)
+                    if c > 250 then p[#p + 1] = "..."; break end
+                    local ks = type(k) == "number" and ("[" .. k .. "]") or ("[" .. serVal(k, d + 1, seen) .. "]")
+                    p[#p + 1] = ks .. " = " .. serVal(vv, d + 1, seen)
                 end
+                seen[v] = nil
                 return "{" .. table.concat(p, ", ") .. "}"
             end
             return tostring(v)
@@ -1813,70 +1827,114 @@ function Hooks.injectActors()
 
         local function serArgs(t, n)
             local p = {}
-            for i = 1, n do p[i] = serVal(t[i], 0) end
+            for i = 1, n do p[i] = serVal(t[i], 0, {}) end
             return table.concat(p, ", ")
         end
 
+        local inSelf = false
+        local actorDispatch = {}
+        local function handleActorCall(srcKind, m, oldFn, self, ...)
+            if inSelf then return oldFn(self, ...) end
+            local co = coroutine.running() or "A"
+            if srcKind == "FN" then
+                local d = actorDispatch[co]
+                if d and d.remote == self and d.m == m and (os.clock() - d.t) < 0.005 then
+                    actorDispatch[co] = nil
+                    return oldFn(self, ...)
+                end
+            end
+            if typeof(self) == "Instance" and (self:IsA("RemoteEvent") or self:IsA("UnreliableRemoteEvent") or self:IsA("RemoteFunction")) then
+                local n = select("#", ...)
+                local args = { ... }
+                inSelf = true
+                local bridge = findBridge()
+                local rName, rPath = "?", "?"
+                pcall(function() rName = self.Name; rPath = self:GetFullName() end)
+                local preview = serArgs(args, n)
+                local isBlocked = false
+                if bridge then
+                    local bStr = tostring(bridge:GetAttribute("BlockedOutKeys") or "")
+                    local s1 = type(args[1]) == "string" and args[1] or ""
+                    if bStr:find("|R::" .. rPath .. "|", 1, true) or (s1 ~= "" and bStr:find("|S1::" .. rPath .. "::" .. s1 .. "|", 1, true)) then
+                        isBlocked = true
+                    end
+                end
+                if isBlocked then
+                    if bridge then pcall(bridge.Fire, bridge, "OUT", m, rName, rPath, actorName, preview, "", true, "") end
+                    inSelf = false
+                    return nil
+                end
+                if m == "FireServer" then
+                    if bridge then pcall(bridge.Fire, bridge, "OUT", m, rName, rPath, actorName, preview, "", false, "") end
+                    inSelf = false
+                    if srcKind == "NC" then actorDispatch[co] = { remote = self, m = m, t = os.clock() } end
+                    oldFn(self, ...)
+                    actorDispatch[co] = nil
+                    return
+                else
+                    inSelf = false
+                    if srcKind == "NC" then actorDispatch[co] = { remote = self, m = m, t = os.clock() } end
+                    local function onRet(...)
+                        actorDispatch[co] = nil
+                        local rn = select("#", ...)
+                        local rt = { ... }
+                        inSelf = true
+                        local retStr = serArgs(rt, rn)
+                        if bridge then pcall(bridge.Fire, bridge, "OUT", m, rName, rPath, actorName, preview, "", false, retStr) end
+                        inSelf = false
+                        return unpack(rt, 1, rn)
+                    end
+                    return onRet(oldFn(self, ...))
+                end
+            end
+            return oldFn(self, ...)
+        end
+
         if type(hookmetamethod) == "function" and type(getnamecallmethod) == "function" then
-            local inSelf = false
             local oldNC
-            oldNC = hookmetamethod(game, "__namecall", function(self, ...)
+            oldNC = hookmetamethod(game, "__namecall", wrapC(function(self, ...)
                 if inSelf then return oldNC(self, ...) end
                 local m = getnamecallmethod()
                 if m == "FireServer" or m == "InvokeServer" then
-                    local okInst = typeof(self) == "Instance" and (self:IsA("RemoteEvent") or self:IsA("UnreliableRemoteEvent") or self:IsA("RemoteFunction"))
-                    if okInst then
-                        local n = select("#", ...)
-                        local args = { ... }
-                        inSelf = true
-                        local bridge = findBridge()
-                        local rName, rPath = "?", "?"
-                        pcall(function() rName = self.Name; rPath = self:GetFullName() end)
-                        local preview = serArgs(args, n)
-                        local isBlocked = false
-                        if bridge then
-                            local bStr = tostring(bridge:GetAttribute("BlockedOutKeys") or "")
-                            local s1 = type(args[1]) == "string" and args[1] or ""
-                            if bStr:find("|R::" .. rPath .. "|", 1, true) or (s1 ~= "" and bStr:find("|S1::" .. rPath .. "::" .. s1 .. "|", 1, true)) then
-                                isBlocked = true
-                            end
-                        end
-                        inSelf = false
-
-                        if isBlocked then
-                            if bridge then pcall(bridge.Fire, bridge, "OUT", m, rName, rPath, actorName, preview, "", true, "") end
-                            return nil
-                        end
-
-                        if m == "FireServer" then
-                            if bridge then pcall(bridge.Fire, bridge, "OUT", m, rName, rPath, actorName, preview, "", false, "") end
-                            return oldNC(self, ...)
-                        else
-                            local function onRet(...)
-                                local rn = select("#", ...)
-                                local rt = { ... }
-                                inSelf = true
-                                local retStr = serArgs(rt, rn)
-                                if bridge then pcall(bridge.Fire, bridge, "OUT", m, rName, rPath, actorName, preview, "", false, retStr) end
-                                inSelf = false
-                                return unpack(rt, 1, rn)
-                            end
-                            return onRet(oldNC(self, ...))
-                        end
-                    end
+                    return handleActorCall("NC", m, oldNC, self, ...)
                 end
                 return oldNC(self, ...)
-            end)
+            end))
+        end
+
+        if type(hookfunction) == "function" then
+            local function hookCls(cls, m)
+                pcall(function()
+                    local t = Instance.new(cls)
+                    local oldF
+                    oldF = hookfunction(t[m], wrapC(function(self, ...)
+                        return handleActorCall("FN", m, oldF, self, ...)
+                    end))
+                    t:Destroy()
+                end)
+            end
+            hookCls("RemoteEvent", "FireServer")
+            hookCls("UnreliableRemoteEvent", "FireServer")
+            hookCls("RemoteFunction", "InvokeServer")
         end
     ]===]
 
     local injected = 0
-    for _, act in ipairs(actors) do
-        local okR = pcall(Caps.runOnActor, act, actorSource)
-        if okR then injected = injected + 1 end
+    local errList = {}
+    for idx, act in ipairs(actors) do
+        local aPath = "?"
+        pcall(function() aPath = act:GetFullName() end)
+        local okR, errR = pcall(Caps.runOnActor, act, actorSource)
+        if okR then
+            injected = injected + 1
+            LogWriter.pushLine("[ACTOR_INJECT] OK #" .. idx .. " " .. aPath)
+        else
+            errList[#errList + 1] = aPath .. ":" .. tostring(errR)
+            LogWriter.pushLine("[ACTOR_INJECT] ERR #" .. idx .. " " .. aPath .. " -> " .. tostring(errR))
+        end
     end
     State.actorsHookedCount = State.actorsHookedCount + injected
-    return injected, string.format("Da tiem %d/%d Actors", injected, #actors)
+    return injected, string.format("Da tiem %d/%d Actors%s", injected, #actors, #errList > 0 and (" (err: " .. errList[1] .. ")") or "")
 end
 
 
@@ -2107,6 +2165,8 @@ function RawDumper.dumpRaidColoContext(outLines, opts)
             or l:find("attack", 1, true) or l:find("skill", 1, true) or l:find("cutscene", 1, true)
             or l:find("reward", 1, true) or l:find("phase", 1, true) or l:find("steam", 1, true)
             or l:find("eren", 1, true) or l:find("titan", 1, true) or l:find("host", 1, true)
+            or l:find("interaction", 1, true) or l:find("zone", 1, true) or l:find("protect", 1, true)
+            or l:find("stall", 1, true) or l:find("objective", 1, true) or l:find("actor.client", 1, true)
     end
 
     if Caps.decompile then
@@ -2124,7 +2184,7 @@ function RawDumper.dumpRaidColoContext(outLines, opts)
             end
             local lp = Utils.getLocalPlayer()
             local ps = lp and lp:FindFirstChild("PlayerScripts")
-            for _, r in ipairs({ Services.ReplicatedStorage, ps }) do
+            for _, r in ipairs({ Services.ReplicatedStorage, ps, Services.Workspace }) do
                 if r then
                     for _, d in ipairs(r:GetDescendants()) do pushScr(d) end
                 end
@@ -2132,26 +2192,56 @@ function RawDumper.dumpRaidColoContext(outLines, opts)
             if Caps.getscripts then
                 for _, s in ipairs(Caps.getscripts()) do pushScr(s) end
             end
-            local decomped = 0
+            local function scriptPrio(full)
+                local lf = string.lower(full)
+                if lf:find("actor.client.host", 1, true) or lf:find("actor.client", 1, true)
+                    or lf:find("utilities.cannon", 1, true) or lf:find("utilities.spears", 1, true)
+                    or lf:find("utilities.interactions", 1, true) or lf:find("core.skills", 1, true)
+                    or lf:find("user interface.raids", 1, true) or lf:find("user interface.rewards", 1, true)
+                    or lf:find("core.cutscene", 1, true) or lf:find("c_objectives.c_stall", 1, true)
+                    or lf:find("c_objectives.c_protect", 1, true) or lf:find("utilities.zones", 1, true)
+                then
+                    return 20
+                end
+                if lf:find(".skills.odm.", 1, true) or lf:find(".skills.family.", 1, true) then
+                    return 2
+                end
+                return 8
+            end
+            for _, item in ipairs(cands) do item.prio = scriptPrio(item.full) end
+            table.sort(cands, function(a, b)
+                if a.prio ~= b.prio then return a.prio > b.prio end
+                return a.full < b.full
+            end)
+            local decomped, seenFull = 0, {}
             for _, item in ipairs(cands) do
-                local okD, code = pcall(Caps.decompile, item.scr)
-                if okD and type(code) == "string" and #code > 0 then
-                    decomped = decomped + 1
-                    outLines[#outLines + 1] = string.format("[RAW_RAID_SRC] Script=%s (len=%d)", item.full, #code)
-                    local hits = 0
-                    for ln in code:gmatch("[^\r\n]+") do
-                        local ll = string.lower(ln)
-                        if ll:find("fireserver", 1, true) or ll:find("invokeserver", 1, true) or ll:find(":send(", 1, true)
-                            or ll:find("s_skills", 1, true) or ll:find("s_explode", 1, true) or ll:find("cannon", 1, true)
-                            or ll:find("colossal", 1, true) or ll:find("bertholdt", 1, true) or ll:find("nape", 1, true)
-                            or ll:find("cutscene", 1, true) or ll:find("reward", 1, true) or ll:find("phase", 1, true)
-                        then
-                            hits = hits + 1
-                            outLines[#outLines + 1] = "[RAW_RAID_SRC]   " .. Utils.trim(ln):sub(1, 220)
-                            if hits >= 25 then break end
+                local normKey = string.lower(item.full:gsub("^.*%.Host%.", "Host."):gsub("^.*%.Modules%.", "Modules."))
+                if not seenFull[normKey] then
+                    seenFull[normKey] = true
+                    local okD, code = pcall(Caps.decompile, item.scr)
+                    if okD and type(code) == "string" and #code > 0 then
+                        decomped = decomped + 1
+                        outLines[#outLines + 1] = string.format("[RAW_RAID_SRC] Script=%s (prio=%d len=%d)", item.full, item.prio, #code)
+                        if item.prio >= 20 then
+                            for ln in code:gmatch("[^\r\n]+") do
+                                outLines[#outLines + 1] = "[RAW_RAID_SRC]   " .. ln
+                            end
+                        else
+                            local hits = 0
+                            for ln in code:gmatch("[^\r\n]+") do
+                                local ll = string.lower(ln)
+                                if ll:find("fireserver", 1, true) or ll:find("invokeserver", 1, true) or ll:find(":send(", 1, true)
+                                    or ll:find(":invoke(", 1, true) or ll:find("s_skills", 1, true) or ll:find("cannon", 1, true)
+                                    or ll:find("colossal", 1, true) or ll:find("cutscene", 1, true) or ll:find("reward", 1, true)
+                                then
+                                    hits = hits + 1
+                                    outLines[#outLines + 1] = "[RAW_RAID_SRC]   " .. Utils.trim(ln):sub(1, 240)
+                                    if hits >= 45 then break end
+                                end
+                            end
                         end
+                        if decomped >= 28 then break end
                     end
-                    if decomped >= 20 then break end
                 end
             end
         end)
@@ -3091,13 +3181,27 @@ function UI.rebuildLeftList()
     local listFrame = State.refs.leftScroll
     if not (listFrame and listFrame.Parent) then return end
     for _, ch in ipairs(listFrame:GetChildren()) do
-        if ch:IsA("Frame") or ch:IsA("TextButton") then
+        if not (ch:IsA("UIListLayout") or ch:IsA("UIPadding")) then
             ch:Destroy()
         end
     end
 
     local tab = Config.viewTab
     if tab == "STREAM" then
+        if #State.entries == 0 then
+            local guide = Instance.new("TextLabel")
+            guide.Size = UDim2.new(1, -6, 0, 120)
+            guide.BackgroundTransparency = 1
+            guide.TextWrapped = true
+            guide.TextSize = 11
+            guide.Font = Enum.Font.Gotham
+            guide.TextXAlignment = Enum.TextXAlignment.Left
+            guide.TextYAlignment = Enum.TextYAlignment.Top
+            guide.TextColor3 = COLORS.muted
+            guide.Text = "Chua bat duoc Remote nao.\n\n1. Neu game dung Actor (AoTR), bam [Actors] o thanh tren (neu PC se tu tiem).\n2. Bam [_] thu gon thanh nut [Sigma Spy] roi vao choi (skip cutscene, ban phao, dung skill).\n3. Xong bam [Dump Raw] -> [Quet Raid Colo] de xuat file."
+            guide.Parent = listFrame
+            return
+        end
         local shown = 0
         for i = #State.entries, 1, -1 do
             local rec = State.entries[i]
@@ -3644,8 +3748,8 @@ function UI.mount()
             }
             for i, t in ipairs(tabs) do
                 local b = makeBtn(toolbar, {
-                    pos = UDim2.fromOffset(4 + (i - 1) * 60, 29),
-                    size = UDim2.fromOffset(57, 23),
+                    pos = UDim2.fromOffset(4 + (i - 1) * 56, 29),
+                    size = UDim2.fromOffset(53, 23),
                     bg = (Config.viewTab == t.id) and COLORS.accent or COLORS.card,
                     text = t.label,
                     ts = 10,
@@ -3660,10 +3764,26 @@ function UI.mount()
                 tabButtons[t.id] = b
             end
 
+            local actorsTopBtn
+            actorsTopBtn = makeBtn(toolbar, {
+                pos = UDim2.new(1, -280, 0, 29),
+                size = UDim2.fromOffset(76, 23),
+                bg = COLORS.panel,
+                fg = COLORS.outFire,
+                text = string.format("Actors:%d", State.actorsHookedCount),
+                ts = 10,
+                onClick = function()
+                    local cnt, msg = Hooks.injectActors()
+                    actorsTopBtn.Text = string.format("Actors:%d", State.actorsHookedCount)
+                    actorsTopBtn.BackgroundColor3 = State.actorsHookedCount > 0 and COLORS.green or COLORS.card
+                    actorsTopBtn.TextColor3 = COLORS.text
+                    UI.setStatusMsg(msg, cnt > 0 and COLORS.inEvent or COLORS.amber)
+                end,
+            })
             local dumpRawBtn
             dumpRawBtn = makeBtn(toolbar, {
-                pos = UDim2.new(1, -216, 0, 29),
-                size = UDim2.fromOffset(106, 23),
+                pos = UDim2.new(1, -200, 0, 29),
+                size = UDim2.fromOffset(96, 23),
                 bg = COLORS.green,
                 text = "Dump Full Raw",
                 ts = 10,
@@ -3673,8 +3793,8 @@ function UI.mount()
             })
             local extractBtn
             extractBtn = makeBtn(toolbar, {
-                pos = UDim2.new(1, -106, 0, 29),
-                size = UDim2.fromOffset(102, 23),
+                pos = UDim2.new(1, -100, 0, 29),
+                size = UDim2.fromOffset(96, 23),
                 bg = COLORS.amber,
                 fg = COLORS.bg,
                 text = "Quet Raid Colo",
@@ -3743,8 +3863,8 @@ function UI.mount()
             actBar.Parent = rightPanel
 
             makeBtn(actBar, {
-                pos = UDim2.fromOffset(0, 0),
-                size = UDim2.fromOffset(68, 24),
+                pos = UDim2.new(0 / 6, 0, 0, 0),
+                size = UDim2.new(1 / 6, -3, 0, 24),
                 bg = COLORS.green,
                 text = "Copy Lua",
                 ts = 10,
@@ -3757,8 +3877,8 @@ function UI.mount()
                 end,
             })
             makeBtn(actBar, {
-                pos = UDim2.fromOffset(72, 0),
-                size = UDim2.fromOffset(58, 24),
+                pos = UDim2.new(1 / 6, 1, 0, 0),
+                size = UDim2.new(1 / 6, -3, 0, 24),
                 bg = COLORS.accent,
                 text = "Replay",
                 ts = 10,
@@ -3778,7 +3898,7 @@ function UI.mount()
                         end
                         local co = Utils.getThreadKey()
                         State.internalThreads[co] = true
-                        local okR, r1, r2 = pcall(fn)
+                        local okR, r1 = pcall(fn)
                         State.internalThreads[co] = nil
                         if okR then
                             UI.setStatusMsg("Replay OK! Ret: " .. tostring(r1 or "nil"), COLORS.inEvent)
@@ -3789,32 +3909,32 @@ function UI.mount()
                 end,
             })
             local btnIgnore = makeBtn(actBar, {
-                pos = UDim2.fromOffset(134, 0),
-                size = UDim2.fromOffset(62, 24),
+                pos = UDim2.new(2 / 6, 1, 0, 0),
+                size = UDim2.new(1 / 6, -3, 0, 24),
                 bg = COLORS.card,
                 text = "Ignore",
                 ts = 10,
                 onClick = function() UI.toggleRuleFlag("ignore") end,
             })
             local btnBlockOut = makeBtn(actBar, {
-                pos = UDim2.fromOffset(200, 0),
-                size = UDim2.fromOffset(72, 24),
+                pos = UDim2.new(3 / 6, 1, 0, 0),
+                size = UDim2.new(1 / 6, -3, 0, 24),
                 bg = COLORS.card,
-                text = "Block OUT",
+                text = "Blk OUT",
                 ts = 10,
                 onClick = function() UI.toggleRuleFlag("blockOut") end,
             })
             local btnBlockIn = makeBtn(actBar, {
-                pos = UDim2.fromOffset(276, 0),
-                size = UDim2.fromOffset(68, 24),
+                pos = UDim2.new(4 / 6, 1, 0, 0),
+                size = UDim2.new(1 / 6, -3, 0, 24),
                 bg = COLORS.card,
-                text = "Block IN",
+                text = "Blk IN",
                 ts = 10,
                 onClick = function() UI.toggleRuleFlag("blockIn") end,
             })
             makeBtn(actBar, {
-                pos = UDim2.fromOffset(348, 0),
-                size = UDim2.fromOffset(72, 24),
+                pos = UDim2.new(5 / 6, 1, 0, 0),
+                size = UDim2.new(1 / 6, -1, 0, 24),
                 bg = COLORS.card,
                 text = "Save .lua",
                 ts = 10,
@@ -3836,6 +3956,7 @@ function UI.mount()
             codeScroll.Size = UDim2.new(1, -12, 1, -138)
             codeScroll.BackgroundColor3 = COLORS.bg
             codeScroll.BorderSizePixel = 0
+            codeScroll.ClipsDescendants = true
             codeScroll.ScrollBarThickness = 5
             codeScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
             codeScroll.Parent = rightPanel
@@ -3844,13 +3965,13 @@ function UI.mount()
 
             local codeBox = Instance.new("TextBox")
             codeBox.Position = UDim2.fromOffset(6, 4)
-            codeBox.Size = UDim2.new(1, -12, 1, -8)
-            codeBox.AutomaticSize = Enum.AutomaticSize.XY
+            codeBox.Size = UDim2.new(1, -16, 0, 24)
+            codeBox.AutomaticSize = Enum.AutomaticSize.Y
             codeBox.BackgroundTransparency = 1
             codeBox.MultiLine = true
             codeBox.TextEditable = false
             codeBox.ClearTextOnFocus = false
-            codeBox.TextWrapped = false
+            codeBox.TextWrapped = true
             codeBox.Font = Enum.Font.Code
             codeBox.TextSize = 11
             codeBox.TextColor3 = COLORS.text
@@ -4005,6 +4126,7 @@ function UI.mount()
                 btnIgnore = btnIgnore,
                 btnBlockOut = btnBlockOut,
                 btnBlockIn = btnBlockIn,
+                actorsTopBtn = actorsTopBtn,
                 hintLabel = hintLabel,
             }
         end)
@@ -4074,7 +4196,26 @@ gEnv.__AOTR_SIGMA_API = {
 LogWriter.initFile()
 Hooks.installAll()
 UI.mount()
+UI.rebuildLeftList()
 UI.refreshSelectedInspector()
+
+-- Tren PC (khong phai mobile), tu dong tiem Actor VMs de AoTR bat duoc ngay POST/GET
+if Caps.getactors and Caps.runOnActor and Services.UserInputService then
+    pcall(function()
+        if Services.UserInputService.KeyboardEnabled and not Services.UserInputService.TouchEnabled then
+            task.spawn(function()
+                local cnt, msg = Hooks.injectActors()
+                local ab = State.refs and State.refs.actorsTopBtn
+                if ab and ab.Parent then
+                    ab.Text = string.format("Actors:%d", State.actorsHookedCount)
+                    ab.BackgroundColor3 = State.actorsHookedCount > 0 and COLORS.green or COLORS.card
+                    ab.TextColor3 = COLORS.text
+                end
+                UI.setStatusMsg(msg, cnt > 0 and COLORS.inEvent or COLORS.amber)
+            end)
+        end
+    end)
+end
 
 Utils.notify("AoTR Sigma-Spy Fork", "Da bat 100% OUT + IN + Return + Block/Spoof!")
 print(string.format(
