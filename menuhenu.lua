@@ -8069,6 +8069,9 @@ function MacUI:CreateWindow(config)
 	})
 	Padding(TabList, 2, 8, 8, 8)
 	List(TabList, nil, 4)
+	TabList:GetPropertyChangedSignal("AbsoluteSize"):Connect(function()
+		TabScroll.CanvasSize = UDim2.fromOffset(0, TabList.AbsoluteSize.Y + 16)
+	end)
 	local TabOrder = 0
 	local function NextTabOrder()
 		TabOrder = TabOrder + 1
@@ -9119,13 +9122,18 @@ function MacUI:CreateWindow(config)
 	end
 
 	local function UpdateNavigation()
-		SetBackEnabled(Window.HistoryIndex > 1)
-		SetForwardEnabled(Window.HistoryIndex < #Window.History)
+		if type(SetBackEnabled) == "function" then
+			SetBackEnabled(Window.HistoryIndex > 1)
+		end
+		if type(SetForwardEnabled) == "function" then
+			SetForwardEnabled(Window.HistoryIndex < #Window.History)
+		end
 	end
 
 	local function UpdateToolbarDivider()
+		if not ToolbarDivider then return end
 		local tab = Window.CurrentTab
-		local scrolled = tab and tab.Page.CanvasPosition.Y > 1
+		local scrolled = tab and tab.Page and tab.Page.CanvasPosition and tab.Page.CanvasPosition.Y > 1
 		Tween(ToolbarDivider, { BackgroundTransparency = scrolled and 0 or 1 }, 0.2)
 	end
 
@@ -9398,6 +9406,10 @@ function MacUI:CreateWindow(config)
 			previous.Page.Visible = false
 		end
 		tab.Page.Visible = true
+		if CarBgImage then
+			local isHome = (tab.Title == "Trang Chủ")
+			CarBgImage.Visible = isHome
+		end
 		if previous then
 			tab.Page.Position = UDim2.fromOffset(0, 10)
 			Tween(tab.Page, { Position = UDim2.fromOffset(0, 0) }, 0.32, Enum.EasingStyle.Quint)
@@ -9432,12 +9444,16 @@ function MacUI:CreateWindow(config)
 		end
 	end
 
-	BackButton.MouseButton1Click:Connect(function()
-		Window:GoBack()
-	end)
-	ForwardButton.MouseButton1Click:Connect(function()
-		Window:GoForward()
-	end)
+	if BackButton then
+		BackButton.MouseButton1Click:Connect(function()
+			Window:GoBack()
+		end)
+	end
+	if ForwardButton then
+		ForwardButton.MouseButton1Click:Connect(function()
+			Window:GoForward()
+		end)
+	end
 
 	----------------------------------------------------------------------------
 	-- Search
@@ -9461,54 +9477,72 @@ function MacUI:CreateWindow(config)
 				end
 			end
 		end
-		EmptyState.Visible = query ~= "" and current ~= nil and not current.HasResults
-		EmptyTitle.Text = "No Results for “" .. SearchBox.Text .. "”"
+		if EmptyState then
+			EmptyState.Visible = query ~= "" and current ~= nil and not current.HasResults
+		end
+		if EmptyTitle and SearchBox then
+			EmptyTitle.Text = "No Results for “" .. SearchBox.Text .. "”"
+		end
 	end
 
 	function Window:Search(text)
-		SearchBox.Text = tostring(text or "")
+		if SearchBox then
+			SearchBox.Text = tostring(text or "")
+		end
 	end
 
-	local searchToken = 0
-	SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
-		searchToken = searchToken + (1)
-		local token = searchToken
-		task.delay(0.08, function()
-			if token ~= searchToken then
-				return
-			end
-			Window.SearchQuery = SearchBox.Text:lower():gsub("^%s+", ""):gsub("%s+$", "")
-			Window:_ApplySearch()
-		end)
-	end)
-	local function UpdateSearchChrome()
-		local empty = SearchBox.Text == ""
-		SearchClear.Visible = not empty
-		SpotlightHint.Visible = config.Spotlight ~= false and empty and not SearchBox:IsFocused() and
-		(UserInputService.KeyboardEnabled or touchSpotlight)
-	end
-	SearchBox:GetPropertyChangedSignal("Text"):Connect(UpdateSearchChrome)
-	SearchBox.Focused:Connect(function()
-		Tween(SearchStroke, { Transparency = 0.55 }, 0.15)
-		UpdateSearchChrome()
-	end)
-	SearchBox.FocusLost:Connect(function(enterPressed)
-		Tween(SearchStroke, { Transparency = 1 }, 0.2)
-		UpdateSearchChrome()
-		if enterPressed and SearchBox.Text ~= "" then
-			Window.SearchQuery = SearchBox.Text:lower():gsub("^%s+", ""):gsub("%s+$", "")
-			Window:_ApplySearch()
-			for _, row in ipairs(Window.CurrentTab and Window.CurrentTab.Rows or {}) do
-				if row.Frame.Visible then
-					Window:Reveal(row)
-					break
+	if SearchBox then
+		local searchToken = 0
+		SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+			searchToken = searchToken + (1)
+			local token = searchToken
+			task.delay(0.08, function()
+				if token ~= searchToken then
+					return
 				end
+				Window.SearchQuery = SearchBox.Text:lower():gsub("^%s+", ""):gsub("%s+$", "")
+				Window:_ApplySearch()
+			end)
+		end)
+		local function UpdateSearchChrome()
+			local empty = SearchBox.Text == ""
+			if SearchClear then
+				SearchClear.Visible = not empty
+			end
+			if SpotlightHint then
+				SpotlightHint.Visible = config.Spotlight ~= false and empty and not SearchBox:IsFocused() and
+				(UserInputService.KeyboardEnabled or touchSpotlight)
 			end
 		end
-	end)
-	SearchClear.MouseButton1Click:Connect(function()
-		SearchBox.Text = ""
-	end)
+		SearchBox:GetPropertyChangedSignal("Text"):Connect(UpdateSearchChrome)
+		SearchBox.Focused:Connect(function()
+			if SearchStroke then
+				Tween(SearchStroke, { Transparency = 0.55 }, 0.15)
+			end
+			UpdateSearchChrome()
+		end)
+		SearchBox.FocusLost:Connect(function(enterPressed)
+			if SearchStroke then
+				Tween(SearchStroke, { Transparency = 1 }, 0.2)
+			end
+			UpdateSearchChrome()
+			if enterPressed and SearchBox.Text ~= "" then
+				Window.SearchQuery = SearchBox.Text:lower():gsub("^%s+", ""):gsub("%s+$", "")
+				Window:_ApplySearch()
+				for _, row in ipairs(Window.CurrentTab and Window.CurrentTab.Rows or {}) do
+					if row.Frame.Visible then
+						Window:Reveal(row)
+						break
+					end
+				end
+			end
+		end)
+		if SearchClear then
+			SearchClear.MouseButton1Click:Connect(function()
+				SearchBox.Text = ""
+			end)
+		end
+	end
 
 	-- Scrolls a row (element, row or option index) into view and flashes it.
 	function Window:Reveal(target)
@@ -9523,7 +9557,7 @@ function MacUI:CreateWindow(config)
 			Window:Restore()
 		end
 		if not row.Frame.Visible and Window.SearchQuery ~= "" then
-			SearchBox.Text = ""
+			if SearchBox then SearchBox.Text = "" end
 			Window.SearchQuery = ""
 			Window:_ApplySearch()
 		end
@@ -9556,10 +9590,14 @@ function MacUI:CreateWindow(config)
 		if Window.SidebarVisible then
 			Sidebar.Visible = true
 		end
-		Tween(Sidebar, { Size = UDim2.new(0, width, 1, 0) }, 0.32)
-		Tween(Main, { Position = UDim2.fromOffset(width, 0), Size = UDim2.new(1, -width, 1, 0) }, 0.32)
-		Tween(Leading, { Position = UDim2.new(0, 12, 0.5, 0) }, 0.32)
-		Restyle(MainSquare, 0.32)
+		Tween(Sidebar, { Size = UDim2.new(0, width, 1, -toolbarHeight - 38) }, 0.32)
+		Tween(Main, { Position = UDim2.fromOffset(width > 0 and (width + 24) or 12, toolbarHeight + 2), Size = UDim2.new(1, width > 0 and (-width - 36) or -24, 1, -toolbarHeight - 38) }, 0.32)
+		if Leading then
+			Tween(Leading, { Position = UDim2.new(0, 12, 0.5, 0) }, 0.32)
+		end
+		if MainSquare then
+			Restyle(MainSquare, 0.32)
+		end
 		EmitState()
 		if not Window.SidebarVisible then
 			task.delay(0.33, function()
@@ -9574,9 +9612,11 @@ function MacUI:CreateWindow(config)
 		Window:SetSidebarVisible(not Window.SidebarVisible)
 	end
 
-	SidebarButton.MouseButton1Click:Connect(function()
-		Window:ToggleSidebar()
-	end)
+	if SidebarButton then
+		SidebarButton.MouseButton1Click:Connect(function()
+			Window:ToggleSidebar()
+		end)
+	end
 
 	----------------------------------------------------------------------------
 	-- Dragging & resizing
@@ -9584,17 +9624,18 @@ function MacUI:CreateWindow(config)
 
 	local drag, resize
 	local lastToolbarClick = 0
-	local DragExclusions = { SidebarButton, BackButton, ForwardButton, Search, Lights }
+	local DragExclusions = { RightControls }
 	local function OverControl(position)
 		for _, gui in ipairs(DragExclusions) do
-			local topLeft, extent = gui.AbsolutePosition, gui.AbsoluteSize
-			if gui.Visible
-				and position.X >= topLeft.X
-				and position.X <= topLeft.X + extent.X
-				and position.Y >= topLeft.Y
-				and position.Y <= topLeft.Y + extent.Y
-			then
-				return true
+			if gui and gui.Parent and gui.Visible then
+				local topLeft, extent = gui.AbsolutePosition, gui.AbsoluteSize
+				if position.X >= topLeft.X
+					and position.X <= topLeft.X + extent.X
+					and position.Y >= topLeft.Y
+					and position.Y <= topLeft.Y + extent.Y
+				then
+					return true
+				end
 			end
 		end
 		return false
@@ -9614,8 +9655,13 @@ function MacUI:CreateWindow(config)
 			drag = { Start = input.Position, Position = Root.Position, Input = input }
 		end
 	end
-	Toolbar.InputBegan:Connect(BeginDrag)
-	SidebarDrag.InputBegan:Connect(BeginDrag)
+	TopBar.InputBegan:Connect(BeginDrag)
+	if Toolbar then
+		Toolbar.InputBegan:Connect(BeginDrag)
+	end
+	if SidebarDrag then
+		SidebarDrag.InputBegan:Connect(BeginDrag)
+	end
 
 	local Grip = New("TextButton", {
 		Name = "ResizeGrip",
@@ -9703,9 +9749,9 @@ function MacUI:CreateWindow(config)
 	local SendenLogoToggle = New("TextButton", {
 		Name = "SendenLogoToggle",
 		AutoButtonColor = false,
-		AnchorPoint = Vector2.new(0, 0),
-		Position = UDim2.new(0, 16, 0, 74),
-		Size = UDim2.fromOffset(44, 44),
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 16, 0.5, 0),
+		Size = UDim2.fromOffset(48, 48),
 		BackgroundColor3 = Color3.fromRGB(16, 16, 20),
 		BackgroundTransparency = 0.08,
 		Text = "",
@@ -9713,9 +9759,9 @@ function MacUI:CreateWindow(config)
 		Visible = true,
 		Parent = ScreenGui,
 	})
-	Corner(SendenLogoToggle, UDim.new(1, 0))
+	Corner(SendenLogoToggle, 10)
 	New("UIStroke", {
-		Color = Color3.fromRGB(220, 42, 54),
+		Color = Color3.fromRGB(220, 35, 50),
 		Thickness = 1.6,
 		Transparency = 0.15,
 		Parent = SendenLogoToggle,
@@ -9731,7 +9777,7 @@ function MacUI:CreateWindow(config)
 		ZIndex = 201,
 		Parent = SendenLogoToggle,
 	})
-	Corner(SendenLogoToggleImg, UDim.new(1, 0))
+	Corner(SendenLogoToggleImg, 20)
 	table.insert(Cleanup, function()
 		if SendenLogoToggle and SendenLogoToggle.Parent then
 			pcall(function() SendenLogoToggle:Destroy() end)
@@ -9760,8 +9806,8 @@ function MacUI:CreateWindow(config)
 				local vp = ScreenGui.AbsoluteSize
 				local curX = (logoStartPos.X.Scale * vp.X) + logoStartPos.X.Offset
 				local curY = (logoStartPos.Y.Scale * vp.Y) + logoStartPos.Y.Offset
-				local nx = math.clamp(curX + delta.X, 4, math.max(4, vp.X - 48))
-				local ny = math.clamp(curY + delta.Y, 4, math.max(4, vp.Y - 48))
+				local nx = math.clamp(curX + delta.X, 4, math.max(4, vp.X - 52))
+				local ny = math.clamp(curY + delta.Y, 4, math.max(4, vp.Y - 52))
 				SendenLogoToggle.Position = UDim2.fromOffset(nx, ny)
 			end
 		end)
@@ -9777,23 +9823,23 @@ function MacUI:CreateWindow(config)
 	function Window:Minimize()
 		Window.Minimized = true
 		Window:SetVisible(false)
-		Dock.Visible = false
+		if Dock then Dock.Visible = false end
 	end
 
 	function Window:Restore()
 		Window.Minimized = false
 		Window:SetVisible(true)
-		Dock.Visible = false
+		if Dock then Dock.Visible = false end
 	end
 
 	function Window:Toggle()
 		if Window.Loading then
 			return -- the loading card is still up
 		end
-		if Window.Minimized then
-			Window:Restore()
-		else
+		if Root.Visible then
 			Window:Minimize()
+		else
+			Window:Restore()
 		end
 	end
 
@@ -11322,9 +11368,11 @@ function MacUI:CreateWindow(config)
 		end
 	end
 
-	SpotlightHint.MouseButton1Click:Connect(function()
-		Window:OpenSpotlight()
-	end)
+	if SpotlightHint then
+		SpotlightHint.MouseButton1Click:Connect(function()
+			Window:OpenSpotlight()
+		end)
+	end
 
 	----------------------------------------------------------------------------
 	-- Commands: actions that live in Spotlight (and optionally on a key)
